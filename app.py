@@ -61,6 +61,7 @@ class Skill(db.Model):
     # vvvv 確保您已經加上這兩行 vvvv
     school_type = db.Column(db.String(20), nullable=True, default='共同')
     grade_level = db.Column(db.String(20), nullable=True, default='國中')
+    generator_key = db.Column(db.String(100), nullable=True, index=True)
     # ^^^^ 確保您已經加上這兩行 ^^^^
 
     # ... (Skill 模型裡的其他欄位) ...
