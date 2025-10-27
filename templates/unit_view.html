@@ -87,7 +87,7 @@
                         </div>
                     </div>
                     <!-- 點擊後進入練習頁面 -->
-                    <a href="{{ url_for('practice', skill_id=data.skill.id) }}" class="btn-start">開始練習</a>
+                    <a href="{{ url_for('practice', skill_id=data.skill.name) }}" class="btn-start">開始練習</a>
                 </div>
             {% else %}
                 <p>此單元下沒有小單元。</p>

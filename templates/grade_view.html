@@ -40,7 +40,7 @@
         <div class="card-grid">
             {% for unit in main_units %}
                 <!-- 點擊後會連到 /unit/多項式函數 -->
-                <a href="{{ url_for('show_unit', main_unit_name=unit) }}" class="card-link">
+                <a href="{{ url_for('show_unit', grade_name=grade_name, main_unit_name=unit) }}" class="card-link">
                     <div class="card">
                         <h3>{{ unit }}</h3>
                     </div>

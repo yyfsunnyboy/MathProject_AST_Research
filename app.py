@@ -434,42 +434,122 @@ def generate_inequality_region_question():
 # 6. Skill Engine Definition
 # ==============================================================================
 SKILL_ENGINE = {
-    'remainder-theorem': {
+    # Polynomials
+    'polynomial_division': {
         'generator': generate_remainder_theorem_question,
-        'display_name': '餘式定理',
-        'description': '練習 f(x) 除以 (x-k) 的餘式。',
-        'prerequisite_skill_id': None
+        'display_name': '多項式的除法原理',
+        'description': '練習多項式除法、餘式與因式定理。'
     },
-    'factor-theorem': {
+    'quadratic_functions': {
         'generator': generate_factor_theorem_question,
-        'display_name': '因式定理',
-        'description': '判斷 (x-k) 是否為 f(x) 的因式。',
-        'prerequisite_skill_id': 'remainder-theorem'
+        'display_name': '一次與二次函數',
+        'description': '練習判斷因式。'
     },
-    'linear-eq-substitution': {
-        'generator': generate_substitution_question,
-        'display_name': '二元一次 (帶入消去法)',
-        'description': '練習 y=ax+b 形式的帶入消去。',
-        'prerequisite_skill_id': None
+    'cubic_functions_graph': {
+        'generator': generate_factor_theorem_question,
+        'display_name': '三次函數的圖形特徵',
+        'description': '練習判斷因式。'
     },
-    'linear-eq-addition': {
-        'generator': generate_addition_subtraction_question,
-        'display_name': '二元一次 (加減消去法)',
-        'description': '練習係數需乘以倍數的加減消去。',
-        'prerequisite_skill_id': 'linear-eq-substitution'
-    },
-    'linear-ineq-region': {
+    'polynomial_inequalities': {
         'generator': generate_inequality_region_question,
-        'display_name': '二元一次不等式 (圖解區域)',
-        'description': '在數位計算紙上畫出不等式的解區域。',
-        'prerequisite_skill_id': 'linear-eq-addition'
+        'display_name': '多項式不等式',
+        'description': '練習不等式相關問題。'
     },
-    'linear-ineq-check-point': {
-        'generator': generate_check_point_in_system_question,
-        'display_name': '二元一次不等式 (判斷解)',
-        'description': '判斷一個點是否為不等式系統的解。',
-        'prerequisite_skill_id': 'linear-ineq-region'
-    }
+    'polynomials_intro': {
+        'generator': generate_remainder_theorem_question,
+        'display_name': '多項式',
+        'description': '練習多項式除法、餘式與因式定理。'
+    },
+
+    # Linear Algebra & Equations
+    'linear_equations': {
+        'generator': generate_addition_subtraction_question,
+        'display_name': '直線方程式',
+        'description': '練習二元一次聯立方程式。'
+    },
+    'simultaneous_equations_1or2var': {
+        'generator': generate_addition_subtraction_question,
+        'display_name': '一/二元一次聯立方程式',
+        'description': '練習二元一次聯立方程式。'
+    },
+    'simultaneous_equations_3var': {
+        'generator': generate_addition_subtraction_question,
+        'display_name': '三元一次聯立方程式',
+        'description': '練習二元一次聯立方程式(暫代)。'
+    },
+    'linear_programming': {
+        'generator': generate_inequality_region_question,
+        'display_name': '線性規劃',
+        'description': '練習二元一次不等式圖解區域。'
+    },
+
+    # Placeholder Mappings (using default generators)
+    'exponents': { 'generator': generate_remainder_theorem_question, 'display_name': '指數', 'description': 'Placeholder' },
+    'complex_roots_polynomials': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與多項式方程式的根', 'description': 'Placeholder' },
+    'logarithms': { 'generator': generate_remainder_theorem_question, 'display_name': '指數', 'description': 'Placeholder' },
+    'common_logarithms': { 'generator': generate_remainder_theorem_question, 'display_name': '常用對數', 'description': 'Placeholder' },
+    'circle_equations': { 'generator': generate_remainder_theorem_question, 'display_name': '圓方程式', 'description': 'Placeholder' },
+    'circle_line_relations': { 'generator': generate_remainder_theorem_question, 'display_name': '圓與直線', 'description': 'Placeholder' },
+    'sequences_recursion': { 'generator': generate_remainder_theorem_question, 'display_name': '數列與遞迴關係', 'description': 'Placeholder' },
+    'series': { 'generator': generate_remainder_theorem_question, 'display_name': '級數', 'description': 'Placeholder' },
+    'counting_principles': { 'generator': generate_remainder_theorem_question, 'display_name': '計數原理', 'description': 'Placeholder' },
+    'permutations': { 'generator': generate_remainder_theorem_question, 'display_name': '排列', 'description': 'Placeholder' },
+    'combinations': { 'generator': generate_remainder_theorem_question, 'display_name': '組合', 'description': 'Placeholder' },
+    'classical_probability': { 'generator': generate_remainder_theorem_question, 'display_name': '古典機率', 'description': 'Placeholder' },
+    'expected_value': { 'generator': generate_remainder_theorem_question, 'display_name': '數學期望值', 'description': 'Placeholder' },
+    'data_analysis_1d': { 'generator': generate_remainder_theorem_question, 'display_name': '一維數據分析', 'description': 'Placeholder' },
+    'data_analysis_2d': { 'generator': generate_remainder_theorem_question, 'display_name': '二維數據分析', 'description': 'Placeholder' },
+    'trig_ratios_right_triangle': { 'generator': generate_remainder_theorem_question, 'display_name': '直角三角形的三角比', 'description': 'Placeholder' },
+    'trig_ratios_general_angle': { 'generator': generate_remainder_theorem_question, 'display_name': '廣義角三角比', 'description': 'Placeholder' },
+    'polar_coordinates': { 'generator': generate_remainder_theorem_question, 'display_name': '與極坐標', 'description': 'Placeholder' },
+    'trig_properties_laws': { 'generator': generate_remainder_theorem_question, 'display_name': '三角比的性質', 'description': 'Placeholder' },
+    'radian_measure': { 'generator': generate_remainder_theorem_question, 'display_name': '弧度量', 'description': 'Placeholder' },
+    'trig_graphs_periodicity': { 'generator': generate_remainder_theorem_question, 'display_name': '三角函數的圖形 / 週期性', 'description': 'Placeholder' },
+    'trig_sum_difference': { 'generator': generate_remainder_theorem_question, 'display_name': '三角的和差角公式', 'description': 'Placeholder' },
+    'trig_sine_cosine_combination': { 'generator': generate_remainder_theorem_question, 'display_name': '正餘弦的疊合', 'description': 'Placeholder' },
+    'real_number_system': { 'generator': generate_remainder_theorem_question, 'display_name': '數', 'description': 'Placeholder' },
+    'absolute_value': { 'generator': generate_remainder_theorem_question, 'display_name': '絕對值', 'description': 'Placeholder' },
+    'exponential_functions': { 'generator': generate_remainder_theorem_question, 'display_name': '指數函數', 'description': 'Placeholder' },
+    'logarithmic_properties': { 'generator': generate_remainder_theorem_question, 'display_name': '對數與對數律 / 對數', 'description': 'Placeholder' },
+    'logarithmic_functions': { 'generator': generate_remainder_theorem_question, 'display_name': '對數函數', 'description': 'Placeholder' },
+    'vectors_2d': { 'generator': generate_remainder_theorem_question, 'display_name': '平面向量', 'description': 'Placeholder' },
+    'vectors_2d_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '平面向量的運算', 'description': 'Placeholder' },
+    'space_concepts': { 'generator': generate_remainder_theorem_question, 'display_name': '空間概念', 'description': 'Placeholder' },
+    'vectors_3d_coordinates': { 'generator': generate_remainder_theorem_question, 'display_name': '空間向量的坐標表示法', 'description': 'Placeholder' },
+    'vectors_3d_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '空間向量的運算', 'description': 'Placeholder' },
+    'determinant_3x3': { 'generator': generate_remainder_theorem_question, 'display_name': '三階行列式', 'description': 'Placeholder' },
+    'planes_in_space': { 'generator': generate_remainder_theorem_question, 'display_name': '空間中的平面', 'description': 'Placeholder' },
+    'lines_in_space': { 'generator': generate_remainder_theorem_question, 'display_name': '空間中的直線', 'description': 'Placeholder' },
+    'function_properties': { 'generator': generate_remainder_theorem_question, 'display_name': '函數性質的判定', 'description': 'Placeholder' },
+    'matrix_applications': { 'generator': generate_remainder_theorem_question, 'display_name': '矩陣的應用', 'description': 'Placeholder' },
+    'matrix_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '矩陣的運算', 'description': 'Placeholder' },
+    'ratio_in_plane': { 'generator': generate_remainder_theorem_question, 'display_name': '平面上的比例', 'description': 'Placeholder' },
+    'coordinate_systems': { 'generator': generate_remainder_theorem_question, 'display_name': '坐標系', 'description': 'Placeholder' },
+    'conic_sections': { 'generator': generate_remainder_theorem_question, 'display_name': '圓錐曲線', 'description': 'Placeholder' },
+    'parabola': { 'generator': generate_remainder_theorem_question, 'display_name': '拋物線', 'description': 'Placeholder' },
+    'ellipse': { 'generator': generate_remainder_theorem_question, 'display_name': '橢圓', 'description': 'Placeholder' },
+    'hyperbola': { 'generator': generate_remainder_theorem_question, 'display_name': '雙曲線', 'description': 'Placeholder' },
+    'quadratic_curves': { 'generator': generate_remainder_theorem_question, 'display_name': '二次曲線', 'description': 'Placeholder' },
+    'conditional_probability': { 'generator': generate_remainder_theorem_question, 'display_name': '條件機率', 'description': 'Placeholder' },
+    'bayes_theorem': { 'generator': generate_remainder_theorem_question, 'display_name': '貝氏定理', 'description': 'Placeholder' },
+    'discrete_random_variables': { 'generator': generate_remainder_theorem_question, 'display_name': '離散型隨機變數', 'description': 'Placeholder' },
+    'binomial_geometric_distributions': { 'generator': generate_remainder_theorem_question, 'display_name': '二項分布與幾何分布', 'description': 'Placeholder' },
+    'binomial_distribution': { 'generator': generate_remainder_theorem_question, 'display_name': '二項分布', 'description': 'Placeholder' },
+    'complex_numbers_geometry': { 'generator': generate_remainder_theorem_question, 'display_name': '複數的幾何意涵', 'description': 'Placeholder' },
+    'complex_plane': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與複數平面', 'description': 'Placeholder' },
+    'sequence_limits_infinite_series': { 'generator': generate_remainder_theorem_question, 'display_name': '數列的極限與無窮等比級數', 'description': 'Placeholder' },
+    'functions_limits': { 'generator': generate_remainder_theorem_question, 'display_name': '函數與函數的極限', 'description': 'Placeholder' },
+    'differentiation': { 'generator': generate_remainder_theorem_question, 'display_name': '微分', 'description': 'Placeholder' },
+    'integration': { 'generator': generate_remainder_theorem_question, 'display_name': '積分', 'description': 'Placeholder' },
+    'integration_applications': { 'generator': generate_remainder_theorem_question, 'display_name': '積分的應用', 'description': 'Placeholder' },
+
+    # Original 6 skills (now mapped to user's keys)
+    'remainder-theorem': { 'generator': generate_remainder_theorem_question, 'display_name': '餘式定理', 'description': '練習 f(x) 除以 (x-k) 的餘式。' },
+    'factor-theorem': { 'generator': generate_factor_theorem_question, 'display_name': '因式定理', 'description': '判斷 (x-k) 是否為 f(x) 的因式。' },
+    'linear-eq-substitution': { 'generator': generate_substitution_question, 'display_name': '二元一次 (帶入消去法)', 'description': '練習 y=ax+b 形式的帶入消去。' },
+    'linear-eq-addition': { 'generator': generate_addition_subtraction_question, 'display_name': '二元一次 (加減消去法)', 'description': '練習係數需乘以倍數的加減消去。' },
+    'linear-ineq-region': { 'generator': generate_inequality_region_question, 'display_name': '二元一次不等式 (圖解區域)', 'description': '在數位計算紙上畫出不等式的解區域。' },
+    'linear-ineq-check-point': { 'generator': generate_check_point_in_system_question, 'display_name': '二元一次不等式 (判斷解)', 'description': '判斷一個點是否為不等式系統的解。' }
 }
 
 DEMOTION_THRESHOLD = 3  # 連續答錯 3 題就降級
@@ -478,7 +558,7 @@ def initialize_skills():
     """同步 SKILL_ENGINE 到資料庫 (包含先備知識)"""
     print("正在同步技能到資料庫...")
     for skill_id, skill_data_in_code in SKILL_ENGINE.items():
-        skill_in_db = Skill.query.filter_by(skill_id=skill_id).first()
+        skill_in_db = Skill.query.filter_by(name=skill_id).first()
         needs_update = False
         if skill_in_db:
             # 比較並更新現有技能
@@ -488,19 +568,26 @@ def initialize_skills():
             if 'description' in skill_data_in_code and skill_in_db.description != skill_data_in_code['description']:
                 skill_in_db.description = skill_data_in_code['description']
                 needs_update = True
-            if skill_in_db.prerequisite_skill_id != skill_data_in_code.get('prerequisite_skill_id'):
-                skill_in_db.prerequisite_skill_id = skill_data_in_code.get('prerequisite_skill_id')
+            if 'grade_level' in skill_data_in_code and skill_in_db.grade_level != skill_data_in_code['grade_level']:
+                skill_in_db.grade_level = skill_data_in_code['grade_level']
                 needs_update = True
+            if 'main_unit' in skill_data_in_code and skill_in_db.main_unit != skill_data_in_code['main_unit']:
+                skill_in_db.main_unit = skill_data_in_code['main_unit']
+                needs_update = True
+            # if skill_in_db.prerequisite_skill_id != skill_data_in_code.get('prerequisite_skill_id'):
+            #     skill_in_db.prerequisite_skill_id = skill_data_in_code.get('prerequisite_skill_id')
+            #     needs_update = True
             if needs_update:
                 db.session.commit()
                 print(f"更新技能 {skill_id} 到資料庫")
         else:
             # 創建新技能
             new_skill = Skill(
-                skill_id=skill_id,
+                name=skill_id,
                 display_name=skill_data_in_code['display_name'],
                 description=skill_data_in_code.get('description', '無描述'),
-                prerequisite_skill_id=skill_data_in_code.get('prerequisite_skill_id')
+                grade_level=skill_data_in_code.get('grade_level'),
+                main_unit=skill_data_in_code.get('main_unit')
             )
             db.session.add(new_skill)
             db.session.commit()
@@ -625,8 +712,8 @@ def dashboard():
 # ( ... dashboard 函式的正下方 ... )
 
 # ( ... 找到您 app.py 中的 show_unit ... )
-@app.route('/unit/<path:main_unit_name>')
-def show_unit(main_unit_name):
+@app.route('/unit/<grade_name>/<path:main_unit_name>')
+def show_unit(grade_name, main_unit_name):
     """ 
     [新頁面] 顯示特定大單元的所有「小單元」 (包含使用者進度)
     """
@@ -663,11 +750,11 @@ def show_unit(main_unit_name):
         flash("讀取小單元時發生錯誤。", "warning")
         
     # 從第一個小單元反查年級，用來顯示麵包屑導覽
-    current_grade = sub_units_query[0].grade_level if sub_units_query else "..."
+    # current_grade = sub_units_query[0].grade_level if sub_units_query else "..."
 
     # 我們會建立第二個新的 HTML 模板來顯示
     return render_template('unit_view.html',
-                           grade_name=current_grade,
+                           grade_name=grade_name,
                            main_unit_name=main_unit_name,
                            sub_units_data=sub_units_data) # <--- 注意，變數名稱改了
 # ( ... 取代到這裡為止 ... )
@@ -677,7 +764,7 @@ def practice(skill_id):
     if 'user_id' not in session:
         flash("請先登入！", "warning")
         return redirect(url_for('login'))
-    skill = Skill.query.filter_by(skill_id=skill_id).first()
+    skill = Skill.query.filter_by(name=skill_id).first()
     if not skill or skill_id not in SKILL_ENGINE:
         flash("找不到指定的練習單元。", "danger")
         return redirect(url_for('dashboard'))
@@ -756,7 +843,7 @@ def check_answer():
     
     try:
         user_id = session['user_id']
-        skill = Skill.query.filter_by(skill_id=skill_id_str).first()
+        skill = Skill.query.filter_by(name=skill_id_str).first()
         if skill:
             progress = UserProgress.query.filter_by(user_id=user_id, skill_id=skill.id).first()
             if not progress:
@@ -773,7 +860,7 @@ def check_answer():
                 progress.consecutive_incorrect += 1
                 if progress.consecutive_incorrect >= DEMOTION_THRESHOLD and skill.prerequisite_skill_id:
                     demote_to_skill_id = skill.prerequisite_skill_id
-                    prereq_skill = Skill.query.filter_by(skill_id=demote_to_skill_id).first()
+                    prereq_skill = Skill.query.filter_by(name=demote_to_skill_id).first()
                     prereq_name = prereq_skill.display_name if prereq_skill else "基礎單元"
                     result_message = f"您在「{skill.display_name}」單元連續答錯 {progress.consecutive_incorrect} 題了。\n系統建議您先回去複習「{prereq_name}」！"
                     progress.consecutive_incorrect = 0
@@ -921,7 +1008,7 @@ def analyze_handwriting():
 
             # --- 更新資料庫進度 (只針對畫圖題) ---
             try:
-                skill = Skill.query.filter_by(skill_id=current_skill_id_str).first()
+                skill = Skill.query.filter_by(name=current_skill_id_str).first()
                 if skill and user_id:
                     progress = UserProgress.query.filter_by(user_id=user_id, skill_id=skill.id).first()
                     if not progress:
@@ -937,7 +1024,7 @@ def analyze_handwriting():
                         progress.consecutive_incorrect += 1
                         if progress.consecutive_incorrect >= DEMOTION_THRESHOLD and skill.prerequisite_skill_id:
                             demote_to_skill_id = skill.prerequisite_skill_id
-                            prereq_skill = Skill.query.filter_by(skill_id=demote_to_skill_id).first()
+                            prereq_skill = Skill.query.filter_by(name=demote_to_skill_id).first()
                             prereq_name = prereq_skill.display_name if prereq_skill else "基礎單元"
                             detailed_feedback += f"\n\n錯誤次數較多，建議您先複習「{prereq_name}」。"
                     db.session.commit()
