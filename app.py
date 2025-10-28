@@ -11,6 +11,7 @@ from flask_bcrypt import Bcrypt
 import google.generativeai as genai
 from PIL import Image
 import time
+import re
 from google.api_core.exceptions import ResourceExhausted
 
 # ==============================================================================
@@ -399,6 +400,265 @@ def generate_check_point_in_system_question():
         "validation_function_name": validate_check_point.__name__
     }
 
+def generate_common_logarithm_question():
+    power = random.randint(1, 3)
+    base = 10
+    number = base ** power
+    question_text = f"計算 log({number}) = ?"
+    return {
+        "text": question_text,
+        "answer": str(power),
+        "validation_function_name": None
+    }
+
+def generate_linear_equation_question():
+    # Generate two points (x1, y1) and (x2, y2)
+    x1, y1 = random.randint(-5, 5), random.randint(-5, 5)
+    x2, y2 = random.randint(-5, 5), random.randint(-5, 5)
+    while x1 == x2: # Ensure distinct x-coordinates for a non-vertical line
+        x2 = random.randint(-5, 5)
+
+    # Calculate slope (m) and y-intercept (b)
+    m_num = y2 - y1
+    m_den = x2 - x1
+
+    # Simplify the slope if possible
+    from math import gcd
+    common_divisor = gcd(m_num, m_den)
+    m_num //= common_divisor
+    m_den //= common_divisor
+
+    # Equation: y - y1 = m(x - x1)
+    # y = (m_num/m_den) * x - (m_num/m_den) * x1 + y1
+    # To avoid fractions in the answer, we'll ask for the slope and y-intercept
+    
+    question_text = f"已知兩點 ({x1}, {y1}) 和 ({x2}, {y2})，求通過這兩點的直線斜率。"
+    
+    # Answer is the simplified slope
+    if m_den == 1:
+        answer = str(m_num)
+    else:
+        answer = f"{m_num}/{m_den}"
+
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_circle_equation_question():
+    center_x = random.randint(-3, 3)
+    center_y = random.randint(-3, 3)
+    radius = random.randint(2, 5)
+    
+    # Equation: (x - h)^2 + (y - k)^2 = r^2
+    # Ask for the equation given center and radius
+    question_text = f"已知圓心為 ({center_x}, {center_y})，半徑為 {radius}，求此圓的方程式。"
+    
+    # Answer format: (x-h)^2+(y-k)^2=r^2
+    h_str = f"x - {abs(center_x)}" if center_x > 0 else f"x + {abs(center_x)}" if center_x < 0 else "x"
+    k_str = f"y - {abs(center_y)}" if center_y > 0 else f"y + {abs(center_y)}" if center_y < 0 else "y"
+    
+    if center_x == 0 and center_y == 0:
+        answer = f"x^2+y^2={radius**2}"
+    elif center_x == 0:
+        answer = f"x^2+({k_str})^2={radius**2}"
+    elif center_y == 0:
+        answer = f"({h_str})^2+y^2={radius**2}"
+    else:
+        answer = f"({h_str})^2+({k_str})^2={radius**2}"
+
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_circle_line_question():
+    # Simple question: determine if a point is on a circle
+    center_x = random.randint(-3, 3)
+    center_y = random.randint(-3, 3)
+    radius = random.randint(2, 4)
+    
+    # Generate a point (px, py)
+    px = random.randint(center_x - radius - 1, center_x + radius + 1)
+    py = random.randint(center_y - radius - 1, center_y + radius + 1)
+    
+    # Check if the point is on the circle
+    distance_sq = (px - center_x)**2 + (py - center_y)**2
+    is_on_circle = (distance_sq == radius**2)
+    
+    question_text = f"已知圓方程式為 (x - {center_x})^2 + (y - {center_y})^2 = {radius**2}，請問點 ({px}, {py}) 是否在此圓上？ (請回答 '是' 或 '否')"
+    correct_answer = "是" if is_on_circle else "否"
+
+    return {
+        "text": question_text,
+        "answer": correct_answer,
+        "validation_function_name": None # Simple string comparison
+    }
+
+def generate_polynomial_division_question():
+    # Generate a simple quadratic polynomial and a linear divisor
+    a = random.randint(1, 3)
+    b = random.randint(-5, 5)
+    c = random.randint(-9, 9)
+    
+    divisor_root = random.randint(-3, 3) # x - divisor_root
+    
+    # Polynomial: ax^2 + bx + c
+    # Divisor: x - divisor_root
+    
+    # Using synthetic division or direct calculation
+    # (ax^2 + bx + c) / (x - r) = (ax + (b+ar)) with remainder (c+r(b+ar))
+    
+    quotient_coeff_x = a
+    quotient_constant = b + a * divisor_root
+    remainder = c + divisor_root * (b + a * divisor_root)
+    
+    poly_text = f"{a}x^2 + {b}x + {c}" if b >= 0 and c >= 0 else f"{a}x^2 {b}x {c}" if b < 0 and c < 0 else f"{a}x^2 {b}x + {c}" if b < 0 else f"{a}x^2 + {b}x {c}"
+    divisor_text = f"x - {abs(divisor_root)}" if divisor_root > 0 else f"x + {abs(divisor_root)}"
+    
+    question_text = f"求多項式 {poly_text} 除以 {divisor_text} 的餘式。"
+    
+    return {
+        "text": question_text,
+        "answer": str(remainder),
+        "validation_function_name": None
+    }
+
+def generate_quadratic_function_question():
+    a = random.randint(1, 3)
+    b = random.randint(-5, 5)
+    c = random.randint(-9, 9)
+
+    # Find vertex (-b/2a)
+    vertex_x_num = -b
+    vertex_x_den = 2 * a
+    
+    # Simplify fraction
+    from math import gcd
+    common_divisor = gcd(vertex_x_num, vertex_x_den)
+    vertex_x_num //= common_divisor
+    vertex_x_den //= common_divisor
+
+    question_text = f"已知二次函數 f(x) = {a}x^2 + {b}x + {c}，求其頂點的 x 座標。"
+    
+    if vertex_x_den == 1:
+        answer = str(vertex_x_num)
+    else:
+        answer = f"{vertex_x_num}/{vertex_x_den}"
+
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_cubic_function_question():
+    a = random.randint(1, 2)
+    b = random.randint(-3, 3)
+    c = random.randint(-5, 5)
+    d = random.randint(-9, 9)
+    x_val = random.randint(-2, 2)
+
+    # Function: f(x) = ax^3 + bx^2 + cx + d
+    correct_answer = a * (x_val**3) + b * (x_val**2) + c * x_val + d
+
+    question_text = f"已知三次函數 f(x) = {a}x^3 + {b}x^2 + {c}x + {d}，求 f({x_val}) 的值。"
+
+    return {
+        "text": question_text,
+        "answer": str(correct_answer),
+        "validation_function_name": None
+    }
+
+def generate_polynomial_inequality_question():
+    # Simple linear inequality for now
+    a = random.randint(-5, 5)
+    while a == 0:
+        a = random.randint(-5, 5)
+    b = random.randint(-10, 10)
+    
+    sign = random.choice(['>', '<', '>=', '<='])
+
+    question_text = f"解不等式 {a}x {sign} {b}。"
+    
+    # Solve for x
+    if a > 0:
+        if sign == '>': answer_sign = '>'
+        elif sign == '<': answer_sign = '<'
+        elif sign == '>=': answer_sign = '>='
+        else: answer_sign = '<='
+        answer_val = b / a
+    else: # a < 0, reverse inequality sign
+        if sign == '>': answer_sign = '<'
+        elif sign == '<': answer_sign = '>'
+        elif sign == '>=': answer_sign = '<='
+        else: answer_sign = '>='
+        answer_val = b / a
+    
+    # Format answer to one decimal place if not integer
+    if answer_val == int(answer_val):
+        answer = f"x {answer_sign} {int(answer_val)}"
+    else:
+        answer = f"x {answer_sign} {answer_val:.1f}"
+
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_sequence_question():
+    # Arithmetic sequence
+    a1 = random.randint(1, 10) # First term
+    d = random.randint(-3, 3) # Common difference
+    while d == 0: d = random.randint(-3, 3)
+    n = random.randint(4, 7) # Term to find
+
+    # Generate first few terms
+    terms = [a1 + (i * d) for i in range(n-1)]
+    terms_str = ", ".join(map(str, terms))
+
+    correct_answer = a1 + (n-1) * d
+
+    question_text = f"已知一個等差數列的前 {n-1} 項為 {terms_str}，求第 {n} 項。"
+
+    return {
+        "text": question_text,
+        "answer": str(correct_answer),
+        "validation_function_name": None
+    }
+
+def generate_series_question():
+    # Sum of arithmetic series
+    a1 = random.randint(1, 10) # First term
+    d = random.randint(-3, 3) # Common difference
+    while d == 0: d = random.randint(-3, 3)
+    n = random.randint(3, 6) # Number of terms
+
+    # Sum = n/2 * (2*a1 + (n-1)*d)
+    correct_answer = (n / 2) * (2 * a1 + (n - 1) * d)
+
+    question_text = f"已知一個等差數列的首項為 {a1}，公差為 {d}，求前 {n} 項的和。"
+
+    return {
+        "text": question_text,
+        "answer": str(int(correct_answer)), # Ensure integer answer
+        "validation_function_name": None
+    }
+
+def generate_exponential_question():
+    base = random.randint(2, 5)
+    exponent = random.randint(2, 4)
+    correct_answer = base ** exponent
+    question_text = f"計算 {base}^{exponent} = ?"
+    return {
+        "text": question_text,
+        "answer": str(correct_answer),
+        "validation_function_name": None
+    }
+
 def generate_inequality_region_question():
     """動態生成一道「圖示不等式解區域」的題目。"""
     a = random.randint(-5, 5)
@@ -434,9 +694,75 @@ def generate_inequality_region_question():
 # 6. Skill Engine Definition
 # ==============================================================================
 SKILL_ENGINE = {
+    # Logarithms & Exponents
+    'logarithms': {
+        'generator': generate_common_logarithm_question,
+        'display_name': '常用對數',
+        'description': '計算常用對數。'
+    },
+    'exponents': {
+        'generator': generate_exponential_question,
+        'display_name': '指數',
+        'description': '計算指數運算。'
+    },
+    'common_logarithms': {
+        'generator': generate_common_logarithm_question,
+        'display_name': '常用對數',
+        'description': '計算常用對數。'
+    },
+    'exponential_functions': {
+        'generator': generate_exponential_question,
+        'display_name': '指數函數',
+        'description': '計算指數運算。'
+    },
+    'logarithmic_properties': {
+        'generator': generate_common_logarithm_question,
+        'display_name': '對數與對數律 / 對數',
+        'description': '計算常用對數。'
+    },
+    'logarithmic_functions': {
+        'generator': generate_common_logarithm_question,
+        'display_name': '對數函數',
+        'description': '計算常用對數。'
+    },
+
+    # Linear Algebra & Equations
+    'linear_equations': {
+        'generator': generate_linear_equation_question,
+        'display_name': '直線方程式',
+        'description': '練習直線方程式。'
+    },
+    'simultaneous_equations_1or2var': {
+        'generator': generate_addition_subtraction_question,
+        'display_name': '一/二元一次聯立方程式',
+        'description': '練習二元一次聯立方程式。'
+    },
+    'simultaneous_equations_3var': {
+        'generator': generate_addition_subtraction_question,
+        'display_name': '三元一次聯立方程式',
+        'description': '練習二元一次聯立方程式(暫代)。'
+    },
+    'linear_programming': {
+        'generator': generate_inequality_region_question,
+        'display_name': '線性規劃',
+        'description': '練習二元一次不等式圖解區域。'
+    },
+
+    # Geometry
+    'circle_equations': {
+        'generator': generate_circle_equation_question,
+        'display_name': '圓方程式',
+        'description': '練習圓的方程式。'
+    },
+    'circle_line_relations': {
+        'generator': generate_circle_line_question,
+        'display_name': '圓與直線',
+        'description': '練習圓與直線的關係。'
+    },
+
     # Polynomials
     'polynomial_division': {
-        'generator': generate_remainder_theorem_question,
+        'generator': generate_polynomial_division_question,
         'display_name': '多項式的除法原理',
         'description': '練習多項式除法、餘式與因式定理。'
     },
@@ -461,35 +787,7 @@ SKILL_ENGINE = {
         'description': '練習多項式除法、餘式與因式定理。'
     },
 
-    # Linear Algebra & Equations
-    'linear_equations': {
-        'generator': generate_addition_subtraction_question,
-        'display_name': '直線方程式',
-        'description': '練習二元一次聯立方程式。'
-    },
-    'simultaneous_equations_1or2var': {
-        'generator': generate_addition_subtraction_question,
-        'display_name': '一/二元一次聯立方程式',
-        'description': '練習二元一次聯立方程式。'
-    },
-    'simultaneous_equations_3var': {
-        'generator': generate_addition_subtraction_question,
-        'display_name': '三元一次聯立方程式',
-        'description': '練習二元一次聯立方程式(暫代)。'
-    },
-    'linear_programming': {
-        'generator': generate_inequality_region_question,
-        'display_name': '線性規劃',
-        'description': '練習二元一次不等式圖解區域。'
-    },
-
     # Placeholder Mappings (using default generators)
-    'exponents': { 'generator': generate_remainder_theorem_question, 'display_name': '指數', 'description': 'Placeholder' },
-    'complex_roots_polynomials': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與多項式方程式的根', 'description': 'Placeholder' },
-    'logarithms': { 'generator': generate_remainder_theorem_question, 'display_name': '指數', 'description': 'Placeholder' },
-    'common_logarithms': { 'generator': generate_remainder_theorem_question, 'display_name': '常用對數', 'description': 'Placeholder' },
-    'circle_equations': { 'generator': generate_remainder_theorem_question, 'display_name': '圓方程式', 'description': 'Placeholder' },
-    'circle_line_relations': { 'generator': generate_remainder_theorem_question, 'display_name': '圓與直線', 'description': 'Placeholder' },
     'sequences_recursion': { 'generator': generate_remainder_theorem_question, 'display_name': '數列與遞迴關係', 'description': 'Placeholder' },
     'series': { 'generator': generate_remainder_theorem_question, 'display_name': '級數', 'description': 'Placeholder' },
     'counting_principles': { 'generator': generate_remainder_theorem_question, 'display_name': '計數原理', 'description': 'Placeholder' },
@@ -509,9 +807,6 @@ SKILL_ENGINE = {
     'trig_sine_cosine_combination': { 'generator': generate_remainder_theorem_question, 'display_name': '正餘弦的疊合', 'description': 'Placeholder' },
     'real_number_system': { 'generator': generate_remainder_theorem_question, 'display_name': '數', 'description': 'Placeholder' },
     'absolute_value': { 'generator': generate_remainder_theorem_question, 'display_name': '絕對值', 'description': 'Placeholder' },
-    'exponential_functions': { 'generator': generate_remainder_theorem_question, 'display_name': '指數函數', 'description': 'Placeholder' },
-    'logarithmic_properties': { 'generator': generate_remainder_theorem_question, 'display_name': '對數與對數律 / 對數', 'description': 'Placeholder' },
-    'logarithmic_functions': { 'generator': generate_remainder_theorem_question, 'display_name': '對數函數', 'description': 'Placeholder' },
     'vectors_2d': { 'generator': generate_remainder_theorem_question, 'display_name': '平面向量', 'description': 'Placeholder' },
     'vectors_2d_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '平面向量的運算', 'description': 'Placeholder' },
     'space_concepts': { 'generator': generate_remainder_theorem_question, 'display_name': '空間概念', 'description': 'Placeholder' },
@@ -535,6 +830,7 @@ SKILL_ENGINE = {
     'discrete_random_variables': { 'generator': generate_remainder_theorem_question, 'display_name': '離散型隨機變數', 'description': 'Placeholder' },
     'binomial_geometric_distributions': { 'generator': generate_remainder_theorem_question, 'display_name': '二項分布與幾何分布', 'description': 'Placeholder' },
     'binomial_distribution': { 'generator': generate_remainder_theorem_question, 'display_name': '二項分布', 'description': 'Placeholder' },
+    'complex_roots_polynomials': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與多項式方程式的根', 'description': 'Placeholder' },
     'complex_numbers_geometry': { 'generator': generate_remainder_theorem_question, 'display_name': '複數的幾何意涵', 'description': 'Placeholder' },
     'complex_plane': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與複數平面', 'description': 'Placeholder' },
     'sequence_limits_infinite_series': { 'generator': generate_remainder_theorem_question, 'display_name': '數列的極限與無窮等比級數', 'description': 'Placeholder' },
@@ -551,6 +847,47 @@ SKILL_ENGINE = {
     'linear-ineq-region': { 'generator': generate_inequality_region_question, 'display_name': '二元一次不等式 (圖解區域)', 'description': '在數位計算紙上畫出不等式的解區域。' },
     'linear-ineq-check-point': { 'generator': generate_check_point_in_system_question, 'display_name': '二元一次不等式 (判斷解)', 'description': '判斷一個點是否為不等式系統的解。' }
 }
+
+DEMOTION_THRESHOLD = 3  # 連續答錯 3 題就降級
+
+def initialize_skills():
+    """同步 SKILL_ENGINE 到資料庫 (包含先備知識)"""
+    print("正在同步技能到資料庫...")
+    for skill_id, skill_data_in_code in SKILL_ENGINE.items():
+        skill_in_db = Skill.query.filter_by(name=skill_id).first()
+        needs_update = False
+        if skill_in_db:
+            # 比較並更新現有技能
+            if skill_in_db.display_name != skill_data_in_code['display_name']:
+                skill_in_db.display_name = skill_data_in_code['display_name']
+                needs_update = True
+            if 'description' in skill_data_in_code and skill_in_db.description != skill_data_in_code['description']:
+                skill_in_db.description = skill_data_in_code['description']
+                needs_update = True
+            if 'grade_level' in skill_data_in_code and skill_in_db.grade_level != skill_data_in_code['grade_level']:
+                skill_in_db.grade_level = skill_data_in_code['grade_level']
+                needs_update = True
+            if 'main_unit' in skill_data_in_code and skill_in_db.main_unit != skill_data_in_code['main_unit']:
+                skill_in_db.main_unit = skill_data_in_code['main_unit']
+                needs_update = True
+            # if skill_in_db.prerequisite_skill_id != skill_data_in_code.get('prerequisite_skill_id'):
+            #     skill_in_db.prerequisite_skill_id = skill_data_in_code.get('prerequisite_skill_id')
+            #     needs_update = True
+            if needs_update:
+                db.session.commit()
+                print(f"更新技能 {skill_id} 到資料庫")
+        else:
+            # 創建新技能
+            new_skill = Skill(
+                name=skill_id,
+                display_name=skill_data_in_code['display_name'],
+                description=skill_data_in_code.get('description', '無描述'),
+                grade_level=skill_data_in_code.get('grade_level'),
+                main_unit=skill_data_in_code.get('main_unit')
+            )
+            db.session.add(new_skill)
+            db.session.commit()
+            print(f"添加新技能 {skill_id} 到資料庫")
 
 DEMOTION_THRESHOLD = 3  # 連續答錯 3 題就降級
 
@@ -683,7 +1020,7 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     if not user:
         flash("找不到用戶資料，請重新登入。", "warning")
         return redirect(url_for('login'))
@@ -984,9 +1321,27 @@ def analyze_handwriting():
                 image
             ]
 
-        # 4. 呼叫 Gemini API
-        response = model.generate_content(prompt_parts)
-        ai_reply = response.text.strip()
+        # 4. 呼叫 Gemini API (加入重試機制處理配額限制)
+        ai_reply = ""
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                response = model.generate_content(prompt_parts)
+                ai_reply = response.text.strip()
+                break # 成功則跳出迴圈
+            except ResourceExhausted as e:
+                print(f"Gemini API 配額超出，正在重試 ({i+1}/{max_retries})...")
+                retry_seconds = 60 # Default retry time
+                match = re.search(r"retry in (\d+\.?\d*)s", str(e))
+                if match:
+                    retry_seconds = float(match.group(1))
+                print(f"等待 {retry_seconds + 1} 秒後重試。")
+                time.sleep(retry_seconds + 1) # 等待建議時間 + 1 秒
+            except Exception as e:
+                raise e # 其他錯誤直接拋出
+
+        if not ai_reply:
+            raise Exception("Gemini API 呼叫失敗，即使重試也未能成功。")
 
         # 5. 解讀 AI 回覆並判斷對錯 (只對畫圖題更新進度)
         is_graph_correct = False
