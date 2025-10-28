@@ -19,7 +19,7 @@ from google.api_core.exceptions import ResourceExhausted
 # 2. App Initialization and Configuration
 # ==============================================================================
 app = Flask(__name__)
-app.secret_key = 'GEMINI_API_KEY=AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY'  # ★ 請務必更換成您自己的密鑰 ★
+app.secret_key = 'AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw'  # ★ 請務必更換成您自己的密鑰 ★
 #app.secret_key = 'AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw' # ★ 備用的密鑰 ★
 
 # --- Database Configuration ---
@@ -39,7 +39,7 @@ db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 # --- Gemini API Configuration ---
 try:
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    genai.configure(api_key="AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw")
     model = genai.GenerativeModel('models/gemini-pro-latest')
 except Exception as e:
     print(f"Gemini API 尚未設定或金鑰錯誤: {e}")
@@ -2285,6 +2285,46 @@ def logout():
     flash("您已成功登出。", "info")
     return redirect(url_for('login'))
 
+@app.route('/upload_image_problem', methods=['POST'])
+def upload_image_problem():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Please log in first.'}), 401
+    if not model: # Changed from vision_model
+        return jsonify({'error': 'Model is not configured.'}), 500
+
+    if 'problem_image' not in request.files:
+        return jsonify({'error': 'No image file provided.'}), 400
+
+    image_file = request.files['problem_image']
+    question_number = request.form.get('question_number') # Get the question number
+    
+    if image_file.filename == '':
+        return jsonify({'error': 'No selected file.'}), 400
+
+    try:
+        img = Image.open(image_file.stream)
+        
+        # Modify prompt based on whether a question number was provided
+        if question_number:
+            prompt = f"這是一張數學題目的圖片。請只專注於題號為 '{question_number}' 的題目，並僅辨識其文字內容。如果圖片中找不到該題號，請辨識圖片中的所有文字。"
+        else:
+            prompt = "辨識這張圖片中的數學題目文字。"
+
+        prompt_parts = [prompt, img]
+        
+        response = model.generate_content(prompt_parts) # Changed from vision_model
+        recognized_text = response.text
+
+        session['custom_question_text'] = recognized_text
+        
+        redirect_url = url_for('practice', skill_id='custom')
+
+        return jsonify({'redirect_url': redirect_url})
+
+    except Exception as e:
+        print(f"Error during image recognition: {e}")
+        return jsonify({'error': f'An error occurred during recognition: {str(e)}'}), 500
+
 # --- Core Application Routes ---
 @app.route("/")
 def home():
@@ -2406,25 +2446,46 @@ def practice(skill_id):
     if 'user_id' not in session:
         flash("請先登入！", "warning")
         return redirect(url_for('login'))
-    skill = Skill.query.filter_by(name=skill_id).first()
-    if not skill or skill_id not in SKILL_ENGINE:
-        flash("找不到指定的練習單元。", "danger")
-        return redirect(url_for('dashboard'))
+
+    question_data = {}
+    skill_display_name = ""
+
+    if skill_id == 'custom':
+        question_text = session.get('custom_question_text')
+        if not question_text:
+            flash("找不到自訂題目，請重新上傳。", "warning")
+            return redirect(url_for('dashboard'))
         
-    question_data = SKILL_ENGINE[skill_id]['generator']()
+        question_data = {
+            'text': question_text,
+            'answer': None,
+            'inequality_string': None,
+            'validation_function_name': None
+        }
+        skill_display_name = "自訂題目"
+        print(f"(custom) 新題目: {question_text}")
+
+    else:
+        skill = Skill.query.filter_by(name=skill_id).first()
+        if not skill or skill_id not in SKILL_ENGINE:
+            flash("找不到指定的練習單元。", "danger")
+            return redirect(url_for('dashboard'))
+        
+        question_data = SKILL_ENGINE[skill_id]['generator']()
+        skill_display_name = skill.display_name
+        print(f"({skill_id}) 新題目: {question_data.get('text')} (答案: {question_data.get('answer')})")
+
     session['current_skill_id'] = skill_id
     session['current_question_text'] = question_data.get('text')
     session['current_answer'] = question_data.get('answer')
     session['current_inequality_string'] = question_data.get('inequality_string')
     session['validation_function_name'] = question_data.get('validation_function_name')
     
-    print(f"({skill_id}) 新題目: {question_data.get('text')} (答案: {question_data.get('answer')})")
-    
     return render_template('index.html',
                            question_text=question_data.get('text'),
                            inequality_string=question_data.get('inequality_string') or '',
                            username=session.get('username'),
-                           skill_display_name=skill.display_name)
+                           skill_display_name=skill_display_name)
 
 # --- API Endpoints ---
 @app.route("/get_next_question", methods=["GET"])

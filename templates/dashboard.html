@@ -65,6 +65,20 @@
         {% endwith %}
 
         <h2>學習儀表板</h2>
+
+        <!-- Image Upload Section -->
+        <div id="image-upload-section" style="margin-bottom: 30px; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            <h3 style="margin-top: 0; color: #333;">或者，上傳圖片來開始練習</h3>
+            <div id="image-upload-area">
+                <div class="input-group" style="display: flex; margin-top: 15px;">
+                    <input type="file" id="image-upload-input" accept="image/*" style="flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                    <input type="text" id="question-number-input" placeholder="題號 (可選)" style="padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-left: 10px;">
+                    <button type="button" id="upload-image-button" style="padding: 10px 15px; margin-left: 10px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">開始練習</button>
+                </div>
+                <div id="image-recognition-result" style="margin-top: 15px; padding: 10px; border-radius: 4px; min-height: 24px; display: none;"></div>
+            </div>
+        </div>
+
         <p>請選擇您要開始的年級：</p>
 
         <!-- vvvv 這裡就是修改的重點 vvvv -->
@@ -83,5 +97,64 @@
         <!-- ^^^^ 修改到這裡為止 ^^^^ -->
 
     </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const imageUploadInput = document.getElementById('image-upload-input');
+    const uploadImageButton = document.getElementById('upload-image-button');
+    const recognitionResultDiv = document.getElementById('image-recognition-result');
+
+    if (uploadImageButton && imageUploadInput && recognitionResultDiv) {
+        uploadImageButton.addEventListener('click', () => {
+            const imageFile = imageUploadInput.files[0];
+            if (!imageFile) {
+                recognitionResultDiv.textContent = '請先選擇一個圖片檔案。';
+                recognitionResultDiv.style.display = 'block';
+                recognitionResultDiv.style.color = 'red';
+                return;
+            }
+
+            uploadImageButton.disabled = true;
+            uploadImageButton.textContent = '辨識中...';
+            recognitionResultDiv.style.display = 'block';
+            recognitionResultDiv.style.color = '#333';
+            recognitionResultDiv.textContent = '正在上傳並辨識圖片，請稍候...';
+
+            const formData = new FormData();
+            formData.append('problem_image', imageFile);
+            const questionNumber = document.getElementById('question-number-input').value;
+            if (questionNumber) {
+                formData.append('question_number', questionNumber);
+            }
+
+            fetch('/upload_image_problem', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || '伺服器錯誤'); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    throw new Error(data.error || '無法獲取重導向連結。');
+                }
+            })
+            .catch(error => {
+                console.error('Image upload error:', error);
+                recognitionResultDiv.textContent = `錯誤：${error.message}`;
+                recognitionResultDiv.style.color = 'red';
+                uploadImageButton.disabled = false;
+                uploadImageButton.textContent = '開始練習';
+            });
+        });
+    }
+});
+</script>
+
 </body>
 </html>

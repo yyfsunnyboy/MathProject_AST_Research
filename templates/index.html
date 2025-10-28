@@ -735,14 +735,8 @@
                 function checkAnswer() {
                     if (currentInequalityString || !answerInput || answerInput.disabled || !submitButton || submitButton.disabled || isProcessing) return;
                     const userAnswer = answerInput.value;
-                    if (userAnswer.trim() === '') { 
-                        if (resultDisplay) { 
-                            resultDisplay.textContent = '請輸入答案！'; 
-                            resultDisplay.className = 'incorrect'; 
-                        } 
-                        return; 
-                    }
-                
+                    if (userAnswer.trim() === '') { if (resultDisplay) { resultDisplay.textContent = '請輸入答案！'; resultDisplay.className = 'incorrect'; } return; }
+
                     console.log("checkAnswer started.");
                     isProcessing = true; updateButtonStates();
                     if (resultDisplay) resultDisplay.textContent = '檢查中...';
@@ -754,10 +748,7 @@
                             if (resultDisplay) resultDisplay.textContent = data.result;
                             if (correct) {
                                 if (resultDisplay) resultDisplay.style.color = 'green';
-                                // 立即清除 isProcessing，確保 loadNextQuestion 能執行
-                                isProcessing = false;
-                                updateButtonStates();
-                                setTimeout(loadNextQuestion, 1000); // 延遲載入下一題
+                                setTimeout(loadNextQuestion, 1000);
                             } else {
                                 if (resultDisplay) resultDisplay.style.color = 'red';
                                 if (data.demote_to_skill_id) { isDemoting = true; } else { if (answerInput) answerInput.select(); }
@@ -765,18 +756,19 @@
                         })
                         .catch(error => { console.error('Check answer error:', error); if (resultDisplay) { resultDisplay.textContent = `檢查失敗：${error.message}`; resultDisplay.className = 'incorrect'; } })
                         .finally(() => {
-                            console.log("checkAnswer finally:", { correct, isDemoting });
+                            console.log("checkAnswer finally:", {correct, isDemoting});
                             if (!correct && !isDemoting) {
                                 console.log("checkAnswer finally: Unblocking.");
                                 isProcessing = false;
                                 updateButtonStates();
+                            } else {
+                                console.log("checkAnswer finally: Not unblocking (correct/demoting).");
                             }
                         });
                 }
 
                 function sendChatMessage() {
                     const userPrompt = chatInput ? chatInput.value.trim() : '';
-                    const currentQuestionText = questionText ? questionText.textContent.trim() : ''; // Get current question text
                     if (userPrompt === '' || isProcessing || (chatSendButton && chatSendButton.disabled)) return;
 
                     const userMessage = addChatMessage(userPrompt, 'user-message');
@@ -786,11 +778,8 @@
                     if (chatInput) chatInput.disabled = true;
                     if (chatSendButton) chatSendButton.disabled = true;
                     const thinkingMessage = addChatMessage('AI 助教思考中...', 'bot-message thinking-message');
-                    fetch('/ask_gemini', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ prompt: userPrompt, current_question: currentQuestionText })
-                    })
+                    const currentQuestionText = questionText ? questionText.textContent.trim() : '';
+                    fetch('/ask_gemini', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ prompt: userPrompt, current_question: currentQuestionText }) })
                         .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); })
                         .then(data => {
                             if (thinkingMessage) thinkingMessage.remove();
@@ -919,15 +908,8 @@
                             function updateToolActiveState() {
                                 if (!canvas) return;
                                 try {
-                                    if (isErasing) {
-                                        // 橡皮擦模式：使用正方形游標，邊長為 currentPenWidth * 3
-                                        const size = currentPenWidth * 3;
-                                        canvas.style.cursor = `url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}px" height="${size}px"><rect width="${size}" height="${size}" fill="none" stroke="black" stroke-width="1"/></svg>') ${size/2} ${size/2}, auto`;
-                                    } else {
-                                        // 畫筆模式：使用空心圓點游標，直徑為 currentPenWidth * 2
-                                        const size = currentPenWidth * 2;
-                                        canvas.style.cursor = `url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}px" height="${size}px"><circle cx="${size/2}" cy="${size/2}" r="${size/2 - 0.5}" fill="none" stroke="black" stroke-width="1"/></svg>') ${size/2} ${size/2}, auto`;
-                                    }
+                                    const cursor = isErasing ? 'cell' : 'crosshair';
+                                    canvas.style.cursor = cursor;
                                     if (penButton) penButton.classList.toggle('active', !isErasing);
                                     if (eraserButton) eraserButton.classList.toggle('active', isErasing);
                                     colorButtons.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-color') === currentPenColor));
