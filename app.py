@@ -12,6 +12,7 @@ import google.generativeai as genai
 from PIL import Image
 import time
 import re
+import math
 from google.api_core.exceptions import ResourceExhausted
 
 # ==============================================================================
@@ -118,6 +119,10 @@ def validate_linear_equation(user_answer, correct_answer):
 def validate_check_point(user_answer, correct_answer):
     # 判斷 '是' 或 '否'
     return str(user_answer).strip() == str(correct_answer)
+
+def validate_multiple_choice(user_answer, correct_answer):
+    """Validates multiple choice questions by comparing the selected option (e.g., 'A') with the correct answer."""
+    return str(user_answer).strip().upper() == str(correct_answer).strip().upper()
 
 # --- Formatting Functions ---
 def format_polynomial(coeffs):
@@ -690,6 +695,1312 @@ def generate_inequality_region_question():
         "inequality_string": full_inequality_string
     }
 
+def generate_counting_principles_question():
+    """動態生成一道「計數原理」的題目 (乘法原理)"""
+    items1_count = random.randint(2, 5)
+    items1_name = random.choice(["種上衣", "種帽子", "種麵包"])
+    items2_count = random.randint(2, 5)
+    items2_name = random.choice(["種褲子", "種圍巾", "種飲料"])
+    answer = items1_count * items2_count
+    question_text = f"小明有 {items1_count} {items1_name}和 {items2_count} {items2_name}，請問他總共可以搭配出幾種不同的組合？"
+    return {
+        "text": question_text,
+        "answer": str(answer),
+        "validation_function_name": None
+    }
+
+def generate_permutations_question():
+    """動態生成一道「排列」的題目 (P(n,k))"""
+    n = random.randint(4, 7)
+    k = random.randint(2, n - 1)
+    answer = math.perm(n, k)
+    question_text = f"從 {n} 個相異物中取出 {k} 個進行排列，請問有幾種排法？ (即 P({n}, {k}))"
+    return {
+        "text": question_text,
+        "answer": str(answer),
+        "validation_function_name": None
+    }
+
+def generate_combinations_question():
+    """動態生成一道「組合」的題目 (C(n,k))"""
+    n = random.randint(5, 9)
+    k = random.randint(2, n - 2)
+    answer = math.comb(n, k)
+    question_text = f"從 {n} 個相異物中取出 {k} 個，請問有幾種取法？ (即 C({n}, {k}))"
+    return {
+        "text": question_text,
+        "answer": str(answer),
+        "validation_function_name": None
+    }
+
+def generate_classical_probability_question():
+    """動態生成一道「古典機率」的題目"""
+    total_outcomes = 6
+    event_type = random.choice(['even', 'odd', 'greater_than'])
+    if event_type == 'even':
+        fav_outcomes = 3 # 2, 4, 6
+        question_text = "擲一顆公正的骰子，出現偶數點的機率是多少？（請以 a/b 的形式表示）"
+        answer = "3/6"
+    elif event_type == 'odd':
+        fav_outcomes = 3 # 1, 3, 5
+        question_text = "擲一顆公正的骰子，出現奇數點的機率是多少？（請以 a/b 的形式表示）"
+        answer = "3/6"
+    else: # greater_than
+        num = random.randint(1, 4)
+        fav_outcomes = 6 - num
+        question_text = f"擲一顆公正的骰子，出現比 {num} 大的點數的機率是多少？（請以 a/b 的形式表示）"
+        answer = f"{fav_outcomes}/6"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_expected_value_question():
+    """動態生成一道「數學期望值」的題目"""
+    outcomes = [1, 2, 3, 4, 5, 6]
+    probabilities = [1/6, 1/6, 1/6, 1/6, 1/6, 1/6]
+    expected_value = sum(o * p for o, p in zip(outcomes, probabilities))
+    question_text = "擲一顆公正的骰子，其出現點數的數學期望值是多少？"
+    answer = str(expected_value)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_data_analysis_1d_question():
+    """動態生成一道「一維數據分析」的題目 (平均數、中位數或眾數)"""
+    data = sorted([random.randint(1, 20) for _ in range(random.choice([5, 7]))])
+    stat_type = random.choice(['mean', 'median', 'mode'])
+    if stat_type == 'mean':
+        mean = sum(data) / len(data)
+        answer = f"{mean:.1f}" if mean != int(mean) else str(int(mean))
+        question_text = f"給定一組數據：{data}，請問這組數據的算術平均數是多少？"
+    elif stat_type == 'median':
+        median = data[len(data) // 2]
+        answer = str(median)
+        question_text = f"給定一組數據：{data}，請問這組數據的中位數是多少？"
+    else: # mode
+        mode_val = random.choice(data)
+        data.insert(random.randint(0, len(data)), mode_val)
+        data.sort()
+        answer = str(mode_val)
+        question_text = f"給定一組數據：{data}，請問這組數據的眾數是多少？"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_data_analysis_2d_question():
+    """動態生成一道「二維數據分析」的題目 (求中心點)"""
+    data_points = []
+    x_sum = 0
+    y_sum = 0
+    n = 5
+    for _ in range(n):
+        x = random.randint(1, 10)
+        y = random.randint(1, 10)
+        data_points.append(f"({x}, {y})")
+        x_sum += x
+        y_sum += y
+    mean_x = x_sum / n
+    mean_y = y_sum / n
+    mean_x_str = f"{mean_x:.1f}" if mean_x != int(mean_x) else str(int(mean_x))
+    mean_y_str = f"{mean_y:.1f}" if mean_y != int(mean_y) else str(int(mean_y))
+    points_str = ", ".join(data_points)
+    question_text = f"給定 {n} 組二維數據 (X, Y): {points_str}，請問此數據的中心點 (X的平均數, Y的平均數) 是什麼？(請以 (x,y) 的格式回答，無須空格)"
+    answer = f"({mean_x_str},{mean_y_str})"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_trig_ratios_right_triangle_question():
+    """動態生成一道「直角三角形的三角比」的題目"""
+    if random.choice([True, False]):
+        a, b, c = 3, 4, 5
+    else:
+        a, b, c = 5, 12, 13
+    leg1, leg2 = random.sample([a, b], 2)
+    hypotenuse = c
+    angle_choice = random.choice(['A', 'B'])
+    trig_func = random.choice(['sin', 'cos', 'tan'])
+    if angle_choice == 'A':
+        angle_desc = f"對邊為 {leg1} 的那個銳角"
+        if trig_func == 'sin':
+            answer = f"{leg1}/{hypotenuse}"
+        elif trig_func == 'cos':
+            answer = f"{leg2}/{hypotenuse}"
+        else:
+            answer = f"{leg1}/{leg2}"
+    else:
+        angle_desc = f"對邊為 {leg2} 的那個銳角"
+        if trig_func == 'sin':
+            answer = f"{leg2}/{hypotenuse}"
+        elif trig_func == 'cos':
+            answer = f"{leg1}/{hypotenuse}"
+        else:
+            answer = f"{leg2}/{leg1}"
+    question_text = f"在一個直角三角形中，兩股長分別為 {leg1} 和 {leg2}。請問 {angle_desc} 的 {trig_func} 值是多少？(請以 a/b 的形式表示)"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_trig_ratios_general_angle_question():
+    """動態生成一道「廣義角三角比」的題目 (有理數答案)"""
+    options = [
+        (150, 'sin', '1/2'), (210, 'sin', '-1/2'), (330, 'sin', '-1/2'),
+        (120, 'cos', '-1/2'), (240, 'cos', '-1/2'),
+        (135, 'tan', '-1'), (225, 'tan', '1'), (315, 'tan', '-1')
+    ]
+    angle_deg, trig_func, answer = random.choice(options)
+    question_text = f"請問 {trig_func}({angle_deg}°) 的值是多少？(請以數字或 a/b 的形式表示)"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_trig_properties_laws_question():
+    """動態生成一道「三角比的性質」的題目 (餘弦定理)"""
+    a, b, angle_C, c = random.choice([(8, 3, 60, 7), (8, 5, 60, 7)])
+    question_text = f"在三角形 ABC 中，若邊 a = {a}，邊 b = {b}，且兩邊的夾角 C = {angle_C}°，請問對邊 c 的長度是多少？"
+    answer = str(c)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_radian_measure_question():
+    """動態生成一道「弧度量」的題目 (角度與弧度互換)"""
+    deg_to_rad = {
+        30: "pi/6", 60: "pi/3", 90: "pi/2", 120: "2*pi/3",
+        180: "pi", 270: "3*pi/2", 360: "2*pi"
+    }
+    deg = random.choice(list(deg_to_rad.keys()))
+    answer = deg_to_rad[deg]
+    question_text = f"請問 {deg}° 等於多少弧度 (radian)？ (請用 pi 表示，例如: pi/2)"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_trig_graphs_periodicity_question():
+    """動態生成一道「三角函數的圖形/週期性」的題目"""
+    func = random.choice(['sin', 'cos'])
+    b = random.choice([1, 2, 4])
+    func_str = f"{func}({b}x)" if b != 1 else f"{func}(x)"
+    if b == 1:
+        answer = "2*pi"
+    elif b == 2:
+        answer = "pi"
+    elif b == 4:
+        answer = "pi/2"
+    question_text = f"請問函數 f(x) = {func_str} 的最小正週期是多少？(答案請用 pi 表示，例如: 2*pi)"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_trig_sum_difference_question():
+    """動態生成一道「三角的和差角公式」的題目 (概念)"""
+    formulas = {
+        "sin(A+B)": "sin(A)cos(B)+cos(A)sin(B)",
+        "sin(A-B)": "sin(A)cos(B)-cos(A)sin(B)",
+        "cos(A+B)": "cos(A)cos(B)-sin(A)sin(B)",
+        "cos(A-B)": "cos(A)cos(B)+sin(A)sin(B)"
+    }
+    func = random.choice(list(formulas.keys()))
+    answer = formulas[func]
+    question_text = f"請問 {func} 的展開式是什麼？(請用 sin(A), cos(B) 等方式作答)"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_polar_coordinates_question():
+    """動態生成一道「極坐標」的題目 (極座標轉直角座標)"""
+    r = random.randint(2, 10)
+    angle_deg = random.choice([0, 90, 180, 270])
+    
+    cos_val = 0
+    sin_val = 0
+    if angle_deg == 0:
+        cos_val = 1
+    elif angle_deg == 90:
+        sin_val = 1
+    elif angle_deg == 180:
+        cos_val = -1
+    elif angle_deg == 270:
+        sin_val = -1
+
+    x = r * cos_val
+    y = r * sin_val
+
+    if random.choice([True, False]):
+         question_text = f"將極坐標點 [{r}, {angle_deg}°] 轉換為直角坐標 (x, y)，請問 x 坐標是多少？"
+         answer = str(int(x))
+    else:
+         question_text = f"將極坐標點 [{r}, {angle_deg}°] 轉換為直角坐標 (x, y)，請問 y 坐標是多少？"
+         answer = str(int(y))
+
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_trig_sine_cosine_combination_question():
+    """動態生成一道「正餘弦的疊合」的題目 (求最大/最小值)"""
+    a, b, r = random.choice([(3, 4, 5), (5, 12, 13), (8, 15, 17)])
+    a, b = random.sample([a, b], 2)
+    max_or_min = random.choice(['max', 'min'])
+    if max_or_min == 'max':
+        question_text = f"請問函數 f(x) = {a}*sin(x) + {b}*cos(x) 的最大值是多少？"
+        answer = str(r)
+    else:
+        question_text = f"請問函數 f(x) = {a}*sin(x) + {b}*cos(x) 的最小值是多少？"
+        answer = str(-r)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_real_number_system_question():
+    """動態生成一道「數」的題目 (有理數/無理數)"""
+    rational_examples = ["5", "-3", "1/2", "0.75"]
+    irrational_examples = [("pi", "無理數"), ("sqrt(2)", "無理數")]
+    if random.choice([True, False]):
+        num_str = random.choice(rational_examples)
+        answer = "有理數"
+    else:
+        num_str, answer = random.choice(irrational_examples)
+    question_text = f"請問 {num_str} 是有理數還是無理數？"
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_absolute_value_question():
+    """動態生成一道「絕對值」的題目 (基本運算)"""
+    a = random.randint(-10, 10)
+    b = random.randint(-10, 10)
+    op = random.choice(['+', '-'])
+    if op == '+':
+        answer = abs(a) + abs(b)
+    else:
+        answer = abs(a) - abs(b)
+    question_text = f"計算 |{a}| {op} |{b}| = ?"
+    return {
+        "text": question_text,
+        "answer": str(answer),
+        "validation_function_name": None
+    }
+
+def generate_exponential_functions_question():
+    """動態生成一道「指數函數」的題目 (解方程式)"""
+    base = random.randint(2, 5)
+    exponent = random.randint(2, 4)
+    result = base ** exponent
+    question_text = f"解指數方程式 {base}^x = {result}，請問 x = ?"
+    answer = str(exponent)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_logarithmic_properties_question():
+    """
+    Generates a fill-in-the-blank question about the properties of logarithms.
+    Covers conceptual links to exponents, basic operations, and algebraic application.
+    """
+    questions = [
+        {
+            'question': '指數律 a^m * a^n = a^(m+n) 啟發了對數的運算性質 log_a(XY) = ? (答案請勿包含空格)',
+            'answer': 'log_a(X)+log_a(Y)'
+        },
+        {
+            'question': '請計算 log_2(4) + log_2(8) 的值。',
+            'answer': '5'
+        },
+        {
+            'question': '3 * log_10(5) + log_10(8) 的值是多少？',
+            'answer': '3'
+        },
+        {
+            'question': '已知 log_a(x) = 5 且 log_a(y) = 2，請問 log_a(x^2 / y) 的值是多少？',
+            'answer': '8'
+        }
+    ]
+    
+    q = random.choice(questions)
+    
+    # Return format for fill-in-the-blank
+    return {
+        "text": q['question'],
+        "answer": q['answer'],
+        "validation_function_name": None # Use default string comparison
+    }
+
+def generate_logarithmic_functions_question():
+    """動態生成一道「對數函數」的題目 (解方程式)"""
+    base = random.choice([2, 3, 5])
+    result_exp = random.randint(2, 4)
+    x = base ** result_exp
+    question_text = f"解對數方程式 log{base}(x) = {result_exp}，請問 x = ?"
+    answer = str(x)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_vectors_2d_question():
+    """動態生成一道「平面向量」的題目 (分量或長度)"""
+    x1, y1 = random.randint(-5, 5), random.randint(-5, 5)
+    x2, y2 = random.randint(-5, 5), random.randint(-5, 5)
+    vec_x = x2 - x1
+    vec_y = y2 - y1
+    if random.choice([True, False]):
+        question_text = f"已知點 A({x1}, {y1}) 和點 B({x2}, {y2})，請問向量 AB 的 x 分量是多少？"
+        answer = str(vec_x)
+    else:
+        question_text = f"已知點 A({x1}, {y1}) 和點 B({x2}, {y2})，請問向量 AB 的 y 分量是多少？"
+        answer = str(vec_y)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_vectors_2d_operations_question():
+    """動態生成一道「平面向量的運算」的題目 (加減法)"""
+    ux, uy = random.randint(-5, 5), random.randint(-5, 5)
+    vx, vy = random.randint(-5, 5), random.randint(-5, 5)
+    op = random.choice(['+', '-'])
+    if op == '+':
+        res_x = ux + vx
+        res_y = uy + vy
+    else:
+        res_x = ux - vx
+        res_y = uy - vy
+    if random.choice([True, False]):
+        question_text = f"已知向量 u = ({ux}, {uy}) 和向量 v = ({vx}, {vy})，請問向量 u {op} v 的 x 分量是多少？"
+        answer = str(res_x)
+    else:
+        question_text = f"已知向量 u = ({ux}, {uy}) 和向量 v = ({vx}, {vy})，請問向量 u {op} v 的 y 分量是多少？"
+        answer = str(res_y)
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_space_concepts_question():
+    """動態生成一道「空間概念」的題目 (點到平面距離)"""
+    x, y, z = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    plane_choice = random.choice(['xy', 'yz', 'xz'])
+    if plane_choice == 'xy':
+        question_text = f"在三維空間中，點 ({x}, {y}, {z}) 到 xy 平面的距離是多少？"
+        answer = str(abs(z))
+    elif plane_choice == 'yz':
+        question_text = f"在三維空間中，點 ({x}, {y}, {z}) 到 yz 平面的距離是多少？"
+        answer = str(abs(x))
+    else: # xz
+        question_text = f"在三維空間中，點 ({x}, {y}, {z}) 到 xz 平面的距離是多少？"
+        answer = str(abs(y))
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_vectors_3d_coordinates_question():
+    """動態生成一道「空間向量的坐標表示法」的題目 (向量分量)"""
+    x1, y1, z1 = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    x2, y2, z2 = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    
+    vec_x = x2 - x1
+    vec_y = y2 - y1
+    vec_z = z2 - z1
+    
+    component_choice = random.choice(['x', 'y', 'z'])
+    
+    if component_choice == 'x':
+        question_text = f"已知空間中兩點 A({x1}, {y1}, {z1}) 和 B({x2}, {y2}, {z2})，請問向量 AB 的 x 分量是多少？"
+        answer = str(vec_x)
+    elif component_choice == 'y':
+        question_text = f"已知空間中兩點 A({x1}, {y1}, {z1}) 和 B({x2}, {y2}, {z2})，請問向量 AB 的 y 分量是多少？"
+        answer = str(vec_y)
+    else: # 'z'
+        question_text = f"已知空間中兩點 A({x1}, {y1}, {z1}) 和 B({x2}, {y2}, {z2})，請問向量 AB 的 z 分量是多少？"
+        answer = str(vec_z)
+        
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_determinant_3x3_question():
+    """動態生成一道「三階行列式」的題目"""
+    matrix = []
+    for _ in range(3):
+        matrix.append([random.randint(-3, 3) for _ in range(3)])
+    
+    # Calculate determinant for a 3x3 matrix
+    # | a b c |
+    # | d e f |
+    # | g h i |
+    # det = a(ei - fh) - b(di - fg) + c(dh - eg)
+    
+    a, b, c = matrix[0]
+    d, e, f = matrix[1]
+    g, h, i = matrix[2]
+    
+    determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    
+    matrix_str = "\n".join([f"| {row[0]:>2} {row[1]:>2} {row[2]:>2} |" for row in matrix])
+    
+    question_text = f"計算下列三階行列式的值：\n{matrix_str}"
+    
+    return {
+        "text": question_text,
+        "answer": str(determinant),
+        "validation_function_name": None
+    }
+
+def generate_planes_in_space_question():
+    """動態生成一道「空間中的平面」的題目 (求法向量)"""
+    a, b, c = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    d = random.randint(-10, 10)
+    
+    # Ensure at least one coefficient is non-zero
+    while a == 0 and b == 0 and c == 0:
+        a, b, c = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+        
+    equation_parts = []
+    if a != 0:
+        equation_parts.append(f"{a}x")
+    if b != 0:
+        if b > 0 and equation_parts:
+            equation_parts.append(f" + {b}y")
+        elif b < 0 and equation_parts:
+            equation_parts.append(f" - {abs(b)}y")
+        else:
+            equation_parts.append(f"{b}y")
+    if c != 0:
+        if c > 0 and equation_parts:
+            equation_parts.append(f" + {c}z")
+        elif c < 0 and equation_parts:
+            equation_parts.append(f" - {abs(c)}z")
+        else:
+            equation_parts.append(f"{c}z")
+            
+    equation_str = "".join(equation_parts)
+    if not equation_str: # Should not happen if a,b,c are not all zero
+        equation_str = "0"
+        
+    question_text = f"已知平面方程式為 {equation_str} = {d}，請問此平面的法向量為何？ (請以 (a,b,c) 的格式回答，無須空格)"
+    answer = f"({a},{b},{c})"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_vectors_3d_operations_question():
+    """動態生成一道「空間向量的運算」的題目 (加減法)"""
+    u_x, u_y, u_z = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    v_x, v_y, v_z = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    op = random.choice(['+', '-'])
+    
+    if op == '+':
+        res_x = u_x + v_x
+        res_y = u_y + v_y
+        res_z = u_z + v_z
+    else: # op == '-'
+        res_x = u_x - v_x
+        res_y = u_y - v_y
+        res_z = u_z - v_z
+        
+    component_choice = random.choice(['x', 'y', 'z'])
+    
+    if component_choice == 'x':
+        question_text = f"已知向量 u = ({u_x}, {u_y}, {u_z}) 和向量 v = ({v_x}, {v_y}, {v_z})，請問向量 u {op} v 的 x 分量是多少？"
+        answer = str(res_x)
+    elif component_choice == 'y':
+        question_text = f"已知向量 u = ({u_x}, {u_y}, {u_z}) 和向量 v = ({v_x}, {v_y}, {v_z})，請問向量 u {op} v 的 y 分量是多少？"
+        answer = str(res_y)
+    else: # 'z'
+        question_text = f"已知向量 u = ({u_x}, {u_y}, {u_z}) 和向量 v = ({v_x}, {v_y}, {v_z})，請問向量 u {op} v 的 z 分量是多少？"
+        answer = str(res_z)
+        
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_lines_in_space_question():
+    """動態生成一道「空間中的直線」的題目 (求方向向量)"""
+    # 點 (x0, y0, z0) 和方向向量 (a, b, c)
+    x0, y0, z0 = random.randint(-5, 5), random.randint(-5, 5), random.randint(-5, 5)
+    a, b, c = random.randint(-3, 3), random.randint(-3, 3), random.randint(-3, 3)
+    
+    # 確保方向向量不是零向量
+    while a == 0 and b == 0 and c == 0:
+        a, b, c = random.randint(-3, 3), random.randint(-3, 3), random.randint(-3, 3)
+        
+    # 參數式: x = x0 + at, y = y0 + bt, z = z0 + ct
+    question_text = f"已知空間中一條直線的參數式為 x = {x0}{'+' if a >= 0 else ''}{a}t, y = {y0}{'+' if b >= 0 else ''}{b}t, z = {z0}{'+' if c >= 0 else ''}{c}t，請問此直線的一個方向向量為何？ (請以 (a,b,c) 的格式回答，無須空格)"
+    answer = f"({a},{b},{c})"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_function_properties_question():
+    """動態生成一道「函數性質的判定」的題目 (判斷奇偶函數)"""
+    # 偶函數: f(x) = f(-x) (只有偶次項)
+    # 奇函數: f(x) = -f(-x) (只有奇次項)
+    # 兩者皆非: 混合奇偶次項
+    
+    func_type = random.choice(['even', 'odd', 'neither'])
+    coeffs = [0, 0, 0, 0] # x^3, x^2, x^1, x^0
+    
+    if func_type == 'even':
+        coeffs[1] = random.randint(1, 5) # x^2
+        coeffs[3] = random.randint(1, 5) # constant
+        question_text = f"請問函數 f(x) = {coeffs[1]}x^2 + {coeffs[3]} 是奇函數、偶函數還是兩者皆非？"
+        answer = "偶函數"
+    elif func_type == 'odd':
+        coeffs[0] = random.randint(1, 5) # x^3
+        coeffs[2] = random.randint(1, 5) # x^1
+        question_text = f"請問函數 f(x) = {coeffs[0]}x^3 + {coeffs[2]}x 是奇函數、偶函數還是兩者皆非？"
+        answer = "奇函數"
+    else: # neither
+        coeffs[0] = random.randint(1, 5) # x^3
+        coeffs[1] = random.randint(1, 5) # x^2
+        coeffs[3] = random.randint(1, 5) # constant
+        question_text = f"請問函數 f(x) = {coeffs[0]}x^3 + {coeffs[1]}x^2 + {coeffs[3]} 是奇函數、偶函數還是兩者皆非？"
+        answer = "兩者皆非"
+        
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_matrix_applications_question():
+    """動態生成一道「矩陣的應用」的題目 (矩陣乘法)"""
+    # 生成兩個 2x2 矩陣
+    matrix_a = [[random.randint(-3, 3) for _ in range(2)] for _ in range(2)]
+    matrix_b = [[random.randint(-3, 3) for _ in range(2)] for _ in range(2)]
+    
+    # 計算乘積矩陣 C = A * B
+    matrix_c = [[0, 0], [0, 0]]
+    matrix_c[0][0] = matrix_a[0][0] * matrix_b[0][0] + matrix_a[0][1] * matrix_b[1][0]
+    matrix_c[0][1] = matrix_a[0][0] * matrix_b[0][1] + matrix_a[0][1] * matrix_b[1][1]
+    matrix_c[1][0] = matrix_a[1][0] * matrix_b[0][0] + matrix_a[1][1] * matrix_b[1][0]
+    matrix_c[1][1] = matrix_a[1][0] * matrix_b[0][1] + matrix_a[1][1] * matrix_b[1][1]
+    
+    # 隨機選擇詢問的元素位置
+    row_idx = random.choice([0, 1])
+    col_idx = random.choice([0, 1])
+    
+    question_text = (
+        f"已知矩陣 A = [[{matrix_a[0][0]}, {matrix_a[0][1]}], [{matrix_a[1][0]}, {matrix_a[1][1]}]] "
+        f"和矩陣 B = [[{matrix_b[0][0]}, {matrix_b[0][1]}], [{matrix_b[1][0]}, {matrix_b[1][1]}]]. "
+        f"請問矩陣 C = A * B 中，位於第 {row_idx + 1} 列第 {col_idx + 1} 行的元素是多少？"
+    )
+    answer = str(matrix_c[row_idx][col_idx])
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_simultaneous_equations_3var_question():
+    """動態生成一道「三元一次聯立方程式」的題目 (簡化版)"""
+    # 確保有整數解，且題目不會太複雜
+    x_sol = random.randint(-3, 3)
+    y_sol = random.randint(-3, 3)
+    z_sol = random.randint(-3, 3)
+    
+    # 方程式 1: 簡單的 x + y + z = C1
+    c1 = x_sol + y_sol + z_sol
+    eq1_str = f"x + y + z = {c1}"
+    
+    # 方程式 2: 2x + y - z = C2
+    c2 = 2 * x_sol + y_sol - z_sol
+    eq2_str = f"2x + y - z = {c2}"
+    
+    # 方程式 3: x - 2y + 3z = C3
+    c3 = x_sol - 2 * y_sol + 3 * z_sol
+    eq3_str = f"x - 2y + 3z = {c3}"
+    
+    ask_for = random.choice(['x', 'y', 'z'])
+    if ask_for == 'x':
+        answer = str(x_sol)
+    elif ask_for == 'y':
+        answer = str(y_sol)
+    else:
+        answer = str(z_sol)
+        
+    question_text = (
+        f"請解下列聯立方程式：\n"
+        f"  {eq1_str} ...... (1)\n"
+        f"  {eq2_str} ...... (2)\n"
+        f"  {eq3_str} ...... (3)\n\n"
+        f"請問 {ask_for} = ?"
+    )
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_matrix_operations_question():
+    """動態生成一道「矩陣的運算」的題目 (矩陣加法)"""
+    # 生成兩個 2x2 矩陣
+    matrix_a = [[random.randint(-5, 5) for _ in range(2)] for _ in range(2)]
+    matrix_b = [[random.randint(-5, 5) for _ in range(2)] for _ in range(2)]
+    
+    # 計算和矩陣 C = A + B
+    matrix_c = [[0, 0], [0, 0]]
+    matrix_c[0][0] = matrix_a[0][0] + matrix_b[0][0]
+    matrix_c[0][1] = matrix_a[0][1] + matrix_b[0][1]
+    matrix_c[1][0] = matrix_a[1][0] + matrix_b[1][0]
+    matrix_c[1][1] = matrix_a[1][1] + matrix_b[1][1]
+    
+    # 隨機選擇詢問的元素位置
+    row_idx = random.choice([0, 1])
+    col_idx = random.choice([0, 1])
+    
+    question_text = (
+        f"已知矩陣 A = [[{matrix_a[0][0]}, {matrix_a[0][1]}], [{matrix_a[1][0]}, {matrix_a[1][1]}]] "
+        f"和矩陣 B = [[{matrix_b[0][0]}, {matrix_b[0][1]}], [{matrix_b[1][0]}, {matrix_b[1][1]}]]. "
+        f"請問矩陣 C = A + B 中，位於第 {row_idx + 1} 列第 {col_idx + 1} 行的元素是多少？"
+    )
+    answer = str(matrix_c[row_idx][col_idx])
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_ratio_in_plane_question():
+    """動態生成一道「平面上的比例」的題目 (分點公式)"""
+    x1, y1 = random.randint(-5, 5), random.randint(-5, 5)
+    x2, y2 = random.randint(-5, 5), random.randint(-5, 5)
+    
+    m = random.randint(1, 3)
+    n = random.randint(1, 3)
+    
+    # 內部一點 P 將 AB 線段分成 m:n
+    # Px = (n*x1 + m*x2) / (m+n)
+    # Py = (n*y1 + m*y2) / (m+n)
+    
+    px_num = n * x1 + m * x2
+    py_num = n * y1 + m * y2
+    den = m + n
+    
+    # 確保答案是整數，或者至少是簡單分數
+    if px_num % den != 0 or py_num % den != 0:
+        # 重新生成，直到得到整數解
+        return generate_ratio_in_plane_question()
+        
+    px = px_num // den
+    py = py_num // den
+    
+    question_text = (
+        f"已知平面上兩點 A({x1}, {y1}) 和 B({x2}, {y2})。"
+        f"若點 P 在線段 AB 上，且 AP:PB = {m}:{n}，請問點 P 的坐標為何？ (請以 (x,y) 的格式回答，無須空格)"
+    )
+    answer = f"({px},{py})"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_coordinate_systems_question():
+    """動態生成一道「坐標系」的題目 (直角坐標轉極坐標)"""
+    # 選擇一個容易轉換的點，例如在軸上或特殊角度
+    choice = random.choice([1, 2, 3, 4])
+    if choice == 1: # (r, 0)
+        x = random.randint(1, 5)
+        y = 0
+        r = x
+        theta_deg = 0
+    elif choice == 2: # (0, r)
+        x = 0
+        y = random.randint(1, 5)
+        r = y
+        theta_deg = 90
+    elif choice == 3: # (-r, 0)
+        x = random.randint(-5, -1)
+        y = 0
+        r = abs(x)
+        theta_deg = 180
+    else: # (0, -r)
+        x = 0
+        y = random.randint(-5, -1)
+        r = abs(y)
+        theta_deg = 270
+        
+    question_text = f"將直角坐標點 ({x}, {y}) 轉換為極坐標 (r, θ)，請問 r 的值是多少？"
+    answer = str(r)
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_conic_sections_question():
+    """動態生成一道「圓錐曲線」的題目 (判斷類型)"""
+    # Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0
+    # 判斷類型主要看 A, B, C
+    # B^2 - 4AC
+    # < 0: 橢圓或圓
+    # = 0: 拋物線
+    # > 0: 雙曲線
+    
+    conic_type = random.choice(['ellipse', 'parabola', 'hyperbola'])
+    
+    if conic_type == 'ellipse':
+        # A, C 同號，B=0
+        A = random.randint(1, 5)
+        C = random.randint(1, 5)
+        while A == C: # 避免是圓
+            C = random.randint(1, 5)
+        B = 0
+        equation_str = f"{A}x^2 + {C}y^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        answer = "橢圓"
+    elif conic_type == 'parabola':
+        # A=0 或 C=0 (但不同時為0), B=0
+        if random.choice([True, False]):
+            A = random.randint(1, 5)
+            C = 0
+        else:
+            A = 0
+            C = random.randint(1, 5)
+        B = 0
+        if A == 0:
+            equation_str = f"{C}y^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        else:
+            equation_str = f"{A}x^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        answer = "拋物線"
+    else: # hyperbola
+        # A, C 異號，B=0
+        A = random.randint(1, 5)
+        C = random.randint(-5, -1)
+        B = 0
+        equation_str = f"{A}x^2 {C}y^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        answer = "雙曲線"
+        
+    question_text = f"請問下列方程式代表哪一種圓錐曲線？\n{equation_str}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_parabola_question():
+    """動態生成一道「拋物線」的題目 (求頂點)"""
+    # 考慮兩種基本形式: y = a(x-h)^2 + k 或 x = a(y-k)^2 + h
+    # 這裡我們生成 y = ax^2 + bx + c 形式，求頂點 (-b/2a, f(-b/2a))
+    
+    a = random.randint(-3, 3)
+    while a == 0: # 確保是二次項
+        a = random.randint(-3, 3)
+    b = random.randint(-5, 5)
+    c = random.randint(-9, 9)
+    
+    # 頂點 x 座標: -b / (2a)
+    vertex_x_num = -b
+    vertex_x_den = 2 * a
+    
+    # 簡化分數
+    from math import gcd
+    common_divisor = gcd(vertex_x_num, vertex_x_den)
+    vertex_x_num //= common_divisor
+    vertex_x_den //= common_divisor
+    
+    question_text = f"已知拋物線方程式為 y = {a}x^2 + {b}x + {c}，請問其頂點的 x 坐標是多少？"
+    
+    if vertex_x_den == 1:
+        answer = str(vertex_x_num)
+    else:
+        answer = f"{vertex_x_num}/{vertex_x_den}"
+        
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_ellipse_question():
+    """動態生成一道「橢圓」的題目 (求中心點)"""
+    h = random.randint(-3, 3)
+    k = random.randint(-3, 3)
+    a_sq = random.randint(4, 9) # a^2
+    b_sq = random.randint(1, 3) # b^2
+    
+    # (x-h)^2/a^2 + (y-k)^2/b^2 = 1
+    # 為了簡化，我們只問中心點
+    
+    question_text = f"已知橢圓方程式為 (x - {h})^2/{a_sq} + (y - {k})^2/{b_sq} = 1，請問此橢圓的中心點坐標為何？ (請以 (x,y) 的格式回答，無須空格)"
+    answer = f"({h},{k})"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_hyperbola_question():
+    """動態生成一道「雙曲線」的題目 (求中心點)"""
+    h = random.randint(-3, 3)
+    k = random.randint(-3, 3)
+    a_sq = random.randint(4, 9) # a^2
+    b_sq = random.randint(1, 3) # b^2
+    
+    # (x-h)^2/a^2 - (y-k)^2/b^2 = 1 或 (y-k)^2/b^2 - (x-h)^2/a^2 = 1
+    # 為了簡化，我們只問中心點
+    
+    if random.choice([True, False]):
+        equation_str = f"(x - {h})^2/{a_sq} - (y - {k})^2/{b_sq} = 1"
+    else:
+        equation_str = f"(y - {k})^2/{b_sq} - (x - {h})^2/{a_sq} = 1"
+        
+    question_text = f"已知雙曲線方程式為 {equation_str}，請問此雙曲線的中心點坐標為何？ (請以 (x,y) 的格式回答，無須空格)"
+    answer = f"({h},{k})"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_quadratic_curves_question():
+    """動態生成一道「二次曲線」的題目 (判斷類型)"""
+    # Ax^2 + Bxy + Cy^2 + Dx + Ey + F = 0
+    # 判斷類型主要看 B^2 - 4AC
+    # < 0: 橢圓或圓
+    # = 0: 拋物線
+    # = 0: 拋物線
+    # > 0: 雙曲線
+    
+    conic_type = random.choice(['ellipse', 'parabola', 'hyperbola'])
+    
+    if conic_type == 'ellipse':
+        # A, C 同號，B=0
+        A = random.randint(1, 5)
+        C = random.randint(1, 5)
+        while A == C: # 避免是圓
+            C = random.randint(1, 5)
+        B = 0
+        equation_str = f"{A}x^2 + {C}y^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        answer = "橢圓"
+    elif conic_type == 'parabola':
+        # A=0 或 C=0 (但不同時為0), B=0
+        if random.choice([True, False]):
+            A = random.randint(1, 5)
+            C = 0
+        else:
+            A = 0
+            C = random.randint(1, 5)
+        B = 0
+        if A == 0:
+            equation_str = f"{C}y^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        else:
+            equation_str = f"{A}x^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        answer = "拋物線"
+    else: # hyperbola
+        # A, C 異號，B=0
+        A = random.randint(1, 5)
+        C = random.randint(-5, -1)
+        B = 0
+        equation_str = f"{A}x^2 {C}y^2 + {random.randint(-5, 5)}x + {random.randint(-5, 5)}y + {random.randint(-5, 5)} = 0"
+        answer = "雙曲線"
+        
+    question_text = f"請問下列方程式代表哪一種二次曲線？\n{equation_str}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_linear_programming_question():
+    """動態生成一道「線性規劃」的題目 (判斷點是否滿足不等式組)"""
+    num_inequalities = random.choice([2, 3])
+    inequalities = []
+    inequality_strs = []
+    
+    # 生成不等式組
+    for _ in range(num_inequalities):
+        a = random.randint(-3, 3)
+        b = random.randint(-3, 3)
+        while a == 0 and b == 0:
+            a = random.randint(-3, 3)
+            b = random.randint(-3, 3)
+        
+        # 確保不等式有意義
+        x_test = random.randint(-5, 5)
+        y_test = random.randint(-5, 5)
+        c = (a * x_test) + (b * y_test) + random.randint(-2, 2) # 讓點有機會滿足或不滿足
+        
+        sign = random.choice(['>', '>=', '<', '<='])
+        inequalities.append({'a': a, 'b': b, 'c': c, 'sign': sign})
+        inequality_strs.append(format_inequality(a, b, c, sign))
+        
+    # 生成一個測試點
+    test_x = random.randint(-5, 5)
+    test_y = random.randint(-5, 5)
+    
+    # 檢查測試點是否滿足所有不等式
+    is_solution = True
+    for ieq in inequalities:
+        if not check_inequality(ieq['a'], ieq['b'], ieq['c'], ieq['sign'], test_x, test_y):
+            is_solution = False
+            break
+            
+    correct_answer = "是" if is_solution else "否"
+    system_str = "\n".join([f"  {s}" for s in inequality_strs])
+    
+    question_text = f"請問點 ({test_x}, {test_y}) 是否為下列不等式組的解？ (請回答 '是' 或 '否')\n{system_str}"
+    
+    return {
+        "text": question_text,
+        "answer": correct_answer,
+        "validation_function_name": None # 可以考慮使用 validate_check_point
+    }
+
+def generate_conditional_probability_question():
+    """動態生成一道「條件機率」的題目"""
+    # 簡單情境：從袋中取球
+    red_balls = random.randint(2, 5)
+    blue_balls = random.randint(2, 5)
+    total_balls = red_balls + blue_balls
+    
+    # 假設第一次取出紅球，第二次再取球是藍球的機率
+    # P(B|R) = P(B and R) / P(R)
+    # P(R) = red_balls / total_balls
+    # P(B and R) = (red_balls / total_balls) * (blue_balls / (total_balls - 1))
+    # P(B|R) = blue_balls / (total_balls - 1)
+    
+    question_text = (
+        f"一個袋中有 {red_balls} 顆紅球和 {blue_balls} 顆藍球。"
+        f"如果第一次取出紅球後不放回，請問第二次取出藍球的機率是多少？ (請以 a/b 的形式表示)"
+    )
+    
+    answer_num = blue_balls
+    answer_den = total_balls - 1
+    
+    from math import gcd
+    common = gcd(answer_num, answer_den)
+    answer = f"{answer_num // common}/{answer_den // common}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_bayes_theorem_question():
+    """動態生成一道「貝氏定理」的題目 (簡化版)"""
+    # 假設情境：某疾病的盛行率和檢測的準確性
+    # P(D) = 疾病盛行率
+    # P(pos|D) = 檢測結果為陽性，且確實有病 (真陽性率)
+    # P(pos|not D) = 檢測結果為陽性，但沒有病 (偽陽性率)
+    # 求 P(D|pos) = P(pos|D) * P(D) / P(pos)
+    # P(pos) = P(pos|D) * P(D) + P(pos|not D) * P(not D)
+    
+    # 為了簡化，我們使用容易計算的數字
+    p_d = 0.01 # 疾病盛行率 1%
+    p_pos_given_d = 0.95 # 真陽性率 95%
+    p_pos_given_not_d = 0.10 # 偽陽性率 10%
+    
+    p_not_d = 1 - p_d
+    p_pos = (p_pos_given_d * p_d) + (p_pos_given_not_d * p_not_d)
+    p_d_given_pos = (p_pos_given_d * p_d) / p_pos
+    
+    question_text = (
+        f"某種疾病的盛行率為 {p_d*100:.0f}%。"
+        f"一種檢測方法對有病的人有 {p_pos_given_d*100:.0f}% 的機率呈現陽性，"
+        f"對沒病的人有 {p_pos_given_not_d*100:.0f}% 的機率呈現陽性。"
+        f"如果一個人的檢測結果為陽性，請問他確實有病的機率是多少？ (請四捨五入到小數點後兩位)"
+    )
+    answer = f"{p_d_given_pos:.2f}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_discrete_random_variables_question():
+    """動態生成一道「離散型隨機變數」的題目 (求期望值)"""
+    # 簡單的機率分佈
+    values = [random.randint(1, 5) for _ in range(3)]
+    probabilities = [0.2, 0.3, 0.5] # 固定機率，確保和為 1
+    
+    # 計算期望值 E(X) = sum(x * P(x))
+    expected_value = sum(v * p for v, p in zip(values, probabilities))
+    
+    question_text = (
+        f"已知離散型隨機變數 X 的機率分佈如下：\n"
+        f"  P(X={values[0]}) = {probabilities[0]:.1f}\n"
+        f"  P(X={values[1]}) = {probabilities[1]:.1f}\n"
+        f"  P(X={values[2]}) = {probabilities[2]:.1f}\n"
+        f"請問 X 的期望值是多少？"
+    )
+    answer = str(expected_value)
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_binomial_geometric_distributions_question():
+    """動態生成一道「二項分布與幾何分布」的題目 (判斷類型)"""
+    scenario_type = random.choice(['binomial', 'geometric'])
+    
+    if scenario_type == 'binomial':
+        n = random.randint(5, 10)
+        p = random.choice([0.2, 0.5, 0.8])
+        question_text = (
+            f"小明投籃命中率為 {p*100:.0f}%。他投籃 {n} 次，請問他投進 3 球的機率，"
+            f"適合用哪種機率分布來計算？ (請回答 '二項分布' 或 '幾何分布')"
+        )
+        answer = "二項分布"
+    else: # geometric
+        p = random.choice([0.2, 0.5, 0.8])
+        question_text = (
+            f"小華每次射擊命中靶心的機率為 {p*100:.0f}%。"
+            f"請問他第一次命中靶心需要射擊幾次的機率，適合用哪種機率分布來計算？ (請回答 '二項分布' 或 '幾何分布')"
+        )
+        answer = "幾何分布"
+        
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_binomial_distribution_question():
+    """動態生成一道「二項分布」的題目 (求特定成功次數的機率)"""
+    n = random.randint(3, 5) # 試驗次數
+    k = random.randint(1, n) # 成功次數
+    p_val = random.choice([0.2, 0.5, 0.8]) # 成功機率
+    
+    # 計算二項分布機率 P(X=k) = C(n, k) * p^k * (1-p)^(n-k)
+    probability = math.comb(n, k) * (p_val ** k) * ((1 - p_val) ** (n - k))
+    
+    question_text = (
+        f"某次實驗成功機率為 {p_val:.1f}。若進行 {n} 次獨立實驗，"
+        f"請問恰好成功 {k} 次的機率是多少？ (請四捨五入到小數點後三位)"
+    )
+    answer = f"{probability:.3f}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_complex_roots_polynomials_question():
+    """動態生成一道「複數與多項式方程式的根」的題目 (共軛複數根)"""
+    # 根據共軛複數根定理，如果一個實係數多項式有一個複數根 a+bi，那麼它的共軛複數 a-bi 也是一個根。
+    
+    # 生成一個複數根
+    a = random.randint(-3, 3)
+    b = random.randint(1, 3) # 確保 b 不為 0，是純虛數部分
+    
+    complex_root_str = f"{a}{'+' if b > 0 else ''}{b}i"
+    conjugate_root_str = f"{a}{'-' if b > 0 else '+'}{abs(b)}i"
+    
+    question_text = (
+        f"已知一個實係數多項式方程式有一個根為 {complex_root_str}。"
+        f"請問此多項式方程式的另一個根為何？"
+    )
+    answer = conjugate_root_str
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_complex_numbers_geometry_question():
+    """動態生成一道「複數的幾何意涵」的題目 (求模數)"""
+    real_part = random.randint(-5, 5)
+    imag_part = random.randint(-5, 5)
+    
+    # 確保不是 0+0i
+    while real_part == 0 and imag_part == 0:
+        real_part = random.randint(-5, 5)
+        imag_part = random.randint(-5, 5)
+        
+    modulus = math.sqrt(real_part**2 + imag_part**2)
+    
+    complex_num_str = f"{real_part}{'+' if imag_part >= 0 else ''}{imag_part}i"
+    
+    question_text = f"請問複數 {complex_num_str} 的模數 (絕對值) 是多少？ (請四捨五入到小數點後一位)"
+    answer = f"{modulus:.1f}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_complex_plane_question():
+    """動態生成一道「複數與複數平面」的題目 (從坐標判斷複數)"""
+    real_part = random.randint(-5, 5)
+    imag_part = random.randint(-5, 5)
+    
+    complex_num_str = f"{real_part}{'+' if imag_part >= 0 else ''}{imag_part}i"
+    
+    question_text = f"在複數平面上，點 ({real_part}, {imag_part}) 代表哪一個複數？ (請以 a+bi 的形式回答)"
+    answer = complex_num_str
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_polynomials_intro_question():
+    """動態生成一道「多項式」的題目 (求次數)"""
+    degree = random.randint(1, 4)
+    coeffs = [random.randint(-5, 5) for _ in range(degree + 1)]
+    
+    # 確保最高次項係數不為零
+    while coeffs[0] == 0:
+        coeffs[0] = random.randint(-5, 5)
+        
+    poly_text = format_polynomial(coeffs)
+    
+    question_text = f"請問多項式 f(x) = {poly_text} 的次數是多少？"
+    answer = str(degree)
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_sequence_limits_infinite_series_question():
+    """動態生成一道「數列的極限與無窮等比級數」的題目 (求無窮等比級數和)"""
+    a = random.randint(1, 10) # 首項
+    r_num = random.randint(1, 4) # 公比分子
+    r_den = random.randint(5, 9) # 公比分母，確保 |r| < 1
+    r = r_num / r_den
+    
+    # 無窮等比級數和 S = a / (1 - r)
+    sum_val = a / (1 - r)
+    
+    question_text = (
+        f"已知一個無窮等比級數的首項為 {a}，公比為 {r_num}/{r_den}。"
+        f"請問此無窮等比級數的和是多少？ (請四捨五入到小數點後兩位)"
+    )
+    answer = f"{sum_val:.2f}"
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_functions_limits_question():
+    """動態生成一道「函數與函數的極限」的題目 (求多項式函數的極限)"""
+    # 簡單的多項式函數，直接代入即可
+    a = random.randint(-3, 3)
+    b = random.randint(-5, 5)
+    c = random.randint(-9, 9)
+    
+    x_val = random.randint(-2, 2)
+    
+    # f(x) = ax^2 + bx + c
+    limit_val = a * (x_val**2) + b * x_val + c
+    
+    question_text = f"請問函數 f(x) = {a}x^2 + {b}x + {c} 在 x 趨近於 {x_val} 時的極限值是多少？"
+    answer = str(limit_val)
+    
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+def generate_differentiation_question():
+    """動態生成一道「微分」的題目 (求多項式函數的導數)"""
+    # f(x) = ax^2 + bx + c
+    # f'(x) = 2ax + b
+    
+    a = random.randint(-3, 3)
+    b = random.randint(-5, 5)
+    c = random.randint(-9, 9)
+    
+    # 確保不是常數函數
+    while a == 0 and b == 0:
+        a = random.randint(-3, 3)
+        b = random.randint(-5, 5)
+        
+    question_text = f"請問函數 f(x) = {a}x^2 + {b}x + {c} 的導數 f'(x) 是多少？ (請以 ax+b 的形式回答)"
+    
+    # 格式化答案
+    terms = []
+    if 2*a != 0:
+        terms.append(f"{2*a}x")
+    if b != 0:
+        if b > 0 and terms:
+            terms.append(f" + {b}")
+        elif b < 0 and terms:
+            terms.append(f" - {abs(b)}")
+        else:
+            terms.append(str(b))
+            
+    if not terms:
+        answer = "0"
+    else:
+        answer = "".join(terms)
+        
+    return {
+        "text": question_text,
+        "answer": answer,
+        "validation_function_name": None
+    }
+
+
+
+
 # ==============================================================================
 # 6. Skill Engine Definition
 # ==============================================================================
@@ -710,21 +2021,13 @@ SKILL_ENGINE = {
         'display_name': '常用對數',
         'description': '計算常用對數。'
     },
-    'exponential_functions': {
-        'generator': generate_exponential_question,
-        'display_name': '指數函數',
-        'description': '計算指數運算。'
-    },
+    'exponential_functions': { 'generator': generate_exponential_functions_question, 'display_name': '指數函數', 'description': '練習解指數方程式。' },
     'logarithmic_properties': {
-        'generator': generate_common_logarithm_question,
+        'generator': generate_logarithmic_properties_question,
         'display_name': '對數與對數律 / 對數',
-        'description': '計算常用對數。'
+        'description': '練習對數律的應用。'
     },
-    'logarithmic_functions': {
-        'generator': generate_common_logarithm_question,
-        'display_name': '對數函數',
-        'description': '計算常用對數。'
-    },
+    'logarithmic_functions': { 'generator': generate_logarithmic_functions_question, 'display_name': '對數函數', 'description': '練習解對數方程式。' },
 
     # Linear Algebra & Equations
     'linear_equations': {
@@ -735,7 +2038,7 @@ SKILL_ENGINE = {
     'simultaneous_equations_1or2var': {
         'generator': generate_addition_subtraction_question,
         'display_name': '一/二元一次聯立方程式',
-        'description': '練習二元一次聯立方程式。'
+        'description': '練習二元一次聯立方程式的加減消去法。'
     },
     'simultaneous_equations_3var': {
         'generator': generate_addition_subtraction_question,
@@ -781,61 +2084,63 @@ SKILL_ENGINE = {
         'display_name': '多項式不等式',
         'description': '練習不等式相關問題。'
     },
-    'polynomials_intro': {
-        'generator': generate_remainder_theorem_question,
-        'display_name': '多項式',
-        'description': '練習多項式除法、餘式與因式定理。'
-    },
+    
 
     # Placeholder Mappings (using default generators)
-    'sequences_recursion': { 'generator': generate_remainder_theorem_question, 'display_name': '數列與遞迴關係', 'description': 'Placeholder' },
-    'series': { 'generator': generate_remainder_theorem_question, 'display_name': '級數', 'description': 'Placeholder' },
-    'counting_principles': { 'generator': generate_remainder_theorem_question, 'display_name': '計數原理', 'description': 'Placeholder' },
-    'permutations': { 'generator': generate_remainder_theorem_question, 'display_name': '排列', 'description': 'Placeholder' },
-    'combinations': { 'generator': generate_remainder_theorem_question, 'display_name': '組合', 'description': 'Placeholder' },
-    'classical_probability': { 'generator': generate_remainder_theorem_question, 'display_name': '古典機率', 'description': 'Placeholder' },
-    'expected_value': { 'generator': generate_remainder_theorem_question, 'display_name': '數學期望值', 'description': 'Placeholder' },
-    'data_analysis_1d': { 'generator': generate_remainder_theorem_question, 'display_name': '一維數據分析', 'description': 'Placeholder' },
-    'data_analysis_2d': { 'generator': generate_remainder_theorem_question, 'display_name': '二維數據分析', 'description': 'Placeholder' },
-    'trig_ratios_right_triangle': { 'generator': generate_remainder_theorem_question, 'display_name': '直角三角形的三角比', 'description': 'Placeholder' },
-    'trig_ratios_general_angle': { 'generator': generate_remainder_theorem_question, 'display_name': '廣義角三角比', 'description': 'Placeholder' },
-    'polar_coordinates': { 'generator': generate_remainder_theorem_question, 'display_name': '與極坐標', 'description': 'Placeholder' },
-    'trig_properties_laws': { 'generator': generate_remainder_theorem_question, 'display_name': '三角比的性質', 'description': 'Placeholder' },
-    'radian_measure': { 'generator': generate_remainder_theorem_question, 'display_name': '弧度量', 'description': 'Placeholder' },
-    'trig_graphs_periodicity': { 'generator': generate_remainder_theorem_question, 'display_name': '三角函數的圖形 / 週期性', 'description': 'Placeholder' },
-    'trig_sum_difference': { 'generator': generate_remainder_theorem_question, 'display_name': '三角的和差角公式', 'description': 'Placeholder' },
-    'trig_sine_cosine_combination': { 'generator': generate_remainder_theorem_question, 'display_name': '正餘弦的疊合', 'description': 'Placeholder' },
-    'real_number_system': { 'generator': generate_remainder_theorem_question, 'display_name': '數', 'description': 'Placeholder' },
-    'absolute_value': { 'generator': generate_remainder_theorem_question, 'display_name': '絕對值', 'description': 'Placeholder' },
-    'vectors_2d': { 'generator': generate_remainder_theorem_question, 'display_name': '平面向量', 'description': 'Placeholder' },
-    'vectors_2d_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '平面向量的運算', 'description': 'Placeholder' },
-    'space_concepts': { 'generator': generate_remainder_theorem_question, 'display_name': '空間概念', 'description': 'Placeholder' },
-    'vectors_3d_coordinates': { 'generator': generate_remainder_theorem_question, 'display_name': '空間向量的坐標表示法', 'description': 'Placeholder' },
-    'vectors_3d_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '空間向量的運算', 'description': 'Placeholder' },
-    'determinant_3x3': { 'generator': generate_remainder_theorem_question, 'display_name': '三階行列式', 'description': 'Placeholder' },
-    'planes_in_space': { 'generator': generate_remainder_theorem_question, 'display_name': '空間中的平面', 'description': 'Placeholder' },
-    'lines_in_space': { 'generator': generate_remainder_theorem_question, 'display_name': '空間中的直線', 'description': 'Placeholder' },
+    'sequences_recursion': { 'generator': generate_sequence_question, 'display_name': '數列與遞迴關係', 'description': '練習等差數列。' },
+    'series': { 'generator': generate_series_question, 'display_name': '級數', 'description': '練習等差級數求和。' },
+    'counting_principles': { 'generator': generate_counting_principles_question, 'display_name': '計數原理', 'description': '練習計數的乘法原理。' },
+    'permutations': { 'generator': generate_permutations_question, 'display_name': '排列', 'description': '練習排列 P(n,k)。' },
+    'combinations': { 'generator': generate_combinations_question, 'display_name': '組合', 'description': '練習組合 C(n,k)。' },
+    'classical_probability': { 'generator': generate_classical_probability_question, 'display_name': '古典機率', 'description': '練習基本的機率問題。' },
+    'expected_value': { 'generator': generate_expected_value_question, 'display_name': '數學期望值', 'description': '練習計算期望值。' },
+    'data_analysis_1d': { 'generator': generate_data_analysis_1d_question, 'display_name': '一維數據分析', 'description': '練習計算平均數、中位數或眾數。' },
+    'data_analysis_2d': { 'generator': generate_data_analysis_2d_question, 'display_name': '二維數據分析', 'description': '練習計算二維數據的中心點。' },
+    'trig_ratios_right_triangle': { 'generator': generate_trig_ratios_right_triangle_question, 'display_name': '直角三角形的三角比', 'description': '練習計算三角比。' },
+    'trig_ratios_general_angle': { 'generator': generate_trig_ratios_general_angle_question, 'display_name': '廣義角三角比', 'description': '練習計算廣義角的三角比。' },
+    'polar_coordinates': { 'generator': generate_polar_coordinates_question, 'display_name': '與極坐標', 'description': '練習極座標與直角座標的轉換。' },
+    'trig_properties_laws': { 'generator': generate_trig_properties_laws_question, 'display_name': '三角比的性質', 'description': '練習正弦與餘弦定理。' },
+    'radian_measure': { 'generator': generate_radian_measure_question, 'display_name': '弧度量', 'description': '練習角度與弧度的換算。' },
+    'trig_graphs_periodicity': { 'generator': generate_trig_graphs_periodicity_question, 'display_name': '三角函數的圖形 / 週期性', 'description': '練習三角函數的週期。' },
+    'trig_sum_difference': { 'generator': generate_trig_sum_difference_question, 'display_name': '三角的和差角公式', 'description': '練習和差角公式的觀念。' },
+    'trig_sine_cosine_combination': { 'generator': generate_trig_sine_cosine_combination_question, 'display_name': '正餘弦的疊合', 'description': '練習疊合後求最大最小值。' },
+    'real_number_system': { 'generator': generate_real_number_system_question, 'display_name': '數', 'description': '練習判斷有理數與無理數。' },
+    'absolute_value': { 'generator': generate_absolute_value_question, 'display_name': '絕對值', 'description': '練習絕對值的基本運算。' },
+    'vectors_2d': { 'generator': generate_vectors_2d_question, 'display_name': '平面向量', 'description': '練習向量的分量。' },
+    'vectors_2d_operations': { 'generator': generate_vectors_2d_operations_question, 'display_name': '平面向量的運算', 'description': '練習向量的加減法。' },
+    'space_concepts': { 'generator': generate_space_concepts_question, 'display_name': '空間概念', 'description': '練習點到平面的距離。' },
+    'vectors_3d_coordinates': { 'generator': generate_vectors_3d_coordinates_question, 'display_name': '空間向量的坐標表示法', 'description': '練習空間向量的分量。', 'grade_level': '十一年級', 'main_unit': '向量與空間' },
+    'vectors_3d_operations': { 'generator': generate_vectors_3d_operations_question, 'display_name': '空間向量的運算', 'description': '練習空間向量的加減法。', 'grade_level': '十一年級', 'main_unit': '向量與空間' },
+    'determinant_3x3': { 'generator': generate_determinant_3x3_question, 'display_name': '三階行列式', 'description': '練習計算三階行列式的值。', 'grade_level': '十一年級', 'main_unit': '向量與空間' },
+    'planes_in_space': { 'generator': generate_planes_in_space_question, 'display_name': '空間中的平面', 'description': '練習求平面的法向量。', 'grade_level': '十一年級', 'main_unit': '向量與空間' },
+    'lines_in_space': { 'generator': generate_lines_in_space_question, 'display_name': '空間中的直線', 'description': '練習求直線的方向向量。', 'grade_level': '十一年級', 'main_unit': '向量與空間' },
+    'function_properties': { 'generator': generate_function_properties_question, 'display_name': '函數性質的判定', 'description': '練習判斷函數的奇偶性。', 'grade_level': '十一年級', 'main_unit': '(微積分/極限)' },
+    'matrix_applications': { 'generator': generate_matrix_applications_question, 'display_name': '矩陣的應用', 'description': '練習矩陣乘法。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'matrix_operations': { 'generator': generate_matrix_operations_question, 'display_name': '矩陣的運算', 'description': '練習矩陣加法。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'simultaneous_equations_3var': { 'generator': generate_simultaneous_equations_3var_question, 'display_name': '三元一次聯立方程式', 'description': '練習解三元一次聯立方程式。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    
     'function_properties': { 'generator': generate_remainder_theorem_question, 'display_name': '函數性質的判定', 'description': 'Placeholder' },
-    'matrix_applications': { 'generator': generate_remainder_theorem_question, 'display_name': '矩陣的應用', 'description': 'Placeholder' },
-    'matrix_operations': { 'generator': generate_remainder_theorem_question, 'display_name': '矩陣的運算', 'description': 'Placeholder' },
-    'ratio_in_plane': { 'generator': generate_remainder_theorem_question, 'display_name': '平面上的比例', 'description': 'Placeholder' },
-    'coordinate_systems': { 'generator': generate_remainder_theorem_question, 'display_name': '坐標系', 'description': 'Placeholder' },
-    'conic_sections': { 'generator': generate_remainder_theorem_question, 'display_name': '圓錐曲線', 'description': 'Placeholder' },
-    'parabola': { 'generator': generate_remainder_theorem_question, 'display_name': '拋物線', 'description': 'Placeholder' },
-    'ellipse': { 'generator': generate_remainder_theorem_question, 'display_name': '橢圓', 'description': 'Placeholder' },
-    'hyperbola': { 'generator': generate_remainder_theorem_question, 'display_name': '雙曲線', 'description': 'Placeholder' },
-    'quadratic_curves': { 'generator': generate_remainder_theorem_question, 'display_name': '二次曲線', 'description': 'Placeholder' },
-    'conditional_probability': { 'generator': generate_remainder_theorem_question, 'display_name': '條件機率', 'description': 'Placeholder' },
-    'bayes_theorem': { 'generator': generate_remainder_theorem_question, 'display_name': '貝氏定理', 'description': 'Placeholder' },
-    'discrete_random_variables': { 'generator': generate_remainder_theorem_question, 'display_name': '離散型隨機變數', 'description': 'Placeholder' },
-    'binomial_geometric_distributions': { 'generator': generate_remainder_theorem_question, 'display_name': '二項分布與幾何分布', 'description': 'Placeholder' },
-    'binomial_distribution': { 'generator': generate_remainder_theorem_question, 'display_name': '二項分布', 'description': 'Placeholder' },
-    'complex_roots_polynomials': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與多項式方程式的根', 'description': 'Placeholder' },
-    'complex_numbers_geometry': { 'generator': generate_remainder_theorem_question, 'display_name': '複數的幾何意涵', 'description': 'Placeholder' },
-    'complex_plane': { 'generator': generate_remainder_theorem_question, 'display_name': '複數與複數平面', 'description': 'Placeholder' },
-    'sequence_limits_infinite_series': { 'generator': generate_remainder_theorem_question, 'display_name': '數列的極限與無窮等比級數', 'description': 'Placeholder' },
-    'functions_limits': { 'generator': generate_remainder_theorem_question, 'display_name': '函數與函數的極限', 'description': 'Placeholder' },
-    'differentiation': { 'generator': generate_remainder_theorem_question, 'display_name': '微分', 'description': 'Placeholder' },
+    
+    
+    'ratio_in_plane': { 'generator': generate_ratio_in_plane_question, 'display_name': '平面上的比例', 'description': '練習分點公式。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'coordinate_systems': { 'generator': generate_coordinate_systems_question, 'display_name': '坐標系', 'description': '練習直角坐標與極坐標轉換。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'conic_sections': { 'generator': generate_conic_sections_question, 'display_name': '圓錐曲線', 'description': '練習判斷圓錐曲線類型。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'parabola': { 'generator': generate_parabola_question, 'display_name': '拋物線', 'description': '練習求拋物線頂點。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'ellipse': { 'generator': generate_ellipse_question, 'display_name': '橢圓', 'description': '練習求橢圓中心點。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'hyperbola': { 'generator': generate_hyperbola_question, 'display_name': '雙曲線', 'description': '練習求雙曲線中心點。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'quadratic_curves': { 'generator': generate_quadratic_curves_question, 'display_name': '二次曲線', 'description': '練習判斷二次曲線類型。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'linear_programming': { 'generator': generate_linear_programming_question, 'display_name': '線性規劃', 'description': '練習判斷點是否滿足不等式組。', 'grade_level': '十二年級', 'main_unit': '向量與空間' },
+    'conditional_probability': { 'generator': generate_conditional_probability_question, 'display_name': '條件機率', 'description': '練習計算條件機率。', 'grade_level': '十二年級', 'main_unit': '排組機統' },
+    'bayes_theorem': { 'generator': generate_bayes_theorem_question, 'display_name': '貝氏定理', 'description': '練習貝氏定理的應用。', 'grade_level': '十二年級', 'main_unit': '排組機統' },
+    'discrete_random_variables': { 'generator': generate_discrete_random_variables_question, 'display_name': '離散型隨機變數', 'description': '練習計算離散型隨機變數的期望值。', 'grade_level': '十二年級', 'main_unit': '排組機統' },
+    'binomial_geometric_distributions': { 'generator': generate_binomial_geometric_distributions_question, 'display_name': '二項分布與幾何分布', 'description': '練習判斷二項分布與幾何分布。', 'grade_level': '十二年級', 'main_unit': '排組機統' },
+    'binomial_distribution': { 'generator': generate_binomial_distribution_question, 'display_name': '二項分布', 'description': '練習計算二項分布機率。', 'grade_level': '十二年級', 'main_unit': '排組機統' },
+    'complex_roots_polynomials': { 'generator': generate_complex_roots_polynomials_question, 'display_name': '複數與多項式方程式的根', 'description': '練習共軛複數根定理。', 'grade_level': '十二年級', 'main_unit': '排組機統' },
+    
+    
+    
+    
+    
     'integration': { 'generator': generate_remainder_theorem_question, 'display_name': '積分', 'description': 'Placeholder' },
     'integration_applications': { 'generator': generate_remainder_theorem_question, 'display_name': '積分的應用', 'description': 'Placeholder' },
 
@@ -1412,6 +2717,6 @@ def analyze_handwriting():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()  # 確保所有資料表都建立
-        #initialize_skills()  # 同步技能列表
+        initialize_skills()  # 同步技能列表
     print("Starting Flask app...")
     app.run(debug=True)

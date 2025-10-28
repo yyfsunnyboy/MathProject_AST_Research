@@ -776,6 +776,7 @@
 
                 function sendChatMessage() {
                     const userPrompt = chatInput ? chatInput.value.trim() : '';
+                    const currentQuestionText = questionText ? questionText.textContent.trim() : ''; // Get current question text
                     if (userPrompt === '' || isProcessing || (chatSendButton && chatSendButton.disabled)) return;
 
                     const userMessage = addChatMessage(userPrompt, 'user-message');
@@ -785,7 +786,11 @@
                     if (chatInput) chatInput.disabled = true;
                     if (chatSendButton) chatSendButton.disabled = true;
                     const thinkingMessage = addChatMessage('AI 助教思考中...', 'bot-message thinking-message');
-                    fetch('/ask_gemini', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ prompt: userPrompt }) })
+                    fetch('/ask_gemini', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ prompt: userPrompt, current_question: currentQuestionText })
+                    })
                         .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); })
                         .then(data => {
                             if (thinkingMessage) thinkingMessage.remove();
