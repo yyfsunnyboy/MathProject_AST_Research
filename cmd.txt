@@ -1,0 +1,52 @@
+math-master/
+├── app.py
+├── config.py
+├── requirements.txt
+├── static/
+│   └── style.css
+├── templates/
+│   └── index.html
+├── core/
+│   ├── __init__.py
+│   ├── routes.py
+│   ├── session.py
+│   └── ai_analyzer.py
+└── skills/
+    ├── __init__.py
+    └── remainder.py
+
+
+D:
+CD Python\
+
+# 切換到專案目錄
+cd Python\math-master
+
+# 建立資料夾
+mkdir core, skills, templates, static
+
+# 建立檔案（Windows 版 touch）
+New-Item app.py, config.py, requirements.txt
+New-Item core/__init__.py, core/routes.py, core/session.py, core/ai_analyzer.py
+New-Item skills/__init__.py, skills/remainder.py
+New-Item templates/index.html
+New-Item static/style.css
+
+# 1. 進入專案資料夾
+cd D:\Python\math-master
+
+# 2. 建立虛擬環境
+python -m venv venv
+
+# 3. 啟動虛擬環境
+venv\Scripts\activate
+
+# 4. 安裝套件
+pip install Flask google-generativeai
+
+
+set GEMINI_API_KEY=AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY
+
+cd D:\Python\math-master
+venv\Scripts\activate
+python app.py
