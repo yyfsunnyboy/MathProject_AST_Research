@@ -19,7 +19,7 @@ from google.api_core.exceptions import ResourceExhausted
 # 2. App Initialization and Configuration
 # ==============================================================================
 app = Flask(__name__)
-app.secret_key = 'AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw'  # ★ 請務必更換成您自己的密鑰 ★
+app.secret_key = 'your_API_key'  # ★ 請務必更換成您自己的密鑰 ★
 #app.secret_key = 'AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw' # ★ 備用的密鑰 ★
 
 # --- Database Configuration ---
