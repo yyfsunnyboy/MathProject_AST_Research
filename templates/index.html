@@ -207,6 +207,10 @@
             cursor: pointer;
             font-size: 0.9em;
         }
+        .canvas-actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
         #analyze-handwriting-button {
             background: #9b59b6 !important;
         }
@@ -311,8 +315,9 @@
         <!-- 練習區 -->
         <div class="practice-area">
             <div class="practice-top">
-                <h1>餘式定理 <span id="streak-counter">連續答對：0</span></h1>
-                <p id="question-text">載入中...</p>
+                <h1 id="skill-title">{{ skill_id|replace('_', ' ')|title }} <span id="streak-counter">連續答對：0</span></h1>
+                <div id="question-text" style="font-size: 1.5em; margin: 20px 0; line-height: 1.8; font-weight: bold;"></div>
+                
                 <div class="input-group">
                     <input type="text" id="answer-input" placeholder="請輸入答案">
                     <button id="submit-button">提交</button>
@@ -330,6 +335,8 @@
                     <input type="range" id="pen-width" min="1" max="10" value="2">
                     <span id="pen-width-label">2</span>
                     <div class="canvas-actions">
+                        <button id="undo-button">上一步</button>
+                        <button id="redo-button">下一步</button>
                         <button id="clear-canvas-button">清除</button>
                         <button id="analyze-handwriting-button">AI檢查</button>
                     </div>
@@ -357,7 +364,10 @@
         let isProcessing = false;
         let canvas, ctx, drawing = false;
         let currentColor = '#2c3e50', currentWidth = 2, isErasing = false;
-
+        let undoStack = [];  // 儲存歷史
+        let redoStack = [];  // 儲存復原
+        let isDrawing = false;
+        
         // === 元素 ===
         const questionText = document.getElementById('question-text');
         const answerInput = document.getElementById('answer-input');
@@ -369,17 +379,26 @@
 
         // === 初始化畫布 ===
         function initCanvas() {
-            canvas = document.getElementById('handwriting-canvas');
-            ctx = canvas.getContext('2d');
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-
-            canvas.addEventListener('mousedown', startDraw);
-            canvas.addEventListener('mousemove', draw);
-            canvas.addEventListener('mouseup', stopDraw);
-            canvas.addEventListener('mouseout', stopDraw);
-        }
-
+                canvas = document.getElementById('handwriting-canvas');
+                ctx = canvas.getContext('2d');
+                resizeCanvas();
+            
+                canvas.addEventListener('mousedown', startDraw);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', stopDraw);
+                canvas.addEventListener('mouseout', stopDraw);
+            
+                // 清除畫布
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                blankCanvas = canvas.toDataURL();  // 存空白
+            
+                undoStack = [];
+                redoStack = [];
+                updateUndoRedoButtons();
+            
+            }
+            
         function resizeCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
             canvas.width = rect.width;
@@ -388,24 +407,52 @@
             ctx.fillRect(0, 0, 10000, 10000);
         }
 
-        function startDraw(e) { 
-            if (isProcessing) return;
-            drawing = true; 
-            ctx.beginPath(); 
-            ctx.moveTo(e.offsetX, e.offsetY); 
-            setPenStyle();
+        // === 儲存狀態（必須在 startDraw 前面！）===
+        function saveState() {
+            const current = canvas.toDataURL();
+            if (undoStack.length > 0 && undoStack[undoStack.length - 1] === current) return;
+            redoStack = [];
+            undoStack.push(current);
+            if (undoStack.length > 50) undoStack.shift();
+            updateUndoRedoButtons();
         }
+        
+        // === 開始畫 ===
+        function startDraw(e) {
+            if (isProcessing) return;
+            isDrawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+            setPenStyle();
+            saveState();  // 記錄上一步！
+        }
+
+        // === 畫 ===
         function draw(e) {
-            if (!drawing || isProcessing) return;
+            if (!isDrawing || isProcessing) return;
             ctx.lineTo(e.offsetX, e.offsetY);
             ctx.stroke();
         }
-        function stopDraw() { drawing = false; }
+        // === 結束畫 ===
+        function stopDraw() {
+            if (isDrawing) {
+                isDrawing = false;
+                saveState();  // 畫完一筆存檔
+            }
+        }
 
         function setPenStyle() {
             ctx.lineWidth = isErasing ? 20 : currentWidth;
             ctx.strokeStyle = isErasing ? 'white' : currentColor;
             ctx.lineCap = 'round';
+        }
+        
+        // 更新按鈕狀態
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('undo-button');
+            const redoBtn = document.getElementById('redo-button');
+            undoBtn.disabled = undoStack.length <= 1;  // 至少要 2 個狀態才能復原
+            redoBtn.disabled = redoStack.length === 0;
         }
 
         // === 工具 ===
@@ -419,9 +466,45 @@
             document.getElementById('pen-width-label').textContent = currentWidth;
             setPenStyle();
         };
+        
+        // 復原
+        document.getElementById('undo-button').onclick = () => {
+            if (undoStack.length > 0) {
+                redoStack.push(canvas.toDataURL());  // 存當前
+                undoStack.pop();  // 丟掉當前
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    updateUndoRedoButtons();
+                };
+                img.src = undoStack[undoStack.length - 1] || blankCanvas;
+            }
+        };
+        
+        // 重做
+        document.getElementById('redo-button').onclick = () => {
+            if (redoStack.length > 0) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    undoStack.push(canvas.toDataURL());  // 存回 undo
+                    redoStack.pop();
+                    updateUndoRedoButtons();
+                };
+                img.src = redoStack[redoStack.length - 1];
+            }
+        };
+        
         document.getElementById('clear-canvas-button').onclick = () => {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (confirm('確定要清除所有計算步驟？')) {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    undoStack = [];
+                    redoStack = [];
+                    saveState();  // 儲存新空白狀態
+                }
         };
 
         function updateTools() {
@@ -436,17 +519,29 @@
             currentStreak = correct ? currentStreak + 1 : 0;
             streakCounter.textContent = `連續答對：${currentStreak}`;
         }
+        
+        // 從 URL 取得 skill_id（預設 remainder）
+        function getSkillId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('skill_id') || '{{ skill_id }}' || 'remainder';
+        }
 
         // === 出題 ===
+        // 出題時帶上 skill_id
         function loadQuestion() {
-            fetch('/get_next_question?skill=remainder')
+            const skill = getSkillId();
+            fetch(`/get_next_question?skill=${skill}`)
                 .then(r => r.json())
                 .then(data => {
-                    questionText.textContent = data.new_question_text;
+                    // 關鍵：改用 innerHTML 解析 HTML 標籤！
+                    document.getElementById('question-text').innerHTML = data.new_question_text;
                     answerInput.value = '';
                     resultDisplay.textContent = '';
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    // ... 其他初始化
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('question-text').textContent = '出題失敗，請重新整理';
                 });
         }
 
@@ -514,6 +609,7 @@
             chatHistory.scrollTop = chatHistory.scrollHeight;
             // 可串 Gemini
         };
+
 
         // === 初始化 ===
         window.onload = () => {

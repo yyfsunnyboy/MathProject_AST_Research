@@ -1,24 +1,32 @@
-math-master/
+math_practice/
 ├── app.py
 ├── config.py
 ├── requirements.txt
-├── static/
-│   └── style.css
 ├── templates/
-│   └── index.html
+│   ├── login.html          ← 登入頁面
+│   ├── register.html       ← 註冊頁面
+│   ├── dashboard.html      ← 個人學習狀況
+│   └── index.html          ← HTML + JS + CSS
+├── users.db                 ← 資料庫
 ├── core/
 │   ├── __init__.py
-│   ├── routes.py
-│   ├── session.py
-│   └── ai_analyzer.py
+│   ├── routes.py              # 共用 3 個 API
+│   ├── session.py             # 題目狀態管理
+│   └── ai_analyzer.py         # 共用 AI 分析
 └── skills/
     ├── __init__.py
-    └── remainder.py
-
+    ├── remainder.py           # 餘式定理
+    ├── factor.py              # 因式定理
+    ├── linear_sub.py          # 帶入消去法
+    ├── linear_add.py          # 加減消去法
+    ├── inequality_graph.py    # 圖解區域（手寫）
+    └── inequality_judge.py    # 判斷解
 
 D:
 CD Python\
 
+第一次安裝
+===========================
 # 切換到專案目錄
 cd Python\math-master
 
@@ -43,10 +51,14 @@ venv\Scripts\activate
 
 # 4. 安裝套件
 pip install Flask google-generativeai
+pip install flask-login
 
 
 set GEMINI_API_KEY=AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY
+$env:GEMINI_API_KEY = "AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY"
 
 cd D:\Python\math-master
 venv\Scripts\activate
 python app.py
+http://127.0.0.1:5000
+
