@@ -4,6 +4,7 @@ import base64
 import json
 import tempfile
 import os
+import re
 from flask import current_app
 
 gemini_model = None
@@ -19,53 +20,79 @@ def get_model():
     return gemini_model
 
 def analyze(image_data_url, context, api_key):
-    try:
-        # 解碼 base64
+    """
+    強制 Gemini 回傳純 JSON，失敗時自動重試一次
+    """
+    def _call_gemini():
+        # 解碼 Base64 圖片
         _, b64 = image_data_url.split(',', 1)
         img_data = base64.b64decode(b64)
 
         # 寫入臨時檔案
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-            temp_file.write(img_data)
-            temp_file_path = temp_file.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as f:
+            f.write(img_data)
+            temp_path = f.name
 
-        # 上傳檔案
-        file = genai.upload_file(path=temp_file_path)
+        try:
+            # 上傳到 Gemini
+            file = genai.upload_file(path=temp_path)
 
-        # 改用新模型（Gemini 2.5 Flash）
-        model = genai.GenerativeModel("gemini-2.5-flash")  # 關鍵修改！
+            # 強制 JSON 輸出 Prompt
+            prompt = f"""你是一位數學助教，正在批改學生手寫的計算紙。
+題目：{context}
 
-        prompt = f"""
-        題目：{context}
-        分析學生手寫計算紙：
-        - 步驟是否正確？
-        - 是否遺漏？
-        - 給出具體建議（Markdown）
-        回傳 JSON：
-        {{
-          "reply": "建議",
-          "is_graph_correct": true/false,
-          "correct": true/false,
-          "next_question": true/false
-        }}
-        """
+請**嚴格按照以下 JSON 格式回覆**，不要加入任何多餘文字、問候或解釋：
 
-        # 生成內容
-        resp = model.generate_content([prompt, file])
-        text = resp.text.strip().replace('```json', '').replace('```', '')
-        result = json.loads(text)
+{{
+  "reply": "用 Markdown 格式寫出具體建議（步驟對錯、遺漏、改進點）",
+  "is_graph_correct": true 或 false,
+  "correct": true 或 false,
+  "next_question": true 或 false
+}}
 
-        # 刪除臨時檔案
-        os.unlink(temp_file_path)
+直接輸出 JSON 內容，不要包在 ```json 標記內。"""
 
-        return result
-    except Exception as e:
-        return {
-            "reply": f"AI 分析失敗：{str(e)}",
-            "is_graph_correct": False,
-            "correct": False,
-            "next_question": False
-        }
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            resp = model.generate_content([prompt, file])
+            raw_text = resp.text.strip()
+
+            # 清理可能的 ```json 標記
+            cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
+            return json.loads(cleaned)
+
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    # 最多嘗試 2 次
+    for attempt in range(2):
+        try:
+            return _call_gemini()
+        except json.JSONDecodeError as e:
+            if attempt == 1:
+                return {
+                    "reply": f"AI 回應格式錯誤（第 {attempt+1} 次）：{str(e)}",
+                    "is_graph_correct": False,
+                    "correct": False,
+                    "next_question": False
+                }
+            import time; time.sleep(1)  # 重試前延遲
+        except Exception as e:
+            if attempt == 1:
+                return {
+                    "reply": f"AI 分析失敗：{str(e)}",
+                    "is_graph_correct": False,
+                    "correct": False,
+                    "next_question": False
+                }
+            import time; time.sleep(1)
+
+    return {
+        "reply": "AI 分析失敗，請稍後再試",
+        "is_graph_correct": False,
+        "correct": False,
+        "next_question": False
+    }
     
 def ask_ai_text(user_question):
     try:

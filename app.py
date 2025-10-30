@@ -59,6 +59,7 @@ def init_skills():
     skills = [
         ('remainder', '餘式定理', '學習用餘式定理快速求多項式餘數'),
         ('factor_theorem', '因式定理', '判斷 (x-k) 是否為多項式的因式'),
+        ('inequality_graph', '二元一次不等式(圖解)', '畫圖判斷'),
         # 可加更多
     ]
     c.executemany("INSERT OR IGNORE INTO skills_info VALUES (?, ?, ?)", skills)
