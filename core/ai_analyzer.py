@@ -97,8 +97,49 @@ def analyze(image_data_url, context, api_key):
 def ask_ai_text(user_question):
     try:
         model = get_model()
-        prompt = f"你是功文數學 AI 助教，用繁體中文親切回答：{user_question}"
+        prompt = f"""
+        你是功文數學 AI 助教，用繁體中文親切回答。
+        要求：
+        1. 多項式用這種格式：f(x) = x³ - 8x² + 9x + 5
+        2. 不要用 $...$ 或 LaTeX
+        3. 例題用「範例：」開頭
+        4. 步驟用數字 1. 2. 3.
+        5. 結尾加鼓勵話，如「加油～」
+        
+        學生問題：{user_question}
+        """
         resp = model.generate_content(prompt)
         return resp.text.strip()
     except Exception as e:
         return f"AI 錯誤：{str(e)}"
+    
+# core/ai_analyzer.py
+def ask_ai_text_with_context(user_question, context=""):
+    """
+    聊天專用 AI：帶入當前題目 context
+    """
+    model = get_model()
+    
+    system_prompt = f"""
+    你是功文數學 AI 助教，用繁體中文親切回答。
+    
+    【當前題目】：
+    {context or "（無題目資訊）"}
+    
+    【學生問題】：
+    {user_question}
+    
+    要求：
+    1. 如果有題目，必須參考題目內容
+    2. 多項式用 x^3 格式（如 x^3 - 2x^2 + 1）
+    3. 例題用「範例：」開頭
+    4. 步驟用 1. 2. 3.
+    5. 結尾加鼓勵話，如「加油～」
+    """
+    
+    try:
+        resp = model.generate_content(system_prompt)
+        return resp.text.strip()
+    except Exception as e:
+        return f"AI 內部錯誤：{str(e)}"
+    

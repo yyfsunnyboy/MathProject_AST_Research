@@ -23,45 +23,46 @@ def get_skill(skill_id):
 @core_bp.route('/get_next_question')
 def next_question():
     skill = request.args.get('skill', 'remainder')
-    mod = get_skill(skill)
-    if not mod:
-        return jsonify({"error": "單元不存在"}), 404
-    data = mod.generate()
-    set_current(skill, data)  # 會儲存 data["answer"]
-    return jsonify({
-        "new_question_text": data["question_text"],
-        "inequality_string": data.get("inequality_string", "")
-    })
+    try:
+        mod = get_skill(skill)
+        if not mod:
+            return jsonify({"error": f"單元 {skill} 不存在"}), 404
+        
+        data = mod.generate()
+        # 確保必要鍵存在
+        data.setdefault('answer', None)
+        data.setdefault('correct_answer', 'text')
+        
+        set_current(skill, data)
+        return jsonify({
+            "new_question_text": data["question_text"],
+            "inequality_string": data.get("inequality_string", "")
+        })
+    except Exception as e:
+        print(f"[ERROR] 生成題目失敗: {e}")
+        return jsonify({"error": f"生成題目失敗: {str(e)}"}), 500
 
 @core_bp.route('/check_answer', methods=['POST'])
 def check_answer():
-    ans = request.json.get('answer')
-    state = get_current()
-    mod = get_skill(state['skill'])
-    result = mod.check(ans, state['answer'])
+    user = request.json.get('answer', '').strip()
+    current = get_current()
+    skill = current['skill']
+    correct_answer = current['correct_answer']
 
-    # 進度記錄
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    if result['correct']:
-        c.execute('''
-            INSERT INTO progress (user_id, skill_id, consecutive_correct, total_attempted)
-            VALUES (?, ?, 1, 1)
-            ON CONFLICT(user_id, skill_id) DO UPDATE SET
-                consecutive_correct = consecutive_correct + 1,
-                total_attempted = total_attempted + 1
-        ''', (current_user.id, state['skill']))
-    else:
-        c.execute('''
-            INSERT INTO progress (user_id, skill_id, consecutive_correct, total_attempted)
-            VALUES (?, ?, 0, 1)
-            ON CONFLICT(user_id, skill_id) DO UPDATE SET
-                consecutive_correct = 0,
-                total_attempted = total_attempted + 1
-        ''', (current_user.id, state['skill']))
-    conn.commit()
-    conn.close()
+    mod = get_skill(skill)
+    if not mod:
+        return jsonify({"correct": False, "result": "單元錯誤"})
 
+    # 圖形題：不批改，直接提示用 AI
+    if correct_answer == "graph":
+        return jsonify({
+            "correct": False,
+            "result": "請畫完可行域後，點「AI 檢查」",
+            "next_question": False
+        })
+
+    # 文字題：正常批改
+    result = mod.check(user, current['answer'])
     return jsonify(result)
 
 # core/routes.py
@@ -75,3 +76,19 @@ def analyze_handwriting():
     result = analyze(img, state['question'], api_key)  # 傳 api_key
     return jsonify(result)
 
+@core_bp.route('/chat_ai', methods=['POST'])
+def chat_ai():
+    data = request.get_json()
+    user_question = data.get('question', '').strip()
+    context = data.get('context', '')  # 接收前端傳的題目！
+
+    if not user_question:
+        return jsonify({"reply": "請輸入問題！"}), 400
+
+    try:
+        # 傳給 AI 分析器（支援 context）
+        reply = ask_ai_text_with_context(user_question, context)
+        return jsonify({"reply": reply})
+    except Exception as e:
+        print(f"[CHAT_AI ERROR] {e}")  # 除錯用
+        return jsonify({"reply": f"AI 錯誤：{str(e)}"}), 500

@@ -370,7 +370,8 @@
         let undoStack = [];
         let redoStack = [];
         let blankCanvas = null;
-    
+        let currentInequality = "";  
+        
         // DOM 元素
         let canvas, ctx, analyzeBtn, submitBtn, answerInput, resultDisplay;
         let questionText, chatHistory, streakCounter;
@@ -561,16 +562,15 @@
                         return;
                     }
                     questionText.innerHTML = data.new_question_text;
+                    currentInequality = data.inequality_string || "";  // 儲存題目！
                     answerInput.value = '';
                     resultDisplay.textContent = '';
                     resultDisplay.className = '';
         
-                    // === 移除這段！不要控制 AI 按鈕 ===
-                    // if (data.inequality_string && analyzeBtn) {
-                    //     analyzeBtn.style.display = 'inline-block';
-                    // } else if (analyzeBtn) {
-                    //     analyzeBtn.style.display = 'none';
-                    // }
+                    // 儲存題目給聊天區
+                    if (window.setCurrentInequality) {
+                        window.setCurrentInequality(data.inequality_string);
+                    }
         
                     // 新題目清空畫布
                     ctx.fillStyle = 'white';
@@ -669,17 +669,76 @@
     
         // === 聊天 ===
         function setupChat() {
-            document.getElementById('chat-send-button').onclick = () => {
-                const input = document.getElementById('chat-input');
-                const text = input.value.trim();
-                if (!text) return;
-    
+            const chatSendBtn = document.getElementById('chat-send-button');
+            const chatInput = document.getElementById('chat-input');
+            const chatHistory = document.getElementById('chat-history');
+        
+            // 全域儲存題目
+            let currentInequality = "";
+        
+            // 封裝：顯示訊息
+            function addUserMessage(text) {
                 const msg = document.createElement('div');
                 msg.className = 'user-message';
                 msg.textContent = text;
                 chatHistory.appendChild(msg);
-                input.value = '';
                 chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        
+            function addBotMessage(html) {
+                const msg = document.createElement('div');
+                msg.className = 'bot-message';
+                msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${html}</pre>`;
+                chatHistory.appendChild(msg);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                return msg;
+            }
+        
+            // 關鍵：onclick 必須是 async 函式！
+            chatSendBtn.onclick = async () => {
+                const question = chatInput.value.trim();
+                if (!question) return;
+        
+                addUserMessage(question);
+                chatInput.value = '';
+        
+                const thinking = addBotMessage('AI 助教正在思考...');
+        
+                try {
+                    const response = await fetch('/chat_ai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question: question,
+                            context: currentInequality  // 傳題目
+                        })
+                    });
+        
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+                    const data = await response.json();
+        
+                    chatHistory.removeChild(thinking);
+                    addBotMessage(data.reply || '無回應');
+        
+                } catch (err) {
+                    console.error('聊天 AI 失敗:', err);
+                    chatHistory.removeChild(thinking);
+                    addBotMessage('AI 連線失敗，請稍後再試！');
+                }
+            };
+        
+            // Enter 送出
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    chatSendBtn.click();
+                }
+            });
+        
+            // 暴露給 loadQuestion() 使用
+            window.setCurrentInequality = (inequality) => {
+                currentInequality = inequality || "";
             };
         }
     </script>
