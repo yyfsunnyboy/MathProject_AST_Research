@@ -748,6 +748,9 @@
                             if (resultDisplay) resultDisplay.textContent = data.result;
                             if (correct) {
                                 if (resultDisplay) resultDisplay.style.color = 'green';
+                                // [修正] 立即重設 isProcessing 旗標，確保 setTimeout 中的 loadNextQuestion 不會被擋掉
+                                isProcessing = false;
+                                updateButtonStates();
                                 setTimeout(loadNextQuestion, 1000);
                             } else {
                                 if (resultDisplay) resultDisplay.style.color = 'red';
