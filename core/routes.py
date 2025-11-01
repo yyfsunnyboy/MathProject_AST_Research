@@ -36,7 +36,8 @@ def next_question():
         set_current(skill, data)
         return jsonify({
             "new_question_text": data["question_text"],
-            "inequality_string": data.get("inequality_string", "")
+            "inequality_string": data.get("inequality_string", ""),
+            "context_string": data.get("context_string", "")  # 必須有！
         })
     except Exception as e:
         print(f"[ERROR] 生成題目失敗: {e}")

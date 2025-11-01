@@ -561,18 +561,20 @@
                         questionText.textContent = `錯誤：${data.error}`;
                         return;
                     }
+                
+                    // 顯示題目
                     questionText.innerHTML = data.new_question_text;
                 
-                    // 儲存題目給聊天區！
+                    // 關鍵：統一儲存 context（支援所有題型）
+                    const context = data.context_string || data.inequality_string || "";
                     if (window.setCurrentInequality) {
-                        window.setCurrentInequality(data.inequality_string || "");
+                        window.setCurrentInequality(context);  // 舊函式名，暫時保留
                     }
                 
+                    // 清除畫布、輸入框等...
                     answerInput.value = '';
                     resultDisplay.textContent = '';
                     resultDisplay.className = '';
-                
-                    // 新題目清空畫布
                     ctx.fillStyle = 'white';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     undoStack = [];
