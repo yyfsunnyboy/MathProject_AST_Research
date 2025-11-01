@@ -562,16 +562,16 @@
                         return;
                     }
                     questionText.innerHTML = data.new_question_text;
-                    currentInequality = data.inequality_string || "";  // 儲存題目！
+                
+                    // 儲存題目給聊天區！
+                    if (window.setCurrentInequality) {
+                        window.setCurrentInequality(data.inequality_string || "");
+                    }
+                
                     answerInput.value = '';
                     resultDisplay.textContent = '';
                     resultDisplay.className = '';
-        
-                    // 儲存題目給聊天區
-                    if (window.setCurrentInequality) {
-                        window.setCurrentInequality(data.inequality_string);
-                    }
-        
+                
                     // 新題目清空畫布
                     ctx.fillStyle = 'white';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);

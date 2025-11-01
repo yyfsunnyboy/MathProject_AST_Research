@@ -67,11 +67,14 @@ def generate():
     k_abs = abs(k)
     divisor_text = "(x)" if k == 0 else f"(x {k_sign} {k_abs})"
     question_text = f"請問 {divisor_text} 是否為 f(x) = {poly_text} 的因式？ (請回答 '是' 或 '否')"
+    context_string = f"判斷 (x - {k}) 是否為 f(x) = {poly_text} 的因式"
     correct_answer = "是" if is_factor else "否"
 
     return {
         "question_text": question_text,
-        "answer": correct_answer
+        "answer": "是" if is_factor else "否",
+        "correct_answer": "text",
+        "context_string": context_string
     }
 
 def check(user_answer, correct_answer):

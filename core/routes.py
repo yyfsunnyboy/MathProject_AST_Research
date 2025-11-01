@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for
 from flask_login import login_required, current_user  # 必須匯入！
 from .session import set_current, get_current
-from .ai_analyzer import analyze
+from .ai_analyzer import analyze, ask_ai_text_with_context
 import importlib
 import sqlite3
 
