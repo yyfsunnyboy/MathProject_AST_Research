@@ -1,4 +1,4 @@
-# app.py
+    # app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user  # 必須匯入 login_required！
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -14,6 +14,8 @@ from config import (
 from core.ai_analyzer import configure_gemini
 from models import init_db, User
 import sqlite3
+from core.utils import get_all_active_skills
+from config import SECRET_KEY, GEMINI_API_KEY, GEMINI_MODEL_NAME
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -52,17 +54,38 @@ def init_skills():
     c.execute('''
         CREATE TABLE IF NOT EXISTS skills_info (
             skill_id TEXT PRIMARY KEY,
-            display_name TEXT,
-            description TEXT
+            skill_en_name TEXT NOT NULL,
+            skill_ch_name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            gemini_prompt TEXT NOT NULL,
+            consecutive_correct_required INTEGER DEFAULT 10,
+            is_active BOOLEAN DEFAULT TRUE,
+            order_index INTEGER DEFAULT 0
         )
     ''')
+    
+    # 功文式技能資料（連續答對題數）
     skills = [
-        ('remainder', '餘式定理', '學習用餘式定理快速求多項式餘數'),
-        ('factor_theorem', '因式定理', '判斷 (x-k) 是否為多項式的因式'),
-        ('inequality_graph', '不等式圖解', '畫出二元一次不等式的可行域區域'),  # ← 新增這行！
-        # 可加更多
+        # 餘式定理：連續答對 8 題晉級
+        ('remainder', 'Remainder Theorem', '餘式定理', 
+         '學習用餘式定理快速求多項式餘數', 
+         '分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導餘式定理代入法。', 
+         8, True, 1),
+        
+        # 因式定理：連續答對 10 題晉級
+        ('factor_theorem', 'Factor Theorem', '因式定理', 
+         '判斷 (x-k) 是否為多項式的因式', 
+         '分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導因式定理用法。', 
+         10, True, 2),
+        
+        # 不等式圖解：連續答對 12 題晉級
+        ('inequality_graph', 'Inequality Graph', '不等式圖解', 
+         '畫出二元一次不等式的可行域區域', 
+         '分析學生手寫圖形：題目 {context}，檢查直線位置、陰影區域是否正確，給出具體建議。', 
+         12, True, 3)
     ]
-    c.executemany("INSERT OR IGNORE INTO skills_info VALUES (?, ?, ?)", skills)
+    
+    c.executemany("INSERT OR IGNORE INTO skills_info VALUES (?, ?, ?, ?, ?, ?, ?, ?)", skills)
     conn.commit()
     conn.close()
     
@@ -151,33 +174,40 @@ def logout():
     return redirect(url_for('login'))
 
 # === 個人儀表板 ===
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # 直接從 DB 讀取所有技能
+    skills = get_all_active_skills()
+    
+    # 讀取使用者進度
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     c.execute('''
-        SELECT s.skill_id, s.display_name, s.description,
-               COALESCE(p.consecutive_correct, 0),
-               COALESCE(p.total_attempted, 0)
-        FROM skills_info s
-        LEFT JOIN progress p ON s.skill_id = p.skill_id AND p.user_id = ?
+        SELECT skill_id, consecutive_correct, questions_solved, current_level
+        FROM progress 
+        WHERE user_id = ?
     ''', (current_user.id,))
-    rows = c.fetchall()
+    progress_rows = c.fetchall()
     conn.close()
-
+    
+    progress_dict = {row[0]: row for row in progress_rows}
+    
     dashboard_data = []
-    for row in rows:
+    for skill in skills:
+        prog = progress_dict.get(skill['skill_id'], (skill['skill_id'], 0, 0, 1))
         dashboard_data.append({
-            'skill': {
-                'skill_id': row[0],
-                'display_name': row[1],
-                'description': row[2]
-            },
-            'consecutive_correct': row[3],
-            'total_attempted': row[4]
+            'skill': skill,
+            'consecutive_correct': prog[1],
+            'questions_solved': prog[2],
+            'current_level': prog[3]
         })
-    return render_template('dashboard.html', dashboard_data=dashboard_data, username=current_user.username)
+    
+    return render_template('dashboard.html', 
+                         dashboard_data=dashboard_data, 
+                         username=current_user.username)
 
 # === 練習頁面（需登入）===
 @app.route('/practice/<skill_id>')

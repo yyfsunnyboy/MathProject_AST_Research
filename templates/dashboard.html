@@ -118,13 +118,21 @@
 
         <div class="skill-grid">
             {% for data in dashboard_data %}
+            <!-- dashboard.html 中的 skill-card -->
             <div class="skill-card">
-                <h3>{{ data.skill.display_name }}</h3>
+                <h3>{{ data.skill.skill_ch_name }}</h3>
                 <p>{{ data.skill.description }}</p>
+                
+                <!-- 新進度條：連續答對 / 所需題數 -->
                 <div class="progress-info">
-                    連續答對：<strong>{{ data.consecutive_correct }}</strong> 題<br>
-                    總嘗試次數：{{ data.total_attempted }} 題
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ (data.consecutive_correct / data.skill.consecutive_correct_required) * 100 }}%"></div>
+                    </div>
+                    <small>連續答對 {{ data.consecutive_correct }} / {{ data.skill.consecutive_correct_required }} 題 → 晉級</small>
+                    <br>
+                    <small>當前等級：{{ data.current_level }} 級 | 總練習 {{ data.questions_solved }} 題</small>
                 </div>
+                
                 <a href="{{ url_for('practice', skill_id=data.skill.skill_id) }}" class="btn-practice">
                     開始練習
                 </a>

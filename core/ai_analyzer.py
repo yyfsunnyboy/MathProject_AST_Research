@@ -7,8 +7,6 @@ import os
 import re
 from flask import current_app
 
-gemini_model = None
-
 def configure_gemini(api_key, model_name):
     global gemini_model
     genai.configure(api_key=api_key)
