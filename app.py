@@ -638,7 +638,7 @@ def practice(skill_id):
             'validation_function_name': None
         }
         skill_display_name = "自訂題目"
-        print(f"(custom) 新題目: {question_text}")
+
 
     else:
         skill = Skill.query.filter_by(name=skill_id).first()
@@ -648,7 +648,7 @@ def practice(skill_id):
         
         question_data = SKILL_ENGINE[skill_id]['generator']()
         skill_display_name = skill.display_name
-        print(f"({skill_id}) 新題目: {question_data.get('text')} (答案: {question_data.get('answer')})")
+
 
     session['current_skill_id'] = skill_id
     session['current_question_text'] = question_data.get('text')
@@ -679,7 +679,7 @@ def get_next_question():
     session['current_inequality_string'] = question_data.get('inequality_string')
     session['validation_function_name'] = question_data.get('validation_function_name')
     
-    print(f"({skill_id}) 下一題: {question_data.get('text')} (答案: {question_data.get('answer')})")
+
 
     return jsonify({
         "new_question_text": question_data.get('text'),

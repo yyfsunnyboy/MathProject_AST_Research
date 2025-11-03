@@ -468,6 +468,8 @@
                         <button id="redo-button">↪︎</button>
                         <button id="clear-canvas-button">清除</button>
                         <button id="analyze-handwriting-button" style="background-color: #007bff; color: white;">AI檢查計算</button>
+                        <input type="file" id="image-upload-input" accept="image/*" style="display: none;">
+                        <button id="upload-image-button" style="background-color: #17a2b8; color: white;">上傳圖片</button>
                     </div>
                 </div>
                 <!-- Canvas Container -->
@@ -534,8 +536,10 @@
                 const chatInputElement = document.querySelector('.chat-input-area');
                 const undoButton = document.getElementById('undo-button');
                 const redoButton = document.getElementById('redo-button');
+                const uploadImageButton = document.getElementById('upload-image-button');
+                const imageUploadInput = document.getElementById('image-upload-input');
 
-                const essentialElements = { submitButton, answerInput, questionText, resultDisplay, analyzeButton, chatHistory, chatInput, chatSendButton, canvas, canvasContainer, clearButton, penButton, eraserButton, penWidthSlider, penWidthLabel, chatInputElement, undoButton, redoButton };
+                const essentialElements = { submitButton, answerInput, questionText, resultDisplay, analyzeButton, chatHistory, chatInput, chatSendButton, canvas, canvasContainer, clearButton, penButton, eraserButton, penWidthSlider, penWidthLabel, chatInputElement, undoButton, redoButton, uploadImageButton, imageUploadInput };
                 for (const key in essentialElements) {
                     if (!essentialElements[key]) {
                         throw new Error(`Initialization failed: Essential element '${key}' not found.`);
@@ -553,6 +557,7 @@
                 let undoStack = []; // 儲存上一步的畫布狀態
                 let redoStack = []; // 儲存下一步的畫布狀態
                 const MAX_HISTORY = 20; // 限制歷史記錄數量
+                let uploadedImageDataURL = null;
 
                 // --- 3. Utility Functions ---
                 function addChatMessage(message, classNames) {
@@ -931,10 +936,39 @@
                             canvas.addEventListener('touchcancel', stopDrawing, { passive: false });
                             clearButton.addEventListener('click', clearCanvas);
 
+                        if (uploadImageButton && imageUploadInput) {
+                            uploadImageButton.addEventListener('click', () => {
+                                imageUploadInput.click();
+                            });
+
+                            imageUploadInput.addEventListener('change', (event) => {
+                                const file = event.target.files[0];
+                                if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => {
+                                        uploadedImageDataURL = e.target.result;
+                                        addChatMessage('圖片已上傳，準備分析。', 'bot-message info');
+                                        clearCanvas();
+                                    };
+                                    reader.readAsDataURL(file);
+                                }
+                            });
+                        }
+
                         analyzeButton.addEventListener('click', () => {
                             if (!ctx || analyzeButton.disabled || isProcessing) return;
                             console.log("Analyze button clicked.");
-                            const imageDataURL = canvas.toDataURL('image/png');
+
+                            let imageDataURL = null;
+                            if (uploadedImageDataURL) {
+                                imageDataURL = uploadedImageDataURL;
+                                console.log("Using uploaded image for analysis.");
+                            } else {
+                                imageDataURL = canvas.toDataURL('image/png');
+                                console.log("Using canvas drawing for analysis.");
+                            }
+                            uploadedImageDataURL = null; // Reset after use
+
                             const thinkingMessage = addChatMessage('AI 分析中...', 'bot-message thinking-message');
                             isProcessing = true; updateButtonStates();
                         
@@ -963,10 +997,9 @@
                                     }
                                     if (data.reply) addChatMessage(data.reply, 'bot-message');
                                     if (currentInequalityString && graphCorrect) {
-                                        // 立即清除 isProcessing，確保 loadNextQuestion 能執行
                                         isProcessing = false;
                                         updateButtonStates();
-                                        setTimeout(loadNextQuestion, 1500); // 延遲載入下一題
+                                        setTimeout(loadNextQuestion, 1500);
                                     } else if (data.demote_to_skill_id) {
                                         isDemoting = true;
                                     }
