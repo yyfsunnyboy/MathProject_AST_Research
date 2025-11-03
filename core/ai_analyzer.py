@@ -7,6 +7,9 @@ import os
 import re
 from flask import current_app
 
+# 初始化 gemini_model 為 None，避免 NameError
+gemini_model = None
+
 def configure_gemini(api_key, model_name):
     global gemini_model
     genai.configure(api_key=api_key)

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技能管理 - 功文數學</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .navbar .logo {
+            font-weight: bold;
+            font-size: 1.3em;
+        }
+        .navbar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            margin-left: 10px;
+        }
+        .navbar a:hover { background: #34495e; }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #2c3e50;
+        }
+        .btn-add {
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.2s;
+        }
+        .btn-add:hover { background: #229954; }
+
+        /* Alert */
+        .alert {
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }
+        .alert-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .alert-warning { background: #fff3cd; color: #856404; border-color: #ffeeba; }
+        .alert-danger { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+
+        /* Skills Table */
+        .skills-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead {
+            background: #34495e;
+            color: white;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        th {
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+        /* 技能 ID 樣式優化 */
+        td code {
+            background: #f8f9fa;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-family: 'Courier New', Consolas, monospace;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #2c3e50;
+            border: 1px solid #dee2e6;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Action Buttons */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .btn-edit { background: #3498db; color: white; }
+        .btn-edit:hover { background: #2980b9; }
+        .btn-toggle { background: #f39c12; color: white; }
+        .btn-toggle:hover { background: #e67e22; }
+        .btn-delete { background: #e74c3c; color: white; }
+        .btn-delete:hover { background: #c0392b; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+            overflow-y: auto; /* 允許整個模態框滾動 */
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-content {
+            background: white;
+            margin: 30px auto; /* 縮小上下邊距 */
+            padding: 25px 30px; /* 縮小內距 */
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh; /* 限制最大高度 */
+            border-radius: 10px;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+            overflow-y: auto; /* 內容區域可滾動 */
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 {
+            color: #2c3e50;
+        }
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .close:hover { color: #000; }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 18px; /* 縮小間距 */
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px; /* 縮小間距 */
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 0.95em; /* 稍微縮小字體 */
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52,152,219,0.1);
+        }
+        .form-group textarea {
+            min-height: 70px; /* 縮小預設高度 */
+            max-height: 150px; /* 限制最大高度 */
+            resize: vertical;
+            font-family: 'Courier New', Consolas, monospace; /* 等寬字體 */
+            font-size: 0.9em;
+        }
+        .form-group small {
+            display: block;
+            margin-top: 4px;
+            color: #6c757d;
+            font-size: 0.85em;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+        .btn-submit {
+            background: #27ae60;
+            color: white;
+            padding: 10px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.2s;
+        }
+        .btn-submit:hover { background: #229954; }
+        .btn-cancel {
+            background: #95a5a6;
+            color: white;
+            padding: 10px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.2s;
+        }
+        .btn-cancel:hover { background: #7f8c8d; }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #95a5a6;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <div class="navbar">
+        <div class="logo">🎓 功文數學 - 技能管理</div>
+        <div>
+            <a href="{{ url_for('dashboard') }}">返回儀表板</a>
+            <a href="{{ url_for('logout') }}">登出</a>
+        </div>
+    </div>
+
+    <!-- Container -->
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>技能管理中心</h1>
+            <button class="btn-add" onclick="openAddModal()">➕ 新增技能</button>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Skills Table -->
+        {% if skills %}
+        <div class="skills-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>排序</th>
+                        <th>技能 ID</th>
+                        <th>英文名稱</th>
+                        <th>中文名稱</th>
+                        <th>晉級門檻</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for skill in skills %}
+                    <tr>
+                        <td>{{ skill.order_index }}</td>
+                        <td><code>{{ skill.skill_id }}</code></td>
+                        <td>{{ skill.skill_en_name }}</td>
+                        <td><strong>{{ skill.skill_ch_name }}</strong></td>
+                        <td>{{ skill.consecutive_correct_required }} 題</td>
+                        <td>
+                            <span class="status-badge status-{{ 'active' if skill.is_active else 'inactive' }}">
+                                {{ '啟用' if skill.is_active else '停用' }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-edit" onclick='openEditModal({{ skill | tojson }})'>編輯</button>
+                                <form method="POST" action="{{ url_for('admin_toggle_skill', skill_id=skill.skill_id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-toggle">
+                                        {{ '停用' if skill.is_active else '啟用' }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin_delete_skill', skill_id=skill.skill_id) }}" 
+                                      onsubmit="return confirm('確定要刪除「{{ skill.skill_ch_name }}」嗎？此操作無法復原！')" 
+                                      style="display: inline;">
+                                    <button type="submit" class="btn btn-delete">刪除</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h3>目前沒有任何技能</h3>
+            <p>點擊右上角「新增技能」按鈕開始建立練習主題</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Add Modal -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>新增技能</h2>
+                <span class="close" onclick="closeModal('addModal')">&times;</span>
+            </div>
+            <form method="POST" action="{{ url_for('admin_add_skill') }}">
+                <div class="form-group">
+                    <label for="skill_id">技能 ID *</label>
+                    <input type="text" id="skill_id" name="skill_id" required 
+                           pattern="[a-z_]+" 
+                           placeholder="例如：quadratic_equation">
+                    <small>只能使用小寫英文字母和底線，例如：remainder、factor_theorem</small>
+                </div>
+                <div class="form-group">
+                    <label for="skill_en_name">英文名稱 *</label>
+                    <input type="text" id="skill_en_name" name="skill_en_name" required 
+                           placeholder="例如：Quadratic Equation">
+                </div>
+                <div class="form-group">
+                    <label for="skill_ch_name">中文名稱 *</label>
+                    <input type="text" id="skill_ch_name" name="skill_ch_name" required 
+                           placeholder="例如：一元二次方程式">
+                </div>
+                <div class="form-group">
+                    <label for="description">描述 *</label>
+                    <textarea id="description" name="description" required 
+                              placeholder="簡短描述這個技能的學習目標"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="gemini_prompt">Gemini 提示模板 *</label>
+                    <textarea id="gemini_prompt" name="gemini_prompt" required 
+                              placeholder="分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導..."></textarea>
+                    <small>可用變數：{user_answer}、{correct_answer}、{context}</small>
+                </div>
+                <div class="form-group">
+                    <label for="consecutive_correct_required">晉級門檻（連續答對題數）*</label>
+                    <input type="number" id="consecutive_correct_required" name="consecutive_correct_required" 
+                           value="10" min="1" max="50" required>
+                </div>
+                <div class="form-group">
+                    <label for="order_index">排序順序</label>
+                    <input type="number" id="order_index" name="order_index" value="999" min="0">
+                    <small>數字越小越前面，預設 999</small>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="is_active" name="is_active" checked>
+                        <label for="is_active" style="margin: 0;">立即啟用</label>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="closeModal('addModal')">取消</button>
+                    <button type="submit" class="btn-submit">新增</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>編輯技能</h2>
+                <span class="close" onclick="closeModal('editModal')">&times;</span>
+            </div>
+            <form id="editForm" method="POST">
+                <div class="form-group">
+                    <label>技能 ID</label>
+                    <input type="text" id="edit_skill_id" disabled 
+                           style="background: #e9ecef; cursor: not-allowed;">
+                    <small>技能 ID 無法修改</small>
+                </div>
+                <div class="form-group">
+                    <label for="edit_skill_en_name">英文名稱 *</label>
+                    <input type="text" id="edit_skill_en_name" name="skill_en_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_skill_ch_name">中文名稱 *</label>
+                    <input type="text" id="edit_skill_ch_name" name="skill_ch_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_description">描述 *</label>
+                    <textarea id="edit_description" name="description" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit_gemini_prompt">Gemini 提示模板 *</label>
+                    <textarea id="edit_gemini_prompt" name="gemini_prompt" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit_consecutive_correct_required">晉級門檻 *</label>
+                    <input type="number" id="edit_consecutive_correct_required" 
+                           name="consecutive_correct_required" min="1" max="50" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_order_index">排序順序</label>
+                    <input type="number" id="edit_order_index" name="order_index" min="0">
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="edit_is_active" name="is_active">
+                        <label for="edit_is_active" style="margin: 0;">啟用</label>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="closeModal('editModal')">取消</button>
+                    <button type="submit" class="btn-submit">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openAddModal() {
+            document.getElementById('addModal').style.display = 'block';
+        }
+
+        function openEditModal(skill) {
+            document.getElementById('edit_skill_id').value = skill.skill_id;
+            document.getElementById('edit_skill_en_name').value = skill.skill_en_name;
+            document.getElementById('edit_skill_ch_name').value = skill.skill_ch_name;
+            document.getElementById('edit_description').value = skill.description;
+            document.getElementById('edit_gemini_prompt').value = skill.gemini_prompt;
+            document.getElementById('edit_consecutive_correct_required').value = skill.consecutive_correct_required;
+            document.getElementById('edit_order_index').value = skill.order_index;
+            document.getElementById('edit_is_active').checked = skill.is_active == 1;
+            
+            document.getElementById('editForm').action = `/admin/skills/edit/${skill.skill_id}`;
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // 點擊模態框外部關閉
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+
+        // ESC 鍵關閉
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal('addModal');
+                closeModal('editModal');
+            }
+        });
+    </script>
+</body>
+</html>

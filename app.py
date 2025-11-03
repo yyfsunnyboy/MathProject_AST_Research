@@ -1,6 +1,6 @@
-    # app.py
+# app.py
 from flask import Flask, render_template, request, redirect, url_for, flash, session
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user  # 必須匯入 login_required！
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from core.routes import core_bp
 from core.ai_analyzer import configure_gemini
@@ -9,13 +9,11 @@ from config import (
     SQLALCHEMY_TRACK_MODIFICATIONS,
     SECRET_KEY,
     GEMINI_API_KEY,
-    GEMINI_MODEL_NAME  # 一定要 import！
+    GEMINI_MODEL_NAME
 )
-from core.ai_analyzer import configure_gemini
 from models import init_db, User
 import sqlite3
 from core.utils import get_all_active_skills
-from config import SECRET_KEY, GEMINI_API_KEY, GEMINI_MODEL_NAME
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -28,11 +26,11 @@ app.config.update(
     GEMINI_MODEL_NAME=GEMINI_MODEL_NAME
 )
 
-# 驗證
+# 驗證 API Key
 if not app.config['GEMINI_API_KEY']:
     raise ValueError("請設定 GEMINI_API_KEY 環境變數！")
 
-# 正確呼叫：兩個參數！（只呼叫一次！）
+# 配置 Gemini（只呼叫一次）
 configure_gemini(
     api_key=app.config['GEMINI_API_KEY'],
     model_name=app.config['GEMINI_MODEL_NAME']
@@ -41,13 +39,12 @@ configure_gemini(
 # 初始化資料庫
 init_db()
 
-
 # Flask-Login 設定
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# 執行一次即可（加在 app.py 頂部或手動執行）
+# 初始化技能資料
 def init_skills():
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
@@ -88,10 +85,9 @@ def init_skills():
     c.executemany("INSERT OR IGNORE INTO skills_info VALUES (?, ?, ?, ?, ?, ?, ?, ?)", skills)
     conn.commit()
     conn.close()
-    
+
 # 呼叫一次
 init_skills()
-
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -154,17 +150,6 @@ def register():
             conn.close()
     return render_template('register.html')
 
-# 定義一個裝飾器，專門用在 Blueprint 路由上
-def login_required_bp(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated
-
-
-
 # === 登出 ===
 @app.route('/logout')
 @login_required
@@ -174,13 +159,12 @@ def logout():
     return redirect(url_for('login'))
 
 # === 個人儀表板 ===
-
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # 直接從 DB 讀取所有技能
-    skills = get_all_active_skills()
+    view_mode = request.args.get('view', 'all')  # 'all' 或 'curriculum'
+    volume = request.args.get('volume', type=int)
+    chapter = request.args.get('chapter', type=int)
     
     # 讀取使用者進度
     conn = sqlite3.connect('users.db')
@@ -195,25 +179,222 @@ def dashboard():
     
     progress_dict = {row[0]: row for row in progress_rows}
     
-    dashboard_data = []
-    for skill in skills:
-        prog = progress_dict.get(skill['skill_id'], (skill['skill_id'], 0, 0, 1))
-        dashboard_data.append({
-            'skill': skill,
-            'consecutive_correct': prog[1],
-            'questions_solved': prog[2],
-            'current_level': prog[3]
-        })
-    
-    return render_template('dashboard.html', 
-                         dashboard_data=dashboard_data, 
-                         username=current_user.username)
+    if view_mode == 'curriculum':
+        from core.utils import get_volumes, get_chapters_by_volume, get_skills_by_volume_chapter
+        
+        if volume and chapter:
+            # 第三層：顯示該冊該章的所有技能
+            skills = get_skills_by_volume_chapter(volume, chapter)
+
+            # 後端分組：按 (section, paragraph)
+            section_groups = {}
+            for s in skills:
+                key = (s['section'], s['paragraph'])
+                section_groups.setdefault(key, []).append(s)
+
+            # 組裝帶進度的分組資料
+            grouped_skills = []
+            for (section, paragraph), skill_list in sorted(section_groups.items()):
+                grouped_item = {
+                    'section': section,
+                    'paragraph': paragraph,
+                    'skills': []
+                }
+                for s in skill_list:
+                    prog = progress_dict.get(s['skill_id'], (s['skill_id'], 0, 0, 1))
+                    grouped_item['skills'].append({
+                        **s,
+                        'consecutive_correct': prog[1],
+                        'questions_solved': prog[2],
+                        'current_level': prog[3],
+                    })
+                grouped_skills.append(grouped_item)
+
+            return render_template('dashboard.html',
+                                 view_mode='curriculum',
+                                 level='skills',  # 第三層
+                                 volume=volume,
+                                 chapter=chapter,
+                                 grouped_skills=grouped_skills,
+                                 username=current_user.username)
+        elif volume:
+            # 第二層：顯示該冊的所有章
+            chapters = get_chapters_by_volume(volume)
+            
+            return render_template('dashboard.html',
+                                 view_mode='curriculum',
+                                 level='chapters',  # 第二層
+                                 volume=volume,
+                                 chapters=chapters,
+                                 username=current_user.username)
+        else:
+            # 第一層：顯示所有冊
+            volumes = get_volumes()
+            
+            return render_template('dashboard.html',
+                                 view_mode='curriculum',
+                                 level='volumes',  # 第一層
+                                 volumes=volumes,
+                                 username=current_user.username)
+    else:
+        # 顯示所有
+        skills = get_all_active_skills()
+        
+        dashboard_data = []
+        for skill in skills:
+            prog = progress_dict.get(skill['skill_id'], (skill['skill_id'], 0, 0, 1))
+            dashboard_data.append({
+                'skill': skill,
+                'consecutive_correct': prog[1],
+                'questions_solved': prog[2],
+                'current_level': prog[3]
+            })
+        
+        return render_template('dashboard.html', 
+                             dashboard_data=dashboard_data,
+                             view_mode='all',
+                             username=current_user.username)
 
 # === 練習頁面（需登入）===
 @app.route('/practice/<skill_id>')
 @login_required
 def practice(skill_id):
-    return render_template('index.html', skill_id=skill_id)  # 傳 skill_id 進去！
+    return render_template('index.html', skill_id=skill_id)
+
+# === 技能管理頁面 ===
+@app.route('/admin/skills')
+@login_required
+def admin_skills():
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute('''
+        SELECT skill_id, skill_en_name, skill_ch_name, description, 
+               gemini_prompt, consecutive_correct_required, is_active, order_index
+        FROM skills_info 
+        ORDER BY order_index, skill_id
+    ''')
+    skills = c.fetchall()
+    conn.close()
+    
+    skills_list = [{
+        'skill_id': row[0],
+        'skill_en_name': row[1],
+        'skill_ch_name': row[2],
+        'description': row[3],
+        'gemini_prompt': row[4],
+        'consecutive_correct_required': row[5],
+        'is_active': row[6],
+        'order_index': row[7]
+    } for row in skills]
+    
+    return render_template('admin_skills.html', skills=skills_list, username=current_user.username)
+
+# === 新增技能 ===
+@app.route('/admin/skills/add', methods=['POST'])
+@login_required
+def admin_add_skill():
+    data = request.form
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        c.execute('''
+            INSERT INTO skills_info (skill_id, skill_en_name, skill_ch_name, description, 
+                                    gemini_prompt, consecutive_correct_required, is_active, order_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data['skill_id'],
+            data['skill_en_name'],
+            data['skill_ch_name'],
+            data['description'],
+            data['gemini_prompt'],
+            int(data['consecutive_correct_required']),
+            1 if data.get('is_active') == 'on' else 0,
+            int(data.get('order_index', 999))
+        ))
+        conn.commit()
+        flash('技能新增成功！', 'success')
+    except sqlite3.IntegrityError:
+        flash('技能 ID 已存在！', 'danger')
+    except Exception as e:
+        flash(f'新增失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_skills'))
+
+# === 編輯技能 ===
+@app.route('/admin/skills/edit/<skill_id>', methods=['POST'])
+@login_required
+def admin_edit_skill(skill_id):
+    data = request.form
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        c.execute('''
+            UPDATE skills_info 
+            SET skill_en_name = ?, skill_ch_name = ?, description = ?, 
+                gemini_prompt = ?, consecutive_correct_required = ?, 
+                is_active = ?, order_index = ?
+            WHERE skill_id = ?
+        ''', (
+            data['skill_en_name'],
+            data['skill_ch_name'],
+            data['description'],
+            data['gemini_prompt'],
+            int(data['consecutive_correct_required']),
+            1 if data.get('is_active') == 'on' else 0,
+            int(data.get('order_index', 999)),
+            skill_id
+        ))
+        conn.commit()
+        flash('技能更新成功！', 'success')
+    except Exception as e:
+        flash(f'更新失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_skills'))
+
+# === 刪除技能 ===
+@app.route('/admin/skills/delete/<skill_id>', methods=['POST'])
+@login_required
+def admin_delete_skill(skill_id):
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        # 檢查是否有使用者正在使用此技能
+        c.execute('SELECT COUNT(*) FROM progress WHERE skill_id = ?', (skill_id,))
+        count = c.fetchone()[0]
+        
+        if count > 0:
+            flash(f'無法刪除：目前有 {count} 位使用者正在練習此技能！建議改為「停用」', 'warning')
+        else:
+            c.execute('DELETE FROM skills_info WHERE skill_id = ?', (skill_id,))
+            conn.commit()
+            flash('技能刪除成功！', 'success')
+    except Exception as e:
+        flash(f'刪除失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_skills'))
+
+# === 切換啟用狀態 ===
+@app.route('/admin/skills/toggle/<skill_id>', methods=['POST'])
+@login_required
+def admin_toggle_skill(skill_id):
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        c.execute('SELECT is_active FROM skills_info WHERE skill_id = ?', (skill_id,))
+        current = c.fetchone()[0]
+        new_status = 0 if current == 1 else 1
+        
+        c.execute('UPDATE skills_info SET is_active = ? WHERE skill_id = ?', (new_status, skill_id))
+        conn.commit()
+        flash(f'技能已{"啟用" if new_status == 1 else "停用"}！', 'success')
+    except Exception as e:
+        flash(f'操作失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_skills'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -65,9 +65,21 @@ def generate():
     poly_text = format_polynomial(coeffs)
     k_sign = "-" if k >= 0 else "+"
     k_abs = abs(k)
-    divisor_text = "(x)" if k == 0 else f"(x {k_sign} {k_abs})"
+    
+    # 修正 k=0 的情況：顯示為 "x" 而不是 "(x)"
+    if k == 0:
+        divisor_text = "x"
+    else:
+        divisor_text = f"(x {k_sign} {k_abs})"
+    
     question_text = f"請問 {divisor_text} 是否為 f(x) = {poly_text} 的因式？ (請回答 '是' 或 '否')"
-    context_string = f"判斷 (x - {k}) 是否為 f(x) = {poly_text} 的因式"
+    
+    # 修正 context_string：與 divisor_text 保持一致
+    if k == 0:
+        context_string = f"判斷 x 是否為 f(x) = {poly_text} 的因式"
+    else:
+        context_string = f"判斷 {divisor_text} 是否為 f(x) = {poly_text} 的因式"
+    
     correct_answer = "是" if is_factor else "否"
 
     return {

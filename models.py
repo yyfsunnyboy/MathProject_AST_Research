@@ -59,7 +59,22 @@ def init_db():
         )
     ''')
 
-    # 5. 初始技能資料
+    # 5. 建立 skill_curriculum 表（課程分類表）
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS skill_curriculum (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            volume INTEGER NOT NULL,
+            chapter INTEGER NOT NULL,
+            section INTEGER NOT NULL,
+            paragraph INTEGER NOT NULL,
+            skill_id TEXT NOT NULL,
+            display_order INTEGER DEFAULT 0,
+            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id) ON DELETE CASCADE,
+            UNIQUE(volume, chapter, section, paragraph, skill_id)
+        )
+    ''')
+
+    # 6. 初始技能資料
     skills = [
         ('remainder', 'Remainder Theorem', '餘式定理',
          '學習用餘式定理快速求多項式餘數',

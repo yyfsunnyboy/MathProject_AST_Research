@@ -61,6 +61,7 @@ $env:GEMINI_API_KEY = "AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY"
 
 cd D:\Python\math-master
 venv\Scripts\activate
+$env:GEMINI_API_KEY = "AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY"
 python app.py
 http://127.0.0.1:5000
 

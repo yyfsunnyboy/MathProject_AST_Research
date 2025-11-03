@@ -47,21 +47,27 @@
 
         /* === 練習區 === */
         .practice-area {
-            flex: 2;
+            flex: 3;  /* 左邊佔 3/5 */
             background: white;
             display: flex;
             flex-direction: column;
             box-shadow: 0 0 15px rgba(0,0,0,0.05);
         }
         .practice-top {
-            padding: 25px;
+            padding: 12px 20px;  /* 縮小內距 */
             border-bottom: 1px solid #e9ecef;
             position: relative;
+            flex: 2;  /* 題目和輸入框區域佔 2/5 */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;  /* 隱藏溢出內容，不出現卷軸 */
+            min-height: 0;  /* 允許縮小 */
         }
         .practice-top h1 {
             color: #2c3e50;
-            font-size: 1.4em;
-            margin-bottom: 15px;
+            font-size: 1.1em;  /* 縮小字體 */
+            margin-bottom: 8px;
+            flex-shrink: 0;  /* 標題不縮小 */
         }
         #streak-counter {
             position: absolute;
@@ -77,24 +83,28 @@
         }
         #question-text {
             background: #f8f9fa;
-            padding: 18px;
+            padding: 8px 10px;
             border-radius: 8px;
             border: 1px solid #dee2e6;
-            font-size: 1.25em;
-            line-height: 1.7;
+            font-size: 1em;  /* 初始字體大小，會被 JavaScript 動態調整 */
+            line-height: 1.3;
             color: #2c3e50;
-            margin: 20px 0;
+            margin: 6px 0;
             white-space: pre-wrap;
+            overflow: hidden;
+            flex: 1;
+            min-height: 0;
+            word-wrap: break-word;
         }
         .input-group {
             display: flex;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 8px;
+            margin-top: 8px;
         }
         #answer-input {
             flex: 1;
-            padding: 12px 15px;
-            font-size: 1.1em;
+            padding: 8px 12px;
+            font-size: 0.95em;
             border: 1px solid #ced4da;
             border-radius: 6px;
             transition: all 0.2s;
@@ -105,12 +115,12 @@
             outline: none;
         }
         #submit-button {
-            padding: 12px 25px;
+            padding: 8px 20px;
             background: #3498db;
             color: white;
             border: none;
             border-radius: 6px;
-            font-size: 1.1em;
+            font-size: 0.95em;
             cursor: pointer;
             transition: background 0.2s;
         }
@@ -118,11 +128,12 @@
         #submit-button:disabled { background: #95a5a6; cursor: not-allowed; }
 
         #result-display {
-            margin-top: 15px;
-            padding: 12px;
+            margin-top: 8px;
+            padding: 8px 12px;
             border-radius: 6px;
             font-weight: bold;
             min-height: 20px;
+            font-size: 0.9em;
         }
         #result-display.correct {
             background: #d5efdb;
@@ -137,11 +148,12 @@
 
         /* === 畫布區 === */
         .practice-bottom {
-            flex: 1;
-            padding: 20px;
+            flex: 3;  /* 計算紙手寫區佔 3/5 */
+            padding: 15px;
             background: #f8f9fa;
             display: flex;
             flex-direction: column;
+            min-height: 0;  /* 允許縮小 */
         }
         .canvas-toolbar {
             display: flex;
@@ -228,7 +240,7 @@
 
         /* === 聊天區 === */
         .chat-area {
-            flex: 1;
+            flex: 2;  /* 右邊佔 2/5 */
             background: #f8f9fa;
             padding: 20px;
             display: flex;
@@ -269,6 +281,11 @@
             color: #2c3e50;
             margin-right: auto;
             border-bottom-left-radius: 4px;
+            transition: background 0.3s ease;  /* 平滑過渡 */
+        }
+        .bot-message.latest {
+            background: #ffeaea;  /* 淺紅色背景 */
+            color: #2c3e50;
         }
         .bot-message pre {
             margin: 0;
@@ -307,7 +324,7 @@
     <!-- Navbar -->
     <div class="navbar">
         <div class="logo">功文數學練習</div>
-        <a href="#">登出</a>
+        <a href="/dashboard">返回儀表板</a>
     </div>
 
     <!-- 主容器 -->
@@ -316,12 +333,11 @@
         <div class="practice-area">
             <div class="practice-top">
                 <h1 id="skill-title">{{ skill_id|replace('_', ' ')|title }} <span id="streak-counter">連續答對：0</span></h1>
-                <div id="question-text" style="font-size: 1.5em; margin: 20px 0; line-height: 1.8; font-weight: bold;"></div>
+                <div id="question-text"></div>
                 
                 <div class="input-group">
                     <input type="text" id="answer-input" placeholder="輸入答案...">
                     <button id="submit-button">提交</button>
-                    <button id="analyze-button" style="display: none;">AI檢查</button>
                 </div>
                 <div id="result-display"></div>
             </div>
@@ -370,15 +386,15 @@
         let undoStack = [];
         let redoStack = [];
         let blankCanvas = null;
-        let currentInequality = "";  
+        let currentContext = "";  // 儲存題目 context
         
         // DOM 元素
         let canvas, ctx, analyzeBtn, submitBtn, answerInput, resultDisplay;
         let questionText, chatHistory, streakCounter;
     
         // === DOM 載入完成 ===
-        document.addEventListener('DOMContentLoaded', () => {
-            // === 取得元素（只取一次！）===
+        window.addEventListener('DOMContentLoaded', () => {
+            // 取得元素
             submitBtn = document.getElementById('submit-button');
             answerInput = document.getElementById('answer-input');
             resultDisplay = document.getElementById('result-display');
@@ -387,7 +403,7 @@
             streakCounter = document.getElementById('streak-counter');
             canvas = document.getElementById('handwriting-canvas');
             ctx = canvas.getContext('2d');
-            analyzeBtn = document.getElementById('analyze-handwriting-button');  // 統一用這個
+            analyzeBtn = document.getElementById('analyze-handwriting-button');
     
             // 檢查必要元素
             if (!canvas || !ctx || !submitBtn || !answerInput || !resultDisplay || !questionText) {
@@ -395,13 +411,22 @@
                 return;
             }
     
-            // === 初始化順序（重要！）===
+            // 初始化順序
             initCanvas();
             setupTools();
             setupAIButton();
             setupChat();
-            setupSubmit();     // 必須在所有元素取得後呼叫
-            loadQuestion();     // 最後出題
+            setupSubmit();
+            loadQuestion();
+
+            // 視窗大小改變時重新調整字體
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    autoResizeQuestionFont();
+                }, 150);
+            });
         });
     
         // === 初始化畫布 ===
@@ -420,7 +445,6 @@
             saveState();
             updateUndoRedoButtons();
         
-            // === 強制顯示 AI 按鈕 ===
             if (analyzeBtn) {
                 analyzeBtn.style.display = 'inline-block';
             }
@@ -552,6 +576,49 @@
             return urlParams.get('skill_id') || '{{ skill_id }}' || 'remainder';
         }
     
+        // === 動態調整題目字型大小 ===
+        function autoResizeQuestionFont() {
+            if (!questionText) return;
+            
+            // 重置到最大字體
+            const maxFontSize = 1.2;  // em
+            const minFontSize = 0.65;  // em
+            let fontSize = maxFontSize;
+            
+            questionText.style.fontSize = fontSize + 'em';
+            
+            // 檢查是否溢出，如果溢出則縮小字體
+            function checkAndResize() {
+                const element = questionText;
+                const parent = element.parentElement;  // practice-top
+                
+                // 檢查高度是否超出父容器
+                const elementHeight = element.scrollHeight;
+                const parentHeight = parent.clientHeight;
+                const availableHeight = parentHeight - 120;  // 預留空間給標題、輸入框等
+                
+                // 如果內容溢出，逐漸減小字體
+                if (elementHeight > availableHeight && fontSize > minFontSize) {
+                    fontSize -= 0.05;
+                    element.style.fontSize = fontSize + 'em';
+                    // 遞迴檢查
+                    setTimeout(checkAndResize, 0);
+                } else if (elementHeight < availableHeight * 0.8 && fontSize < maxFontSize) {
+                    // 如果空間還很多，可以稍微增大字體（但不要太大）
+                    const testFontSize = Math.min(fontSize + 0.05, maxFontSize);
+                    element.style.fontSize = testFontSize + 'em';
+                    if (element.scrollHeight <= availableHeight) {
+                        fontSize = testFontSize;
+                    } else {
+                        element.style.fontSize = fontSize + 'em';
+                    }
+                }
+            }
+            
+            // 等待 DOM 更新後檢查
+            setTimeout(checkAndResize, 10);
+        }
+    
         function loadQuestion() {
             const skill = getSkillId();
             fetch(`/get_next_question?skill=${skill}`)
@@ -564,14 +631,20 @@
                 
                     // 顯示題目
                     questionText.innerHTML = data.new_question_text;
+                    
+                    // 動態調整字型大小
+                    setTimeout(autoResizeQuestionFont, 50);
                 
-                    // 關鍵：統一儲存 context（支援所有題型）
-                    const context = data.context_string || data.inequality_string || "";
-                    if (window.setCurrentInequality) {
-                        window.setCurrentInequality(context);  // 舊函式名，暫時保留
+                    // ⭐ 從後端同步連續答對數
+                    if (data.consecutive_correct !== undefined) {
+                        currentStreak = data.consecutive_correct;
+                        streakCounter.textContent = `連續答對：${currentStreak}`;
                     }
                 
-                    // 清除畫布、輸入框等...
+                    // 統一儲存 context
+                    currentContext = data.context_string || data.inequality_string || "";
+                
+                    // 清除畫布、輸入框等
                     answerInput.value = '';
                     resultDisplay.textContent = '';
                     resultDisplay.className = '';
@@ -587,17 +660,44 @@
                 });
         }
     
-        // === 提交答案（關鍵！）===
+        // === 提交答案 ===
         function setupSubmit() {
             if (!submitBtn) {
                 console.error('submitBtn 未定義');
                 return;
             }
+            
+            // 動態載入訊息效果（三個點動畫）
+            let loadingInterval = null;
+            function showLoadingMessage() {
+                let dots = 0;
+                resultDisplay.className = '';
+                resultDisplay.style.background = '#fff3cd';
+                resultDisplay.style.color = '#856404';
+                resultDisplay.style.border = '1px solid #ffeaa7';
+                
+                loadingInterval = setInterval(() => {
+                    dots = (dots + 1) % 4;
+                    const dotString = '.'.repeat(dots);
+                    resultDisplay.textContent = `正在檢查答案${dotString}`;
+                }, 300);
+            }
+            
+            function stopLoadingMessage() {
+                if (loadingInterval) {
+                    clearInterval(loadingInterval);
+                    loadingInterval = null;
+                }
+            }
+            
             submitBtn.onclick = () => {
                 if (isProcessing) return;
                 isProcessing = true;
                 submitBtn.disabled = true;
-    
+                
+                // 顯示動態載入訊息
+                showLoadingMessage();
+        
                 fetch('/check_answer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -605,14 +705,22 @@
                 })
                 .then(r => r.json())
                 .then(data => {
+                    // 停止載入訊息
+                    stopLoadingMessage();
+                    
                     resultDisplay.textContent = data.result || (data.correct ? '正確！' : '錯誤');
                     resultDisplay.className = data.correct ? 'correct' : 'incorrect';
                     updateStreak(data.correct);
                     if (data.correct) {
-                        setTimeout(loadQuestion, 1000);
+                        // 顯示答對訊息框
+                        alert('🎉 答對了！很棒！繼續加油！');
+                        setTimeout(loadQuestion, 500);
                     }
                 })
                 .catch(err => {
+                    // 停止載入訊息
+                    stopLoadingMessage();
+                    
                     console.error('提交失敗:', err);
                     resultDisplay.textContent = '提交失敗';
                     resultDisplay.className = 'incorrect';
@@ -627,11 +735,38 @@
         // === AI 分析 ===
         function setupAIButton() {
             if (!analyzeBtn) return;
+            
+            // 動態載入訊息效果（三個點動畫）
+            let loadingInterval = null;
+            function showLoadingMessage() {
+                let dots = 0;
+                resultDisplay.className = '';
+                resultDisplay.style.background = '#fff3cd';
+                resultDisplay.style.color = '#856404';
+                resultDisplay.style.border = '1px solid #ffeaa7';
+                
+                loadingInterval = setInterval(() => {
+                    dots = (dots + 1) % 4;
+                    const dotString = '.'.repeat(dots);
+                    resultDisplay.textContent = `AI 正在分析中${dotString}`;
+                }, 300);
+            }
+            
+            function stopLoadingMessage() {
+                if (loadingInterval) {
+                    clearInterval(loadingInterval);
+                    loadingInterval = null;
+                }
+            }
+            
             analyzeBtn.onclick = () => {
                 if (isProcessing) return;
                 isProcessing = true;
                 analyzeBtn.textContent = '分析中...';
                 analyzeBtn.disabled = true;
+                
+                // 顯示動態載入訊息
+                showLoadingMessage();
     
                 const img = canvas.toDataURL('image/png');
                 fetch('/analyze_handwriting', {
@@ -641,25 +776,57 @@
                 })
                 .then(r => r.json())
                 .then(data => {
+                    // 停止載入訊息
+                    stopLoadingMessage();
+                    
+                    // 移除所有舊的高亮
+                    document.querySelectorAll('.bot-message.latest').forEach(msg => {
+                        msg.classList.remove('latest');
+                    });
+                    
                     const msg = document.createElement('div');
-                    msg.className = 'bot-message';
+                    msg.className = 'bot-message latest';  // 標記為最新
                     msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${data.reply || '無回應'}</pre>`;
                     chatHistory.appendChild(msg);
                     chatHistory.scrollTop = chatHistory.scrollHeight;
-    
+
                     if (data.correct && data.next_question) {
+                        // 在題目下方顯示"正確"
+                        resultDisplay.textContent = '正確';
+                        resultDisplay.className = 'correct';
+                        
                         updateStreak(true);
-                        setTimeout(loadQuestion, 1500);
+                        
+                        // 顯示答對訊息框，然後載入下一題
+                        alert('🎉 答對了！圖形畫得很正確！繼續加油！');
+                        setTimeout(loadQuestion, 500);
                     } else if (data.correct === false) {
+                        // 如果錯誤，清空 resultDisplay（AI 的建議會在聊天區顯示）
+                        resultDisplay.textContent = '';
+                        resultDisplay.className = '';
                         updateStreak(false);
                     }
                 })
                 .catch(err => {
+                    // 停止載入訊息
+                    stopLoadingMessage();
+                    
                     console.error('AI 分析失敗:', err);
+                    
+                    // 移除所有舊的高亮
+                    document.querySelectorAll('.bot-message.latest').forEach(msg => {
+                        msg.classList.remove('latest');
+                    });
+                    
                     const msg = document.createElement('div');
-                    msg.className = 'bot-message';
+                    msg.className = 'bot-message latest';
                     msg.innerHTML = `<pre>AI 連線失敗，請稍後再試</pre>`;
                     chatHistory.appendChild(msg);
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                    
+                    // 顯示錯誤訊息
+                    resultDisplay.textContent = 'AI 分析失敗，請稍後再試';
+                    resultDisplay.className = 'incorrect';
                 })
                 .finally(() => {
                     isProcessing = false;
@@ -673,12 +840,7 @@
         function setupChat() {
             const chatSendBtn = document.getElementById('chat-send-button');
             const chatInput = document.getElementById('chat-input');
-            const chatHistory = document.getElementById('chat-history');
         
-            // 全域儲存題目
-            let currentInequality = "";
-        
-            // 封裝：顯示訊息
             function addUserMessage(text) {
                 const msg = document.createElement('div');
                 msg.className = 'user-message';
@@ -696,7 +858,6 @@
                 return msg;
             }
         
-            // 關鍵：onclick 必須是 async 函式！
             chatSendBtn.onclick = async () => {
                 const question = chatInput.value.trim();
                 if (!question) return;
@@ -712,7 +873,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             question: question,
-                            context: currentInequality  // 傳題目
+                            context: currentContext
                         })
                     });
         
@@ -737,11 +898,6 @@
                     chatSendBtn.click();
                 }
             });
-        
-            // 暴露給 loadQuestion() 使用
-            window.setCurrentInequality = (inequality) => {
-                currentInequality = inequality || "";
-            };
         }
     </script>
 </body>
