@@ -708,17 +708,18 @@ def check_answer():
     if validation_func:
         try:
             is_correct = validation_func(user_answer, correct_answer)
-            result_message = "答對了！" if is_correct else f"答錯了... (提示: {correct_answer})"
+            result_message = "答對了！" if is_correct else "答錯了..."
         except Exception as e:
             print(f"Validation function error: {e}")
             is_correct = False
             result_message = "答案格式錯誤"
     else:
         is_correct = (str(user_answer).strip().lower() == str(correct_answer).strip().lower())
-        result_message = "答對了！" if is_correct else f"答錯了... (提示: {correct_answer})"
+        result_message = "答對了！" if is_correct else "答錯了..."
     
     demote_to_skill_id = None
-    
+    promote_to_skill_id = None # [新功能] 初始化晉級變數
+
     try:
         user_id = session['user_id']
         skill = Skill.query.filter_by(name=skill_id_str).first()
@@ -743,16 +744,40 @@ def check_answer():
                 progress.consecutive_correct += 1
                 progress.total_correct += 1
                 progress.consecutive_incorrect = 0
+
+                # [新功能] 檢查是否達到晉級門檻
+                PROMOTION_THRESHOLD = 5
+                if progress.consecutive_correct >= PROMOTION_THRESHOLD:
+                    # 查詢下一個技能 (以當前技能為先備的目標技能)
+                    dependency = SkillDependency.query.filter_by(prerequisite_id=skill.id).first()
+                    if dependency and dependency.target:
+                        promote_to_skill_id = dependency.target.name
+                        result_message = f"恭喜！您已掌握「{skill.display_name}」，即將前進到下一個單元！"
+                        # 重置當前技能的連續答對次數，以便下次重新計算
+                        progress.consecutive_correct = 0
             else:
                 progress.consecutive_correct = 0
                 progress.consecutive_incorrect += 1
-                if progress.consecutive_incorrect >= DEMOTION_THRESHOLD and skill.prerequisite_skill_id:
-                    demote_to_skill_id = skill.prerequisite_skill_id
-                    prereq_skill = Skill.query.filter_by(name=demote_to_skill_id).first()
-                    prereq_name = prereq_skill.display_name if prereq_skill else "基礎單元"
-                    result_message = f"您在「{skill.display_name}」單元連續答錯 {progress.consecutive_incorrect} 題了.\n系統建議您先回去複習「{prereq_name}」！"
-                    progress.consecutive_incorrect = 0
+                # [新邏輯] 當達到連續答錯門檻時，查詢 SkillDependency 表
+                if progress.consecutive_incorrect >= DEMOTION_THRESHOLD:
+                    dependency = SkillDependency.query.filter_by(target_id=skill.id).first()
+                    
+                    # 如果在依賴關係表中找到了先備技能
+                    if dependency and dependency.prerequisite:
+                        # 取得先備技能的資訊
+                        prereq_skill = dependency.prerequisite
+                        demote_to_skill_id = prereq_skill.name  # 前端需要 skill 的 name/id
+                        prereq_name = prereq_skill.display_name
+                        
+                        # 準備要顯示給使用者的訊息
+                        result_message = f"您在「{skill.display_name}」單元連續答錯 {progress.consecutive_incorrect} 題了.\n系統建議您先回去複習「{prereq_name}」！"
+                        
+                        # 重置連續答錯計數器
+                        progress.consecutive_incorrect = 0
+                    # 如果沒有找到依賴關係，則不會觸發降級，只會顯示標準的答錯訊息
             db.session.commit()
+            # [DEBUG] Print progress after commit
+            print(f"[DEBUG] Skill: {skill.name}, Correct: {is_correct}, New Consecutive Correct: {progress.consecutive_correct}")
         else:
             print(f"Warning: Skill '{skill_id_str}' not found.")
     except Exception as e:
@@ -762,7 +787,8 @@ def check_answer():
     return jsonify({
         "result": result_message,
         "correct": is_correct,
-        "demote_to_skill_id": demote_to_skill_id
+        "demote_to_skill_id": demote_to_skill_id,
+        "promote_to_skill_id": promote_to_skill_id
     })
 
 @app.route("/ask_gemini", methods=["POST"])

@@ -748,13 +748,94 @@
                             if (resultDisplay) resultDisplay.textContent = data.result;
                             if (correct) {
                                 if (resultDisplay) resultDisplay.style.color = 'green';
-                                // [修正] 立即重設 isProcessing 旗標，確保 setTimeout 中的 loadNextQuestion 不會被擋掉
-                                isProcessing = false;
-                                updateButtonStates();
-                                setTimeout(loadNextQuestion, 1000);
-                            } else {
+                                // [新功能][V4] 檢查後端是否傳來晉級訊號，並顯示兩個選項按鈕
+                                if (data.promote_to_skill_id) {
+                                    // 修正: 解除處理中狀態，讓新按鈕可以被點擊
+                                    isProcessing = false;
+                                    updateButtonStates();
+
+                                    // 清空結果區域，準備顯示新訊息和按鈕
+                                    resultDisplay.innerHTML = '';
+                                    
+                                    // 顯示恭喜訊息
+                                    resultDisplay.appendChild(document.createTextNode(data.result + ' '));
+
+                                    // 建立 "前往下一單元" 按鈕
+                                    const promotionButton = document.createElement('button');
+                                    promotionButton.textContent = '前往下一單元';
+                                    promotionButton.style.marginLeft = '15px';
+                                    promotionButton.onclick = () => {
+                                        promotionButton.disabled = true;
+                                        promotionButton.textContent = '載入中...';
+                                        window.location.href = `/practice/${data.promote_to_skill_id}`;
+                                    };
+
+                                    // 建立 "繼續練習" 按鈕
+                                    const stayButton = document.createElement('button');
+                                    stayButton.textContent = '繼續練習本單元';
+                                    stayButton.style.marginLeft = '10px';
+                                    stayButton.style.backgroundColor = '#6c757d'; // A different color
+                                    stayButton.onclick = () => {
+                                        // 直接載入目前單元的下一題
+                                        loadNextQuestion();
+                                    };
+
+                                    // 將按鈕加入到結果區域
+                                    resultDisplay.appendChild(promotionButton);
+                                    resultDisplay.appendChild(stayButton);
+
+                                } else {
+                                    // 如果沒有晉級，就正常載入下一題
+                                    isProcessing = false;
+                                    updateButtonStates();
+                                    setTimeout(loadNextQuestion, 1000);
+                                }
+                            } else { // Answer is incorrect
                                 if (resultDisplay) resultDisplay.style.color = 'red';
-                                if (data.demote_to_skill_id) { isDemoting = true; } else { if (answerInput) answerInput.select(); }
+
+                                // [V2] 檢查後端是否建議降級，並提供兩個選項
+                                if (data.demote_to_skill_id) {
+                                    isDemoting = true; // 標記為正在處理選項，防止其他操作
+
+                                    // 建立 "前往複習" 按鈕
+                                    const reviewButton = document.createElement('button');
+                                    reviewButton.textContent = '前往複習';
+                                    reviewButton.style.marginLeft = '15px';
+                                    reviewButton.onclick = () => {
+                                        reviewButton.disabled = true;
+                                        reviewButton.textContent = '載入中...';
+                                        window.location.href = `/practice/${data.demote_to_skill_id}`;
+                                    };
+
+                                    // 建立 "繼續練習" 按鈕
+                                    const stayButton = document.createElement('button');
+                                    stayButton.textContent = '繼續練習本單元';
+                                    stayButton.style.marginLeft = '10px';
+                                    stayButton.style.backgroundColor = '#6c757d';
+                                    stayButton.onclick = () => {
+                                        // 解除鎖定並載入下一題
+                                        isDemoting = false;
+                                        isProcessing = false;
+                                        loadNextQuestion();
+                                    };
+                                    
+                                    // 清空 resultDisplay 並顯示新訊息和按鈕
+                                    if (resultDisplay) {
+                                        resultDisplay.innerHTML = ''; // 清空
+                                        const messageLines = data.result.split('\n');
+                                        messageLines.forEach((line, index) => {
+                                            resultDisplay.appendChild(document.createTextNode(line));
+                                            if (index < messageLines.length - 1) {
+                                                resultDisplay.appendChild(document.createElement('br'));
+                                            }
+                                        });
+                                        resultDisplay.appendChild(reviewButton);
+                                        resultDisplay.appendChild(stayButton);
+                                    }
+                                } else { 
+                                    // 如果沒有降級建議，執行原始的錯誤處理
+                                    if (answerInput) answerInput.select(); 
+                                }
                             }
                         })
                         .catch(error => { console.error('Check answer error:', error); if (resultDisplay) { resultDisplay.textContent = `檢查失敗：${error.message}`; resultDisplay.className = 'incorrect'; } })
