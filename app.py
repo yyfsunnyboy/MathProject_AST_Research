@@ -184,38 +184,47 @@ def dashboard():
         
         if volume and chapter:
             # 第三層：顯示該冊該章的所有技能
-            skills = get_skills_by_volume_chapter(volume, chapter)
+            skills_raw = get_skills_by_volume_chapter(volume, chapter)
 
-            # 後端分組：按 (section, paragraph)
-            section_groups = {}
-            for s in skills:
-                key = (s['section'], s['paragraph'])
-                section_groups.setdefault(key, []).append(s)
+            # 組裝帶進度的扁平化技能資料
+            all_skills_with_progress = []
+            for s in skills_raw:
+                prog = progress_dict.get(s['skill_id'], (s['skill_id'], 0, 0, 1))
+                all_skills_with_progress.append({
+                    **s,
+                    'consecutive_correct': prog[1],
+                    'questions_solved': prog[2],
+                    'current_level': prog[3],
+                })
 
-            # 組裝帶進度的分組資料
-            grouped_skills = []
-            for (section, paragraph), skill_list in sorted(section_groups.items()):
-                grouped_item = {
-                    'section': section,
-                    'paragraph': paragraph,
-                    'skills': []
-                }
-                for s in skill_list:
-                    prog = progress_dict.get(s['skill_id'], (s['skill_id'], 0, 0, 1))
-                    grouped_item['skills'].append({
-                        **s,
-                        'consecutive_correct': prog[1],
-                        'questions_solved': prog[2],
-                        'current_level': prog[3],
+            # 重新分組，但這次是為了在模板中顯示節/段標題，而不是創建多個 grid
+            # 這裡我們需要一個新的結構來傳遞給模板，讓模板知道何時顯示新的節/段標題
+            # 每個元素可以是技能卡片數據，也可以是節/段標題數據
+            display_items = []
+            current_section = None
+            current_paragraph = None
+
+            for skill in all_skills_with_progress:
+                if skill['section'] != current_section or skill['paragraph'] != current_paragraph:
+                    display_items.append({
+                        'type': 'section_header',
+                        'section': skill['section'],
+                        'paragraph': skill['paragraph']
                     })
-                grouped_skills.append(grouped_item)
+                    current_section = skill['section']
+                    current_paragraph = skill['paragraph']
+                
+                display_items.append({
+                    'type': 'skill_card',
+                    'data': skill
+                })
 
             return render_template('dashboard.html',
                                  view_mode='curriculum',
                                  level='skills',  # 第三層
                                  volume=volume,
                                  chapter=chapter,
-                                 grouped_skills=grouped_skills,
+                                 display_items=display_items, # 傳遞扁平化的顯示項目
                                  username=current_user.username)
         elif volume:
             # 第二層：顯示該冊的所有章
@@ -260,6 +269,121 @@ def dashboard():
 @login_required
 def practice(skill_id):
     return render_template('index.html', skill_id=skill_id)
+
+# === 課程分類管理頁面 ===
+@app.route('/admin/curriculum')
+@login_required
+def admin_curriculum():
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+
+    # 獲取所有技能列表，用於下拉選單
+    c.execute('''
+        SELECT skill_id, skill_ch_name, skill_en_name FROM skills_info ORDER BY order_index, skill_id
+    ''')
+    skills = [{'skill_id': row[0], 'skill_ch_name': row[1], 'skill_en_name': row[2]} for row in c.fetchall()]
+
+    # 讀取現有的課程分類資料
+    c.execute('''
+        SELECT sc.id, sc.volume, sc.chapter, sc.section, sc.paragraph, 
+               sc.skill_id, sc.display_order, si.skill_ch_name, si.skill_en_name
+        FROM skill_curriculum sc
+        JOIN skills_info si ON sc.skill_id = si.skill_id
+        ORDER BY sc.volume, sc.chapter, sc.section, sc.paragraph, sc.display_order
+    ''')
+    curriculum_items = [{
+        'id': row[0],
+        'volume': row[1],
+        'chapter': row[2],
+        'section': row[3],
+        'paragraph': row[4],
+        'skill_id': row[5],
+        'display_order': row[6],
+        'skill_ch_name': row[7],
+        'skill_en_name': row[8]
+    } for row in c.fetchall()]
+    
+    conn.close()
+    
+    return render_template('admin_curriculum.html', 
+                           username=current_user.username,
+                           skills=skills,
+                           curriculum=curriculum_items)
+
+# === 新增課程分類 ===
+@app.route('/admin/curriculum/add', methods=['POST'])
+@login_required
+def admin_add_curriculum():
+    data = request.form
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        c.execute('''
+            INSERT INTO skill_curriculum (volume, chapter, section, paragraph, skill_id, display_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            int(data['volume']),
+            int(data['chapter']),
+            int(data['section']),
+            int(data['paragraph']),
+            data['skill_id'],
+            int(data.get('display_order', 0))
+        ))
+        conn.commit()
+        flash('課程分類新增成功！', 'success')
+    except sqlite3.IntegrityError:
+        flash('課程分類已存在！', 'danger')
+    except Exception as e:
+        flash(f'新增失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_curriculum'))
+
+# === 編輯課程分類 ===
+@app.route('/admin/curriculum/edit/<int:curriculum_id>', methods=['POST'])
+@login_required
+def admin_edit_curriculum(curriculum_id):
+    data = request.form
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        c.execute('''
+            UPDATE skill_curriculum 
+            SET volume = ?, chapter = ?, section = ?, paragraph = ?, 
+                skill_id = ?, display_order = ?
+            WHERE id = ?
+        ''', (
+            int(data['volume']),
+            int(data['chapter']),
+            int(data['section']),
+            int(data['paragraph']),
+            data['skill_id'],
+            int(data.get('display_order', 0)),
+            curriculum_id
+        ))
+        conn.commit()
+        flash('課程分類更新成功！', 'success')
+    except Exception as e:
+        flash(f'更新失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_curriculum'))
+
+# === 刪除課程分類 ===
+@app.route('/admin/curriculum/delete/<int:curriculum_id>', methods=['POST'])
+@login_required
+def admin_delete_curriculum(curriculum_id):
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        c.execute('DELETE FROM skill_curriculum WHERE id = ?', (curriculum_id,))
+        conn.commit()
+        flash('課程分類刪除成功！', 'success')
+    except Exception as e:
+        flash(f'刪除失敗：{str(e)}', 'danger')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_curriculum'))
 
 # === 技能管理頁面 ===
 @app.route('/admin/skills')
