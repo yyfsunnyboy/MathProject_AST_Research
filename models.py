@@ -84,7 +84,22 @@ def init_db():
          '分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導因式定理用法。', 10, True, 2),
         ('inequality_graph', 'Inequality Graph', '不等式圖解',
          '畫出二元一次不等式的可行域區域',
-         '分析學生手寫圖形：題目 {context}，檢查直線位置、陰影區域是否正確，給出具體建議。', 12, True, 3)
+         '分析學生手寫圖形：題目 {context}，檢查直線位置、陰影區域是否正確，給出具體建議。', 12, True, 3),
+        ('abs_val_ineq_lt', 'Abs. Value Inequality (Less Than)', '絕對值不等式 (<)',
+         '解形如 |ax + b| < c 的不等式，並在數線上標示其解的範圍',
+         '分析學生手寫圖形：題目 {context}，檢查學生是否正確標示出解的區間 {inequality_string}，包含端點是否為空心點。', 10, True, 4),
+        ('abs_val_ineq_gt', 'Abs. Value Inequality (Greater Than)', '絕對值不等式 (≥)',
+         '解形如 |ax + b| ≥ c 的不等式，並在數線上標示其解的範圍',
+         '分析學生手寫圖形：題目 {context}，檢查學生是否正確標示出解的區間 {inequality_string}，包含端點是否為實心點。', 10, True, 5),
+        ('quadrant_points', 'Quadrants and Coordinates', '象限與點坐標',
+         '識別直角坐標平面上的四個象限，並判斷點 (a,b) 所在的象限。',
+         '分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，解釋如何根據坐標的正負號判斷象限。', 8, True, 6),
+        ('dist_formula_2d', '2D Distance Formula', '平面上的距離公式', '熟練計算平面上兩點間距離 AB=sqrt((x2-x1)^2 + (y2-y1)^2)。', 'You are a math teacher. Your student is learning the distance formula in a 2D Cartesian coordinate system. Ask them to calculate the distance between two given points A(x1, y1) and B(x2, y2). The question must be in Chinese.', 3, True, 110),
+        ('midpoint_formula', 'Midpoint Formula', '中點坐標公式', '熟練使用中點坐標公式 P((x1+x2)/2, (y1+y2)/2)。', 'You are a math teacher. Your student is learning the midpoint formula. Ask them to find the midpoint of the line segment connecting two points A(x1, y1) and B(x2, y2). The question must be in Chinese and the answer should be an integer coordinate.', 3, True, 120),
+        ('section_formula', 'Section Formula', '內分點坐標公式', '熟練使用內分點坐標公式 P((nx1+mx2)/(m+n), (ny1+my2)/(m+n))。', 'You are a math teacher. Your student is learning the section formula. Given two points A(x1, y1) and B(x2, y2), and a ratio m:n, ask the student to find the coordinates of the point P that divides the line segment AB in the ratio m:n. The question must be in Chinese and the answer should be an integer coordinate.', 3, True, 130),
+        ('centroid_formula', 'Triangle Centroid Formula', '三角形重心坐標', '熟練計算三角形重心坐標 G((x1+x2+x3)/3, (y1+y2+y3)/3)。', 'You are a math teacher. Your student is learning to find the centroid of a triangle. Given the coordinates of the three vertices A(x1, y1), B(x2, y2), and C(x3, y3), ask the student to calculate the coordinates of the centroid. The question must be in Chinese and the answer should be an integer coordinate.', 3, True, 140),
+        ('function_def', 'Function Definition', '函數的定義', '理解函數的定義：「對於每一個 x 值，都恰有一個 y 值與之對應」，並認識自變數 x 和應變數 y。', 'You are a math teacher. Your student is learning the definition of a function. Present a set of ordered pairs and ask if the relation represents a function. The question should be in Chinese.', 5, True, 150),
+        ('linear_func_type', 'Linear Function Types', '線型函數分類與圖形', '區分常數函數 y=b (a=0) 和一次函數 y=ax+b (a!=0)，並判斷其圖形為水平線或斜直線。', 'You are a math teacher. Your student is learning to classify linear functions. Provide a linear function in the form y = ax + b and ask them to identify whether it is a "constant function" (常數函數) or a "linear function" (一次函數), and whether its graph is a "horizontal line" (水平線) or a "slope line" (斜直線). The question must be in Chinese.', 5, True, 160)
     ]
     c.executemany("INSERT OR IGNORE INTO skills_info VALUES (?, ?, ?, ?, ?, ?, ?, ?)", skills)
 

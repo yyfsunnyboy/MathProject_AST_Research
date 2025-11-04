@@ -643,6 +643,17 @@
                 
                     // 統一儲存 context
                     currentContext = data.context_string || data.inequality_string || "";
+
+                    // 根據題目類型調整 UI
+                    if (data.answer_type === 'graph') {
+                        answerInput.disabled = true;
+                        answerInput.placeholder = '請在計算紙區域作答';
+                        submitBtn.disabled = true;
+                    } else {
+                        answerInput.disabled = false;
+                        answerInput.placeholder = '請在此輸入答案';
+                        submitBtn.disabled = false;
+                    }
                 
                     // 清除畫布、輸入框等
                     answerInput.value = '';

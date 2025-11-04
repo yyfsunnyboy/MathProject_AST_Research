@@ -96,7 +96,8 @@ def next_question():
             "new_question_text": data["question_text"],
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
-            "consecutive_correct": consecutive
+            "consecutive_correct": consecutive,
+            "answer_type": data.get("correct_answer")
         })
     except Exception as e:
         return jsonify({"error": f"生成題目失敗: {str(e)}"}), 500
