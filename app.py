@@ -49,51 +49,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# 初始化技能資料
-def init_skills():
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS skills_info (
-            skill_id TEXT PRIMARY KEY,
-            skill_en_name TEXT NOT NULL,
-            skill_ch_name TEXT NOT NULL,
-            description TEXT NOT NULL,
-            gemini_prompt TEXT NOT NULL,
-            consecutive_correct_required INTEGER DEFAULT 10,
-            is_active BOOLEAN DEFAULT TRUE,
-            order_index INTEGER DEFAULT 0
-        )
-    ''')
-    
-    # 功文式技能資料（連續答對題數）
-    skills = [
-        # 餘式定理：連續答對 8 題晉級
-        ('remainder', 'Remainder Theorem', '餘式定理', 
-         '學習用餘式定理快速求多項式餘數', 
-         '分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導餘式定理代入法。', 
-         8, True, 1),
-        
-        # 因式定理：連續答對 10 題晉級
-        ('factor_theorem', 'Factor Theorem', '因式定理', 
-         '判斷 (x-k) 是否為多項式的因式', 
-         '分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導因式定理用法。', 
-         10, True, 2),
-        
-        # 不等式圖解：連續答對 12 題晉級
-        ('inequality_graph', 'Inequality Graph', '不等式圖解', 
-         '畫出二元一次不等式的可行域區域', 
-         '分析學生手寫圖形：題目 {context}，檢查直線位置、陰影區域是否正確，給出具體建議。', 
-         12, True, 3)
-    ]
-    
-    c.executemany("INSERT OR IGNORE INTO skills_info VALUES (?, ?, ?, ?, ?, ?, ?, ?)", skills)
-    conn.commit()
-    conn.close()
-
-# 呼叫一次
-init_skills()
-
 @login_manager.user_loader
 def load_user(user_id):
     conn = sqlite3.connect('users.db')

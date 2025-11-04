@@ -44,6 +44,7 @@ New-Item static/style.css
 ===========================
 # 1. 進入專案資料夾
 cd D:\Python\math-master
+cd E:\Python\math-master
 cd Python\math-master
 # 2. 建立虛擬環境
 python -m venv venv
@@ -54,6 +55,7 @@ venv\Scripts\activate
 # 4. 安裝套件
 pip install Flask google-generativeai
 pip install flask-login
+pip install python-dotenv
 
 
 set GEMINI_API_KEY=AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY

@@ -38,21 +38,21 @@ def check(user_answer, correct_answer):
     correct_x = float(correct_match.group(1))
     correct_y = float(correct_match.group(2))
 
-    # 清理使用者輸入
-    user_answer = user_answer.replace('(', '').replace(')', '').replace(' ', '')
+    # 清理使用者輸入，使其能處理多種格式
+    user_clean = user_answer.strip().replace('(', '').replace(')', '').replace(' ', '')
     
     try:
-        parts = user_answer.split(',')
+        parts = user_clean.split(',')
         if len(parts) != 2:
             return {"correct": False, "result": "請輸入兩個坐標值，並用逗號分隔。"}
         
         user_x = float(parts[0])
         user_y = float(parts[1])
         
-        if user_x == correct_x and user_y == correct_y:
+        if abs(user_x - correct_x) < 1e-9 and abs(user_y - correct_y) < 1e-9:
             return {"correct": True, "result": "完全正確！"}
         else:
             return {"correct": False, "result": f"答案不正確。正確答案是 ({correct_x}, {correct_y})。"}
 
     except ValueError:
-        return {"correct": False, "result": "請輸入有效的數字坐標，例如 '3, 5' 或 '(3, 5)'。"}
+        return {"correct": False, "result": "請輸入有效的數字坐標，例如 '3, 5' 或 '(3,5)'。"}

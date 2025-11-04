@@ -1,0 +1,101 @@
+# skills/always_negative_cond.py
+import random
+
+def format_polynomial(a, b, c):
+    """將 f(x) = ax² + bx + c 格式化為字串"""
+    terms = []
+    # x² term
+    if a == 1:
+        terms.append("x²")
+    elif a == -1:
+        terms.append("-x²")
+    else:
+        terms.append(f"{a}x²")
+    
+    # x term
+    if b != 0:
+        sign = " + " if b > 0 else " - "
+        abs_b = abs(b)
+        if abs_b == 1:
+            terms.append(f"{sign}x")
+        else:
+            terms.append(f"{sign}{abs_b}x")
+
+    # constant term
+    if c != 0:
+        sign = " + " if c > 0 else " - "
+        abs_c = abs(c)
+        terms.append(f"{sign}{abs_c}")
+        
+    return "f(x) = " + "".join(terms).lstrip(" +")
+
+def generate():
+    """
+    生成一道「二次函數恆負條件」題目
+    """
+    # 隨機決定此函數是否恆負
+    is_always_negative = random.choice([True, False])
+
+    if is_always_negative:
+        # 構造一個恆負的二次函數 (a < 0, D < 0)
+        # 從頂點式 a(x-h)²+k 開始，其中 a<0, k<0
+        a = random.randint(-4, -1)
+        h = random.randint(-5, 5)
+        k = random.randint(-10, -1) # k < 0 確保頂點在 x 軸下方
+        correct_answer = "是"
+        context_explanation = "此函數開口向下 (a<0) 且頂點在 x 軸下方 (k<0)，因此判別式 D<0，故恆為負。"
+    else:
+        # 構造一個不恆負的二次函數
+        # 可能是 a > 0 或 D >= 0
+        if random.choice([True, False]):
+            # 情況1: 開口向上 (a > 0)
+            a = random.randint(1, 4)
+            h = random.randint(-5, 5)
+            k = random.randint(-10, 10)
+            context_explanation = "此函數開口向上 (a>0)，因此不可能恆為負。"
+        else:
+            # 情況2: 開口向下但與 x 軸有交點 (a < 0, D >= 0)
+            # 從頂點式 a(x-h)²+k 開始，其中 a<0, k>=0
+            a = random.randint(-4, -1)
+            h = random.randint(-5, 5)
+            k = random.randint(0, 10) # k >= 0 確保頂點在 x 軸上或上方
+            context_explanation = "此函數開口向下 (a<0) 但頂點在 x 軸上或上方 (k>=0)，因此判別式 D>=0，故不恆為負。"
+        correct_answer = "否"
+
+    # 展開 y = a(x-h)² + k = ax² - 2ahx + ah² + k
+    b = -2 * a * h
+    c = a * h**2 + k
+
+    poly_str = format_polynomial(a, b, c)
+
+    question_text = (
+        f"請問二次函數 {poly_str} 的值是否恆為負？\n\n"
+        f"提示：請檢查開口方向 (a) 與判別式 (D = b²-4ac) 的正負。\n"
+        f"(請回答 '是' 或 '否')"
+    )
+
+    context_string = f"判斷 {poly_str} 是否恆負。{context_explanation}"
+
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": "text",
+        "context_string": context_string,
+    }
+
+def check(user_answer, correct_answer):
+    """
+    檢查使用者輸入的是/否是否正確。
+    """
+    user = user_answer.strip().lower()
+    if user in ['是', 'yes', 'y', 'true', 't']:
+        user_choice = '是'
+    elif user in ['否', 'no', 'n', 'false', 'f']:
+        user_choice = '否'
+    else:
+        return {"correct": False, "result": "請回答 '是' 或 '否'。"}
+
+    if user_choice == correct_answer:
+        return {"correct": True, "result": f"完全正確！答案是「{correct_answer}」。"}
+    else:
+        return {"correct": False, "result": f"答案不正確。正確答案是「{correct_answer}」。"}
