@@ -197,26 +197,41 @@ def dashboard():
                     'current_level': prog[3],
                 })
 
-            # 重新分組，但這次是為了在模板中顯示節/段標題，而不是創建多個 grid
-            # 這裡我們需要一個新的結構來傳遞給模板，讓模板知道何時顯示新的節/段標題
-            # 每個元素可以是技能卡片數據，也可以是節/段標題數據
-            display_items = []
+            # 重新分組：按節分組技能，同一節的所有段的技能都放在一起
+            grouped_sections = []
             current_section = None
-            current_paragraph = None
+            current_skills = []
+            section_paragraphs = set()  # 記錄該節包含的所有段
 
             for skill in all_skills_with_progress:
-                if skill['section'] != current_section or skill['paragraph'] != current_paragraph:
-                    display_items.append({
-                        'type': 'section_header',
-                        'section': skill['section'],
-                        'paragraph': skill['paragraph']
-                    })
+                if skill['section'] != current_section:
+                    # 保存前一個section的數據
+                    if current_section is not None:
+                        sorted_paras = sorted(section_paragraphs)
+                        para_str = '、'.join(map(str, sorted_paras)) if len(sorted_paras) > 1 else str(sorted_paras[0]) if sorted_paras else ''
+                        grouped_sections.append({
+                            'section': current_section,
+                            'paragraphs': sorted_paras,  # 該節包含的所有段
+                            'paragraphs_str': para_str,  # 段落字符串，用於顯示
+                            'skills': current_skills.copy()
+                        })
+                    # 開始新的section
                     current_section = skill['section']
-                    current_paragraph = skill['paragraph']
+                    current_skills = []
+                    section_paragraphs = set()
                 
-                display_items.append({
-                    'type': 'skill_card',
-                    'data': skill
+                current_skills.append(skill)
+                section_paragraphs.add(skill['paragraph'])
+            
+            # 添加最後一個section
+            if current_section is not None:
+                sorted_paras = sorted(section_paragraphs)
+                para_str = '、'.join(map(str, sorted_paras)) if len(sorted_paras) > 1 else str(sorted_paras[0]) if sorted_paras else ''
+                grouped_sections.append({
+                    'section': current_section,
+                    'paragraphs': sorted_paras,  # 該節包含的所有段
+                    'paragraphs_str': para_str,  # 段落字符串，用於顯示
+                    'skills': current_skills.copy()
                 })
 
             return render_template('dashboard.html',
@@ -224,7 +239,7 @@ def dashboard():
                                  level='skills',  # 第三層
                                  volume=volume,
                                  chapter=chapter,
-                                 display_items=display_items, # 傳遞扁平化的顯示項目
+                                 grouped_sections=grouped_sections, # 傳遞按節/段分組的數據
                                  username=current_user.username)
         elif volume:
             # 第二層：顯示該冊的所有章

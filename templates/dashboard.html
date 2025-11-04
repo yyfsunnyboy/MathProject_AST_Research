@@ -26,9 +26,10 @@
             font-size: 1.2em;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 20px auto;
             padding: 20px;
+            width: 100%;
         }
         h2 {
             color: #333;
@@ -106,21 +107,21 @@
         
         /* 技能卡片 */
         .skill-grid {
-            display: grid; /* 改回 grid 佈局 */
-            grid-template-columns: repeat(4, 1fr); /* 直接設定為四列 */
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important; /* 固定四列 */
             gap: 20px;
-            max-width: 100%; /* 確保不超出父容器 */
-            justify-content: start; /* 確保內容從左邊開始排列 */
-            box-sizing: border-box; /* 確保 padding 和 border 不會增加元素總寬度 */
-            grid-template-rows: auto; /* 確保行高自適應 */
-            grid-auto-flow: row; /* 確保項目按行流動 */
-            grid-auto-columns: 1fr; /* 確保列寬自適應 */
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        /* 針對課程模式下的技能網格，如果需要特殊處理，可以再定義 */
-        /* .skill-grid.curriculum-skills {
-            grid-template-columns: repeat(4, 1fr);
-        } */
+        /* 針對課程模式下的技能網格，確保四列顯示 */
+        .skill-grid.curriculum-skills {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            width: 100% !important;
+            grid-auto-flow: row !important;
+        }
+        
         .skill-card {
             background: #fff;
             border: 1px solid #ddd;
@@ -129,7 +130,10 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
-            width: 100%; /* 確保卡片在網格單元內佔滿可用寬度 */
+            min-width: 0; /* 防止 grid 項目溢出 */
+            box-sizing: border-box;
+            width: 100%; /* 確保卡片填滿 grid 單元 */
+            max-width: 100%;
         }
         .skill-card h3 {
             margin-top: 0;
@@ -177,11 +181,17 @@
         
         /* 技能分組（按節、段） */
         .skill-section-group {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            margin-top: 30px;
             padding: 15px;
             background: #f8f9fa;
             border-radius: 8px;
             border-left: 4px solid #007bff;
+            width: 100%;
+        }
+        
+        .skill-section-group:first-child {
+            margin-top: 0;
         }
         .skill-section-group h4 {
             margin-top: 0;
@@ -269,31 +279,40 @@
                 <!-- 第三層：顯示該冊該章的所有技能 -->
                 <p>第 {{ volume }} 冊 第 {{ chapter }} 章 - 請選擇要練習的技能：</p>
                 
-                <div class="skill-grid curriculum-skills"> {# 只有一個 skill-grid 容器 #}
-                    {% for item in display_items %}
-                        {% if item.type == 'section_header' %}
-                        <div class="skill-section-group" style="grid-column: 1 / -1;"> {# 讓標題佔滿整行 #}
-                            <h4>第 {{ item.section }} 節 第 {{ item.paragraph }} 段</h4>
+                <!-- 統一的技能網格，所有技能都在這裡 -->
+                <div class="skill-grid curriculum-skills" style="display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 20px; width: 100%;">
+                    {% for section_group in grouped_sections %}
+                        <!-- Section header - 跨滿整行，顯示節信息 -->
+                        <div class="skill-section-group" style="grid-column: 1 / -1;">
+                            <h4>第 {{ section_group.section }} 節
+                                {% if section_group.paragraphs|length > 1 %}
+                                    (包含第 {{ section_group.paragraphs_str }} 段)
+                                {% elif section_group.paragraphs|length == 1 %}
+                                    第 {{ section_group.paragraphs_str }} 段
+                                {% endif %}
+                            </h4>
                         </div>
-                        {% elif item.type == 'skill_card' %}
-                        <div class="skill-card">
-                            <h3>{{ item.data.skill_ch_name }}</h3>
-                            <p>{{ item.data.description }}</p>
-                            
-                            <div class="progress-info">
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: {{ (item.data.consecutive_correct / item.data.consecutive_correct_required) * 100 }}%"></div>
+                        
+                        <!-- 該 section 的所有技能卡片（包含所有段的技能） -->
+                        {% for skill in section_group.skills %}
+                            <div class="skill-card" style="width: 100%; max-width: 100%;">
+                                <h3>{{ skill.skill_ch_name }}</h3>
+                                <p>{{ skill.description }}</p>
+                                
+                                <div class="progress-info">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: {{ (skill.consecutive_correct / skill.consecutive_correct_required) * 100 }}%"></div>
+                                    </div>
+                                    <small>連續答對 {{ skill.consecutive_correct }} / {{ skill.consecutive_correct_required }} 題 → 晉級</small>
+                                    <br>
+                                    <small>當前等級：{{ skill.current_level }} 級 | 總練習 {{ skill.questions_solved }} 題</small>
                                 </div>
-                                <small>連續答對 {{ item.data.consecutive_correct }} / {{ item.data.consecutive_correct_required }} 題 → 晉級</small>
-                                <br>
-                                <small>當前等級：{{ item.data.current_level }} 級 | 總練習 {{ item.data.questions_solved }} 題</small>
+                                
+                                <a href="{{ url_for('practice', skill_id=skill.skill_id) }}" class="btn-practice">
+                                    開始練習
+                                </a>
                             </div>
-                            
-                            <a href="{{ url_for('practice', skill_id=item.data.skill_id) }}" class="btn-practice">
-                                開始練習
-                            </a>
-                        </div>
-                        {% endif %}
+                        {% endfor %}
                     {% endfor %}
                 </div>
             {% endif %}
