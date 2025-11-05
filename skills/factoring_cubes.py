@@ -1,10 +1,11 @@
 # skills/factoring_cubes.py
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一道「三次式因式分解 (立方公式)」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     is_sum = random.choice([True, False])
     
     # 選擇基數 a 和 b

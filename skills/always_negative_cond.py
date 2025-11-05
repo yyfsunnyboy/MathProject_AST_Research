@@ -29,10 +29,11 @@ def format_polynomial(a, b, c):
         
     return "f(x) = " + "".join(terms).lstrip(" +")
 
-def generate():
+def generate(level=1):
     """
     生成一道「二次函數恆負條件」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機決定此函數是否恆負
     is_always_negative = random.choice([True, False])
 

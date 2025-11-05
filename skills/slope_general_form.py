@@ -23,10 +23,11 @@ def format_general_equation(a, b, c):
     
     return "".join(terms).lstrip(" +") + " = 0"
 
-def generate():
+def generate(level=1):
     """
     生成一道「一般式求斜率」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成係數 a, b, c
     a = random.randint(-5, 5)
     b = random.randint(-5, 5)

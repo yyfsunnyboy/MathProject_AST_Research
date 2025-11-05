@@ -1,7 +1,7 @@
 # skills/num_line_basic.py
 import random
 
-def generate():
+def generate(level=1):
     """生成「數線基礎與坐標」題目"""
     question_type = random.choice([
         'opposite',      # 相反數
@@ -10,6 +10,7 @@ def generate():
         'midpoint',      # 中點
         'compare'        # 比較大小
     ])
+    # level 參數暫時未使用，但保留以符合架構
     
     if question_type == 'opposite':
         # 相反數題目
@@ -159,4 +160,3 @@ def check(user_answer, correct_answer):
         return {"correct": True, "result": "正確！"}
     
     return {"correct": False, "result": f"錯誤，正解：{correct_answer}"}
-

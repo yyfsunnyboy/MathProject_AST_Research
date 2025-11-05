@@ -26,10 +26,11 @@ def format_general_equation(a, b, c):
     
     return "".join(terms).lstrip(" +") + " = 0"
 
-def generate():
+def generate(level=1):
     """
     生成一道「點斜式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成點 (x1, y1)
     x1 = random.randint(-5, 5)
     y1 = random.randint(-5, 5)

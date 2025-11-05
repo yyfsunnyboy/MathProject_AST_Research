@@ -3,12 +3,13 @@ import random
 import re
 import ast
 
-def generate():
+def generate(level=1):
     """生成「數線上的距離公式」題目"""
     question_type = random.choice([
         'distance_given_points',    # 給定兩點求距離
         'point_given_distance'       # 給定一點和距離，求另一點（單一答案）
     ])
+    # level 參數暫時未使用，但保留以符合架構
     
     if question_type == 'distance_given_points':
         # 給定兩點，求距離
@@ -126,4 +127,3 @@ def check(user_answer, correct_answer):
             return {"correct": False, "result": f"錯誤，正解：{correct_answer}"}
     except ValueError:
         return {"correct": False, "result": f"錯誤，請輸入數字。正解：{correct_answer}"}
-

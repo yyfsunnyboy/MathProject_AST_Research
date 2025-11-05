@@ -1,10 +1,11 @@
 # skills/rational_eq_solve.py
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一道「分式方程式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 構造題目: a/(x-r1) + b/(x-r2) = 0
     # 確保有解且解不為增根
     r1 = random.randint(-5, 5)

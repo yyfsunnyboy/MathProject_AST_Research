@@ -1,10 +1,11 @@
 # skills/rational_expr_def.py
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一道「分式的基本概念」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成分母 g(x)
     root1 = random.randint(-5, 5)
     root2 = random.randint(-5, 5)

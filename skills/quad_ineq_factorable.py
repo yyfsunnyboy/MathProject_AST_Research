@@ -29,10 +29,11 @@ def format_polynomial(a, b, c):
         
     return "".join(terms).lstrip(" +")
 
-def generate():
+def generate(level=1):
     """
     生成一道「可因式分解之二次不等式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 從因式分解 a(x-p)(x-q) 開始，確保題目可因式分解且根為整數
     a_coeff = random.choice([-2, -1, 1, 2])
     p = random.randint(-5, 5)

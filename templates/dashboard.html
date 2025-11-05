@@ -104,6 +104,21 @@
         .level-card.chapter-card h3 {
             color: #17a2b8;
         }
+        /* 僅針對第二層（章節）卡片的美化 */
+        .level-grid .level-card.chapter-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* 垂直置中 */
+            align-items: center; /* 水平置中 */
+            height: 100%; /* 填滿網格單元高度 */
+            overflow: hidden; /* 隱藏溢出內容 */
+            font-size: clamp(1em, 4.5vw, 1.5em); /* 字體自動縮放 */
+        }
+        /* 針對第一層（冊別）卡片的樣式 */
+        .level-card.volume-card h3 {
+            color: #28a745;
+            font-size: 2em; /* 恢復原本較大的字體 */
+        }
         
         /* 技能卡片 */
         .skill-grid {
@@ -134,6 +149,14 @@
             box-sizing: border-box;
             width: 100%; /* 確保卡片填滿 grid 單元 */
             max-width: 100%;
+        }
+        .skill-card h3 {
+            font-size: 1.2em; /* 標題字體大小 */
+            line-height: 1.3;
+            /* 自動縮放以適應單行 */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .skill-card h3 {
             margin-top: 0;
@@ -225,14 +248,21 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2 style="margin: 0;">學習儀表板</h2>
+            <!-- 新增：普高/技高 切換按鈕 -->
+            <div style="flex-grow: 1; text-align: center;">
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum='general') }}" 
+                   style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'general' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
+                    普高
+                </a>
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum='vocational') }}" 
+                   style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'vocational' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
+                    技高
+                </a>
+            </div>
             <div>
                 <a href="{{ url_for('dashboard', view='all') }}" 
                    style="padding: 8px 16px; margin-left: 10px; background: {{ '#28a745' if view_mode == 'all' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 4px;">
                     顯示所有
-                </a>
-                <a href="{{ url_for('dashboard', view='curriculum') }}" 
-                   style="padding: 8px 16px; margin-left: 10px; background: {{ '#28a745' if view_mode == 'curriculum' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 4px;">
-                    依課程顯示
                 </a>
             </div>
         </div>
@@ -241,61 +271,66 @@
             <!-- 麵包屑導航 -->
             <div class="breadcrumb">
                 <a href="{{ url_for('dashboard', view='curriculum') }}">課程首頁</a>
-                {% if level == 'chapters' or level == 'skills' %}
+                {% if curriculum and (volume or chapter) %}
                     <span>→</span>
-                    <a href="{{ url_for('dashboard', view='curriculum', volume=volume) }}">第 {{ volume }} 冊</a>
+                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum) }}">{{ '普通高中' if curriculum == 'general' else '技術型高中' }}</a>
                 {% endif %}
-                {% if level == 'skills' %}
+                {% if volume %}
                     <span>→</span>
-                    <span class="current">第 {{ chapter }} 章</span>
+                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=volume) }}">{{ volume }}</a>
+                {% endif %}
+                {% if chapter %}
+                    <span>→</span>
+                    <span class="current">{{ chapter }}</span>
                 {% endif %}
             </div>
             
             {% if level == 'volumes' %}
-                <!-- 第一層：顯示所有冊 -->
-                <p>請選擇要查看的冊：</p>
-                <div class="level-grid">
-                    {% for vol in volumes %}
-                    <a href="{{ url_for('dashboard', view='curriculum', volume=vol) }}" style="text-decoration: none;">
-                        <div class="level-card volume-card">
-                            <h3>第 {{ vol }} 冊</h3>
+                <!-- 顯示冊別 -->
+                <p>{{ '普通高中' if curriculum == 'general' else '技術型高中' }} - 請選擇冊別：</p>
+                {% for grade, grade_volumes in volumes.items() %}
+                    <div class="grade-row" style="display: flex; align-items: center; margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e9ecef;">
+                        <div class="grade-label" style="margin-right: 20px; min-width: 80px;">
+                            <h4 style="font-size: 1.4em; color: #34495e;">{{ {10: '一年級', 11: '二年級', 12: '三年級'}.get(grade, '未知年級') }}</h4>
                         </div>
-                    </a>
-                    {% endfor %}
-                </div>
+                        <div class="level-grid" style="flex-grow: 1; display: flex; flex-wrap: wrap; gap: 20px;">
+                            {% for vol in grade_volumes %}
+                            <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=vol) }}" style="text-decoration: none;">
+                                <div class="level-card volume-card">
+                                    <h3>{{ vol }}</h3>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
             {% elif level == 'chapters' %}
-                <!-- 第二層：顯示該冊的所有章 -->
-                <p>第 {{ volume }} 冊 - 請選擇要查看的章：</p>
+                <!-- 顯示章節 -->
+                <p>{{ volume }} - 請選擇章節：</p>
                 <div class="level-grid">
                     {% for ch in chapters %}
-                    <a href="{{ url_for('dashboard', view='curriculum', volume=volume, chapter=ch) }}" style="text-decoration: none;">
+                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=volume, chapter=ch) }}" style="text-decoration: none;">
                         <div class="level-card chapter-card">
-                            <h3>第 {{ ch }} 章</h3>
+                            <h3>{{ ch }}</h3>
                         </div>
                     </a>
                     {% endfor %}
                 </div>
             {% elif level == 'skills' %}
-                <!-- 第三層：顯示該冊該章的所有技能 -->
-                <p>第 {{ volume }} 冊 第 {{ chapter }} 章 - 請選擇要練習的技能：</p>
+                <!-- 顯示技能 -->
+                <p>{{ volume }} / {{ chapter }} - 請選擇要練習的技能：</p>
                 
                 <!-- 統一的技能網格，所有技能都在這裡 -->
                 <div class="skill-grid curriculum-skills" style="display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 20px; width: 100%;">
                     {% for section_group in grouped_sections %}
                         <!-- Section header - 跨滿整行，顯示節信息 -->
                         <div class="skill-section-group" style="grid-column: 1 / -1;">
-                            <h4>第 {{ section_group.section }} 節
-                                {% if section_group.paragraphs|length > 1 %}
-                                    (包含第 {{ section_group.paragraphs_str }} 段)
-                                {% elif section_group.paragraphs|length == 1 %}
-                                    第 {{ section_group.paragraphs_str }} 段
-                                {% endif %}
-                            </h4>
+                            <h4>{{ section_group.section }}</h4>
                         </div>
                         
                         <!-- 該 section 的所有技能卡片（包含所有段的技能） -->
                         {% for skill in section_group.skills %}
-                            <div class="skill-card" style="width: 100%; max-width: 100%;">
+                            <div class="skill-card" style="width: 100%; max-width: 100%; height: 100%;">
                                 <h3>{{ skill.skill_ch_name }}</h3>
                                 <p>{{ skill.description }}</p>
                                 
@@ -321,7 +356,7 @@
             <p>請選擇您今天要練習的單元：</p>
             <div class="skill-grid">
                 {% for data in dashboard_data %}
-                <div class="skill-card">
+                <div class="skill-card" style="height: 100%;">
                     <h3>{{ data.skill.skill_ch_name }}</h3>
                     <p>{{ data.skill.description }}</p>
                     

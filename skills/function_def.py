@@ -1,9 +1,10 @@
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一個判斷是否為函數的題目。
     """
+    # level 參數暫時未使用，但保留以符合架構
     points = []
     x_values = set()
     is_function = random.choice([True, False])

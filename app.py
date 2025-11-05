@@ -51,7 +51,7 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     c.execute("SELECT id, username FROM users WHERE id = ?", (user_id,))
     row = c.fetchone()
@@ -76,12 +76,12 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect('math_master.db')
         c = conn.cursor()
-        c.execute("SELECT id, username, password FROM users WHERE username = ?", (username,))
+        c.execute("SELECT id, username, password_hash FROM users WHERE username = ?", (username,))
         user = c.fetchone()
         conn.close()
-        if user and check_password_hash(user[2], password):
+        if user and check_password_hash(user[2], password): # user[2] 現在是 password_hash
             login_user(User(user[0], user[1]))
             return redirect(url_for('dashboard'))
         flash('帳號或密碼錯誤', 'danger')
@@ -96,11 +96,11 @@ def register():
         if len(password) < 4:
             flash('密碼至少 4 個字', 'warning')
             return render_template('register.html')
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect('math_master.db')
         c = conn.cursor()
         try:
-            c.execute("INSERT INTO users (username, password) VALUES (?, ?)",
-                      (username, generate_password_hash(password)))
+            c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                      (username, generate_password_hash(password, method='pbkdf2:sha256')))
             conn.commit()
             flash('註冊成功！請登入', 'success')
             return redirect(url_for('login'))
@@ -122,12 +122,13 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    view_mode = request.args.get('view', 'all')  # 'all' 或 'curriculum'
-    volume = request.args.get('volume', type=int)
-    chapter = request.args.get('chapter', type=int)
-    
+    # 預設為 'curriculum' 視圖，並預設選擇 'general' (普高)
+    view_mode = request.args.get('view', 'curriculum')
+    curriculum = request.args.get('curriculum', 'general') # 預設為普高
+    volume = request.args.get('volume')
+    chapter = request.args.get('chapter')
     # 讀取使用者進度
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     c.execute('''
         SELECT skill_id, consecutive_correct, questions_solved, current_level
@@ -140,13 +141,13 @@ def dashboard():
     progress_dict = {row[0]: row for row in progress_rows}
     
     if view_mode == 'curriculum':
-        from core.utils import get_volumes, get_chapters_by_volume, get_skills_by_volume_chapter
+        from core.utils import get_volumes_by_curriculum, get_chapters_by_curriculum_volume, get_skills_by_volume_chapter
         
-        if volume and chapter:
-            # 第三層：顯示該冊該章的所有技能
+        if curriculum and volume and chapter:
+            # 第四層：顯示技能
             skills_raw = get_skills_by_volume_chapter(volume, chapter)
 
-            # 組裝帶進度的扁平化技能資料
+            # 組裝帶有進度的技能資料
             all_skills_with_progress = []
             for s in skills_raw:
                 prog = progress_dict.get(s['skill_id'], (s['skill_id'], 0, 0, 1))
@@ -157,67 +158,40 @@ def dashboard():
                     'current_level': prog[3],
                 })
 
-            # 重新分組：按節分組技能，同一節的所有段的技能都放在一起
+            # 按節分組
             grouped_sections = []
             current_section = None
-            current_skills = []
-            section_paragraphs = set()  # 記錄該節包含的所有段
-
             for skill in all_skills_with_progress:
                 if skill['section'] != current_section:
-                    # 保存前一個section的數據
-                    if current_section is not None:
-                        sorted_paras = sorted(section_paragraphs)
-                        para_str = '、'.join(map(str, sorted_paras)) if len(sorted_paras) > 1 else str(sorted_paras[0]) if sorted_paras else ''
-                        grouped_sections.append({
-                            'section': current_section,
-                            'paragraphs': sorted_paras,  # 該節包含的所有段
-                            'paragraphs_str': para_str,  # 段落字符串，用於顯示
-                            'skills': current_skills.copy()
-                        })
-                    # 開始新的section
                     current_section = skill['section']
-                    current_skills = []
-                    section_paragraphs = set()
-                
-                current_skills.append(skill)
-                section_paragraphs.add(skill['paragraph'])
-            
-            # 添加最後一個section
-            if current_section is not None:
-                sorted_paras = sorted(section_paragraphs)
-                para_str = '、'.join(map(str, sorted_paras)) if len(sorted_paras) > 1 else str(sorted_paras[0]) if sorted_paras else ''
-                grouped_sections.append({
-                    'section': current_section,
-                    'paragraphs': sorted_paras,  # 該節包含的所有段
-                    'paragraphs_str': para_str,  # 段落字符串，用於顯示
-                    'skills': current_skills.copy()
-                })
+                    grouped_sections.append({'section': current_section, 'skills': []})
+                grouped_sections[-1]['skills'].append(skill)
 
             return render_template('dashboard.html',
                                  view_mode='curriculum',
-                                 level='skills',  # 第三層
+                                 level='skills',
+                                 curriculum=curriculum,
                                  volume=volume,
                                  chapter=chapter,
-                                 grouped_sections=grouped_sections, # 傳遞按節/段分組的數據
+                                 grouped_sections=grouped_sections,
                                  username=current_user.username)
-        elif volume:
-            # 第二層：顯示該冊的所有章
-            chapters = get_chapters_by_volume(volume)
-            
+        elif curriculum and volume:
+            # 第三層：顯示章節
+            chapters = get_chapters_by_curriculum_volume(curriculum, volume)
             return render_template('dashboard.html',
                                  view_mode='curriculum',
-                                 level='chapters',  # 第二層
+                                 level='chapters',
+                                 curriculum=curriculum,
                                  volume=volume,
                                  chapters=chapters,
                                  username=current_user.username)
-        else:
-            # 第一層：顯示所有冊
-            volumes = get_volumes()
-            
+        elif curriculum:
+            # 預設層級：根據課綱顯示冊別
+            volumes = get_volumes_by_curriculum(curriculum)
             return render_template('dashboard.html',
                                  view_mode='curriculum',
-                                 level='volumes',  # 第一層
+                                 level='volumes', # 直接顯示冊別
+                                 curriculum=curriculum,
                                  volumes=volumes,
                                  username=current_user.username)
     else:
@@ -249,7 +223,7 @@ def practice(skill_id):
 @app.route('/admin/curriculum')
 @login_required
 def admin_curriculum():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
 
     # 獲取所有技能列表，用於下拉選單
@@ -260,22 +234,25 @@ def admin_curriculum():
 
     # 讀取現有的課程分類資料
     c.execute('''
-        SELECT sc.id, sc.volume, sc.chapter, sc.section, sc.paragraph, 
-               sc.skill_id, sc.display_order, si.skill_ch_name, si.skill_en_name
+        SELECT sc.id, sc.curriculum, sc.grade, sc.volume, sc.chapter, sc.section, sc.paragraph, 
+               sc.skill_id, sc.display_order, sc.difficulty_level, si.skill_ch_name, si.skill_en_name
         FROM skill_curriculum sc
         JOIN skills_info si ON sc.skill_id = si.skill_id
-        ORDER BY sc.volume, sc.chapter, sc.section, sc.paragraph, sc.display_order
+        ORDER BY sc.curriculum, sc.grade, sc.volume, sc.chapter, sc.section, sc.paragraph, sc.display_order
     ''')
     curriculum_items = [{
         'id': row[0],
-        'volume': row[1],
-        'chapter': row[2],
-        'section': row[3],
-        'paragraph': row[4],
-        'skill_id': row[5],
-        'display_order': row[6],
-        'skill_ch_name': row[7],
-        'skill_en_name': row[8]
+        'curriculum': row[1],
+        'grade': row[2],
+        'volume': row[3],
+        'chapter': row[4],
+        'section': row[5],
+        'paragraph': row[6],
+        'skill_id': row[7],
+        'display_order': row[8],
+        'difficulty_level': row[9],
+        'skill_ch_name': row[10],
+        'skill_en_name': row[11]
     } for row in c.fetchall()]
     
     conn.close()
@@ -290,19 +267,22 @@ def admin_curriculum():
 @login_required
 def admin_add_curriculum():
     data = request.form
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         c.execute('''
-            INSERT INTO skill_curriculum (volume, chapter, section, paragraph, skill_id, display_order)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO skill_curriculum (curriculum, grade, volume, chapter, section, paragraph, skill_id, display_order, difficulty_level)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            int(data['volume']),
-            int(data['chapter']),
-            int(data['section']),
-            int(data['paragraph']),
+            data['curriculum'],
+            int(data['grade']),
+            data['volume'],
+            data['chapter'],
+            data['section'],
+            data.get('paragraph').strip() or None, # 清理空格並將空字串轉為 None
             data['skill_id'],
-            int(data.get('display_order', 0))
+            int(data.get('display_order', 0)),
+            int(data.get('difficulty_level', 1)) # 新增
         ))
         conn.commit()
         flash('課程分類新增成功！', 'success')
@@ -319,21 +299,24 @@ def admin_add_curriculum():
 @login_required
 def admin_edit_curriculum(curriculum_id):
     data = request.form
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         c.execute('''
             UPDATE skill_curriculum 
-            SET volume = ?, chapter = ?, section = ?, paragraph = ?, 
-                skill_id = ?, display_order = ?
+            SET curriculum = ?, grade = ?, volume = ?, chapter = ?, section = ?, paragraph = ?, 
+                skill_id = ?, display_order = ?, difficulty_level = ?
             WHERE id = ?
         ''', (
-            int(data['volume']),
-            int(data['chapter']),
-            int(data['section']),
-            int(data['paragraph']),
+            data['curriculum'],
+            int(data['grade']),
+            data['volume'],
+            data['chapter'],
+            data['section'],
+            data.get('paragraph').strip() or None, # 清理空格並將空字串轉為 None
             data['skill_id'],
             int(data.get('display_order', 0)),
+            int(data.get('difficulty_level', 1)), # 新增
             curriculum_id
         ))
         conn.commit()
@@ -348,7 +331,7 @@ def admin_edit_curriculum(curriculum_id):
 @app.route('/admin/curriculum/delete/<int:curriculum_id>', methods=['POST'])
 @login_required
 def admin_delete_curriculum(curriculum_id):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         c.execute('DELETE FROM skill_curriculum WHERE id = ?', (curriculum_id,))
@@ -364,7 +347,7 @@ def admin_delete_curriculum(curriculum_id):
 @app.route('/admin/skills')
 @login_required
 def admin_skills():
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     c.execute('''
         SELECT skill_id, skill_en_name, skill_ch_name, description, 
@@ -393,7 +376,7 @@ def admin_skills():
 @login_required
 def admin_add_skill():
     data = request.form
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         c.execute('''
@@ -425,7 +408,7 @@ def admin_add_skill():
 @login_required
 def admin_edit_skill(skill_id):
     data = request.form
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         c.execute('''
@@ -456,7 +439,7 @@ def admin_edit_skill(skill_id):
 @app.route('/admin/skills/delete/<skill_id>', methods=['POST'])
 @login_required
 def admin_delete_skill(skill_id):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         # 檢查是否有使用者正在使用此技能
@@ -479,7 +462,7 @@ def admin_delete_skill(skill_id):
 @app.route('/admin/skills/toggle/<skill_id>', methods=['POST'])
 @login_required
 def admin_toggle_skill(skill_id):
-    conn = sqlite3.connect('users.db')
+    conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     try:
         c.execute('SELECT is_active FROM skills_info WHERE skill_id = ?', (skill_id,))

@@ -24,7 +24,7 @@ def format_linear_equation_lhs(a, b):
         return "0"
     return "".join(terms).lstrip(" +")  # 移除開頭多餘的 +
 
-def generate():
+def generate(level=1):
     """
     生成一道「二元一次不等式圖解」題目
     回傳格式與專案相容：
@@ -32,6 +32,7 @@ def generate():
         - inequality_string: 傳給 AI 判斷正確性
         - correct_answer: "graph"（標記為圖形題）
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成 a, b, c
     a = random.randint(-5, 5)
     b = random.randint(-5, 5)

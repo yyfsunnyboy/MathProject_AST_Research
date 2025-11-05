@@ -239,11 +239,14 @@
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>課綱</th>
+                        <th>年級</th>
                         <th>冊</th>
                         <th>章</th>
                         <th>節</th>
                         <th>段</th>
                         <th>技能名稱</th>
+                        <th>難易度</th>
                         <th>顯示順序</th>
                         <th>操作</th>
                     </tr>
@@ -252,14 +255,17 @@
                     {% for item in curriculum %}
                     <tr>
                         <td>{{ item.id }}</td>
+                        <td>{{ '普高' if item.curriculum == 'general' else '技高' }}</td>
+                        <td>{{ item.grade }}</td>
                         <td>{{ item.volume }}</td>
                         <td>{{ item.chapter }}</td>
                         <td>{{ item.section }}</td>
                         <td>{{ item.paragraph }}</td>
                         <td>{{ item.skill_ch_name }} ({{ item.skill_en_name }})</td>
+                        <td>{{ item.difficulty_level }}</td>
                         <td>{{ item.display_order }}</td>
                         <td>
-                            <button class="btn btn-edit" onclick="openEditModal({{ item.id }}, {{ item.volume }}, {{ item.chapter }}, {{ item.section }}, {{ item.paragraph }}, '{{ item.skill_id }}', {{ item.display_order }})">
+                            <button class="btn btn-edit" onclick='openEditModal({{ item | tojson | safe }})'>
                                 編輯
                             </button>
                             <form method="POST" action="{{ url_for('admin_delete_curriculum', curriculum_id=item.id) }}" 
@@ -272,7 +278,7 @@
                     {% endfor %}
                     {% if not curriculum %}
                     <tr>
-                        <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+                        <td colspan="11" style="text-align: center; padding: 40px; color: #999;">
                             尚無課程分類資料
                         </td>
                     </tr>
@@ -291,20 +297,35 @@
             </div>
             <form method="POST" action="{{ url_for('admin_add_curriculum') }}">
                 <div class="form-group">
-                    <label>第幾冊 *</label>
-                    <input type="number" name="volume" min="1" required>
+                    <label>課綱 *</label>
+                    <select name="curriculum" required>
+                        <option value="general">普通高中</option>
+                        <option value="vocational">技術型高中</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>第幾章 *</label>
-                    <input type="number" name="chapter" min="1" required>
+                    <label>年級 *</label>
+                    <select name="grade" required>
+                        <option value="10">高一</option>
+                        <option value="11">高二</option>
+                        <option value="12">高三</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>第幾節 *</label>
-                    <input type="number" name="section" min="1" required>
+                    <label>冊別名稱 *</label>
+                    <input type="text" name="volume" placeholder="例如: B1, 數A" required>
                 </div>
                 <div class="form-group">
-                    <label>第幾段 *</label>
-                    <input type="number" name="paragraph" min="1" required>
+                    <label>章節名稱 *</label>
+                    <input type="text" name="chapter" placeholder="例如: 第一章 多項式" required>
+                </div>
+                <div class="form-group">
+                    <label>小節名稱 *</label>
+                    <input type="text" name="section" placeholder="例如: 1-1 餘式定理" required>
+                </div>
+                <div class="form-group">
+                    <label>段落 (可選)</label>
+                    <input type="text" name="paragraph" placeholder="例如: (一) 基礎練習">
                 </div>
                 <div class="form-group">
                     <label>選擇技能 *</label>
@@ -314,6 +335,10 @@
                         <option value="{{ skill.skill_id }}">{{ skill.skill_ch_name }} ({{ skill.skill_en_name }})</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>難易度</label>
+                    <input type="number" name="difficulty_level" min="1" value="1">
                 </div>
                 <div class="form-group">
                     <label>顯示順序</label>
@@ -335,21 +360,36 @@
                 <span class="close" onclick="closeModal('editModal')">&times;</span>
             </div>
             <form method="POST" id="editForm">
-                <div class="form-group">
-                    <label>第幾冊 *</label>
-                    <input type="number" name="volume" id="edit_volume" min="1" required>
+                 <div class="form-group">
+                    <label>課綱 *</label>
+                    <select name="curriculum" id="edit_curriculum" required>
+                        <option value="general">普通高中</option>
+                        <option value="vocational">技術型高中</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>第幾章 *</label>
-                    <input type="number" name="chapter" id="edit_chapter" min="1" required>
+                    <label>年級 *</label>
+                    <select name="grade" id="edit_grade" required>
+                        <option value="10">高一</option>
+                        <option value="11">高二</option>
+                        <option value="12">高三</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>第幾節 *</label>
-                    <input type="number" name="section" id="edit_section" min="1" required>
+                    <label>冊別名稱 *</label>
+                    <input type="text" name="volume" id="edit_volume" required>
                 </div>
                 <div class="form-group">
-                    <label>第幾段 *</label>
-                    <input type="number" name="paragraph" id="edit_paragraph" min="1" required>
+                    <label>章節名稱 *</label>
+                    <input type="text" name="chapter" id="edit_chapter" required>
+                </div>
+                <div class="form-group">
+                    <label>小節名稱 *</label>
+                    <input type="text" name="section" id="edit_section" required>
+                </div>
+                <div class="form-group">
+                    <label>段落 (可選)</label>
+                    <input type="text" name="paragraph" id="edit_paragraph">
                 </div>
                 <div class="form-group">
                     <label>選擇技能 *</label>
@@ -359,6 +399,10 @@
                         <option value="{{ skill.skill_id }}">{{ skill.skill_ch_name }} ({{ skill.skill_en_name }})</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>難易度</label>
+                    <input type="number" name="difficulty_level" id="edit_difficulty_level" min="1" value="1">
                 </div>
                 <div class="form-group">
                     <label>顯示順序</label>
@@ -377,15 +421,18 @@
             document.getElementById('addModal').style.display = 'block';
         }
 
-        function openEditModal(id, volume, chapter, section, paragraph, skill_id, display_order) {
-            document.getElementById('edit_volume').value = volume;
-            document.getElementById('edit_chapter').value = chapter;
-            document.getElementById('edit_section').value = section;
-            document.getElementById('edit_paragraph').value = paragraph;
-            document.getElementById('edit_skill_id').value = skill_id;
-            document.getElementById('edit_display_order').value = display_order;
+        function openEditModal(item) {
+            document.getElementById('edit_curriculum').value = item.curriculum;
+            document.getElementById('edit_grade').value = item.grade;
+            document.getElementById('edit_volume').value = item.volume;
+            document.getElementById('edit_chapter').value = item.chapter;
+            document.getElementById('edit_section').value = item.section;
+            document.getElementById('edit_paragraph').value = item.paragraph || ''; // 處理 null 的情況
+            document.getElementById('edit_skill_id').value = item.skill_id;
+            document.getElementById('edit_difficulty_level').value = item.difficulty_level;
+            document.getElementById('edit_display_order').value = item.display_order;
             
-            document.getElementById('editForm').action = '/admin/curriculum/edit/' + id;
+            document.getElementById('editForm').action = '/admin/curriculum/edit/' + item.id;
             document.getElementById('editModal').style.display = 'block';
         }
 

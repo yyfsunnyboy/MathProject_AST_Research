@@ -1,10 +1,11 @@
 import random
 import re
 
-def generate():
+def generate(level=1):
     """
     生成一個計算內分點坐標的題目。
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 選擇簡單的比例
     m = random.randint(1, 5)
     n = random.randint(1, 5)

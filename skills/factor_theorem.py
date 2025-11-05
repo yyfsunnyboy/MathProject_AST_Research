@@ -19,10 +19,11 @@ def poly_to_string(p):
     if not terms: return "0"
     return " + ".join(terms).replace("+ -", "- ").lstrip("+ ")
 
-def generate():
+def generate(level=1):
     """
     生成一道「因式定理」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     is_factor = random.choice([True, False])
     
     # 生成除式 ax - b

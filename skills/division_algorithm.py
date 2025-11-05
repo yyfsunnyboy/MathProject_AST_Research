@@ -20,10 +20,11 @@ def poly_to_string(p):
     if not terms: return "0"
     return " + ".join(terms).replace("+ -", "- ").lstrip("+ ")
 
-def generate():
+def generate(level=1):
     """
     生成一道「多項式除法原理」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成商式 q(x) 和除式 g(x)
     q_coeffs = [random.randint(-3, 3) for _ in range(random.randint(2, 3))]
     g_coeffs = [random.randint(-2, 2) for _ in range(2)]

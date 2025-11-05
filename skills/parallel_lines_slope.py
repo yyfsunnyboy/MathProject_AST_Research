@@ -24,10 +24,11 @@ def format_line_equation(m, c, name):
     
     return f"{name}: y = {m_str}{c_str}".replace("= x +", "= x + ").replace("= -x +", "= -x + ")
 
-def generate():
+def generate(level=1):
     """
     生成一道「平行線斜率條件」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機決定兩線是否平行
     are_parallel = random.choice([True, False])
 

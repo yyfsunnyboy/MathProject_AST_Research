@@ -1,8 +1,9 @@
 # skills/quadrant_points.py
 import random
 
-def generate():
+def generate(level=1):
     """生成「象限與點坐標」題目"""
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成一個點的坐標，避開坐標軸上的點
     x = random.randint(-5, 5)
     y = random.randint(-5, 5)

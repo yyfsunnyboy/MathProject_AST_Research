@@ -6,10 +6,11 @@
 import random
 import fractions
 
-def generate():
+def generate(level=1):
     """
     生成一道關於二次函數圖形特性的題目。
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成係數 a, b, c
     a = random.choice([i for i in range(-5, 6) if i != 0])
     b = random.randint(-10, 10)

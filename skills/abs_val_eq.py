@@ -22,13 +22,14 @@ def format_linear_expression(a, b):
     else:
         return f"{x_term} - {abs(b)}"
 
-def generate():
+def generate(level=1):
     """生成「絕對值方程式」題目"""
     question_type = random.choice([
         'simple_abs',           # 簡單形式 |x| = c
         'linear_abs_specific',  # |ax + b| = c，求特定解（較大或較小）
         'linear_abs_any'        # |ax + b| = c，求任一解
     ])
+    # level 參數暫時未使用，但保留以符合架構
     
     if question_type == 'simple_abs':
         # 簡單形式 |x| = c（圖形題，兩個答案）
@@ -166,4 +167,3 @@ def check(user_answer, correct_answer):
             return {"correct": False, "result": f"錯誤，正解：{correct_answer}"}
     except ValueError:
         return {"correct": False, "result": f"錯誤，請輸入數字。正解：{correct_answer}"}
-

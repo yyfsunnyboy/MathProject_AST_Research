@@ -3,10 +3,11 @@ import random
 import fractions
 import re
 
-def generate():
+def generate(level=1):
     """
     生成一道「斜率定義 (兩點式)」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 為了讓斜率是漂亮的整數或分數，我們先決定斜率 m = num/den
     num = random.randint(-5, 5)
     den = random.randint(1, 3)

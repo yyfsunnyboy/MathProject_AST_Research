@@ -1,10 +1,11 @@
 # skills/horiz_vert_lines.py
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一道「水平線與鉛垂線」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機決定是水平線還是鉛垂線
     is_horizontal = random.choice([True, False])
 

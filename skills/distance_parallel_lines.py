@@ -19,10 +19,11 @@ def format_general_equation(a, b, c):
         terms.append(f"{sign}{abs(c)}")
     return "".join(terms).lstrip(" +") + " = 0"
 
-def generate():
+def generate(level=1):
     """
     生成一道「兩平行線距離公式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 從畢氏三元數中選擇 a, b，確保分母為整數
     pythagorean_triples = [(3, 4, 5), (5, 12, 13), (8, 15, 17)]
     a_base, b_base, den = random.choice(pythagorean_triples)

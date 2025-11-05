@@ -53,11 +53,12 @@ def format_vertex_form(a, h, k):
 
     return f"y = {a_str}{h_part}{k_str}".strip()
 
-def generate():
+def generate(level=1):
     """
     生成一道「頂點式與極值計算」題目
     根據頂點式，判斷並求出函數的最大值或最小值 k。
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機決定題目類型：已配方 (vertex) 或未配方 (general)
     question_type = random.choice(['vertex', 'general'])
 

@@ -20,12 +20,13 @@ def format_linear_expression(a, b):
     else:
         return f"{x_term} - {abs(b)}"
 
-def generate():
+def generate(level=1):
     """生成「絕對值不等式 (>=)」題目"""
     # |ax + b| >= c  =>  ax + b >= c  或  ax + b <= -c
     a = random.choice([1, -1, 2, -2])
     b = random.randint(-5, 5)
     c = random.randint(1, 10)
+    # level 參數暫時未使用，但保留以符合架構
 
     # 解不等式
     # ax >= c - b  或  ax <= -c - b

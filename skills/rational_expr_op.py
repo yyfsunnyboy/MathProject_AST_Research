@@ -1,10 +1,11 @@
 # skills/rational_expr_op.py
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一道「分式的四則運算」題目 (圖形題)
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成兩個簡單的分式
     n1, d1 = random.randint(1, 5), f"x + {random.randint(1, 5)}"
     n2, d2 = random.randint(1, 5), f"x - {random.randint(1, 5)}"

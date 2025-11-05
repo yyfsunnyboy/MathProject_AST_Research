@@ -57,15 +57,15 @@ def format_vertex_form(a, h, k):
 
     return f"y = {a_str}{h_part}{k_str}".strip()
 
-def generate():
+def generate(level=1):
     """
     生成一道「二次函數配方法」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 從頂點式 y = a(x-h)^2 + k 開始，反向展開以確保整數係數
     a = random.choice([-4, -3, -2, -1, 1, 2, 3, 4])
     h = random.randint(-5, 5)
     k = random.randint(-10, 10)
-
     # 展開 y = a(x^2 - 2hx + h^2) + k = ax^2 - 2ahx + ah^2 + k
     b = -2 * a * h
     c = a * h**2 + k

@@ -30,10 +30,11 @@ def format_polynomial(a, b, c):
         
     return "".join(terms).lstrip(" +")
 
-def generate():
+def generate(level=1):
     """
     生成一道「判別式與二次不等式解」題目 (D <= 0)
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成 a 和 h (頂點的 x 座標)
     a = random.choice([-4, -3, -2, -1, 1, 2, 3, 4])
     h = random.randint(-5, 5)

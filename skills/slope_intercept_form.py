@@ -22,10 +22,11 @@ def format_slope_intercept(m, b):
     
     return f"y = {m_str}{b_str}".replace("= x +", "= x + ").replace("= -x +", "= -x + ")
 
-def generate():
+def generate(level=1):
     """
     生成一道「斜截式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成斜率 m 和 y-截距 b
     m = fractions.Fraction(random.randint(-5, 5), random.randint(1, 3))
     b = random.randint(-7, 7)

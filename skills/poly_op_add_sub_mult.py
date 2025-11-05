@@ -24,10 +24,11 @@ def poly_to_string(p):
     if not terms: return "0"
     return " + ".join(terms).replace("+ -", "- ").lstrip("+ ")
 
-def generate():
+def generate(level=1):
     """
     生成一道「多項式的四則運算 (加減乘)」題目 (圖形題)
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成兩個多項式
     f_coeffs = [random.randint(-3, 3) for _ in range(random.randint(2, 3))]
     g_coeffs = [random.randint(-2, 2) for _ in range(random.randint(2, 3))]

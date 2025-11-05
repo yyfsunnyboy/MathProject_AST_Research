@@ -18,10 +18,11 @@ def format_general_equation(a, b, c):
         terms.append(f"{sign}{abs(c)}")
     return "".join(terms).lstrip(" +") + " = 0"
 
-def generate():
+def generate(level=1):
     """
     生成一道「垂直線方程式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成基準線 L: ax + by + c = 0
     a = random.randint(-5, 5)
     b = random.randint(-5, 5)

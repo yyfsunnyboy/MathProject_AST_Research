@@ -332,7 +332,11 @@
         <!-- 練習區 -->
         <div class="practice-area">
             <div class="practice-top">
-                <h1 id="skill-title">{{ skill_id|replace('_', ' ')|title }} <span id="streak-counter">連續答對：0</span></h1>
+                <h1 id="skill-title">
+                    {{ skill_id|replace('_', ' ')|title }} 
+                    <span id="level-indicator" style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span>
+                    <span id="streak-counter">連續答對：0</span>
+                </h1>
                 <div id="question-text"></div>
                 
                 <div class="input-group">
@@ -386,7 +390,7 @@
         let undoStack = [];
         let redoStack = [];
         let blankCanvas = null;
-        let currentContext = "";  // 儲存題目 context
+        let currentContext = "";  // 儲存題目 context，用於 AI 助教
         
         // DOM 元素
         let canvas, ctx, analyzeBtn, submitBtn, answerInput, resultDisplay;
@@ -401,6 +405,7 @@
             questionText = document.getElementById('question-text');
             chatHistory = document.getElementById('chat-history');
             streakCounter = document.getElementById('streak-counter');
+            levelIndicator = document.getElementById('level-indicator');
             canvas = document.getElementById('handwriting-canvas');
             ctx = canvas.getContext('2d');
             analyzeBtn = document.getElementById('analyze-handwriting-button');
@@ -572,8 +577,10 @@
     
         // === 出題 ===
         function getSkillId() {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('skill_id') || '{{ skill_id }}' || 'remainder';
+            // 從 URL 路徑 /practice/skill_id 中提取 skill_id
+            const pathParts = window.location.pathname.split('/');
+            const skillIdFromPath = pathParts[pathParts.length - 1];
+            return skillIdFromPath || '{{ skill_id }}' || 'remainder'; // 優先從路徑獲取
         }
     
         // === 動態調整題目字型大小 ===
@@ -639,6 +646,11 @@
                     if (data.consecutive_correct !== undefined) {
                         currentStreak = data.consecutive_correct;
                         streakCounter.textContent = `連續答對：${currentStreak}`;
+                    }
+
+                    // ⭐ 從後端同步目前等級
+                    if (data.current_level !== undefined) {
+                        levelIndicator.textContent = `等級：${data.current_level}`;
                     }
                 
                     // 統一儲存 context
@@ -723,8 +735,13 @@
                     resultDisplay.className = data.correct ? 'correct' : 'incorrect';
                     updateStreak(data.correct);
                     if (data.correct) {
-                        // 顯示答對訊息框
-                        alert('🎉 答對了！很棒！繼續加油！');
+                        // 功文式鼓勵：強調持續練習，而非單次答對
+                        const messages = [
+                            '🎉 答對了！很棒！讓我們繼續下一題吧！',
+                            '正確！保持這個節奏！',
+                            '做得好！你離目標又近了一步！'
+                        ];
+                        alert(messages[Math.floor(Math.random() * messages.length)]);
                         setTimeout(loadQuestion, 500);
                     }
                 })

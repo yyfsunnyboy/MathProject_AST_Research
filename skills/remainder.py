@@ -14,7 +14,8 @@ def format_term(coeff, power):
     var = "" if power == 0 else ("x" if power == 1 else f"x²" if power == 2 else f"x³")
     return f"{sign}{abs_coeff}{var}"
 
-def generate():
+def generate(level=1):
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機係數
     a = random.randint(1, 5)                    # 3次項 ≥1
     b = random.randint(-10, 10)

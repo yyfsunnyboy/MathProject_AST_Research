@@ -22,13 +22,16 @@ def get_skill(skill_id):
         return None
 
 def update_progress(user_id, skill_id, is_correct):
-    """更新用戶進度（功文式邏輯）"""
-    conn = sqlite3.connect('users.db')
+    """
+    更新用戶進度（功文式教育理論）
+    核心精神：在學生感到舒適的難度下進行大量練習，達到精熟後才晉級。若遇到困難，則退回一個等級鞏固基礎，避免挫折感。
+    """
+    conn = sqlite3.connect('math_master.db') # 確保連接到正確的資料庫
     c = conn.cursor()
     
     # 讀取當前進度
     c.execute('''
-        SELECT consecutive_correct, questions_solved, current_level
+        SELECT consecutive_correct, consecutive_wrong, questions_solved, current_level
         FROM progress WHERE user_id = ? AND skill_id = ?
     ''', (user_id, skill_id))
     row = c.fetchone()
@@ -36,30 +39,41 @@ def update_progress(user_id, skill_id, is_correct):
     if not row:
         # 第一次練習，初始化
         c.execute('''
-            INSERT INTO progress (user_id, skill_id, consecutive_correct, questions_solved, current_level)
-            VALUES (?, ?, ?, 1, 1)
-        ''', (user_id, skill_id, 1 if is_correct else 0))
+            INSERT INTO progress (user_id, skill_id, consecutive_correct, consecutive_wrong, questions_solved, current_level)
+            VALUES (?, ?, ?, ?, 1, 1)
+        ''', (user_id, skill_id, 1 if is_correct else 0, 0 if is_correct else 1))
     else:
-        consecutive, solved, level = row
-        new_consecutive = (consecutive + 1) if is_correct else 0
+        consecutive_correct, consecutive_wrong, solved, level = row
         new_solved = solved + 1
         
-        # 讀取晉級門檻
-        c.execute('SELECT consecutive_correct_required FROM skills_info WHERE skill_id = ?', (skill_id,))
+        # 讀取技能的晉級/降級門檻
+        c.execute('SELECT consecutive_correct_required FROM skills_info WHERE skill_id = ?', (skill_id, ))
         required_row = c.fetchone()
         required = required_row[0] if required_row else 10
+        demotion_threshold = 3 # 連續答錯 3 次就降級
         
-        # 達標晉級
+        # 功文式進退階邏輯
         new_level = level
-        if new_consecutive >= required:
-            new_level += 1
-            new_consecutive = 0  # 重置連續答對
+        if is_correct:
+            new_consecutive_correct = consecutive_correct + 1
+            new_consecutive_wrong = 0 # 答對，連續錯誤歸零
+            # 1. 晉級：連續答對達到門檻，等級提升，連續答對數歸零。
+            if new_consecutive_correct >= required and level < 10: # 假設最高 10 級
+                new_level += 1
+                new_consecutive_correct = 0
+        else:
+            # 2. 降級：連續答錯達到門檻，等級降低（但不低於1），連續答對數也歸零。
+            # 這能幫助基礎不穩的學生回到更簡單的題目，建立信心。
+            new_consecutive_correct = 0 # 只要錯了，連續答對就中斷
+            new_consecutive_wrong = consecutive_wrong + 1
+            if new_consecutive_wrong >= demotion_threshold and level > 1:
+                new_level -= 1
         
         c.execute('''
             UPDATE progress 
-            SET consecutive_correct = ?, questions_solved = ?, current_level = ?
+            SET consecutive_correct = ?, consecutive_wrong = ?, questions_solved = ?, current_level = ?
             WHERE user_id = ? AND skill_id = ?
-        ''', (new_consecutive, new_solved, new_level, user_id, skill_id))
+        ''', (new_consecutive_correct, new_consecutive_wrong, new_solved, new_level, user_id, skill_id))
     
     conn.commit()
     conn.close()
@@ -75,28 +89,35 @@ def next_question():
     
     try:
         mod = importlib.import_module(f"skills.{skill_id}")
-        data = mod.generate()
+        
+        # 根據用戶當前等級，生成對應難度的題目
+        conn = sqlite3.connect('math_master.db')
+        c = conn.cursor()
+        c.execute('SELECT current_level FROM progress WHERE user_id = ? AND skill_id = ?', (current_user.id, skill_id))
+        level_row = c.fetchone()
+        current_level = level_row[0] if level_row else 1
+        data = mod.generate(level=current_level) # 將等級傳入 generate 函數
         
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
         set_current(skill_id, data)
         
-        # 回傳連續答對數
-        conn = sqlite3.connect('users.db')
+        conn = sqlite3.connect('math_master.db')
         c = conn.cursor()
         c.execute('''
-            SELECT consecutive_correct FROM progress 
+            SELECT consecutive_correct, current_level FROM progress 
             WHERE user_id = ? AND skill_id = ?
         ''', (current_user.id, skill_id))
         row = c.fetchone()
+        consecutive, level = (row[0], row[1]) if row else (0, 1)
         conn.close()
-        consecutive = row[0] if row else 0
         
         return jsonify({
             "new_question_text": data["question_text"],
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
-            "consecutive_correct": consecutive,
+            "consecutive_correct": consecutive, # 連續答對
+            "current_level": level, # 目前等級
             "answer_type": data.get("correct_answer")
         })
     except Exception as e:

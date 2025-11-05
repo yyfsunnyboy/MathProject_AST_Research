@@ -1,10 +1,11 @@
 import random
 import re
 
-def generate():
+def generate(level=1):
     """
     生成一個計算兩點中點坐標的題目。
     """
+    # level 參數暫時未使用，但保留以符合架構
     x1 = random.randint(-20, 20)
     y1 = random.randint(-20, 20)
     x2 = random.randint(-20, 20)

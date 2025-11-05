@@ -1,9 +1,10 @@
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一個判斷線型函數類型的題目。
     """
+    # level 參數暫時未使用，但保留以符合架構
     a = random.randint(-5, 5)
     b = random.randint(-5, 5)
 

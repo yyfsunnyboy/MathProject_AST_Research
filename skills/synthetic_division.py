@@ -19,10 +19,11 @@ def poly_to_string(p):
     if not terms: return "0"
     return " + ".join(terms).replace("+ -", "- ").lstrip("+ ")
 
-def generate():
+def generate(level=1):
     """
     生成一道「多項式綜合除法」題目 (圖形題)
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 生成一個 2 或 3 次多項式
     coeffs = [random.randint(-5, 5) for _ in range(random.randint(3, 4))]
     while coeffs[0] == 0: coeffs[0] = random.randint(1, 5)

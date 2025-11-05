@@ -1,10 +1,11 @@
 import random
 import math
 
-def generate():
+def generate(level=1):
     """
     生成一個計算平面上兩點距離的題目。
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 從畢氏三元數中選擇一組，確保距離為整數
     pythagorean_triples = [(3, 4, 5), (5, 12, 13), (8, 15, 17), (7, 24, 25)]
     dx_base, dy_base, distance = random.choice(pythagorean_triples)

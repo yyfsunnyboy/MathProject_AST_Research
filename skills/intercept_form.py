@@ -1,10 +1,11 @@
 # skills/intercept_form.py
 import random
 
-def generate():
+def generate(level=1):
     """
     生成一道「截距式」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 隨機生成 x-截距 a 和 y-截距 b，確保不為 0
     a = random.randint(-7, 7)
     while a == 0: a = random.randint(-7, 7)

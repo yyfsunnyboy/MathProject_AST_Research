@@ -50,10 +50,11 @@ def format_factor(p, q):
     abs_q = abs(q)
     return f"({p_str} {sign} {abs_q})"
 
-def generate():
+def generate(level=1):
     """
     生成一道「十字交乘法」題目
     """
+    # level 參數暫時未使用，但保留以符合架構
     # 從因式分解 (px+q)(rx+s) 開始反向生成題目，確保係數為整數
     p = random.randint(1, 3)
     r = random.randint(1, 3)
