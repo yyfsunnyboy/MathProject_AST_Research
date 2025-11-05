@@ -350,7 +350,7 @@ def admin_skills():
     conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     c.execute('''
-        SELECT skill_id, skill_en_name, skill_ch_name, description, 
+        SELECT skill_id, skill_en_name, skill_ch_name, category, description, input_type,
                gemini_prompt, consecutive_correct_required, is_active, order_index
         FROM skills_info 
         ORDER BY order_index, skill_id
@@ -362,11 +362,13 @@ def admin_skills():
         'skill_id': row[0],
         'skill_en_name': row[1],
         'skill_ch_name': row[2],
-        'description': row[3],
-        'gemini_prompt': row[4],
-        'consecutive_correct_required': row[5],
-        'is_active': row[6],
-        'order_index': row[7]
+        'category': row[3],
+        'description': row[4],
+        'input_type': row[5],
+        'gemini_prompt': row[6],
+        'consecutive_correct_required': row[7],
+        'is_active': row[8],
+        'order_index': row[9]
     } for row in skills]
     
     return render_template('admin_skills.html', skills=skills_list, username=current_user.username)
@@ -380,14 +382,16 @@ def admin_add_skill():
     c = conn.cursor()
     try:
         c.execute('''
-            INSERT INTO skills_info (skill_id, skill_en_name, skill_ch_name, description, 
+            INSERT INTO skills_info (skill_id, skill_en_name, skill_ch_name, category, description, input_type,
                                     gemini_prompt, consecutive_correct_required, is_active, order_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['skill_id'],
             data['skill_en_name'],
             data['skill_ch_name'],
+            data['category'],
             data['description'],
+            data.get('input_type', 'text'),
             data['gemini_prompt'],
             int(data['consecutive_correct_required']),
             1 if data.get('is_active') == 'on' else 0,
@@ -413,14 +417,16 @@ def admin_edit_skill(skill_id):
     try:
         c.execute('''
             UPDATE skills_info 
-            SET skill_en_name = ?, skill_ch_name = ?, description = ?, 
+            SET skill_en_name = ?, skill_ch_name = ?, category = ?, description = ?, input_type = ?,
                 gemini_prompt = ?, consecutive_correct_required = ?, 
                 is_active = ?, order_index = ?
             WHERE skill_id = ?
         ''', (
             data['skill_en_name'],
             data['skill_ch_name'],
+            data['category'],
             data['description'],
+            data.get('input_type', 'text'),
             data['gemini_prompt'],
             int(data['consecutive_correct_required']),
             1 if data.get('is_active') == 'on' else 0,

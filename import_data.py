@@ -47,14 +47,16 @@ def import_data_to_db(skills_csv, curriculum_csv, db_name):
             try:
                 cursor.execute('''
                     INSERT OR IGNORE INTO skills_info (
-                        skill_id, skill_en_name, skill_ch_name, description, 
+                        skill_id, skill_en_name, skill_ch_name, category, description, input_type,
                         gemini_prompt, consecutive_correct_required, is_active, order_index
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     str(row['skill_id']).strip(), # 強制轉為字串並移除前後空格
                     row['skill_en_name'],
                     row['skill_ch_name'],
+                    row.get('category', '未分類'), # 新增 category 欄位
                     row['description'],
+                    row.get('input_type', 'text'), # 新增 input_type 欄位
                     row['gemini_prompt'],
                     int(row['consecutive_correct_required']),
                     row['is_active'],

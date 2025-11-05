@@ -657,7 +657,7 @@
                     currentContext = data.context_string || data.inequality_string || "";
 
                     // 根據題目類型調整 UI
-                    if (data.answer_type === 'graph') {
+                    if (data.answer_type === 'handwriting') {
                         answerInput.disabled = true;
                         answerInput.placeholder = '請在計算紙區域作答';
                         submitBtn.disabled = true;

@@ -117,8 +117,8 @@ def next_question():
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
             "consecutive_correct": consecutive, # 連續答對
-            "current_level": level, # 目前等級
-            "answer_type": data.get("correct_answer")
+            "current_level": level, # 目前等級,
+            "answer_type": skill_info.get("input_type", "text") # 從 DB 讀取作答類型
         })
     except Exception as e:
         return jsonify({"error": f"生成題目失敗: {str(e)}"}), 500

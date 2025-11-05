@@ -6,7 +6,7 @@ def get_skill_info(skill_id):
     conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     c.execute('''
-        SELECT skill_id, skill_en_name, skill_ch_name, description, 
+        SELECT skill_id, skill_en_name, skill_ch_name, category, description, input_type,
                gemini_prompt, consecutive_correct_required, is_active, order_index
         FROM skills_info 
         WHERE skill_id = ? AND is_active = 1
@@ -21,11 +21,13 @@ def get_skill_info(skill_id):
         'skill_id': row[0],
         'skill_en_name': row[1],
         'skill_ch_name': row[2],
-        'description': row[3],
-        'gemini_prompt': row[4],
-        'consecutive_correct_required': row[5],
-        'is_active': row[6] == 1,
-        'order_index': row[7]
+        'category': row[3],
+        'description': row[4],
+        'input_type': row[5],
+        'gemini_prompt': row[6],
+        'consecutive_correct_required': row[7],
+        'is_active': row[8] == 1,
+        'order_index': row[9]
     }
 
 def get_all_active_skills():
@@ -33,7 +35,7 @@ def get_all_active_skills():
     conn = sqlite3.connect('math_master.db')
     c = conn.cursor()
     c.execute('''
-        SELECT skill_id, skill_en_name, skill_ch_name, description, 
+        SELECT skill_id, skill_en_name, skill_ch_name, category, description, input_type,
                consecutive_correct_required, order_index
         FROM skills_info 
         WHERE is_active = 1 
@@ -46,9 +48,11 @@ def get_all_active_skills():
         'skill_id': r[0],
         'skill_en_name': r[1],
         'skill_ch_name': r[2],
-        'description': r[3],
-        'consecutive_correct_required': r[4],
-        'order_index': r[5]
+        'category': r[3],
+        'description': r[4],
+        'input_type': r[5],
+        'consecutive_correct_required': r[6],
+        'order_index': r[7]
     } for r in rows]
 
 def get_curriculums():

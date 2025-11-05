@@ -330,6 +330,8 @@
                         <th>技能 ID</th>
                         <th>英文名稱</th>
                         <th>中文名稱</th>
+                        <th>類別</th>
+                        <th>作答類型</th>
                         <th>晉級門檻</th>
                         <th>狀態</th>
                         <th>操作</th>
@@ -342,6 +344,8 @@
                         <td><code>{{ skill.skill_id }}</code></td>
                         <td>{{ skill.skill_en_name }}</td>
                         <td><strong>{{ skill.skill_ch_name }}</strong></td>
+                        <td>{{ skill.category }}</td>
+                        <td>{{ skill.input_type }}</td>
                         <td>{{ skill.consecutive_correct_required }} 題</td>
                         <td>
                             <span class="status-badge status-{{ 'active' if skill.is_active else 'inactive' }}">
@@ -350,7 +354,10 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <button class="btn btn-edit" onclick='openEditModal({{ skill | tojson }})'>編輯</button>
+                                <button class="btn btn-edit" 
+                                        data-skill='{{ skill | tojson | e }}' 
+                                        onclick='openEditModal(this.dataset.skill)'>
+                                    編輯</button>
                                 <form method="POST" action="{{ url_for('admin_toggle_skill', skill_id=skill.skill_id) }}" style="display: inline;">
                                     <button type="submit" class="btn btn-toggle">
                                         {{ '停用' if skill.is_active else '啟用' }}
@@ -386,8 +393,8 @@
             <form method="POST" action="{{ url_for('admin_add_skill') }}">
                 <div class="form-group">
                     <label for="skill_id">技能 ID *</label>
-                    <input type="text" id="skill_id" name="skill_id" required 
-                           pattern="[a-z_]+" 
+                    <input type="text" id="skill_id" name="skill_id" required
+                           pattern="^[a-z_]+$"
                            placeholder="例如：quadratic_equation">
                     <small>只能使用小寫英文字母和底線，例如：remainder、factor_theorem</small>
                 </div>
@@ -400,6 +407,19 @@
                     <label for="skill_ch_name">中文名稱 *</label>
                     <input type="text" id="skill_ch_name" name="skill_ch_name" required 
                            placeholder="例如：一元二次方程式">
+                </div>
+                <div class="form-group">
+                    <label for="category">技能類別 *</label>
+                    <input type="text" id="category" name="category" required 
+                           placeholder="例如：多項式、三角函數">
+                </div>
+                <div class="form-group">
+                    <label for="input_type">作答類型 *</label>
+                    <select id="input_type" name="input_type" required>
+                        <option value="text" selected>文字輸入 (text)</option>
+                        <option value="handwriting">手寫作答 (handwriting)</option>
+                    </select>
+                    <small>決定此單元在練習頁面的主要作答方式。</small>
                 </div>
                 <div class="form-group">
                     <label for="description">描述 *</label>
@@ -459,6 +479,17 @@
                     <input type="text" id="edit_skill_ch_name" name="skill_ch_name" required>
                 </div>
                 <div class="form-group">
+                    <label for="edit_category">技能類別 *</label>
+                    <input type="text" id="edit_category" name="category" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_input_type">作答類型 *</label>
+                    <select id="edit_input_type" name="input_type" required>
+                        <option value="text">文字輸入 (text)</option>
+                        <option value="handwriting">手寫作答 (handwriting)</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="edit_description">描述 *</label>
                     <textarea id="edit_description" name="description" required></textarea>
                 </div>
@@ -494,10 +525,13 @@
             document.getElementById('addModal').style.display = 'block';
         }
 
-        function openEditModal(skill) {
+        function openEditModal(skillJson) {
+            const skill = JSON.parse(skillJson);
             document.getElementById('edit_skill_id').value = skill.skill_id;
             document.getElementById('edit_skill_en_name').value = skill.skill_en_name;
             document.getElementById('edit_skill_ch_name').value = skill.skill_ch_name;
+            document.getElementById('edit_category').value = skill.category;
+            document.getElementById('edit_input_type').value = skill.input_type || 'text';
             document.getElementById('edit_description').value = skill.description;
             document.getElementById('edit_gemini_prompt').value = skill.gemini_prompt;
             document.getElementById('edit_consecutive_correct_required').value = skill.consecutive_correct_required;
