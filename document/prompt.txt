@@ -1,3 +1,7 @@
+規則一樣 這是這個系統的使用者主要會使用的部分 依功文數學的精神 將單元(技能)切得更細更清楚 幫助學生從及格變不及格 接著是技職高中的數學C2 我上傳整本課本給你分析 盡量共用skill 其他欄位如下 skill_curriculum.curriculum="vocational" skill_curriculum.grade="10" skill_curriculum.volume="數學C2"
+
+
+
 您好，我正在開發一個以「功文式教育 (Kumon method)」為核心理念的個人化數學線上學習網站。請您扮演一位精通教育內容設計與資料庫結構化的專家。
 
 我的目標是請您分析我稍後提供的高中數學課本內容（各年級、各分冊的目錄與章節），並幫我生成兩個關鍵資料表的內容：skills_info 和 skill_curriculum。
