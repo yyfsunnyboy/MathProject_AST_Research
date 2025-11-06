@@ -4,8 +4,8 @@ from flask_login import login_required, current_user
 from .session import set_current, get_current
 from .ai_analyzer import analyze, ask_ai_text_with_context, get_model
 import importlib
-import sqlite3
 from core.utils import get_skill_info
+from models import db, Progress, SkillInfo
 
 core_bp = Blueprint('core', __name__)
 
@@ -91,33 +91,22 @@ def next_question():
         mod = importlib.import_module(f"skills.{skill_id}")
         
         # 根據用戶當前等級，生成對應難度的題目
-        conn = sqlite3.connect('math_master.db')
-        c = conn.cursor()
-        c.execute('SELECT current_level FROM progress WHERE user_id = ? AND skill_id = ?', (current_user.id, skill_id))
-        level_row = c.fetchone()
-        current_level = level_row[0] if level_row else 1
+        progress = Progress.query.filter_by(user_id=current_user.id, skill_id=skill_id).first()
+        current_level = progress.current_level if progress else 1
+        consecutive = progress.consecutive_correct if progress else 0
+
         data = mod.generate(level=current_level) # 將等級傳入 generate 函數
         
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
         set_current(skill_id, data)
         
-        conn = sqlite3.connect('math_master.db')
-        c = conn.cursor()
-        c.execute('''
-            SELECT consecutive_correct, current_level FROM progress 
-            WHERE user_id = ? AND skill_id = ?
-        ''', (current_user.id, skill_id))
-        row = c.fetchone()
-        consecutive, level = (row[0], row[1]) if row else (0, 1)
-        conn.close()
-        
         return jsonify({
             "new_question_text": data["question_text"],
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
             "consecutive_correct": consecutive, # 連續答對
-            "current_level": level, # 目前等級,
+            "current_level": current_level, # 目前等級,
             "answer_type": skill_info.get("input_type", "text") # 從 DB 讀取作答類型
         })
     except Exception as e:

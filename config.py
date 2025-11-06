@@ -2,7 +2,7 @@
 import os
 
 # === 資料庫 ===
-SQLALCHEMY_DATABASE_URI = 'sqlite:///users.db'
+SQLALCHEMY_DATABASE_URI = 'sqlite:///math_master.db'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # === 安全 ===

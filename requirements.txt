@@ -1,4 +1,7 @@
-Flask==2.3.3
-google-generativeai
-Flask-Login==0.6.3
+Flask
+Flask-SQLAlchemy
+Flask-Login
+pandas
+openpyxl
 python-dotenv
+google-generativeai
