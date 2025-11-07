@@ -124,9 +124,9 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # 預設為 'curriculum' 視圖，並預設選擇 'general' (普高)
     view_mode = request.args.get('view', 'curriculum')
-    curriculum = request.args.get('curriculum', 'general') # 預設為普高
+    # 預設為 'curriculum' 視圖，並預設選擇 'junior_high' (國中)
+    curriculum = request.args.get('curriculum', 'junior_high')
     volume = request.args.get('volume')
     chapter = request.args.get('chapter')
     
@@ -211,11 +211,22 @@ def dashboard():
                 # 使用自訂的 key 來排序，找不到的項目排在後面
                 volumes[12].sort(key=lambda vol: desired_order.get(vol, 99))
 
+            # 根據課綱決定年級的顯示名稱
+            if curriculum == 'junior_high':
+                grade_map = {
+                    7: '七年級', 8: '八年級', 9: '九年級'
+                }
+            else: # 預設為普高/技高
+                grade_map = {
+                    10: '一年級', 11: '二年級', 12: '三年級'
+                }
+
             return render_template('dashboard.html',
                                  view_mode='curriculum',
                                  level='volumes', # 直接顯示冊別
                                  curriculum=curriculum,
                                  volumes=volumes,
+                                 grade_map=grade_map,
                                  username=current_user.username)
     else:
         # === 顯示所有 (分類檢視) ===

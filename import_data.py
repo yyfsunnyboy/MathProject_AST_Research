@@ -4,7 +4,6 @@ from flask import Flask
 from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS
 from models import db, init_db, SkillInfo, SkillCurriculum
 
-DB_NAME = "math_master.db"
 SKILLS_INFO_CSV = "document/skills_info.csv"
 SKILL_CURRICULUM_CSV = "document/skill_curriculum.csv"
 
@@ -21,7 +20,7 @@ def setup_database():
         init_db(db.engine)
     return app # 回傳 app 以便後續使用其上下文
 
-def import_data_to_db(skills_csv, curriculum_csv, db_name):
+def import_data_to_db(skills_csv, curriculum_csv):
     if not os.path.exists(skills_csv):
         print(f"錯誤：找不到 CSV 檔案 '{skills_csv}'")
         return
@@ -86,6 +85,6 @@ if __name__ == "__main__":
     
     # 在 app 上下文內執行資料匯入
     with app.app_context():
-        print(f"開始從 CSV 檔案匯入資料到 '{DB_NAME}'...")
-        import_data_to_db(SKILLS_INFO_CSV, SKILL_CURRICULUM_CSV, DB_NAME)
+        print(f"開始從 CSV 檔案匯入資料到資料庫 (路徑: {SQLALCHEMY_DATABASE_URI})...")
+        import_data_to_db(SKILLS_INFO_CSV, SKILL_CURRICULUM_CSV)
         print("資料匯入腳本執行完畢。")

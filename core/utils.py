@@ -1,5 +1,6 @@
 # core/utils.py （新建檔案）
 from sqlalchemy import func
+import re
 from models import db, SkillInfo, SkillCurriculum
 
 def get_skill_info(skill_id):
@@ -68,9 +69,22 @@ def get_chapters_by_curriculum_volume(curriculum, volume):
     results = db.session.query(SkillCurriculum.chapter)\
                         .filter_by(curriculum=curriculum, volume=volume)\
                         .distinct()\
-                        .order_by(SkillCurriculum.display_order)\
                         .all()
-    return [r[0] for r in results]
+    
+    chapters = [r[0] for r in results]
+
+    # 定義一個函式來從章節名稱中提取數字
+    def extract_chapter_number(chapter_name):
+        # 使用正規表示式尋找 "第" 和 "章" 之間的數字
+        match = re.search(r'第(\d+)', chapter_name)
+        if match:
+            return int(match.group(1))
+        return float('inf') # 如果找不到數字，排在最後
+
+    # 使用自訂的排序鍵進行排序
+    chapters.sort(key=extract_chapter_number)
+    
+    return chapters
 
 def get_skills_by_volume_chapter(volume, chapter):
     """取得指定冊、章的所有技能（包含進度）"""

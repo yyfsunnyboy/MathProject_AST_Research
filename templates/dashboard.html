@@ -273,8 +273,12 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2 style="margin: 0;">學習儀表板</h2>
-            <!-- 新增：普高/技高 切換按鈕 -->
+            <!-- 新增：普高/技高/國中 切換按鈕 -->
             <div style="flex-grow: 1; text-align: center;">
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum='junior_high') }}" 
+                   style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'junior_high' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
+                    國中
+                </a>
                 <a href="{{ url_for('dashboard', view='curriculum', curriculum='general') }}" 
                    style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'general' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
                     普高
@@ -297,8 +301,10 @@
             <div class="breadcrumb">
                 <a href="{{ url_for('dashboard', view='curriculum') }}">課程首頁</a>
                 {% if curriculum and (volume or chapter) %}
+                    {% set curriculum_map = {'general': '普通高中', 'vocational': '技術型高中', 'junior_high': '國民中學'} %}
+                    {% set curriculum_name = curriculum_map.get(curriculum, curriculum) %}
                     <span>→</span>
-                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum) }}">{{ '普通高中' if curriculum == 'general' else '技術型高中' }}</a>
+                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum) }}">{{ curriculum_name }}</a>
                 {% endif %}
                 {% if volume %}
                     <span>→</span>
@@ -312,11 +318,13 @@
             
             {% if level == 'volumes' %}
                 <!-- 顯示冊別 -->
-                <p>{{ '普通高中' if curriculum == 'general' else '技術型高中' }} - 請選擇冊別：</p>
+                {% set curriculum_map = {'general': '普通高中', 'vocational': '技術型高中', 'junior_high': '國民中學'} %}
+                {% set curriculum_name = curriculum_map.get(curriculum, curriculum) %}
+                <p>{{ curriculum_name }} - 請選擇冊別：</p>
                 {% for grade, grade_volumes in volumes.items() %}
                     <div class="grade-row" style="display: flex; align-items: center; margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e9ecef;">
                         <div class="grade-label" style="margin-right: 20px; min-width: 80px;">
-                            <h4 style="font-size: 1.4em; color: #34495e;">{{ {10: '一年級', 11: '二年級', 12: '三年級'}.get(grade, '未知年級') }}</h4>
+                            <h4 style="font-size: 1.4em; color: #34495e;">{{ grade_map.get(grade, '未知年級') }}</h4>
                         </div>
                         <div class="level-grid volumes-grid" style="flex-grow: 1; display: flex; flex-wrap: wrap; gap: 20px;">
                             {% for vol in grade_volumes %}

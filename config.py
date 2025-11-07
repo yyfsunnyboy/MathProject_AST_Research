@@ -2,6 +2,8 @@
 import os
 
 # === 資料庫 ===
+# 使用相對路徑，Flask 會自動將其放在專案的 'instance' 資料夾中。
+# 這是 Flask 推薦的最佳實踐，可以將執行時資料與原始碼分離。
 SQLALCHEMY_DATABASE_URI = 'sqlite:///math_master.db'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 

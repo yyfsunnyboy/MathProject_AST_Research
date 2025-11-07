@@ -7,8 +7,6 @@ from datetime import datetime
 # 建立 SQLAlchemy 實例
 db = SQLAlchemy()
 
-DB_NAME = "math_master.db"
-
 def init_db(engine):
     # 使用傳入的 SQLAlchemy engine 來建立連線
     conn = engine.raw_connection()
