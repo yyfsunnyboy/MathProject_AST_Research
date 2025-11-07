@@ -58,7 +58,7 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     # 使用 SQLAlchemy ORM 的方式讀取使用者，更簡潔安全
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 # 註冊 Blueprint    
 app.register_blueprint(core_bp)
@@ -78,7 +78,7 @@ def login():
         password = request.form['password']
         
         # 使用 ORM 查詢使用者
-        user = User.query.filter_by(username=username).first()
+        user = db.session.query(User).filter_by(username=username).first()
 
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
@@ -97,7 +97,7 @@ def register():
             return redirect(url_for('register'))
 
         # 檢查使用者是否已存在
-        if User.query.filter_by(username=username).first():
+        if db.session.query(User).filter_by(username=username).first():
             flash('帳號已存在', 'warning')
             return redirect(url_for('register'))
 
@@ -131,7 +131,7 @@ def dashboard():
     chapter = request.args.get('chapter')
     
     # 使用 SQLAlchemy ORM 讀取使用者進度
-    progress_records = Progress.query.filter_by(user_id=current_user.id).all()
+    progress_records = db.session.query(Progress).filter_by(user_id=current_user.id).all()
     progress_dict = {
         p.skill_id: (p.skill_id, p.consecutive_correct, p.questions_solved, p.current_level)
         for p in progress_records
@@ -234,7 +234,7 @@ def dashboard():
 
         if selected_category:
             # 第二層：顯示特定分類下的所有技能
-            skills = SkillInfo.query.filter_by(is_active=True, category=selected_category).order_by(SkillInfo.order_index).all()
+            skills = db.session.query(SkillInfo).filter_by(is_active=True, category=selected_category).order_by(SkillInfo.order_index).all()
             
             dashboard_data = []
             for skill in skills:
@@ -289,17 +289,22 @@ def dashboard():
 @app.route('/practice/<skill_id>')
 @login_required
 def practice(skill_id):
-    return render_template('index.html', skill_id=skill_id)
+    # 查詢技能資訊以取得中文名稱
+    skill_info = db.session.get(SkillInfo, skill_id)
+    skill_ch_name = skill_info.skill_ch_name if skill_info else "未知技能"
+    return render_template('index.html', 
+                           skill_id=skill_id,
+                           skill_ch_name=skill_ch_name)
 
 # === 課程分類管理頁面 ===
 @app.route('/admin/curriculum')
 @login_required
 def admin_curriculum():
     # 使用 ORM 獲取所有技能列表，用於下拉選單
-    skills = SkillInfo.query.order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
+    skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
 
     # 使用 ORM 讀取現有的課程分類資料，並預先載入關聯的技能資訊以提高效率
-    curriculum_items = SkillCurriculum.query.join(SkillInfo).order_by(
+    curriculum_items = db.session.query(SkillCurriculum).join(SkillInfo).order_by(
         SkillCurriculum.curriculum,
         SkillCurriculum.grade,
         SkillCurriculum.volume,
@@ -346,7 +351,7 @@ def admin_add_curriculum():
 @app.route('/admin/curriculum/edit/<int:curriculum_id>', methods=['POST'])
 @login_required
 def admin_edit_curriculum(curriculum_id):
-    item = SkillCurriculum.query.get_or_404(curriculum_id)
+    item = db.get_or_404(SkillCurriculum, curriculum_id)
     data = request.form
     try:
         item.curriculum = data['curriculum']
@@ -373,7 +378,7 @@ def admin_edit_curriculum(curriculum_id):
 @app.route('/admin/curriculum/delete/<int:curriculum_id>', methods=['POST'])
 @login_required
 def admin_delete_curriculum(curriculum_id):
-    item = SkillCurriculum.query.get_or_404(curriculum_id)
+    item = db.get_or_404(SkillCurriculum, curriculum_id)
     try:
         db.session.delete(item)
         db.session.commit()
@@ -388,7 +393,7 @@ def admin_delete_curriculum(curriculum_id):
 @login_required
 def admin_skills():
     # 使用 ORM 查詢所有技能，並排序
-    skills = SkillInfo.query.order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
+    skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
     return render_template('admin_skills.html', skills=skills, username=current_user.username)
 
 # === 新增技能 ===
@@ -398,7 +403,7 @@ def admin_add_skill():
     data = request.form
     
     # 檢查技能 ID 是否已存在
-    if SkillInfo.query.get(data['skill_id']):
+    if db.session.get(SkillInfo, data['skill_id']):
         flash('技能 ID 已存在！', 'danger')
         return redirect(url_for('admin_skills'))
 
@@ -429,7 +434,7 @@ def admin_add_skill():
 @app.route('/admin/skills/edit/<skill_id>', methods=['POST'])
 @login_required
 def admin_edit_skill(skill_id):
-    skill = SkillInfo.query.get_or_404(skill_id)
+    skill = db.get_or_404(SkillInfo, skill_id)
     data = request.form
     
     try:
@@ -455,11 +460,11 @@ def admin_edit_skill(skill_id):
 @app.route('/admin/skills/delete/<skill_id>', methods=['POST'])
 @login_required
 def admin_delete_skill(skill_id):
-    skill = SkillInfo.query.get_or_404(skill_id)
+    skill = db.get_or_404(SkillInfo, skill_id)
     
     try:
         # 使用 ORM 檢查是否有使用者正在使用此技能
-        count = Progress.query.filter_by(skill_id=skill_id).count()
+        count = db.session.query(Progress).filter_by(skill_id=skill_id).count()
         
         if count > 0:
             flash(f'無法刪除：目前有 {count} 位使用者正在練習此技能！建議改為「停用」', 'warning')
@@ -479,7 +484,7 @@ def admin_delete_skill(skill_id):
 @app.route('/admin/skills/toggle/<skill_id>', methods=['POST'])
 @login_required
 def admin_toggle_skill(skill_id):
-    skill = SkillInfo.query.get_or_404(skill_id)
+    skill = db.get_or_404(SkillInfo, skill_id)
     try:
         skill.is_active = not skill.is_active
         db.session.commit()
@@ -549,86 +554,115 @@ def db_maintenance():
                 df.to_sql(table_name, db.engine, if_exists='append', index=False)
                 flash(f'已成功從 Excel 將 {len(df)} 筆記錄新增至表格 "{table_name}"。', 'success')
 
-            elif action == 'replace_curriculum_data':
-                volume_name = request.form.get('volume_name')
-                file = request.files.get('file')
-
-                if not volume_name or not file or file.filename == '':
-                    flash('冊別名稱和檔案皆為必填項目。', 'warning')
+            elif action == 'batch_import_folder':
+                files = request.files.getlist('files')
+                if not files or all(f.filename == '' for f in files):
+                    flash('沒有選擇任何檔案。', 'warning')
                     return redirect(url_for('db_maintenance'))
 
-                # 在 Flask-SQLAlchemy 自動管理的交易中執行操作
-                # 1. 刪除該冊別的舊資料
-                deleted_count = SkillCurriculum.query.filter_by(volume=volume_name).delete(synchronize_session=False)
+                total_inserted_count = 0
+                processed_files_count = 0
                 
-                # 2. 讀取新檔案並準備插入
-                if file.filename.endswith('.csv'):
-                    df = pd.read_csv(file)
-                else:
-                    df = pd.read_excel(file)
+                for file in files:
+                    if file and file.filename != '':
+                        # 增加一個日誌，顯示正在處理的檔案名稱
+                        print(f"正在處理檔案: {file.filename}")
+                        # 忽略 Excel 暫存檔 (通常以 ~$ 開頭)
+                        if file.filename.startswith('~$'):
+                            continue
+                        # 增加副檔名檢查，忽略非 CSV/Excel 檔案 (例如 Thumbs.db)
+                        allowed_extensions = ('.csv', '.xlsx', '.xls')
+                        if not file.filename.lower().endswith(allowed_extensions):
+                            continue # 跳過這個檔案
 
-                df.columns = [str(col).lower().strip() for col in df.columns]
-                if 'diffcult_level' in df.columns:
-                    df.rename(columns={'diffcult_level': 'difficulty_level'}, inplace=True)
-                df['paragraph'] = df['paragraph'].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() else None)
+                        try:
+                            if file.filename.endswith('.csv'):
+                                df = pd.read_csv(file)
+                            else:
+                                df = pd.read_excel(file)
+
+                            # --- 套用與之前相同的資料清理邏輯 ---
+                            df.columns = [str(col).lower().strip() for col in df.columns]
+                            if 'diffcult_level' in df.columns:
+                                df.rename(columns={'diffcult_level': 'difficulty_level'}, inplace=True)
+                            df['paragraph'] = df['paragraph'].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() else None)
+                            df.dropna(subset=['skill_id'], inplace=True)
+                            df = df[df['skill_id'].astype(str).str.strip() != '']
+                            
+                            records_to_insert = df.to_dict(orient='records')
+                            db.session.bulk_insert_mappings(SkillCurriculum, records_to_insert)
+                            total_inserted_count += len(records_to_insert)
+                            processed_files_count += 1
+                        except Exception as e:
+                            flash(f'處理檔案 "{file.filename}" 時發生錯誤：{e}。部分資料可能未匯入。', 'danger')
                 
-                # 3. 使用 ORM 進行批次插入
-                records_to_insert = df.to_dict(orient='records')
-                db.session.bulk_insert_mappings(SkillCurriculum, records_to_insert)
-                db.session.commit() # 手動提交交易
-                flash(f'成功替換資料！冊別「{volume_name}」的 {deleted_count} 筆舊資料已被刪除，並從檔案新增了 {len(records_to_insert)} 筆新資料。', 'success')
+                db.session.commit()
+                flash(f'批次匯入完成！成功處理 {processed_files_count} 個檔案，共新增 {total_inserted_count} 筆記錄到 skill_curriculum。', 'success')
 
-            elif action == 'upsert_skills_info':
-                file = request.files.get('file')
-                if not file or file.filename == '':
-                    flash('沒有選擇檔案。', 'warning')
+            elif action == 'batch_upsert_skills_info':
+                files = request.files.getlist('files')
+                if not files or all(f.filename == '' for f in files):
+                    flash('沒有選擇任何檔案。', 'warning')
                     return redirect(url_for('db_maintenance'))
 
-                if file.filename.endswith('.csv'):
-                    df = pd.read_csv(file)
-                else:
-                    df = pd.read_excel(file)
+                all_records = []
+                processed_files_count = 0
+                # 1. 讀取並合併所有檔案的資料
+                for file in files:
+                    if file and file.filename != '':
+                        # 增加一個日誌，顯示正在處理的檔案名稱
+                        print(f"正在處理檔案: {file.filename}")
+                        # 忽略 Excel 暫存檔 (通常以 ~$ 開頭)
+                        if file.filename.startswith('~$'):
+                            continue
+                        # 增加副檔名檢查，忽略非 CSV/Excel 檔案 (例如 Thumbs.db)
+                        allowed_extensions = ('.csv', '.xlsx', '.xls')
+                        if not file.filename.lower().endswith(allowed_extensions):
+                            continue # 跳過這個檔案
 
-                df.columns = [str(col).lower().strip() for col in df.columns]
-                
-                # 1. 從上傳的檔案中獲取所有 skill_id
-                incoming_skill_ids = {str(sid).strip() for sid in df['skill_id'].unique()}
+                        try:
+                            if file.filename.endswith('.csv'):
+                                df = pd.read_csv(file)
+                            else:
+                                df = pd.read_excel(file)
 
-                # 2. 一次性查詢資料庫中已存在的技能
-                existing_skills = SkillInfo.query.filter(SkillInfo.skill_id.in_(incoming_skill_ids)).all()
+                            df.columns = [str(col).lower().strip() for col in df.columns]
+                            df.dropna(subset=['skill_id'], inplace=True)
+                            df = df[df['skill_id'].astype(str).str.strip() != '']
+                            all_records.extend(df.to_dict(orient='records'))
+                            processed_files_count += 1
+                        except Exception as e:
+                            flash(f'讀取檔案 "{file.filename}" 時發生錯誤：{e}。', 'danger')
+
+                if not all_records:
+                    flash('所有檔案中均未找到有效資料。', 'warning')
+                    return redirect(url_for('db_maintenance'))
+
+                # 2. 執行批次 Upsert 邏輯
+                final_df = pd.DataFrame(all_records)
+                incoming_skill_ids = {str(sid).strip() for sid in final_df['skill_id'].unique()}
+                existing_skills = db.session.query(SkillInfo).filter(SkillInfo.skill_id.in_(incoming_skill_ids)).all()
                 existing_skills_map = {skill.skill_id: skill for skill in existing_skills}
 
                 records_to_update = []
                 records_to_insert = []
 
-                # 3. 遍歷上傳的資料，分類為「待更新」或「待新增」
-                for record in df.to_dict(orient='records'):
+                for record in final_df.to_dict(orient='records'):
                     skill_id = str(record['skill_id']).strip()
-                    skill_data = {
-                        'skill_id': skill_id,
-                        'skill_en_name': record.get('skill_en_name'),
-                        'skill_ch_name': record.get('skill_ch_name'),
-                        'category': record.get('category'),
-                        'description': record.get('description'),
-                        'input_type': record.get('input_type', 'text'),
-                        'gemini_prompt': record.get('gemini_prompt'),
-                        'consecutive_correct_required': int(record.get('consecutive_correct_required', 10)),
-                        'is_active': str(record.get('is_active', 'true')).lower() == 'true',
-                        'order_index': int(record.get('order_index', 999))
-                    }
+                    # 重用與單檔上傳相同的資料處理邏輯
+                    skill_data = _prepare_skill_data_from_record(record)
                     if skill_id in existing_skills_map:
                         records_to_update.append(skill_data)
                     else:
                         records_to_insert.append(skill_data)
                 
-                # 4. 批次執行更新和新增
                 if records_to_update:
                     db.session.bulk_update_mappings(SkillInfo, records_to_update)
                 if records_to_insert:
                     db.session.bulk_insert_mappings(SkillInfo, records_to_insert)
                 
                 db.session.commit()
-                flash(f'技能單元資料處理完成！新增 {len(records_to_insert)} 筆，更新 {len(records_to_update)} 筆。', 'success')
+                flash(f'批次處理完成！成功處理 {processed_files_count} 個檔案，新增 {len(records_to_insert)} 筆、更新 {len(records_to_update)} 筆技能單元資料。', 'success')
 
         except Exception as e:
             # 使用 SQLAlchemy 的 session 來回滾，而不是舊的 conn 物件
@@ -640,6 +674,23 @@ def db_maintenance():
         return redirect(url_for('db_maintenance'))
 
     return render_template('db_maintenance.html', tables=table_names)
+
+def _prepare_skill_data_from_record(record):
+    """從字典記錄中準備並清理 SkillInfo 的資料。"""
+    skill_id = str(record['skill_id']).strip()
+    return {
+        'skill_id': skill_id,
+        'skill_en_name': record.get('skill_en_name'),
+        'skill_ch_name': record.get('skill_ch_name'),
+        'category': record.get('category'),
+        'description': record.get('description'),
+        'input_type': record.get('input_type', 'text'),
+        'gemini_prompt': record.get('gemini_prompt'),
+        'consecutive_correct_required': int(record.get('consecutive_correct_required', 10)),
+        'is_active': str(record.get('is_active', 'true')).lower() == 'true',
+        'order_index': int(record.get('order_index', 999))
+    }
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

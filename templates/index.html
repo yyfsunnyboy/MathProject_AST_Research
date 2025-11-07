@@ -333,7 +333,7 @@
         <div class="practice-area">
             <div class="practice-top">
                 <h1 id="skill-title">
-                    {{ skill_id|replace('_', ' ')|title }} 
+                    {{ skill_ch_name }} ({{ skill_id|replace('_', ' ')|title }})
                     <span id="level-indicator" style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span>
                     <span id="streak-counter">連續答對：0</span>
                 </h1>
@@ -378,6 +378,92 @@
             </div>
         </div>
     </div>
+
+    <!-- Custom Alert Modal (Moved inside body) -->
+    <div id="customAlertModal" class="modal-overlay">
+        <div class="modal-content">
+            <p id="customAlertMessage"></p>
+            <button id="customAlertOkButton" class="modal-button">確定</button>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="customConfirmModal" class="modal-overlay">
+        <div class="modal-content">
+            <p id="customConfirmMessage"></p>
+            <div class="modal-button-group">
+                <button id="customConfirmCancelButton" class="modal-button cancel">取消</button>
+                <button id="customConfirmOkButton" class="modal-button">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Custom Alert Modal Styles */
+        .modal-overlay {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 10000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            /* Use flexbox for centering when displayed */
+            align-items: flex-start; /* 改為從頂部對齊 */
+            justify-content: center; /* Center horizontally */
+            padding-top: 25vh; /* 從視窗頂部向下推 25% 的高度 */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 400px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+            text-align: center;
+            position: relative; /* Needed for animation */
+            animation-name: animatetop;
+            animation-duration: 0.4s;
+        }
+
+        /* Add Animation */
+        @keyframes animatetop {
+            from {transform: translateY(-50px); opacity:0}
+            to {transform: translateY(0); opacity:1}
+        }
+
+        .modal-button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 15px;
+        }
+
+        .modal-button:hover {
+            background-color: #2980b9;
+        }
+
+        .modal-button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .modal-button.cancel {
+            background-color: #95a5a6;
+        }
+        .modal-button.cancel:hover {
+            background-color: #7f8c8d;
+        }
+
+    </style>
 
     <script>
         // === 全域變數 ===
@@ -547,12 +633,13 @@
         }
     
         function clearCanvas() {
-            if (!confirm('確定要清除所有計算步驟？')) return;
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            undoStack = [];
-            redoStack = [];
-            saveState();
+            showCustomConfirm('確定要清除所有計算步驟？', () => {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                undoStack = [];
+                redoStack = [];
+                saveState();
+            });
         }
     
         function updateUndoRedoButtons() {
@@ -626,6 +713,47 @@
             setTimeout(checkAndResize, 10);
         }
     
+        // === 自定義提示框 ===
+        function showCustomAlert(message, callback) {
+            const modal = document.getElementById('customAlertModal');
+            const msgElement = document.getElementById('customAlertMessage');
+            const okButton = document.getElementById('customAlertOkButton');
+
+            msgElement.textContent = message;
+            modal.style.display = 'flex'; // Show the modal using flex to center
+
+            // Remove previous event listener to prevent multiple calls
+            okButton.onclick = null;
+            okButton.onclick = () => {
+                modal.style.display = 'none'; // Hide the modal
+                if (callback && typeof callback === 'function') {
+                    callback(); // Execute the callback function
+                }
+            };
+        }
+
+        // === 自定義確認框 ===
+        function showCustomConfirm(message, onConfirm, onCancel) {
+            const modal = document.getElementById('customConfirmModal');
+            const msgElement = document.getElementById('customConfirmMessage');
+            const okButton = document.getElementById('customConfirmOkButton');
+            const cancelButton = document.getElementById('customConfirmCancelButton');
+
+            msgElement.textContent = message;
+            modal.style.display = 'flex';
+
+            okButton.onclick = () => {
+                modal.style.display = 'none';
+                if (onConfirm && typeof onConfirm === 'function') onConfirm();
+            };
+
+            cancelButton.onclick = () => {
+                modal.style.display = 'none';
+                if (onCancel && typeof onCancel === 'function') onCancel();
+            };
+        }
+
+
         function loadQuestion() {
             const skill = getSkillId();
             fetch(`/get_next_question?skill=${skill}`)
@@ -741,8 +869,9 @@
                             '正確！保持這個節奏！',
                             '做得好！你離目標又近了一步！'
                         ];
-                        alert(messages[Math.floor(Math.random() * messages.length)]);
-                        setTimeout(loadQuestion, 500);
+                        showCustomAlert(messages[Math.floor(Math.random() * messages.length)], () => {
+                            setTimeout(loadQuestion, 500);
+                        });
                     }
                 })
                 .catch(err => {
@@ -826,8 +955,9 @@
                         updateStreak(true);
                         
                         // 顯示答對訊息框，然後載入下一題
-                        alert('🎉 答對了！圖形畫得很正確！繼續加油！');
-                        setTimeout(loadQuestion, 500);
+                        showCustomAlert('🎉 答對了！圖形畫得很正確！繼續加油！', () => {
+                            setTimeout(loadQuestion, 500);
+                        });
                     } else if (data.correct === false) {
                         // 如果錯誤，清空 resultDisplay（AI 的建議會在聊天區顯示）
                         resultDisplay.textContent = '';

@@ -39,10 +39,10 @@ def analyze(image_data_url, context, api_key):
             file = genai.upload_file(path=temp_path)
 
             # 強制 JSON 輸出 Prompt
-            prompt = f"""你是一位數學助教，正在批改學生手寫的計算紙。
+            prompt = f"""你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
 題目：{context}
 
-請**嚴格按照以下 JSON 格式回覆**，不要加入任何多餘文字、問候或解釋：
+請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚：
 
 {{
   "reply": "用 Markdown 格式寫出具體建議（步驟對錯、遺漏、改進點）",

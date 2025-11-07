@@ -67,7 +67,6 @@ def check(user_answer, correct_answer):
     """檢查使用者輸入的答案是否正確"""
     user = user_answer.strip()
     correct = correct_answer.strip()
-    if user == correct:
-        return {"correct": True, "result": f"完全正確！答案是 {correct}。"}
-    else:
-        return {"correct": False, "result": f"答案不正確。正確答案是：{correct}"}
+    is_correct = user == correct
+    result_text = f"完全正確！答案是 {correct}。" if is_correct else f"答案不正確。正確答案是：{correct}"
+    return {"correct": is_correct, "result": result_text, "next_question": is_correct}

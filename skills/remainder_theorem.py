@@ -57,6 +57,8 @@ def check(user_answer, correct_answer):
     try:
         if abs(float(user_answer) - float(correct_answer)) < 1e-9:
             return {"correct": True, "result": f"完全正確！答案是 {correct_answer}。"}
-    except ValueError:
+    except (ValueError, TypeError):
         pass
-    return {"correct": False, "result": f"答案不正確。正確答案是：{correct_answer}"}
+    is_correct = False
+    result_text = f"答案不正確。正確答案是：{correct_answer}"
+    return {"correct": is_correct, "result": result_text, "next_question": is_correct}

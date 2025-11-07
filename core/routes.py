@@ -26,57 +26,48 @@ def update_progress(user_id, skill_id, is_correct):
     更新用戶進度（功文式教育理論）
     核心精神：在學生感到舒適的難度下進行大量練習，達到精熟後才晉級。若遇到困難，則退回一個等級鞏固基礎，避免挫折感。
     """
-    conn = sqlite3.connect('math_master.db') # 確保連接到正確的資料庫
-    c = conn.cursor()
-    
-    # 讀取當前進度
-    c.execute('''
-        SELECT consecutive_correct, consecutive_wrong, questions_solved, current_level
-        FROM progress WHERE user_id = ? AND skill_id = ?
-    ''', (user_id, skill_id))
-    row = c.fetchone()
-    
-    if not row:
-        # 第一次練習，初始化
-        c.execute('''
-            INSERT INTO progress (user_id, skill_id, consecutive_correct, consecutive_wrong, questions_solved, current_level)
-            VALUES (?, ?, ?, ?, 1, 1)
-        ''', (user_id, skill_id, 1 if is_correct else 0, 0 if is_correct else 1))
+    # 使用 ORM 查詢進度記錄
+    progress = db.session.query(Progress).filter_by(user_id=user_id, skill_id=skill_id).first()
+
+    if not progress:
+        # 如果沒有記錄，建立新的 Progress 物件
+        progress = Progress(
+            user_id=user_id,
+            skill_id=skill_id,
+            consecutive_correct=1 if is_correct else 0,
+            consecutive_wrong=0 if is_correct else 1,
+            questions_solved=1,
+            current_level=1
+        )
+        db.session.add(progress)
     else:
-        consecutive_correct, consecutive_wrong, solved, level = row
-        new_solved = solved + 1
+        # 如果有記錄，更新現有物件
+        progress.questions_solved += 1
         
         # 讀取技能的晉級/降級門檻
-        c.execute('SELECT consecutive_correct_required FROM skills_info WHERE skill_id = ?', (skill_id, ))
-        required_row = c.fetchone()
-        required = required_row[0] if required_row else 10
+        skill_info = db.session.get(SkillInfo, skill_id)
+        required = skill_info.consecutive_correct_required if skill_info else 10
         demotion_threshold = 3 # 連續答錯 3 次就降級
         
         # 功文式進退階邏輯
-        new_level = level
         if is_correct:
-            new_consecutive_correct = consecutive_correct + 1
-            new_consecutive_wrong = 0 # 答對，連續錯誤歸零
+            progress.consecutive_correct += 1
+            progress.consecutive_wrong = 0 # 答對，連續錯誤歸零
             # 1. 晉級：連續答對達到門檻，等級提升，連續答對數歸零。
-            if new_consecutive_correct >= required and level < 10: # 假設最高 10 級
-                new_level += 1
-                new_consecutive_correct = 0
+            if progress.consecutive_correct >= required and progress.current_level < 10: # 假設最高 10 級
+                progress.current_level += 1
+                progress.consecutive_correct = 0
         else:
             # 2. 降級：連續答錯達到門檻，等級降低（但不低於1），連續答對數也歸零。
             # 這能幫助基礎不穩的學生回到更簡單的題目，建立信心。
-            new_consecutive_correct = 0 # 只要錯了，連續答對就中斷
-            new_consecutive_wrong = consecutive_wrong + 1
-            if new_consecutive_wrong >= demotion_threshold and level > 1:
-                new_level -= 1
-        
-        c.execute('''
-            UPDATE progress 
-            SET consecutive_correct = ?, consecutive_wrong = ?, questions_solved = ?, current_level = ?
-            WHERE user_id = ? AND skill_id = ?
-        ''', (new_consecutive_correct, new_consecutive_wrong, new_solved, new_level, user_id, skill_id))
+            progress.consecutive_correct = 0 # 只要錯了，連續答對就中斷
+            progress.consecutive_wrong += 1
+            if progress.consecutive_wrong >= demotion_threshold and progress.current_level > 1:
+                progress.current_level -= 1
     
-    conn.commit()
-    conn.close()
+    # 提交變更到資料庫
+    db.session.commit()
+
 
 @core_bp.route('/get_next_question')
 def next_question():
@@ -91,7 +82,7 @@ def next_question():
         mod = importlib.import_module(f"skills.{skill_id}")
         
         # 根據用戶當前等級，生成對應難度的題目
-        progress = Progress.query.filter_by(user_id=current_user.id, skill_id=skill_id).first()
+        progress = db.session.query(Progress).filter_by(user_id=current_user.id, skill_id=skill_id).first()
         current_level = progress.current_level if progress else 1
         consecutive = progress.consecutive_correct if progress else 0
 

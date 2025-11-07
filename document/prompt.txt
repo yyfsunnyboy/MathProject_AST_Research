@@ -1,3 +1,7 @@
+仿照 skills/remainder.py 這個程式 設計一個jh_positive_negative_def.py	Positive & Negative Numbers	正負數與相反量	整數	熟練辨識生活中的相反量，並使用正、負號表示。	text	分析學生答案：{user_answer}，正確答案：{correct_answer}。如果錯誤，提醒學生「收入」是 +，「支出」是 -；「高於」是 +，「低於」是 -。 遵循功文式「精熟學習 (Mastery Learning)」原則,使用對象是國中生或著程度較低的高中高職生，數字與答案都為整數。
+
+
+
 規則一樣 這是這個系統的使用者主要會使用的部分 依功文數學的精神 將單元(技能)切得更細更清楚 幫助學生從及格變不及格 接著是技職高中的數學C2 我上傳整本課本給你分析 盡量共用skill 其他欄位如下 skill_curriculum.curriculum="vocational" skill_curriculum.grade="10" skill_curriculum.volume="數學C2"
 
 規則一樣 這是這個系統的使用者主要會使用的部分 依功文數學的精神 將單元(技能)切得更細更清楚 幫助學生從及格變不及格 接著是國中數學第一冊 我上傳整本課本給你分析 盡量共用skill 其他欄位如下 skill_curriculum.curriculum="junior_high" skill_curriculum.grade="7" skill_curriculum.volume="數學1上"

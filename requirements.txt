@@ -5,3 +5,6 @@ pandas
 openpyxl
 python-dotenv
 google-generativeai
+sqlalchemy
+flask_sqlalchemy
+openpyxl

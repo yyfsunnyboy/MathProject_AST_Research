@@ -100,40 +100,37 @@
     </div>
 
     <div class="container section-box">
-        <h2>課程綱要資料替換 (skill_curriculum)</h2>
-        <p style="color: #555;">此功能將會替換指定「冊別 (Volume)」的資料。系統會先刪除資料庫中該冊別的所有舊資料，再匯入您上傳的新資料。</p>
+        <h2>從資料夾批次匯入課程綱要 (skill_curriculum)</h2>
+        <p style="color: #555;">此功能會將您選取的多個檔案，逐一新增至 `skill_curriculum` 資料庫。系統會自動過濾檔案中的註解或空白行，但不會檢查重複資料。適合用於首次大量匯入不同冊別的資料。</p>
         <br>
-        <form action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleCurriculumUpload(event);">
-            <input type="hidden" name="action" value="replace_curriculum_data">
+        <form action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleBatchUpload(event);">
+            <input type="hidden" name="action" value="batch_import_folder">
             <div class="form-group" style="display: flex; align-items: center; gap: 20px;">
                 <div>
-                    <label for="volume_name" style="display: block; margin-bottom: 5px; font-weight: bold;">1. 輸入要替換的冊別名稱：</label>
-                    <input type="text" id="volume_name" name="volume_name" placeholder="例如: 數學1, 數學4A, 數學乙(下)" required style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 300px;">
+                    <label for="batch_files" style="display: block; margin-bottom: 5px; font-weight: bold;">1. 選擇多個 CSV/Excel 檔案(資料夾)：</label>
+                    <!-- `multiple` 屬性允許多選檔案。`webkitdirectory` 讓部分瀏覽器可以選擇資料夾 -->
+                    <input type="file" id="batch_files" name="files" required accept=".csv, .xlsx, .xls" multiple webkitdirectory>
                 </div>
                 <div>
-                    <label for="curriculum_file" style="display: block; margin-bottom: 5px; font-weight: bold;">2. 選擇對應的 CSV/Excel 檔案：</label>
-                    <input type="file" id="curriculum_file" name="file" required accept=".csv, .xlsx, .xls" style="padding: 6px 12px;">
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary" style="margin-top: 20px;">開始替換</button>
+                    <button type="submit" class="btn btn-primary" style="margin-top: 20px;">開始批次匯入</button>
                 </div>
             </div>
         </form>
     </div>
 
     <div class="container section-box">
-        <h2>技能單元資料更新/新增 (skills_info)</h2>
-        <p style="color: #555;">此功能將會根據您上傳的檔案內容，更新或新增技能單元資料。系統會逐筆檢查 `skill_id`：如果 `skill_id` 已存在，則更新該筆資料；如果不存在，則新增為一筆新資料。</p>
+        <h2>從資料夾批次匯入技能單元 (skills_info)</h2>
+        <p style="color: #555;">此功能會將您選取的多個檔案，逐一<strong>更新或新增</strong>至 `skills_info` 資料庫。系統會根據 `skill_id` 判斷是應更新現有資料還是新增資料。</p>
         <br>
-        <form action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleSkillsInfoUpload(event);">
-            <input type="hidden" name="action" value="upsert_skills_info">
+        <form action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleBatchSkillsInfoUpload(event);">
+            <input type="hidden" name="action" value="batch_upsert_skills_info">
             <div class="form-group" style="display: flex; align-items: center; gap: 20px;">
                 <div>
-                    <label for="skills_info_file" style="display: block; margin-bottom: 5px; font-weight: bold;">1. 選擇要更新的 CSV/Excel 檔案：</label>
-                    <input type="file" id="skills_info_file" name="file" required accept=".csv, .xlsx, .xls" style="padding: 6px 12px;">
+                    <label for="batch_skills_files" style="display: block; margin-bottom: 5px; font-weight: bold;">1. 選擇多個 CSV/Excel 檔案(資料夾)：</label>
+                    <input type="file" id="batch_skills_files" name="files" required accept=".csv, .xlsx, .xls" multiple webkitdirectory>
                 </div>
                 <div>
-                    <button type="submit" class="btn btn-primary" style="margin-top: 20px;">開始更新/新增</button>
+                    <button type="submit" class="btn btn-primary" style="margin-top: 20px;">開始批次更新/新增</button>
                 </div>
             </div>
         </form>
@@ -157,20 +154,20 @@
             });
         });
 
-        function handleCurriculumUpload(event) {
-            const volumeName = document.getElementById('volume_name').value;
-            const fileName = document.getElementById('curriculum_file').files[0]?.name;
-            if (!volumeName || !fileName) return false;
+        function handleBatchUpload(event) {
+            const files = document.getElementById('batch_files').files;
+            if (files.length === 0) return false;
 
-            return confirm(`您確定要用檔案「${fileName}」的內容，來完全替換掉冊別為「${volumeName}」的所有課程資料嗎？`);
+            return confirm(`您確定要批次匯入 ${files.length} 個檔案到「skill_curriculum」資料庫嗎？`);
         }
 
-        function handleSkillsInfoUpload(event) {
-            const fileName = document.getElementById('skills_info_file').files[0]?.name;
-            if (!fileName) return false;
+        function handleBatchSkillsInfoUpload(event) {
+            const files = document.getElementById('batch_skills_files').files;
+            if (files.length === 0) return false;
 
-            return confirm(`您確定要用檔案「${fileName}」的內容，來更新或新增「skills_info」表格的資料嗎？`);
+            return confirm(`您確定要批次處理 ${files.length} 個檔案來更新或新增「skills_info」資料庫嗎？`);
         }
+
     </script>
 </body>
 </html>
