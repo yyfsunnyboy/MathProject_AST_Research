@@ -45,8 +45,8 @@ def analyze(image_data_url, context, api_key):
 請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚：
 
 {{
-  "reply": "用 Markdown 格式寫出具體建議（步驟對錯、遺漏、改進點）",
-  "is_graph_correct": true 或 false,
+  "reply": "用 Markdown 格式寫出具體建議（步驟對錯、遺漏、改進點）。如果計算過程完全正確，reply 內容應為「答對了，計算過程很正確！」。",
+  "is_process_correct": true 或 false,
   "correct": true 或 false,
   "next_question": true 或 false
 }}
@@ -73,7 +73,7 @@ def analyze(image_data_url, context, api_key):
             if attempt == 1:
                 return {
                     "reply": f"AI 回應格式錯誤（第 {attempt+1} 次）：{str(e)}",
-                    "is_graph_correct": False,
+                    "is_process_correct": False,
                     "correct": False,
                     "next_question": False
                 }
@@ -82,7 +82,7 @@ def analyze(image_data_url, context, api_key):
             if attempt == 1:
                 return {
                     "reply": f"AI 分析失敗：{str(e)}",
-                    "is_graph_correct": False,
+                    "is_process_correct": False,
                     "correct": False,
                     "next_question": False
                 }
@@ -90,7 +90,7 @@ def analyze(image_data_url, context, api_key):
 
     return {
         "reply": "AI 分析失敗，請稍後再試",
-        "is_graph_correct": False,
+        "is_process_correct": False,
         "correct": False,
         "next_question": False
     }

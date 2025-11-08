@@ -1,43 +1,49 @@
 # skills/jh_poly_ops_multiply_mono.py
 import random
-import numpy as np
-
-def poly_to_string(p_coeffs):
-    """將係數列表轉換為多項式字串"""
-    p = np.poly1d(p_coeffs)
-    terms = []
-    for i, c in enumerate(p.coeffs):
-        power = p.order - i
-        if np.isclose(c, 0): continue
-        c = int(round(c))
-        if c == 1 and power != 0: coeff_str = ""
-        elif c == -1 and power != 0: coeff_str = "-"
-        else: coeff_str = str(c)
-        if power == 0: var_str = str(abs(c))
-        elif power == 1: var_str = f"{coeff_str}x"
-        else: var_str = f"{coeff_str}x²"
-        if power == 0: terms.append(str(c))
-        else: terms.append(var_str)
-    if not terms: return "0"
-    return " + ".join(terms).replace("+ -", "- ").replace("1x", "x").lstrip(" +")
 
 def generate(level=1):
-    """生成多項式乘以單項式題目 (圖形題)"""
-    poly_coeffs = [random.randint(-5, 5) for _ in range(random.randint(2, 3))]
-    mono_coeff = random.randint(-5, 5)
-    while mono_coeff == 0: mono_coeff = random.randint(-5, 5)
-    mono_power = random.randint(1, 2)
-    
-    poly_str = f"({poly_to_string(poly_coeffs)})"
-    mono_str = f"({mono_coeff}x)" if mono_power == 1 else f"({mono_coeff}x²)"
+    """
+    生成一道「多項式乘以單項式」的題目。
+    """
+    # Monomial: ax^p
+    a = random.randint(-5, 5)
+    while a == 0: a = random.randint(-5, 5)
+    p = random.randint(1, 2)
+    mono_str = f"{a}x²" if p > 1 else f"{a}x"
 
-    question_text = f"請在下方的「數位計算紙」上，計算 {poly_str} × {mono_str} 的結果。\n\n完成後，請點擊「AI 檢查」按鈕。"
+    # Polynomial: bx+c
+    b = random.randint(-5, 5)
+    while b == 0: b = random.randint(-5, 5)
+    c = random.randint(-5, 5)
+    while c == 0: c = random.randint(-5, 5)
+    poly_str = f"({b}x {'+' if c > 0 else '-'} {abs(c)})"
+
+    question_text = f"請計算 {mono_str} × {poly_str}"
+
+    # 計算答案: (ax^p)(bx+c) = abx^(p+1) + acx^p
+    res_coeff1 = a * b
+    res_exp1 = p + 1
+    res_coeff2 = a * c
+    res_exp2 = p
+    
+    term1 = f"{res_coeff1}x³" if res_exp1 == 3 else f"{res_coeff1}x²"
+    term2 = f"{res_coeff2}x²" if res_exp2 == 2 else f"{res_coeff2}x"
+    
+    correct_answer = f"{term1}{'+' if res_coeff2 > 0 else ''}{term2}"
+
+
+    context_string = "利用分配律，將單項式分別乘以多項式的每一項。"
+
     return {
         "question_text": question_text,
-        "answer": None,
-        "correct_answer": "graph",
-        "context_string": f"計算 {poly_str} 乘以 {mono_str}"
+        "answer": correct_answer,
+        "correct_answer": "text",
+        "context_string": context_string,
     }
 
 def check(user_answer, correct_answer):
-    return {"correct": False, "result": "請在數位計算紙上寫下您的計算過程，然後點選「AI 檢查」。", "next_question": False}
+    user = user_answer.strip().replace(" ", "")
+    correct = correct_answer.strip().replace(" ", "").replace("²", "^2").replace("³", "^3")
+    is_correct = user == correct
+    result_text = f"完全正確！答案是 {correct_answer}。" if is_correct else f"答案不正確。正確答案是：{correct_answer}"
+    return {"correct": is_correct, "result": result_text, "next_question": is_correct}

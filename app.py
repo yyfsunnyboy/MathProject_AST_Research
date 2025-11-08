@@ -564,37 +564,40 @@ def db_maintenance():
                 processed_files_count = 0
                 
                 for file in files:
-                    if file and file.filename != '':
-                        # 增加一個日誌，顯示正在處理的檔案名稱
-                        print(f"正在處理檔案: {file.filename}")
-                        # 忽略 Excel 暫存檔 (通常以 ~$ 開頭)
-                        if file.filename.startswith('~$'):
-                            continue
-                        # 增加副檔名檢查，忽略非 CSV/Excel 檔案 (例如 Thumbs.db)
-                        allowed_extensions = ('.csv', '.xlsx', '.xls')
-                        if not file.filename.lower().endswith(allowed_extensions):
-                            continue # 跳過這個檔案
+                    if not file or file.filename == '':
+                        continue
 
-                        try:
-                            if file.filename.endswith('.csv'):
-                                df = pd.read_csv(file)
-                            else:
-                                df = pd.read_excel(file)
+                    # 增加一個日誌，顯示正在處理的檔案名稱
+                    print(f"正在處理檔案: {file.filename}")
+                    # 忽略 Excel 暫存檔 (通常以 ~$ 開頭)
+                    if file.filename.startswith('~$'):
+                        continue
+                    # 增加副檔名檢查，忽略非 CSV/Excel 檔案 (例如 Thumbs.db)
+                    allowed_extensions = ('.csv', '.xlsx', '.xls')
+                    if not file.filename.lower().endswith(allowed_extensions):
+                        continue # 跳過這個檔案
 
-                            # --- 套用與之前相同的資料清理邏輯 ---
-                            df.columns = [str(col).lower().strip() for col in df.columns]
-                            if 'diffcult_level' in df.columns:
-                                df.rename(columns={'diffcult_level': 'difficulty_level'}, inplace=True)
-                            df['paragraph'] = df['paragraph'].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() else None)
-                            df.dropna(subset=['skill_id'], inplace=True)
-                            df = df[df['skill_id'].astype(str).str.strip() != '']
-                            
-                            records_to_insert = df.to_dict(orient='records')
-                            db.session.bulk_insert_mappings(SkillCurriculum, records_to_insert)
-                            total_inserted_count += len(records_to_insert)
-                            processed_files_count += 1
-                        except Exception as e:
-                            flash(f'處理檔案 "{file.filename}" 時發生錯誤：{e}。部分資料可能未匯入。', 'danger')
+                    try:
+                        if file.filename.lower().endswith('.csv'):
+                            df = pd.read_csv(file)
+                        else:
+                            df = pd.read_excel(file, engine='openpyxl')
+
+                        # --- 套用與之前相同的資料清理邏輯 ---
+                        df.columns = [str(col).lower().strip() for col in df.columns]
+                        if 'diffcult_level' in df.columns:
+                            df.rename(columns={'diffcult_level': 'difficulty_level'}, inplace=True)
+                        df['paragraph'] = df['paragraph'].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() else None)
+                        df.dropna(subset=['skill_id'], inplace=True)
+                        df = df[df['skill_id'].astype(str).str.strip() != '']
+                        
+                        records_to_insert = df.to_dict(orient='records')
+                        db.session.bulk_insert_mappings(SkillCurriculum, records_to_insert)
+                        total_inserted_count += len(records_to_insert)
+                        processed_files_count += 1
+                    except Exception as e:
+                        flash(f'處理檔案 "{file.filename}" 時發生錯誤：{e}。部分資料可能未匯入。', 'danger')
+                        raise # 拋出例外以觸發 rollback
                 
                 db.session.commit()
                 flash(f'批次匯入完成！成功處理 {processed_files_count} 個檔案，共新增 {total_inserted_count} 筆記錄到 skill_curriculum。', 'success')
@@ -609,30 +612,33 @@ def db_maintenance():
                 processed_files_count = 0
                 # 1. 讀取並合併所有檔案的資料
                 for file in files:
-                    if file and file.filename != '':
-                        # 增加一個日誌，顯示正在處理的檔案名稱
-                        print(f"正在處理檔案: {file.filename}")
-                        # 忽略 Excel 暫存檔 (通常以 ~$ 開頭)
-                        if file.filename.startswith('~$'):
-                            continue
-                        # 增加副檔名檢查，忽略非 CSV/Excel 檔案 (例如 Thumbs.db)
-                        allowed_extensions = ('.csv', '.xlsx', '.xls')
-                        if not file.filename.lower().endswith(allowed_extensions):
-                            continue # 跳過這個檔案
+                    if not file or file.filename == '':
+                        continue
 
-                        try:
-                            if file.filename.endswith('.csv'):
-                                df = pd.read_csv(file)
-                            else:
-                                df = pd.read_excel(file)
+                    # 增加一個日誌，顯示正在處理的檔案名稱
+                    print(f"正在處理檔案: {file.filename}")
+                    # 忽略 Excel 暫存檔 (通常以 ~$ 開頭)
+                    if file.filename.startswith('~$'):
+                        continue
+                    # 增加副檔名檢查，忽略非 CSV/Excel 檔案 (例如 Thumbs.db)
+                    allowed_extensions = ('.csv', '.xlsx', '.xls')
+                    if not file.filename.lower().endswith(allowed_extensions):
+                        continue # 跳過這個檔案
 
-                            df.columns = [str(col).lower().strip() for col in df.columns]
-                            df.dropna(subset=['skill_id'], inplace=True)
-                            df = df[df['skill_id'].astype(str).str.strip() != '']
-                            all_records.extend(df.to_dict(orient='records'))
-                            processed_files_count += 1
-                        except Exception as e:
-                            flash(f'讀取檔案 "{file.filename}" 時發生錯誤：{e}。', 'danger')
+                    try:
+                        if file.filename.lower().endswith('.csv'):
+                            df = pd.read_csv(file)
+                        else:
+                            df = pd.read_excel(file, engine='openpyxl')
+
+                        df.columns = [str(col).lower().strip() for col in df.columns]
+                        df.dropna(subset=['skill_id'], inplace=True)
+                        df = df[df['skill_id'].astype(str).str.strip() != '']
+                        all_records.extend(df.to_dict(orient='records'))
+                        processed_files_count += 1
+                    except Exception as e:
+                        flash(f'讀取檔案 "{file.filename}" 時發生錯誤：{e}。', 'danger')
+                        raise # 拋出例外以觸發 rollback
 
                 if not all_records:
                     flash('所有檔案中均未找到有效資料。', 'warning')

@@ -1,4 +1,10 @@
-仿照 skills/remainder.py 這個程式 設計一個jh_positive_negative_def.py	Positive & Negative Numbers	正負數與相反量	整數	熟練辨識生活中的相反量，並使用正、負號表示。	text	分析學生答案：{user_answer}，正確答案：{correct_answer}。如果錯誤，提醒學生「收入」是 +，「支出」是 -；「高於」是 +，「低於」是 -。 遵循功文式「精熟學習 (Mastery Learning)」原則,使用對象是國中生或著程度較低的高中高職生，數字與答案都為整數。
+仿照 skills/jh_positive_negative_def.py 這個程式 參考 skill_info 裡面的資料 生成以下所有技能對應的 python檔案 我們有一個skill_curriculum.difficulty_level的欄位 如果傳入是1 就把係數跟答案都設為整數. 如果是2則沒有限制 
+
+仿照 skills/jh_positive_negative_def.py 這個程式 參考 skill_info 裡面的資料 生成以下所有技能對應的 python檔案
+
+
+
+仿照 skills/jh_positive_negative_def.py 這個程式 設計一個jh_positive_negative_def.py	Positive & Negative Numbers	正負數與相反量	整數	熟練辨識生活中的相反量，並使用正、負號表示。	text	分析學生答案：{user_answer}，正確答案：{correct_answer}。如果錯誤，提醒學生「收入」是 +，「支出」是 -；「高於」是 +，「低於」是 -。 遵循功文式「精熟學習 (Mastery Learning)」原則,使用對象是國中生或著程度較低的高中高職生，數字與答案都為整數。
 
 
 

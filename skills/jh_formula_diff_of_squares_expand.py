@@ -3,24 +3,23 @@ import random
 
 def generate(level=1):
     """
-    生成一道「平方差」展開題目。
-    (a+b)(a-b) = a² - b²
+    生成一道「平方差公式展開」的題目。
     """
-    # 隨機生成 a 和 b
-    a = random.randint(1, 9)
-    b = random.randint(1, 9)
+    # 構造 (a+b)(a-b)
+    # a 可以是 nx 或 ny
+    a_coeff = random.randint(2, 7)
+    a_var = random.choice(['x', 'y'])
+    a_term = f"{a_coeff}{a_var}"
+    
+    # b 是常數
+    b_term = random.randint(2, 9)
 
-    # 處理 a=1 的情況
-    if a == 1:
-        question_text = f"請展開 (x + {b})(x - {b})"
-        # 答案: x² - b²
-        correct_answer = f"x^2-{b**2}"
-    else:
-        question_text = f"請展開 ({a}x + {b})({a}x - {b})"
-        # 答案: (a²)*x² - b²
-        correct_answer = f"{a**2}x^2-{b**2}"
-
-    context_string = f"使用平方差公式 (a+b)(a-b) = a² - b² 展開題目。"
+    question_text = f"請使用平方差公式展開 ({a_term} + {b_term})({a_term} - {b_term})。"
+    
+    # 答案是 a^2 - b^2
+    correct_answer = f"{(a_coeff**2)}{a_var}²-{b_term**2}"
+    
+    context_string = "利用平方差公式 (a+b)(a-b) = a² - b² 展開多項式。"
 
     return {
         "question_text": question_text,
@@ -31,12 +30,10 @@ def generate(level=1):
 
 def check(user_answer, correct_answer):
     """
-    檢查使用者輸入的展開式是否正確。
+    檢查使用者輸入的答案是否正確。
     """
-    user = user_answer.strip().replace(" ", "").replace("**", "^")
-    correct = correct_answer.strip().replace(" ", "")
-
-    if user == correct:
-        return {"correct": True, "result": f"完全正確！答案是 {correct_answer.replace('^2', '²')}。", "next_question": True}
-    else:
-        return {"correct": False, "result": f"答案不正確。正確答案是：{correct_answer.replace('^2', '²')}", "next_question": False}
+    user = user_answer.strip().replace(" ", "")
+    correct = correct_answer.strip().replace(" ", "").replace("²", "^2")
+    is_correct = user == correct
+    result_text = f"完全正確！答案是 {correct_answer}。" if is_correct else f"答案不正確。正確答案是：{correct_answer}"
+    return {"correct": is_correct, "result": result_text, "next_question": is_correct}

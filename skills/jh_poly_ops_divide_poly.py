@@ -1,48 +1,50 @@
 # skills/jh_poly_ops_divide_poly.py
 import random
-import numpy as np
-
-def poly_to_string(p_coeffs):
-    """將係數列表轉換為多項式字串"""
-    p = np.poly1d(p_coeffs)
-    terms = []
-    for i, c in enumerate(p.coeffs):
-        power = p.order - i
-        if np.isclose(c, 0): continue
-        c = int(round(c))
-        if c == 1 and power != 0: coeff_str = ""
-        elif c == -1 and power != 0: coeff_str = "-"
-        else: coeff_str = str(c)
-        if power == 0: var_str = str(abs(c))
-        elif power == 1: var_str = f"{coeff_str}x"
-        else: var_str = f"{coeff_str}x²"
-        if power == 0: terms.append(str(c))
-        else: terms.append(var_str)
-    if not terms: return "0"
-    return " + ".join(terms).replace("+ -", "- ").replace("1x", "x").lstrip(" +")
 
 def generate(level=1):
-    """生成多項式除法題目 (圖形題)"""
-    # 反向生成：f = g * q + r
-    g_coeffs = [random.randint(1, 2), random.randint(-3, 3)] # 除式為一次式
-    q_coeffs = [random.randint(1, 2), random.randint(-3, 3)] # 商式為一次式
-    r_coeff = random.randint(-5, 5) # 餘式為常數
+    """
+    生成一道「多項式除法」的題目。
+    """
+    # 構造 A = BQ + R，確保可以整除，R=0
+    # B: x+b
+    b = random.randint(-5, 5)
+    while b == 0: b = random.randint(-5, 5)
+    B_str = f"(x {'+' if b > 0 else '-'} {abs(b)})"
+    # Q: x+q
+    q = random.randint(-5, 5)
+    while q == 0: q = random.randint(-5, 5)
+    Q_str = f"(x {'+' if q > 0 else '-'} {abs(q)})"
     
-    g = np.poly1d(g_coeffs)
-    q = np.poly1d(q_coeffs)
-    r = np.poly1d([r_coeff])
-    f = g * q + r
+    # A = (x+b)(x+q) = x^2 + (b+q)x + bq
+    A_c1 = b + q
+    A_c0 = b * q
+    A_str = f"x² {'+' if A_c1 > 0 else '-'} {abs(A_c1)}x {'+' if A_c0 > 0 else '-'} {abs(A_c0)}"
 
-    f_str = f"({poly_to_string(f.coeffs)})"
-    g_str = f"({poly_to_string(g.coeffs)})"
+    # 隨機問商式或餘式
+    q_type = random.choice(['quotient', 'remainder'])
+    if q_type == 'quotient':
+        question_text = f"請問 ({A_str}) ÷ ({B_str}) 的商式是多少？"
+        correct_answer = Q_str.replace("(", "").replace(")", "")
+    else: # remainder
+        # 加上餘式
+        r = random.randint(-9, 9)
+        A_c0_new = A_c0 + r
+        A_str_new = f"x² {'+' if A_c1 > 0 else '-'} {abs(A_c1)}x {'+' if A_c0_new > 0 else '-'} {abs(A_c0_new)}"
+        question_text = f"請問 ({A_str_new}) ÷ ({B_str}) 的餘式是多少？"
+        correct_answer = str(r)
 
-    question_text = f"請在下方的「數位計算紙」上，計算 {f_str} ÷ {g_str} 的商式與餘式。\n\n完成後，請點擊「AI 檢查」按鈕。"
+    context_string = "使用長除法或綜合除法來計算多項式除法。"
+
     return {
         "question_text": question_text,
-        "answer": None,
-        "correct_answer": "graph",
-        "context_string": f"計算 {f_str} 除以 {g_str}"
+        "answer": correct_answer,
+        "correct_answer": "text",
+        "context_string": context_string,
     }
 
 def check(user_answer, correct_answer):
-    return {"correct": False, "result": "請在數位計算紙上寫下您的計算過程，然後點選「AI 檢查」。", "next_question": False}
+    user = user_answer.strip().replace(" ", "")
+    correct = correct_answer.strip().replace(" ", "")
+    is_correct = user == correct
+    result_text = f"完全正確！答案是 {correct_answer}。" if is_correct else f"答案不正確。參考答案是：{correct_answer}"
+    return {"correct": is_correct, "result": result_text, "next_question": is_correct}

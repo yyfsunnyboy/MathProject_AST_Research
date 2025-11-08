@@ -1,38 +1,7 @@
 # skills/cross_multiplication.py
 import random
 import re
-
-def format_polynomial(a, b, c):
-    """將 ax² + bx + c 格式化為字串"""
-    terms = []
-    # x² term
-    if a == 1:
-        terms.append("x²")
-    elif a == -1:
-        terms.append("-x²")
-    else:
-        terms.append(f"{a}x²")
-    
-    # x term
-    if b != 0:
-        sign = " + " if b > 0 else " - "
-        abs_b = abs(b)
-        if abs_b == 1:
-            terms.append(f"{sign}x")
-        else:
-            terms.append(f"{sign}{abs_b}x")
-
-    # constant term
-    if c != 0:
-        sign = " + " if c > 0 else " - "
-        abs_c = abs(c)
-        terms.append(f"{sign}{abs_c}")
-        
-    # 如果 b 和 c 都是 0，只返回 x² 項
-    if not terms:
-        return f"{a}x²"
-        
-    return "".join(terms).lstrip(" +")
+from .utils import poly_to_string
 
 def format_factor(p, q):
     """將 (px + q) 格式化為字串"""
@@ -71,7 +40,7 @@ def generate(level=1):
     b = p * s + q * r
     c = q * s
 
-    poly_str = format_polynomial(a, b, c)
+    poly_str = poly_to_string([a, b, c])
     
     question_text = f"請使用十字交乘法，將二次多項式 {poly_str} 分解為兩個一次因式的乘積。"
     

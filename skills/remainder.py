@@ -1,18 +1,6 @@
 # skills/remainder.py
 import random
-
-def format_term(coeff, power):
-    """格式化單一項：如 4x^3 → + 4x³，-3x → - 3x"""
-    if coeff == 0:
-        return ""
-    if coeff == 1 and power > 0:
-        return " + x" if power == 1 else f" + x²" if power == 2 else f" + x³"
-    if coeff == -1 and power > 0:
-        return " - x" if power == 1 else f" - x²" if power == 2 else f" - x³"
-    sign = " + " if coeff > 0 else " - "
-    abs_coeff = abs(coeff)
-    var = "" if power == 0 else ("x" if power == 1 else f"x²" if power == 2 else f"x³")
-    return f"{sign}{abs_coeff}{var}"
+from .utils import poly_to_string
 
 def generate(level=1):
     # level 參數暫時未使用，但保留以符合架構
@@ -30,15 +18,7 @@ def generate(level=1):
     answer = a * (k**3) + b * (k**2) + c * k + d
 
     # 組裝 f(x) = ax³ + bx² + cx + d 格式
-    terms = [
-        format_term(a, 3),
-        format_term(b, 2),
-        format_term(c, 1),
-        format_term(d, 0)
-    ]
-    poly_text = "".join(terms).lstrip(" + ").strip()  # 移除開頭多餘 + 
-    if poly_text.startswith("-"):
-        poly_text = "-" + poly_text.lstrip("-").strip()  # 確保負號正確
+    poly_text = poly_to_string([a, b, c, d])
 
     # 除式
     divisor = f"x - {k}" if k >= 0 else f"x + {abs(k)}"

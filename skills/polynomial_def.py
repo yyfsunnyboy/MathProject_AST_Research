@@ -1,28 +1,6 @@
 # skills/polynomial_def.py
 import random
-
-def format_polynomial(coeffs):
-    """將係數列表格式化為多項式字串"""
-    terms = []
-    degree = len(coeffs) - 1
-    for i, c in enumerate(coeffs):
-        power = degree - i
-        if c == 0: continue
-        
-        # 係數
-        if c == 1 and power != 0: coeff_str = ""
-        elif c == -1 and power != 0: coeff_str = "-"
-        else: coeff_str = str(c)
-        
-        # 變數
-        if power == 0: var_str = ""
-        elif power == 1: var_str = "x"
-        else: var_str = f"x{ {2:'²', 3:'³', 4:'⁴'}.get(power, f'^{power}') }"
-            
-        terms.append(f"{coeff_str}{var_str if power > 0 else ''}")
-    
-    if not terms: return "0"
-    return " + ".join(terms).replace("+ -", "- ").lstrip("+ ")
+from .utils import poly_to_string
 
 def generate(level=1):
     """
@@ -34,7 +12,7 @@ def generate(level=1):
     coeffs = [random.randint(-7, 7) for _ in range(degree + 1)]
     while coeffs[0] == 0: coeffs[0] = random.randint(1, 7) # 確保最高次項係數不為0
 
-    poly_str = format_polynomial(coeffs)
+    poly_str = poly_to_string(coeffs)
     
     q_type = random.choice(['degree', 'coeff', 'const'])
 

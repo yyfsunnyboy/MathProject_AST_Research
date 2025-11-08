@@ -1,33 +1,6 @@
 # skills/always_positive_cond.py
 import random
-
-def format_polynomial(a, b, c):
-    """將 f(x) = ax² + bx + c 格式化為字串"""
-    terms = []
-    # x² term
-    if a == 1:
-        terms.append("x²")
-    elif a == -1:
-        terms.append("-x²")
-    else:
-        terms.append(f"{a}x²")
-    
-    # x term
-    if b != 0:
-        sign = " + " if b > 0 else " - "
-        abs_b = abs(b)
-        if abs_b == 1:
-            terms.append(f"{sign}x")
-        else:
-            terms.append(f"{sign}{abs_b}x")
-
-    # constant term
-    if c != 0:
-        sign = " + " if c > 0 else " - "
-        abs_c = abs(c)
-        terms.append(f"{sign}{abs_c}")
-        
-    return "f(x) = " + "".join(terms).lstrip(" +")
+from .utils import poly_to_string
 
 def generate(level=1):
     """
@@ -67,7 +40,7 @@ def generate(level=1):
     b = -2 * a * h
     c = a * h**2 + k
 
-    poly_str = format_polynomial(a, b, c)
+    poly_str = f"f(x) = {poly_to_string([a, b, c])}"
 
     question_text = (
         f"請問二次函數 {poly_str} 的值是否恆為正？\n\n"

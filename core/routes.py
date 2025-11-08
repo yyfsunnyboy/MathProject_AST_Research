@@ -6,6 +6,7 @@ from .ai_analyzer import analyze, ask_ai_text_with_context, get_model
 import importlib
 from core.utils import get_skill_info
 from models import db, Progress, SkillInfo
+import traceback
 
 core_bp = Blueprint('core', __name__)
 
@@ -67,6 +68,59 @@ def update_progress(user_id, skill_id, is_correct):
     
     # 提交變更到資料庫
     db.session.commit()
+
+@core_bp.route('/admin/batch_import_skills', methods=['POST'])
+@login_required
+def batch_import_skills():
+    if not current_user.is_admin:
+        return jsonify({"success": False, "message": "Permission denied."}), 403
+    
+    try:
+        # This is where your actual import logic is called.
+        # I am assuming it's in a module named 'data_importer'.
+        # Please adjust this to match your code.
+        from . import data_importer 
+        count = data_importer.import_skills_from_json()
+        
+        # If successful, return a success message
+        return jsonify({"success": True, "message": f"成功匯入 {count} 個技能單元！"})
+
+    except Exception as e:
+        # This block will catch ANY error that occurs during the import
+        
+        # 1. Log the full, detailed error to your server console for debugging
+        error_details = traceback.format_exc()
+        current_app.logger.error(f"Batch import skills failed: {e}\n{error_details}")
+        
+        # 2. Return a clear error message to the frontend page
+        return jsonify({
+            "success": False, 
+            "message": f"批次匯入技能失敗！\n\n錯誤原因：\n{str(e)}\n\n請檢查伺服器日誌以獲取詳細資訊。"
+        }), 500
+
+# Find your existing function for importing the curriculum and modify it similarly
+@core_bp.route('/admin/batch_import_curriculum', methods=['POST'])
+@login_required
+def batch_import_curriculum():
+    if not current_user.is_admin:
+        return jsonify({"success": False, "message": "Permission denied."}), 403
+
+    try:
+        # Adjust this to match your code
+        from . import data_importer
+        count = data_importer.import_curriculum_from_json()
+        
+        return jsonify({"success": True, "message": f"成功匯入 {count} 個課程綱要項目！"})
+
+    except Exception as e:
+        # Catch and report any errors
+        error_details = traceback.format_exc()
+        current_app.logger.error(f"Batch import curriculum failed: {e}\n{error_details}")
+        
+        return jsonify({
+            "success": False, 
+            "message": f"批次匯入課程綱要失敗！\n\n錯誤原因：\n{str(e)}\n\n請檢查伺服器日誌以獲取詳細資訊。"
+        }), 500
 
 
 @core_bp.route('/get_next_question')
@@ -142,7 +196,7 @@ def analyze_handwriting():
     result = analyze(img, state['question'], api_key)
     
     # 更新進度
-    if result.get('correct') or result.get('is_graph_correct'):
+    if result.get('correct') or result.get('is_process_correct'):
         update_progress(current_user.id, state['skill'], True)
     else:
         update_progress(current_user.id, state['skill'], False)

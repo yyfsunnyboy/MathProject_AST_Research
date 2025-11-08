@@ -112,3 +112,90 @@ def get_skills_by_volume_chapter(volume, chapter):
         'description': si.description,
         'consecutive_correct_required': si.consecutive_correct_required
     } for sc, si in results]
+
+def get_all_skill_curriculums():
+    """
+    取得 SkillCurriculum 表中的所有條目，並 JOIN SkillInfo 以獲取技能名稱。
+    這是給 /admin/curriculum 管理頁面使用的。
+    """
+    results = db.session.query(SkillCurriculum, SkillInfo.skill_ch_name, SkillInfo.difficulty)\
+                        .outerjoin(SkillInfo, SkillCurriculum.skill_id == SkillInfo.skill_id)\
+                        .order_by(SkillCurriculum.curriculum, SkillCurriculum.grade, SkillCurriculum.display_order)\
+                        .all()
+
+    return [{
+        'id': sc.id,
+        'curriculum': sc.curriculum,
+        'grade': sc.grade,
+        'volume': sc.volume,
+        'chapter': sc.chapter,
+        'section': sc.section,
+        'paragraph': sc.paragraph,
+        'skill_id': sc.skill_id,
+        'display_order': sc.display_order,
+        'skill_ch_name': skill_ch_name,
+        'difficulty': difficulty # 移除此行末尾的逗號
+    } for sc, skill_ch_name, difficulty in results] # 修正：將 for 迴圈與 return 對齊
+
+def create_skill_curriculum(data):
+    """
+    新增一筆 SkillCurriculum 記錄。
+    'data' 是一個包含所有必要欄位資訊的字典。
+    """
+    try:
+        new_entry = SkillCurriculum(**data)
+        db.session.add(new_entry)
+        db.session.commit()
+        return {'success': True, 'message': '記錄新增成功。', 'id': new_entry.id}
+    except Exception as e:
+        db.session.rollback()
+        # 記錄詳細錯誤，但只回傳通用訊息給前端
+        print(f"Create Error: {e}")
+        return {'success': False, 'message': '新增失敗，請檢查資料格式或聯繫管理員。'}
+
+def update_skill_curriculum(entry_id, data):
+    """
+    更新一筆指定 id 的 SkillCurriculum 記錄。
+    'data' 是一個包含要更新欄位資訊的字典。
+    """
+    try:
+        entry = SkillCurriculum.query.get(entry_id)
+        if not entry:
+            return {'success': False, 'message': '找不到指定的記錄。'}
+        
+        for key, value in data.items():
+            setattr(entry, key, value)
+            
+        db.session.commit()
+        return {'success': True, 'message': '記錄更新成功。'}
+    except Exception as e:
+        db.session.rollback()
+        # 記錄詳細錯誤
+        print(f"Update Error: {e}")
+        return {'success': False, 'message': '更新失敗，請檢查資料或聯繫管理員。'}
+
+def delete_skill_curriculum(entry_id):
+    """
+    刪除一筆指定 id 的 SkillCurriculum 記錄。
+    """
+    try:
+        entry = SkillCurriculum.query.get(entry_id)
+        if not entry:
+            return {'success': False, 'message': '找不到指定的記錄。'}
+        
+        db.session.delete(entry)
+        db.session.commit()
+        return {'success': True, 'message': '記錄刪除成功。'}
+    except Exception as e:
+        db.session.rollback()
+        # 記錄詳細錯誤
+        print(f"Delete Error: {e}")
+        return {'success': False, 'message': '刪除失敗，可能有關聯資料，請聯繫管理員。'}
+
+def to_superscript(n):
+    """將整數轉換為上標字串。"""
+    superscript_map = {
+        "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+        "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻"
+    }
+    return "".join(superscript_map.get(char, char) for char in str(n))

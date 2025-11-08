@@ -2,34 +2,6 @@
 import random
 import fractions
 
-def format_polynomial(a, b, c):
-    """將 ax² + bx + c 格式化為字串"""
-    terms = []
-    # x² term
-    if a == 1:
-        terms.append("x²")
-    elif a == -1:
-        terms.append("-x²")
-    else:
-        terms.append(f"{a}x²")
-    
-    # x term
-    if b != 0:
-        sign = " + " if b > 0 else " - "
-        abs_b = abs(b)
-        if abs_b == 1:
-            terms.append(f"{sign}x")
-        else:
-            terms.append(f"{sign}{abs_b}x")
-
-    # constant term
-    if c != 0:
-        sign = " + " if c > 0 else " - "
-        abs_c = abs(c)
-        terms.append(f"{sign}{abs_c}")
-        
-    return "".join(terms).lstrip(" +")
-
 def generate(level=1):
     """
     生成一道「判別式與二次不等式解」題目 (D <= 0)
