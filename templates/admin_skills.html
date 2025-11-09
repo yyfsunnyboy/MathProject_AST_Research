@@ -63,6 +63,13 @@
             font-size: 1em;
             transition: background 0.2s;
         }
+        .btn-check {
+            background: #8e44ad;
+            color: white;
+            margin-left: 15px;
+        }
+        .btn-check:hover { background: #732d91; }
+
         .btn-add:hover { background: #229954; }
 
         /* Alert */
@@ -305,6 +312,18 @@
             margin-bottom: 10px;
             color: #95a5a6;
         }
+        /* Ghost Skills Modal List */
+        .ghost-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .ghost-list li {
+            background: #f1f2f6;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            font-family: 'Courier New', Consolas, monospace;
+        }
     </style>
 </head>
 <body>
@@ -322,7 +341,10 @@
         <!-- Header -->
         <div class="header">
             <h1>技能管理中心</h1>
-            <button class="btn-add" onclick="openAddModal()">➕ 新增單元</button>
+            <div>
+                <button class="btn-add btn-check" onclick="checkGhostSkills()">🔍 檢查幽靈程式</button>
+                <button class="btn-add" onclick="openAddModal()">➕ 新增單元</button>
+            </div>
         </div>
 
         <!-- 篩選器 -->
@@ -548,6 +570,22 @@
         </div>
     </div>
 
+    <!-- Ghost Skills Check Modal -->
+    <div id="ghostModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>幽靈程式檢查結果</h2>
+                <span class="close" onclick="closeModal('ghostModal')">&times;</span>
+            </div>
+            <div id="ghostResult">
+                <p>正在檢查中...</p>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="closeModal('ghostModal')">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function openAddModal() {
             document.getElementById('addModal').style.display = 'block';
@@ -574,9 +612,40 @@
             document.getElementById(modalId).style.display = 'none';
         }
 
+        async function checkGhostSkills() {
+            const modal = document.getElementById('ghostModal');
+            const resultDiv = document.getElementById('ghostResult');
+            modal.style.display = 'block';
+            resultDiv.innerHTML = '<p>正在檢查中，請稍候...</p>';
+
+            try {
+                const response = await fetch("{{ url_for('core.check_ghost_skills') }}");
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.ghost_files.length > 0) {
+                        let fileListHtml = '<p>以下檔案存在於 `skills` 資料夾中，但在資料庫 `skills_info` 表格內沒有對應的紀錄。請確認後手動刪除：</p>';
+                        fileListHtml += '<ul class="ghost-list">';
+                        data.ghost_files.forEach(file => {
+                            fileListHtml += `<li>${file}.py</li>`;
+                        });
+                        fileListHtml += '</ul>';
+                        resultDiv.innerHTML = fileListHtml;
+                    } else {
+                        resultDiv.innerHTML = '<p style="color: #155724; font-weight: bold;">太棒了！沒有發現任何幽靈程式。</p>';
+                    }
+                } else {
+                    resultDiv.innerHTML = `<p style="color: #721c24;">檢查失敗：${data.message}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: #721c24;">無法連接到伺服器或發生未知錯誤。</p>`;
+            }
+        }
+
         // 點擊模態框外部關閉
         window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
+            const modals = ['addModal', 'editModal', 'ghostModal'];
+            if (modals.map(id => document.getElementById(id)).includes(event.target)) {
                 event.target.style.display = 'none';
             }
         }
@@ -586,6 +655,7 @@
             if (event.key === 'Escape') {
                 closeModal('addModal');
                 closeModal('editModal');
+                closeModal('ghostModal');
             }
         });
     </script>

@@ -103,6 +103,11 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @property
+    def is_admin(self):
+        """簡單的管理員權限判斷"""
+        return self.username in ['admin', 'my_user'] # 將 'my_user' 替換成您的帳號
+
 # 新增 Progress ORM 模型
 # 它會自動對應到 init_db() 中建立的 'progress' 表格
 class Progress(db.Model):

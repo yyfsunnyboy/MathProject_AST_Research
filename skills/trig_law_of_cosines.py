@@ -26,6 +26,10 @@ def generate(level=1):
 def check(user_answer, correct_answer):
     user = user_answer.strip().replace(" ", "")
     correct = str(correct_answer).strip()
-    is_correct = abs(float(user) - float(correct)) < 1
-    result_text = f"完全正確！答案約為 {correct_answer}。" if is_correct else f"答案不正確。正確答案應為：{correct_answer}"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    try:
+        user_float = float(user)
+        is_correct = abs(user_float - float(correct)) < 1 # 允許較大誤差
+        result_text = f"完全正確！答案約為 {correct_answer}。" if is_correct else f"答案不正確。正確答案應為：{correct_answer}"
+        return {"correct": is_correct, "result": result_text, "next_question": True}
+    except ValueError:
+        return {"correct": False, "result": f"請輸入有效的數字答案。正確答案應為：{correct_answer}", "next_question": False}

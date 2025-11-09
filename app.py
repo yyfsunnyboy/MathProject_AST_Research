@@ -1,5 +1,6 @@
 # app.py
 import pandas as pd
+import os
 from dotenv import load_dotenv
 
 # 載入 .env 檔案中的環境變數

@@ -50,18 +50,17 @@ def check(user_answer, correct_answer):
 
     user_answer = user_answer.replace('(', '').replace(')', '').replace(' ', '')
     
+    parts = user_answer.split(',')
+    if len(parts) != 2:
+        return {"correct": False, "result": "請輸入兩個坐標值，並用逗號分隔。", "next_question": False}
+    
     try:
-        parts = user_answer.split(',')
-        if len(parts) != 2:
-            return {"correct": False, "result": "請輸入兩個坐標值，並用逗號分隔。"}
-        
-        user_x = float(parts[0])
-        user_y = float(parts[1])
+        user_x = float(parts[0].strip())
+        user_y = float(parts[1].strip())
         
         if user_x == correct_x and user_y == correct_y:
-            return {"correct": True, "result": "完全正確！"}
+            return {"correct": True, "result": "完全正確！", "next_question": True}
         else:
-            return {"correct": False, "result": f"答案不正確。正確答案是 ({correct_x}, {correct_y})。"}
-
+            return {"correct": False, "result": f"答案不正確。正確答案是 ({correct_x}, {correct_y})。", "next_question": True}
     except ValueError:
-        return {"correct": False, "result": "請輸入有效的數字坐標，例如 '3, 5' 或 '(3, 5)'。"}
+        return {"correct": False, "result": "請輸入有效的數字坐標，例如 '3, 5' 或 '(3, 5)'。", "next_question": False}

@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from .session import set_current, get_current
 from .ai_analyzer import analyze, ask_ai_text_with_context, get_model
 from flask import session # 導入 session
-import importlib
+import importlib, os
 from core.utils import get_skill_info
 from models import db, Progress, SkillInfo, SkillCurriculum # 導入 SkillCurriculum
 import traceback
@@ -187,8 +187,13 @@ def check_answer():
     # 文字題：正常批改
     result = mod.check(user, current['answer'])
     
+    # 安全地獲取批改結果，避免 KeyError
+    is_correct = result.get('correct', False)
+    if not isinstance(is_correct, bool):
+        is_correct = False
+
     # 更新進度
-    update_progress(current_user.id, skill, result['correct'])
+    update_progress(current_user.id, skill, is_correct)
     
     return jsonify(result)
 
@@ -331,3 +336,28 @@ def api_get_sections():
         chapter=chapter
     ).distinct().order_by(SkillCurriculum.section).all()
     return jsonify([s[0] for s in sections])
+
+# === 檢查幽靈技能 API ===
+@core_bp.route('/admin/skills/check_ghosts')
+def check_ghost_skills():
+    if not current_user.is_admin: # 確保只有管理員能執行
+        return jsonify({"success": False, "message": "權限不足"}), 403
+
+    try:
+        # 1. 獲取檔案系統中的所有技能檔案
+        skills_dir = os.path.join(current_app.root_path, 'skills')
+        skill_files = {f.replace('.py', '') for f in os.listdir(skills_dir) 
+                       if f.endswith('.py') and f not in ['__init__.py', 'utils.py']}
+
+        # 2. 獲取資料庫中所有已註冊的 skill_id
+        registered_skills_query = db.session.query(SkillInfo.skill_id).all()
+        registered_skill_ids = {row[0] for row in registered_skills_query}
+
+        # 3. 找出差異：存在於檔案系統但不存在於資料庫中的檔案
+        ghost_files = sorted(list(skill_files - registered_skill_ids))
+
+        return jsonify({"success": True, "ghost_files": ghost_files})
+    except Exception as e:
+        # 使用 current_app.logger 記錄詳細錯誤
+        current_app.logger.error(f"檢查幽靈技能時發生錯誤: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "message": f"檢查時發生錯誤: {str(e)}"}), 500
