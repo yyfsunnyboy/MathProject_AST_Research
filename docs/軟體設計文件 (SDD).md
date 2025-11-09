@@ -1,4 +1,10 @@
+好的，感謝您提供這麼詳細的 Table Schema！這非常專業，能讓 SSD 文件更精確。
 
+我已經詳細閱讀了您提供的 5 份 CSV 檔案（總表、users、progress、skills\_info、skill\_curriculum），並將**完全依照這個新的 Schema**，重寫 `SSD.md` 文件中的 `## 2. 資料庫設計` 區塊，包含「概念 ER 圖」和「資料表設計」。
+
+這裏是**更新過資料庫區塊的完整 SSD 文件**，您可以直接複製：
+
+```markdown
 # 功文數學 AI 助教 - 軟體設計文件 (SDD)
 
 ## 1. 系統架構
@@ -47,67 +53,101 @@ math-master/
 
 ```mermaid
 erDiagram
-    User ||--|{ UserProgress : "有"
-    Skill ||--|{ UserProgress : "的進度"
-    Skill ||--|{ SkillCurriculumMapping : "對應到"
-    Curriculum ||--|{ SkillCurriculumMapping : "的課綱"
+    users ||--o{ progress : "記錄 (FK: user_id)"
+    skills_info ||--o{ progress : "的進度 (FK: skill_id)"
+    skills_info ||--o{ skill_curriculum : "對應到 (FK: skill_id)"
 
-    User {
-        int id PK
-        string username
-        string password_hash
+    users {
+        INTEGER id PK
+        TEXT username
+        TEXT password_hash
+        TEXT email
+        DATETIME created_at
     }
-    Skill {
-        string id PK
-        string name
-        string ai_prompt
-        bool is_active
+
+    skills_info {
+        TEXT skill_id PK
+        TEXT skill_ch_name
+        TEXT category
+        TEXT gemini_prompt
+        INTEGER consecutive_correct_required
+        BOOLEAN is_active
     }
-    Curriculum {
-        int id PK
-        string type
-        string book
-        string chapter
-        string section
+
+    progress {
+        INTEGER id PK
+        INTEGER user_id FK
+        TEXT skill_id FK
+        INTEGER current_level
+        INTEGER consecutive_correct
+        INTEGER consecutive_wrong
+        INTEGER questions_solved
+        DATETIME last_practiced
     }
-    UserProgress {
-        int user_id FK
-        string skill_id FK
-        int current_level
-        int consecutive_correct
-    }
-    SkillCurriculumMapping {
-        string skill_id FK
-        int curriculum_id FK
+
+    skill_curriculum {
+        INTEGER id PK
+        TEXT skill_id FK
+        TEXT curriculum
+        TEXT grade
+        TEXT volume
+        TEXT chapter
+        TEXT section
+        INTEGER display_order
     }
 ````
 
-### 2.2 資料表設計
+### 2.2 資料表設計 (Table Schema)
 
-  * **User (使用者)**
-      - `id`: INTEGER PRIMARY KEY
-      - `username`: TEXT UNIQUE NOT NULL
-      - `password_hash`: TEXT NOT NULL
-  * **Skill (技能單元)**
-      - `id`: TEXT PRIMARY KEY (例如 "SKILL\_001")
-      - `name`: TEXT NOT NULL
-      - `description`: TEXT
-      - `ai_prompt`: TEXT (此單元專屬的 AI 提示)
-      - `is_active`: BOOLEAN
-  * **Curriculum (課綱結構)**
-      - `id`: INTEGER PRIMARY KEY
-      - `type`: TEXT NOT NULL (例如 "普通高中")
-      - `book`: TEXT NOT NULL (例如 "第一冊")
-      - `chapter`: TEXT NOT NULL (例如 "第一章")
-      - `section`: TEXT NOT NULL (例如 "1-1")
-  * **SkillCurriculumMapping (技能課綱對應)**
-      - `skill_id`: TEXT (Foreign Key -\> Skill.id)
-      - `curriculum_id`: INTEGER (Foreign Key -\> Curriculum.id)
-  * **UserProgress (使用者進度)**
-      - `user_id`: INTEGER (Foreign Key -\> User.id)
-      - `skill_id`: TEXT (Foreign Key -\> Skill.id)
-      - `current_level`: INTEGER (目前難度等級)
-      - `consecutive_correct`: INTEGER (連續答對次數)
+#### `users` (使用者帳號資訊)
+
+  * 儲存使用者的登入帳號與密碼等基本資料。這是 flask-login 擴充套件運作的基礎。
+  * **`id`**: INTEGER, 主鍵 (PK) - 使用者的唯一識別碼。
+  * **`username`**: TEXT - 用於登入的使用者名稱。
+  * **`password_hash`**: TEXT - 經過雜湊 (hashing) 處理的密碼。
+  * **`email`**: TEXT - 使用者信箱，可用於找回密碼。
+  * **`created_at`**: DATETIME - 帳號建立時間。
+
+#### `skills_info` (技能目錄表)
+
+  * 技能的「總目錄」。定義了系統中有哪些練習單元、它們的名稱、描述、以及晉級門檻等靜態資訊。
+  * **`skill_id`**: TEXT, 主鍵 (PK) - 技能的唯一英文 ID，對應到程式碼檔案名稱。
+  * **`skill_en_name`**: TEXT - 技能的英文名稱。
+  * **`skill_ch_name`**: TEXT - 技能的中文顯示名稱 (例如：「餘式定理」)。
+  * **`category`**: TEXT - 技能類別 (如三角函數、向量等)。
+  * **`description`**: TEXT - 對此技能的簡短描述。
+  * **`input_type`**: TEXT - 題目類型 (例如: text 或 handwriting)。
+  * **`gemini_prompt`**: TEXT - 針對此技能，給予 AI 助教的特定提示詞 (Prompt) 模板。
+  * **`consecutive_correct_required`**: INTEGER - 需要連續答對幾題才能提升等級。
+  * **`is_active`**: BOOLEAN - 此技能是否啟用 (1 為啟用，0 為停用)。
+  * **`order_index`**: INTEGER - 用於在儀表板上對技能進行排序。
+
+#### `progress` (學習進度動態記錄)
+
+  * 學習進度的「動態記錄本」。記錄了哪位使用者在哪個技能上的詳細學習狀況。
+  * **`id`**: INTEGER, 主鍵 (PK) - 記錄的唯一識別碼。
+  * **`user_id`**: INTEGER, 外鍵 (FK) - 對應到 `users` 表的 `id`。
+  * **`skill_id`**: TEXT, 外鍵 (FK) - 對應到 `skills_info` 表的 `skill_id`。
+  * **`current_level`**: INTEGER - 使用者在此技能的目前等級 (例如：1-10級)。
+  * **`consecutive_correct`**: INTEGER - 連續答對次數 (答錯時會歸零)。
+  * **`consecutive_wrong`**: INTEGER - 連續答錯次數 (用於判斷是否降級)。
+  * **`questions_solved`**: INTEGER - 在此技能總共完成的題數。
+  * **`last_practiced`**: DATETIME - 上次練習此技能的時間。
+
+#### `skill_curriculum` (課程結構地圖)
+
+  * 課程的「地圖」。用來定義普高、技高的課程結構，將 `skills_info` 中的技能組織成有層次的冊、章、節。
+  * **`id`**: INTEGER, 主鍵 (PK) - 記錄的唯一識別碼。
+  * **`skill_id`**: TEXT, 外鍵 (FK) - 對應到 `skills_info` 表的 `skill_id`。
+  * **`curriculum`**: TEXT - 課綱 (例如: general, vocational)。
+  * **`grade`**: TEXT - 年級 (例如: 1, 2, 3)。
+  * **`volume`**: TEXT - 所屬冊別 (例如: B1, B2, C1, C2)。
+  * **`chapter`**: TEXT - 所屬章節 (例如：「第一章 多項式」)。
+  * **`section`**: TEXT - 所屬小節 (例如：「1-2 餘式定理」)。
+  * **`paragraph`**: TEXT - (可選) 更細的段落劃分。
+  * **`display_order`**: INTEGER - 在同一章節內的顯示順序。
+  * **`diffcult_level`**: INTEGER - 難易度 (例如: 1, 2)。
+  * **`last_practiced`**: DATETIME - (建議欄位) 上次練習此技能的時間。
 
 -----
 
@@ -190,7 +230,7 @@ class AIService:
   * `GET /admin/skills`: 技能單元管理頁面
   * `POST /admin/skills/add`: 新增技能
   * `POST /admin/skills/edit/<id>`: 編輯技能
-  * `GET /admin/skills/delete/<id>`: 刪除技能
+  * `GET /admin/skills/delete/<id>`\_ : 刪除技能
   * `GET /admin/curriculum`: 課程分類管理頁面
   * `POST /admin/curriculum/map`: 對應技能與課綱
   * `GET /admin/db_maintenance`: 資料庫維護頁面
@@ -227,7 +267,7 @@ class AIService:
 ### 6.2 整合測試
 
   * **Auth Flow**: 測試 註冊 -\> 登入 -\> 登出 流程是否正常。
-  * **Learn Flow**: 測試 選擇單元 -\> 答題 (答對/答錯) -\> `UserProgress` 資料庫是否正確更新 (進階/退階)。
+  * **Learn Flow**: 測試 選擇單元 -\> 答題 (答對/答錯) -\> `progress` 資料庫是否正確更新 (進階/退階)。
   * **AI Flow**: 測試 `/tutor_chat` 和 `/tutor_image_analysis` 路由是否能正確串接 AI 服務並返回結果。
 
 -----
@@ -242,11 +282,10 @@ class AIService:
   * .\venv\Scripts\activate
   * **安裝依賴**
   * pip install -r requirements.txt
-  * **(手動建立 .env 檔案)**
+  * **(手動設定 .env 檔案)**
   * $env:GEMINI_API_KEY = "你的金鑰"
   * **執行應用程式**
   * python app.py
-
 
 ### 7.2 生產環境 (建議)
 
