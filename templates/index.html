@@ -238,6 +238,10 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        #upload-image-button {
+            background: #f39c12;
+        }
+        #upload-image-button:hover { background: #e67e22; }
         #analyze-handwriting-button {
             background: #9b59b6 !important;
         }
@@ -380,6 +384,7 @@
                     <div class="canvas-actions">
                         <button id="undo-button">上一步</button>
                         <button id="redo-button">下一步</button>
+                <button id="upload-image-button">上傳圖片</button>
                         <button id="clear-canvas-button">清除</button>
                         <button id="analyze-handwriting-button">AI檢查</button>
                     </div>
@@ -397,6 +402,9 @@
             <div class="chat-input-area">
                 <input type="text" id="chat-input" placeholder="問我觀念...">
                 <button id="chat-send-button">送出</button>
+                
+                <!-- 新增：隱藏的圖片上傳 input -->
+                <input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
         </div>
     </div>
@@ -529,6 +537,7 @@
             initCanvas();
             setupTools();
             setupAIButton();
+            setupImageUpload(); // 新增：初始化圖片上傳功能
             setupLevelSelector(); // 新增：初始化難度選擇器
             setupChat();
             setupSubmit();
@@ -680,6 +689,44 @@
             document.querySelector(`.color-button[data-color="${currentColor}"]`).classList.add('active');
         }
     
+        // === 新增：圖片上傳功能 ===
+        function setupImageUpload() {
+            const uploadButton = document.getElementById('upload-image-button');
+            const imageUploader = document.getElementById('image-uploader');
+
+            uploadButton.addEventListener('click', () => {
+                imageUploader.click();
+            });
+
+            imageUploader.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // 計算圖片縮放比例以適應畫布
+                        const scaleX = canvas.width / img.width;
+                        const scaleY = canvas.height / img.height;
+                        const scale = Math.min(scaleX, scaleY);
+
+                        const newWidth = img.width * scale;
+                        const newHeight = img.height * scale;
+
+                        // 計算置中繪製的座標
+                        const x = (canvas.width - newWidth) / 2;
+                        const y = (canvas.height - newHeight) / 2;
+
+                        ctx.drawImage(img, x, y, newWidth, newHeight);
+                        saveState(); // 將上傳的圖片存入歷史紀錄
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
         // === 新增：難度選擇器 ===
         function setupLevelSelector() {
             document.querySelectorAll('.level-button').forEach(button => {
