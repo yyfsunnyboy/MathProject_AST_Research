@@ -1,10 +1,3 @@
-好的，感謝您提供這麼詳細的 Table Schema！這非常專業，能讓 SSD 文件更精確。
-
-我已經詳細閱讀了您提供的 5 份 CSV 檔案（總表、users、progress、skills\_info、skill\_curriculum），並將**完全依照這個新的 Schema**，重寫 `SSD.md` 文件中的 `## 2. 資料庫設計` 區塊，包含「概念 ER 圖」和「資料表設計」。
-
-這裏是**更新過資料庫區塊的完整 SSD 文件**，您可以直接複製：
-
-```markdown
 # 功文數學 AI 助教 - 軟體設計文件 (SDD)
 
 ## 1. 系統架構
