@@ -1,4 +1,4 @@
-# 功文數學 AI 助教 - 軟體設計文件 (SDD)
+# 功文數學學習平台 - 軟體設計文件 (SDD)
 
 ## 1. 系統架構
 
@@ -31,7 +31,7 @@ math-master/
 
 * **後端框架**: Flask
 * **ORM**: Flask-SQLAlchemy
-* **資料庫**: SQLite (開發/本地部署) / PostgreSQL (生產環境建議)
+* **資料庫**: SQLite (開發/生產)
 * **前端**: HTML, CSS, JavaScript
 * **模板引擎**: Jinja2
 * **AI 服務**: Google Gemini API
@@ -75,7 +75,7 @@ erDiagram
         INTEGER consecutive_wrong
         INTEGER questions_solved
         DATETIME last_practiced
-        PK(user_id, skill_id) "複合主鍵"
+        PRIMARY KEY (user_id, skill_id)
     }
 
     skill_curriculum {
