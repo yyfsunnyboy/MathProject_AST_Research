@@ -25,7 +25,11 @@ def generate(level=1):
 
     b = -2 * a * h
     c = a * h**2 + k
-    func_str = f"y = {a}x² + {b}x + {c}".replace("+-", "-")
+
+    a_str = "" if a == 1 else "- " if a == -1 else f"{a}"
+    b_str = "" if b == 0 else f" + {b}x" if b > 0 else f" - {abs(b)}x"
+    c_str = "" if c == 0 else f" + {c}" if c > 0 else f" - {abs(c)}"
+    func_str = f"y = {a_str}x²{b_str}{c_str}"
 
     question_text = f"請問二次函數 {func_str} 的圖形與 x 軸有幾個交點？"
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}

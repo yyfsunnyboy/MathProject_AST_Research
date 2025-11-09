@@ -13,8 +13,9 @@ def generate(level=1):
     else: # level 2
         r = random.randint(2, 3)
         d = random.randint(-5, -1)
+    d_str = f"+ {d}" if d >= 0 else f"- {abs(d)}"
 
-    relation = f"a₁ = {a1} 且 aₙ = {r} * aₙ₋₁ + {d} (當 n ≥ 2)"
+    relation = f"a₁ = {a1} 且 aₙ = {r} * aₙ₋₁ {d_str} (當 n ≥ 2)"
     a2 = r*a1 + d
     a3 = r*a2 + d
     

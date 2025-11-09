@@ -16,16 +16,16 @@ def generate(level=1):
     b_cubed = b_base**3
 
     if is_sum: # 立方和 a³ + b³
-        poly_str = f"{a_cubed}x³ + {b_cubed}"
-        factor1 = f"({a_base}x + {b_base})"
-        factor2 = f"({a_base**2}x² - {a_base*b_base}x + {b_base**2})"
+        poly_str = f"{a_cubed if a_cubed > 1 else ''}x³ + {b_cubed}"
+        factor1 = f"({a_base if a_base > 1 else ''}x + {b_base})"
+        factor2 = f"({a_base**2 if a_base**2 > 1 else ''}x² - {a_base*b_base}x + {b_base**2})"
     else: # 立方差 a³ - b³
-        poly_str = f"{a_cubed}x³ - {b_cubed}"
-        factor1 = f"({a_base}x - {b_base})"
-        factor2 = f"({a_base**2}x² + {a_base*b_base}x + {b_base**2})"
+        poly_str = f"{a_cubed if a_cubed > 1 else ''}x³ - {b_cubed}"
+        factor1 = f"({a_base if a_base > 1 else ''}x - {b_base})"
+        factor2 = f"({a_base**2 if a_base**2 > 1 else ''}x² + {a_base*b_base}x + {b_base**2})"
 
     # 處理 a=1 的情況
-    poly_str = poly_str.replace("1x³", "x³")
+    poly_str = poly_str.replace("1x³", "x³").replace("1x²", "x²")
     factor1 = factor1.replace("1x", "x")
     factor2 = factor2.replace("1x²", "x²").replace(" 1x ", " x ")
 

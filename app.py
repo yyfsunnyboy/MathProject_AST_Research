@@ -140,6 +140,10 @@ def dashboard():
     if view_mode == 'curriculum':
         from core.utils import get_volumes_by_curriculum, get_chapters_by_curriculum_volume, get_skills_by_volume_chapter
         
+        # 將當前選擇的課綱存入 session，以便練習頁面知道情境
+        if curriculum:
+            session['current_curriculum'] = curriculum
+
         if curriculum and volume and chapter:
             # 第四層：顯示技能
             skills_raw = get_skills_by_volume_chapter(volume, chapter)
@@ -300,24 +304,68 @@ def practice(skill_id):
 @app.route('/admin/curriculum')
 @login_required
 def admin_curriculum():
+    # --- 篩選器邏輯 ---
+    f_curriculum = request.args.get('f_curriculum')
+    f_grade = request.args.get('f_grade')
+    f_volume = request.args.get('f_volume')
+    f_chapter = request.args.get('f_chapter')
+
     # 使用 ORM 獲取所有技能列表，用於下拉選單
     skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
 
-    # 使用 ORM 讀取現有的課程分類資料，並預先載入關聯的技能資訊以提高效率
-    curriculum_items = db.session.query(SkillCurriculum).join(SkillInfo).order_by(
+    # 建立基礎查詢
+    query = db.session.query(SkillCurriculum).options(db.joinedload(SkillCurriculum.skill_info))
+
+    # 根據篩選條件動態增加過濾
+    if f_curriculum:
+        query = query.filter(SkillCurriculum.curriculum == f_curriculum)
+    if f_grade:
+        query = query.filter(SkillCurriculum.grade == int(f_grade))
+    if f_volume:
+        query = query.filter(SkillCurriculum.volume == f_volume)
+    if f_chapter:
+        query = query.filter(SkillCurriculum.chapter == f_chapter)
+
+    # 排序並執行查詢
+    curriculum_items = query.order_by(
         SkillCurriculum.curriculum,
         SkillCurriculum.grade,
         SkillCurriculum.volume,
         SkillCurriculum.chapter,
         SkillCurriculum.section,
-        SkillCurriculum.paragraph,
         SkillCurriculum.display_order
     ).all()
-    
+
+    # 獲取所有唯一的篩選器選項，用於前端下拉選單
+    distinct_filters = {
+        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()])
+        # 其他選項將由 API 動態載入
+    }
+
+    # 建立課綱與年級的顯示名稱映射，以便在前端統一顯示
+    curriculum_map = {
+        'general': '普通高中',
+        'vocational': '技術型高中',
+        'junior_high': '國民中學'
+    }
+    grade_map = {
+        7: '國一', 8: '國二', 9: '國三',
+        10: '高一', 11: '高二', 12: '高三'
+    }
+
     return render_template('admin_curriculum.html', 
                            username=current_user.username,
                            skills=skills,
-                           curriculum_items=curriculum_items) # 變數名改為 curriculum_items 避免與迴圈變數衝突
+                           curriculum=curriculum_items,
+                           curriculum_map=curriculum_map,
+                           grade_map=grade_map,
+                           filters=distinct_filters,
+                           selected_filters={
+                               'f_curriculum': f_curriculum,
+                               'f_grade': f_grade,
+                               'f_volume': f_volume,
+                               'f_chapter': f_chapter
+                           })
 
 # === 新增課程分類 ===
 @app.route('/admin/curriculum/add', methods=['POST'])
@@ -392,9 +440,27 @@ def admin_delete_curriculum(curriculum_id):
 @app.route('/admin/skills')
 @login_required
 def admin_skills():
-    # 使用 ORM 查詢所有技能，並排序
-    skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
-    return render_template('admin_skills.html', skills=skills, username=current_user.username)
+    # --- 篩選器邏輯 ---
+    selected_category = request.args.get('category')
+
+    # 建立基礎查詢
+    query = db.session.query(SkillInfo)
+
+    # 如果有選擇分類，則增加過濾條件
+    if selected_category:
+        query = query.filter(SkillInfo.category == selected_category)
+
+    # 排序並執行查詢
+    skills = query.order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
+
+    # 獲取所有唯一的技能分類，用於前端下拉選單
+    categories = sorted([row[0] for row in db.session.query(SkillInfo.category).distinct().all() if row[0]])
+
+    return render_template('admin_skills.html', 
+                           skills=skills, 
+                           categories=categories,
+                           selected_category=selected_category,
+                           username=current_user.username)
 
 # === 新增技能 ===
 @app.route('/admin/skills/add', methods=['POST'])

@@ -20,7 +20,10 @@ def generate(level=1):
     else: # level 2
         b = -2 * a * h
         c = a * h**2 + k
-        func_str = f"y = {a}x² + {b}x + {c}".replace("1x²","x²").replace("+-","-")
+        a_str = "" if a == 1 else "- " if a == -1 else f"{a}"
+        b_str = "" if b == 0 else f" + {b}x" if b > 0 else f" - {abs(b)}x"
+        c_str = "" if c == 0 else f" + {c}" if c > 0 else f" - {abs(c)}"
+        func_str = f"y = {a_str}x²{b_str}{c_str}"
 
     question_text = f"請求出二次函數 {func_str} 的{extreme_type}。"
     correct_answer = str(k)

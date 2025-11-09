@@ -20,8 +20,11 @@ def generate(level=1):
     E = -2 * k
     F = h**2 + k**2 - r**2
 
-    question_text = f"請將圓的一般式 x² + y² + {D}x + {E}y + {F} = 0 化為標準式。"
-    question_text = question_text.replace("+-", "-")
+    D_str = f"+ {D}" if D >= 0 else f"- {abs(D)}"
+    E_str = f"+ {E}" if E >= 0 else f"- {abs(E)}"
+    F_str = f"+ {F}" if F >= 0 else f"- {abs(F)}"
+
+    question_text = f"請將圓的一般式 x² + y² {D_str}x {E_str}y {F_str} = 0 化為標準式。"
 
     h_part = f"(x - {h})²" if h > 0 else f"(x + {abs(h)})²" if h < 0 else "x²"
     k_part = f"(y - {k})²" if k > 0 else f"(y + {abs(k)})²" if k < 0 else "y²"

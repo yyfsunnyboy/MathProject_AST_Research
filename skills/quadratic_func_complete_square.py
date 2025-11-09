@@ -19,8 +19,11 @@ def generate(level=1):
     b = -2 * a * h
     c = a * h**2 + k
     
-    func_str = f"{a}x² + {b}x + {c}".replace("1x²","x²").replace("+-","-")
-    question_text = f"請利用配方法，將二次函數 y = {func_str} 化為頂點式 y = a(x-h)² + k。"
+    a_str = "" if a == 1 else "- " if a == -1 else f"{a}"
+    b_str = "" if b == 0 else f" + {b}x" if b > 0 else f" - {abs(b)}x"
+    c_str = "" if c == 0 else f" + {c}" if c > 0 else f" - {abs(c)}"
+    
+    question_text = f"請利用配方法，將二次函數 y = {a_str}x²{b_str}{c_str} 化為頂點式 y = a(x-h)² + k。"
     
     h_part = f"(x - {h})²" if h > 0 else f"(x + {abs(h)})²" if h < 0 else "x²"
     k_part = f" + {k}" if k > 0 else f" - {abs(k)}" if k < 0 else ""

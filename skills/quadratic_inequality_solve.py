@@ -32,7 +32,11 @@ def generate(level=1):
         else: # D<0
             correct_answer = "所有實數" if (a_coeff > 0 and op in ['>','>=']) or (a_coeff < 0 and op in ['<','<=']) else "無解"
 
-    func_str = f"{a_coeff}x² + {b}x + {c}".replace("1x","x").replace("+-","-")
+    a_str = "" if a_coeff == 1 else "- " if a_coeff == -1 else f"{a_coeff}"
+    b_str = "" if b == 0 else f" + {b}x" if b > 0 else f" - {abs(b)}x"
+    c_str = "" if c == 0 else f" + {c}" if c > 0 else f" - {abs(c)}"
+    func_str = f"{a_str}x²{b_str}{c_str}"
+
     question_text = f"請求解二次不等式：{func_str} {op} 0"
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}
 

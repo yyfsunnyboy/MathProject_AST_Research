@@ -3,24 +3,14 @@ import random
 def generate(level=1):
     """
     生成一道「等差中項」的題目。
-    level 1: 給定 a, c，求 b。
-    level 2: 給定三項，其中一項為 x，求 x。
     """
-    if level == 1:
-        a = random.randint(-20, 20)
-        c = random.randint(-20, 20)
-        # 確保 a+c 為偶數，使中項為整數
-        if (a + c) % 2 != 0: c += 1
-        question_text = f"若 {a}, b, {c} 三數成等差數列，請問 b 的值是多少？"
-        correct_answer = str((a + c) // 2)
-    else: # level 2
-        a1 = random.randint(-10, 10)
-        d = random.randint(-5, 5)
-        while d == 0: d = random.randint(-5, 5)
-        x = a1 + d
-        c = a1 + 2*d
-        question_text = f"若 {a1}, x, {c} 三數成等差數列，請問 x 的值是多少？"
-        correct_answer = str(x)
+    a1 = random.randint(-10, 10)
+    d = random.randint(-5, 5)
+    while d == 0: d = random.randint(-5, 5)
+    x = a1 + d
+    c = a1 + 2*d
+    question_text = f"若 {a1}, x, {c} 三數成等差數列，請問 x 的值是多少？"
+    correct_answer = str(x)
 
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}
 

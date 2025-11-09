@@ -5,22 +5,13 @@ def generate(level=1):
     """
     生成一道「一元一次絕對值方程式」的題目。
     |ax+b| = c
-    level 1: a=1, 解為整數。
-    level 2: a!=1, 解可能為分數。
     """
-    if level == 1:
-        a = 1
-        b = random.randint(-10, 10)
-        # 讓解為整數
-        sol1 = random.randint(-10, 10)
-        c = abs(a * sol1 + b)
-        if c == 0: return generate(level) # 避免 |x+b|=0 的平凡情況
-    else: # level 2
-        a = random.choice([-3, -2, 2, 3])
-        b = random.randint(-10, 10)
-        c = random.randint(1, 20)
+    a = random.choice([-3, -2, 2, 3])
+    b = random.randint(-10, 10)
+    c = random.randint(1, 20)
+    b_str = f"({b})" if b < 0 else str(b)
 
-    question_text = f"請求解方程式：|{a}x + {b}| = {c} (若有兩解，請用逗號 , 分隔)"
+    question_text = f"請求解方程式：|{a}x + {b_str}| = {c} (若有兩解，請用逗號 , 分隔)"
 
     # ax+b = c  => x = (c-b)/a
     # ax+b = -c => x = (-c-b)/a

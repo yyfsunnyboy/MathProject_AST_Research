@@ -3,9 +3,10 @@ from flask import Blueprint, request, jsonify, current_app, redirect, url_for
 from flask_login import login_required, current_user
 from .session import set_current, get_current
 from .ai_analyzer import analyze, ask_ai_text_with_context, get_model
+from flask import session # 導入 session
 import importlib
 from core.utils import get_skill_info
-from models import db, Progress, SkillInfo
+from models import db, Progress, SkillInfo, SkillCurriculum # 導入 SkillCurriculum
 import traceback
 
 core_bp = Blueprint('core', __name__)
@@ -26,6 +27,7 @@ def update_progress(user_id, skill_id, is_correct):
     """
     更新用戶進度（功文式教育理論）
     核心精神：在學生感到舒適的難度下進行大量練習，達到精熟後才晉級。若遇到困難，則退回一個等級鞏固基礎，避免挫折感。
+    **新邏輯**：由於題目難度已由課綱靜態決定，此函式不再處理升降級，僅記錄練習次數與連續答對/錯次數。
     """
     # 使用 ORM 查詢進度記錄
     progress = db.session.query(Progress).filter_by(user_id=user_id, skill_id=skill_id).first()
@@ -38,7 +40,7 @@ def update_progress(user_id, skill_id, is_correct):
             consecutive_correct=1 if is_correct else 0,
             consecutive_wrong=0 if is_correct else 1,
             questions_solved=1,
-            current_level=1
+            current_level=1 # 此欄位已不再用於決定題目難度，僅為保留欄位
         )
         db.session.add(progress)
     else:
@@ -48,23 +50,14 @@ def update_progress(user_id, skill_id, is_correct):
         # 讀取技能的晉級/降級門檻
         skill_info = db.session.get(SkillInfo, skill_id)
         required = skill_info.consecutive_correct_required if skill_info else 10
-        demotion_threshold = 3 # 連續答錯 3 次就降級
         
-        # 功文式進退階邏輯
+        # 更新連續答對/錯次數
         if is_correct:
             progress.consecutive_correct += 1
             progress.consecutive_wrong = 0 # 答對，連續錯誤歸零
-            # 1. 晉級：連續答對達到門檻，等級提升，連續答對數歸零。
-            if progress.consecutive_correct >= required and progress.current_level < 10: # 假設最高 10 級
-                progress.current_level += 1
-                progress.consecutive_correct = 0
         else:
-            # 2. 降級：連續答錯達到門檻，等級降低（但不低於1），連續答對數也歸零。
-            # 這能幫助基礎不穩的學生回到更簡單的題目，建立信心。
             progress.consecutive_correct = 0 # 只要錯了，連續答對就中斷
             progress.consecutive_wrong += 1
-            if progress.consecutive_wrong >= demotion_threshold and progress.current_level > 1:
-                progress.current_level -= 1
     
     # 提交變更到資料庫
     db.session.commit()
@@ -135,12 +128,27 @@ def next_question():
     try:
         mod = importlib.import_module(f"skills.{skill_id}")
         
-        # 根據用戶當前等級，生成對應難度的題目
+        # === 核心邏輯修改：根據課綱決定題目難度 ===
+        # 1. 從 session 讀取使用者當前的課綱情境
+        current_curriculum_context = session.get('current_curriculum', 'general') # 若無情境，預設為 'general'
+
+        # 2. 查詢 skill_curriculum 表以取得指定的 difficulty_level
+        curriculum_entry = db.session.query(SkillCurriculum).filter_by(
+            skill_id=skill_id,
+            curriculum=current_curriculum_context
+        ).first()
+
+        # 3. 決定要使用的難度等級
+        if curriculum_entry and curriculum_entry.difficulty_level:
+            difficulty_level = curriculum_entry.difficulty_level
+        else:
+            difficulty_level = 1 # 如果在課綱中找不到特定設定，預設為等級 1
+
+        # 讀取使用者進度，僅用於顯示，不再用於決定題目難度
         progress = db.session.query(Progress).filter_by(user_id=current_user.id, skill_id=skill_id).first()
-        current_level = progress.current_level if progress else 1
         consecutive = progress.consecutive_correct if progress else 0
 
-        data = mod.generate(level=current_level) # 將等級傳入 generate 函數
+        data = mod.generate(level=difficulty_level) # 將從課綱查到的 difficulty_level 傳入 generate 函數
         
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
@@ -151,7 +159,7 @@ def next_question():
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
             "consecutive_correct": consecutive, # 連續答對
-            "current_level": current_level, # 目前等級,
+            "current_level": difficulty_level, # 顯示的等級應為當前題目的等級
             "answer_type": skill_info.get("input_type", "text") # 從 DB 讀取作答類型
         })
     except Exception as e:
@@ -274,3 +282,52 @@ def chat_ai():
     except Exception as e:
         print(f"[CHAT_AI ERROR] {e}")
         return jsonify({"reply": "AI 暫時無法回應，請稍後再試！"}), 500
+
+# === API 路由：用於連動式下拉選單 ===
+# 這些路由註冊在 core_bp 上，會自動受到 before_request 的登入保護
+@core_bp.route('/api/curriculum/grades')
+def api_get_grades():
+    curriculum = request.args.get('curriculum')
+    if not curriculum:
+        return jsonify([])
+    grades = db.session.query(SkillCurriculum.grade).filter_by(curriculum=curriculum).distinct().order_by(SkillCurriculum.grade).all()
+    return jsonify([g[0] for g in grades])
+
+@core_bp.route('/api/curriculum/volumes')
+def api_get_volumes():
+    curriculum = request.args.get('curriculum')
+    grade = request.args.get('grade')
+    if not curriculum or not grade:
+        return jsonify([])
+    volumes = db.session.query(SkillCurriculum.volume).filter_by(curriculum=curriculum, grade=int(grade)).distinct().order_by(SkillCurriculum.volume).all()
+    return jsonify([v[0] for v in volumes])
+
+@core_bp.route('/api/curriculum/chapters')
+def api_get_chapters():
+    curriculum = request.args.get('curriculum')
+    grade = request.args.get('grade')
+    volume = request.args.get('volume')
+    if not curriculum or not grade or not volume:
+        return jsonify([])
+    chapters = db.session.query(SkillCurriculum.chapter).filter_by(
+        curriculum=curriculum, 
+        grade=int(grade),
+        volume=volume
+    ).distinct().order_by(SkillCurriculum.chapter).all()
+    return jsonify([c[0] for c in chapters])
+
+@core_bp.route('/api/curriculum/sections')
+def api_get_sections():
+    curriculum = request.args.get('curriculum')
+    grade = request.args.get('grade')
+    volume = request.args.get('volume')
+    chapter = request.args.get('chapter')
+    if not all([curriculum, grade, volume, chapter]):
+        return jsonify([])
+    sections = db.session.query(SkillCurriculum.section).filter_by(
+        curriculum=curriculum, 
+        grade=int(grade),
+        volume=volume,
+        chapter=chapter
+    ).distinct().order_by(SkillCurriculum.section).all()
+    return jsonify([s[0] for s in sections])

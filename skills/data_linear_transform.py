@@ -12,13 +12,14 @@ def generate(level=1):
     std_x = random.randint(5, 15)
     a = random.randint(2, 5)
     b = random.randint(-10, 10)
+    b_str = f"加 {b}" if b >= 0 else f"減 {abs(b)}"
     
     if level == 1:
-        question_text = f"某班數學成績的平均數為 {mean_x} 分。若將每位同學的成績都乘以 {a} 倍再加 {b} 分，請問新的平均數會是多少分？"
+        question_text = f"某班數學成績的平均數為 {mean_x} 分。若將每位同學的成績都乘以 {a} 倍再{b_str}分，請問新的平均數會是多少分？"
         # E(aX+b) = aE(X)+b
         correct_answer = str(a * mean_x + b)
     else: # level 2
-        question_text = f"某班數學成績的標準差為 {std_x} 分。若將每位同學的成績都乘以 {a} 倍再加 {b} 分，請問新的標準差會是多少分？"
+        question_text = f"某班數學成績的標準差為 {std_x} 分。若將每位同學的成績都乘以 {a} 倍再{b_str}分，請問新的標準差會是多少分？"
         # Std(aX+b) = |a|Std(X)
         correct_answer = str(abs(a) * std_x)
 

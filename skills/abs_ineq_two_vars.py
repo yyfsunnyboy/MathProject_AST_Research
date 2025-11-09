@@ -2,33 +2,32 @@ import random
 
 def generate(level=1):
     """
-    生成一道「含絕對值之二元一次不等式圖形」的題目。
-    此為觀念題，要求學生辨識圖形區域。
-    level 1: |x| + |y| <= k
-    level 2: |ax+by| <= k
+    生成一道「絕對值不等式 (多項)」的題目。
+    |x-a| + |x-b| < c
     """
-    k = random.randint(2, 8)
-    op = random.choice(['<=', '>='])
-
-    if level == 1:
-        question_text = (
-            f"請問二元一次不等式 |x| + |y| {op} {k} 的圖形是「正方形」的內部還是外部區域？\n\n"
-            "A) 內部（含邊界）\n"
-            "B) 外部（含邊界）"
-        )
-        correct_answer = "A" if op == '<=' else "B"
-    else: # level 2
-        a = random.randint(1, 3)
-        b = random.randint(1, 3)
-        question_text = (
-            f"請問二元一次不等式 |{a}x + {b}y| {op} {k} 的圖形是「兩平行線」的內部還是外部區域？\n\n"
-            "A) 內部（含邊界）\n"
-            "B) 外部（含邊界）"
-        )
-        correct_answer = "A" if op == '<=' else "B"
+    a = random.randint(-5, 0)
+    b = random.randint(1, 5)
+    dist = b - a
+    c = random.randint(dist + 1, dist + 5)
+    
+    op_char = random.choice(['<', '<='])
+    
+    question_text = f"請求解絕對值不等式：|x - {a}| + |x - {b}| {op_char} {c}"
+    
+    # 解 |x-a|+|x-b|=c => x = (a+b±c)/2
+    sol1 = (a + b - c) / 2
+    sol2 = (a + b + c) / 2
+    
+    correct_answer = f"{sol1} {op_char} x {op_char} {sol2}"
 
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}
 
+def check(user_answer, correct_answer):
+    user = user_answer.replace(" ", "")
+    correct = correct_answer.replace(" ", "")
+    is_correct = (user == correct)
+    result_text = f"完全正確！答案是 {correct_answer}。" if is_correct else f"答案不正確。正確答案是：{correct_answer}"
+    return {"correct": is_correct, "result": result_text}
 def check(user_answer, correct_answer):
     user = user_answer.strip().upper()
     is_correct = (user == correct_answer)

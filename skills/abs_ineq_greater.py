@@ -5,19 +5,14 @@ def generate(level=1):
     """
     生成一道「絕對值不等式 (大於)」的題目。
     |ax+b| > c  => ax+b > c 或 ax+b < -c
-    level 1: a=1, 解為整數。
-    level 2: a!=1, 解可能為分數。
     """
     c = random.randint(1, 10)
-    if level == 1:
-        a = 1
-        b = random.randint(-10, 10)
-    else: # level 2
-        a = random.choice([-3, -2, 2, 3])
-        b = random.randint(-10, 10)
+    a = random.choice([-3, -2, 2, 3])
+    b = random.randint(-10, 10)
+    b_str = f"({b})" if b < 0 else str(b)
 
     op = random.choice(['>', '>='])
-    question_text = f"請求解不等式：|{a}x + {b}| {op} {c}"
+    question_text = f"請求解不等式：|{a}x + {b_str}| {op} {c}"
 
     # ax+b > c  => ax > c-b
     # ax+b < -c => ax < -c-b

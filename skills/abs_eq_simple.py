@@ -7,13 +7,9 @@ def generate(level=1):
     生成一道「絕對值方程式 (基本型)」的題目。
     """
     c = random.randint(1, 20)
-    if level == 1:
-        question_text = f"請求解方程式 |x| = {c}。"
-    else: # level 2
-        a = random.randint(1, 5)
-        question_text = f"請求解方程式 |x - {a}| = {c}。"
-    
-    correct_answer = f"{a+c},{a-c}" if level > 1 else f"{c},-{c}"
+    a = random.randint(1, 5)
+    question_text = f"請求解方程式 |x - {a}| = {c}。"
+    correct_answer = f"{a+c},{a-c}"
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}
 
 def check(user_answer, correct_answer):

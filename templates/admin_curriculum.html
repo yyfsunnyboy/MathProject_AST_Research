@@ -76,6 +76,14 @@
         .alert-warning { background: #fff3cd; color: #856404; border-color: #ffeeba; }
         .alert-danger { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
 
+        /* 篩選器樣式 */
+        .filter-bar {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px; /* 關鍵：與下方內容的間距 */
+        }
         /* Table */
         .curriculum-table {
             background: white;
@@ -226,6 +234,41 @@
             <button class="btn-add" onclick="openAddModal()">+ 新增課程分類</button>
         </div>
 
+        <!-- 篩選器 -->
+        <div class="filter-bar">
+            <form id="filterForm" method="GET" action="{{ url_for('admin_curriculum') }}" style="display: flex; gap: 15px; align-items: flex-end;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>課綱</label>
+                    <select id="filter_curriculum" name="f_curriculum">
+                        <option value="">所有課綱</option>
+                        {% for c in filters.curriculums %}
+                        <option value="{{ c }}" {% if selected_filters.f_curriculum == c %}selected{% endif %}>{{ curriculum_map.get(c, c) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>年級</label>
+                    <select id="filter_grade" name="f_grade" disabled>
+                        <option value="">所有年級</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>冊</label>
+                    <select id="filter_volume" name="f_volume" disabled>
+                        <option value="">所有冊別</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>章</label>
+                    <select id="filter_chapter" name="f_chapter" disabled>
+                        <option value="">所有章節</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-submit" style="height: 40px;">套用篩選</button>
+                <a href="{{ url_for('admin_curriculum') }}" class="btn btn-cancel" style="height: 40px; line-height: 28px;">清除</a>
+            </form>
+        </div>
+
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
@@ -255,17 +298,17 @@
                     {% for item in curriculum %}
                     <tr>
                         <td>{{ item.id }}</td>
-                        <td>{{ '普高' if item.curriculum == 'general' else '技高' }}</td>
-                        <td>{{ item.grade }}</td>
+                        <td>{{ curriculum_map.get(item.curriculum, item.curriculum) }}</td>
+                        <td>{{ grade_map.get(item.grade, item.grade) }}</td>
                         <td>{{ item.volume }}</td>
                         <td>{{ item.chapter }}</td>
                         <td>{{ item.section }}</td>
                         <td>{{ item.paragraph }}</td>
-                        <td>{{ item.skill_ch_name }} ({{ item.skill_en_name }})</td>
+                        <td>{{ item.skill_info.skill_ch_name }} ({{ item.skill_info.skill_en_name }})</td>
                         <td>{{ item.difficulty_level }}</td>
                         <td>{{ item.display_order }}</td>
                         <td>
-                            <button class="btn btn-edit" onclick='openEditModal({{ item | tojson | safe }})'>
+                            <button class="btn btn-edit" onclick='openEditModal({{ item.to_dict() | tojson | safe }})'>
                                 編輯
                             </button>
                             <form method="POST" action="{{ url_for('admin_delete_curriculum', curriculum_id=item.id) }}" 
@@ -298,30 +341,31 @@
             <form method="POST" action="{{ url_for('admin_add_curriculum') }}">
                 <div class="form-group">
                     <label>課綱 *</label>
-                    <select name="curriculum" required>
-                        <option value="general">普通高中</option>
-                        <option value="vocational">技術型高中</option>
+                    <select id="add_curriculum" name="curriculum" required>
+                        {% for key, value in curriculum_map.items() %}
+                        <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>年級 *</label>
-                    <select name="grade" required>
-                        <option value="10">高一</option>
-                        <option value="11">高二</option>
-                        <option value="12">高三</option>
+                    <select id="add_grade" name="grade" required>
+                        {% for key, value in grade_map.items() %}
+                        <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>冊別名稱 *</label>
-                    <input type="text" name="volume" placeholder="例如: B1, 數A" required>
+                    <select id="add_volume" name="volume" required disabled><option>請先選擇年級</option></select>
                 </div>
                 <div class="form-group">
                     <label>章節名稱 *</label>
-                    <input type="text" name="chapter" placeholder="例如: 第一章 多項式" required>
+                    <select id="add_chapter" name="chapter" required disabled><option>請先選擇冊別</option></select>
                 </div>
                 <div class="form-group">
                     <label>小節名稱 *</label>
-                    <input type="text" name="section" placeholder="例如: 1-1 餘式定理" required>
+                    <select id="add_section" name="section" required disabled><option>請先選擇章節</option></select>
                 </div>
                 <div class="form-group">
                     <label>段落 (可選)</label>
@@ -363,29 +407,30 @@
                  <div class="form-group">
                     <label>課綱 *</label>
                     <select name="curriculum" id="edit_curriculum" required>
-                        <option value="general">普通高中</option>
-                        <option value="vocational">技術型高中</option>
+                        {% for key, value in curriculum_map.items() %}
+                        <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>年級 *</label>
                     <select name="grade" id="edit_grade" required>
-                        <option value="10">高一</option>
-                        <option value="11">高二</option>
-                        <option value="12">高三</option>
+                        {% for key, value in grade_map.items() %}
+                        <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>冊別名稱 *</label>
-                    <input type="text" name="volume" id="edit_volume" required>
+                    <select name="volume" id="edit_volume" required disabled></select>
                 </div>
                 <div class="form-group">
                     <label>章節名稱 *</label>
-                    <input type="text" name="chapter" id="edit_chapter" required>
+                    <select name="chapter" id="edit_chapter" required disabled></select>
                 </div>
                 <div class="form-group">
                     <label>小節名稱 *</label>
-                    <input type="text" name="section" id="edit_section" required>
+                    <select name="section" id="edit_section" required disabled></select>
                 </div>
                 <div class="form-group">
                     <label>段落 (可選)</label>
@@ -422,17 +467,17 @@
         }
 
         function openEditModal(item) {
-            document.getElementById('edit_curriculum').value = item.curriculum;
-            document.getElementById('edit_grade').value = item.grade;
-            document.getElementById('edit_volume').value = item.volume;
-            document.getElementById('edit_chapter').value = item.chapter;
-            document.getElementById('edit_section').value = item.section;
-            document.getElementById('edit_paragraph').value = item.paragraph || ''; // 處理 null 的情況
+            // 先填充靜態資料
+            document.getElementById('edit_paragraph').value = item.paragraph || ''; // 確保 null/undefined 顯示為空字串
             document.getElementById('edit_skill_id').value = item.skill_id;
             document.getElementById('edit_difficulty_level').value = item.difficulty_level;
             document.getElementById('edit_display_order').value = item.display_order;
             
             document.getElementById('editForm').action = '/admin/curriculum/edit/' + item.id;
+
+            // 觸發編輯視窗的連動載入
+            initializeModalSelects('edit', item);
+
             document.getElementById('editModal').style.display = 'block';
         }
 
@@ -450,6 +495,169 @@
                 }
             });
         }
+
+        // --- 連動式篩選器邏輯 ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const curriculumSelect = document.getElementById('filter_curriculum');
+            const gradeSelect = document.getElementById('filter_grade');
+            const volumeSelect = document.getElementById('filter_volume');
+            const chapterSelect = document.getElementById('filter_chapter');
+
+            const gradeMap = {{ grade_map | tojson }};
+            const selectedFilters = {{ selected_filters | tojson }};
+
+            // 填充下拉選單的輔助函式
+            async function populateSelect(selectElement, url, selectedValue, placeholder) {
+                selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+                selectElement.disabled = true;
+
+                if (!url) return;
+
+                try {
+                    const response = await fetch(url);
+                    const options = await response.json();
+
+                    if (options.length > 0) {
+                        options.forEach(option => {
+                            const optionElement = document.createElement('option');
+                            optionElement.value = option;
+                            // 如果是年級，使用 gradeMap 轉換顯示文字
+                            optionElement.textContent = gradeMap[option] || option;
+                            if (String(option) === String(selectedValue)) {
+                                optionElement.selected = true;
+                            }
+                            selectElement.appendChild(optionElement);
+                        });
+                        selectElement.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Failed to load options:', error);
+                }
+            }
+
+            // 課綱變動時，更新年級
+            curriculumSelect.addEventListener('change', function() {
+                const curriculum = this.value;
+                let url = null;
+                if (curriculum) {
+                    url = `/api/curriculum/grades?curriculum=${curriculum}`;
+                }
+                populateSelect(gradeSelect, url, null, '所有年級');
+                // 清空後續選單
+                populateSelect(volumeSelect, null, null, '所有冊別');
+                populateSelect(chapterSelect, null, null, '所有章節');
+            });
+
+            // 年級變動時，更新冊別
+            gradeSelect.addEventListener('change', function() {
+                const curriculum = curriculumSelect.value;
+                const grade = this.value;
+                let url = null;
+                if (curriculum && grade) {
+                    url = `/api/curriculum/volumes?curriculum=${curriculum}&grade=${grade}`;
+                }
+                populateSelect(volumeSelect, url, null, '所有冊別');
+                // 清空後續選單
+                populateSelect(chapterSelect, null, null, '所有章節');
+            });
+
+            // 冊別變動時，更新章節
+            volumeSelect.addEventListener('change', function() {
+                const curriculum = curriculumSelect.value;
+                const grade = gradeSelect.value;
+                const volume = this.value;
+                let url = null;
+                if (curriculum && grade && volume) {
+                    url = `/api/curriculum/chapters?curriculum=${curriculum}&grade=${grade}&volume=${volume}`;
+                }
+                populateSelect(chapterSelect, url, null, '所有章節');
+            });
+
+            // 頁面載入時，根據已選擇的篩選條件，初始化所有下拉選單
+            async function initializeFilters() {
+                const selectedCurriculum = selectedFilters.f_curriculum;
+                const selectedGrade = selectedFilters.f_grade;
+                const selectedVolume = selectedFilters.f_volume;
+                const selectedChapter = selectedFilters.f_chapter;
+
+                if (selectedCurriculum) {
+                    await populateSelect(gradeSelect, `/api/curriculum/grades?curriculum=${selectedCurriculum}`, selectedGrade, '所有年級');
+                }
+                if (selectedCurriculum && selectedGrade) {
+                    await populateSelect(volumeSelect, `/api/curriculum/volumes?curriculum=${selectedCurriculum}&grade=${selectedGrade}`, selectedVolume, '所有冊別');
+                }
+                if (selectedCurriculum && selectedGrade && selectedVolume) {
+                    await populateSelect(chapterSelect, `/api/curriculum/chapters?curriculum=${selectedCurriculum}&grade=${selectedGrade}&volume=${selectedVolume}`, selectedChapter, '所有章節');
+                }
+            }
+
+            initializeFilters();
+
+            // --- 新增/編輯 Modal 的連動邏輯 ---
+            function setupModalCascading(modalPrefix) {
+                const curriculumSelect = document.getElementById(`${modalPrefix}_curriculum`);
+                const gradeSelect = document.getElementById(`${modalPrefix}_grade`);
+                const volumeSelect = document.getElementById(`${modalPrefix}_volume`);
+                const chapterSelect = document.getElementById(`${modalPrefix}_chapter`);
+                const sectionSelect = document.getElementById(`${modalPrefix}_section`);
+
+                // 課綱 -> 年級
+                curriculumSelect.addEventListener('change', function() {
+                    const url = this.value ? `/api/curriculum/grades?curriculum=${this.value}` : null;
+                    populateSelect(gradeSelect, url, null, '請選擇年級');
+                    populateSelect(volumeSelect, null, null, '請先選擇年級');
+                    populateSelect(chapterSelect, null, null, '請先選擇冊別');
+                    populateSelect(sectionSelect, null, null, '請先選擇章節');
+                });
+
+                // 年級 -> 冊
+                gradeSelect.addEventListener('change', function() {
+                    const url = (curriculumSelect.value && this.value) ? `/api/curriculum/volumes?curriculum=${curriculumSelect.value}&grade=${this.value}` : null;
+                    populateSelect(volumeSelect, url, null, '請選擇冊別');
+                    populateSelect(chapterSelect, null, null, '請先選擇冊別');
+                    populateSelect(sectionSelect, null, null, '請先選擇章節');
+                });
+
+                // 冊 -> 章
+                volumeSelect.addEventListener('change', function() {
+                    const url = (curriculumSelect.value && gradeSelect.value && this.value) ? `/api/curriculum/chapters?curriculum=${curriculumSelect.value}&grade=${gradeSelect.value}&volume=${this.value}` : null;
+                    populateSelect(chapterSelect, url, null, '請選擇章節');
+                    populateSelect(sectionSelect, null, null, '請先選擇章節');
+                });
+
+                // 章 -> 節
+                chapterSelect.addEventListener('change', function() {
+                    const url = (curriculumSelect.value && gradeSelect.value && volumeSelect.value && this.value) ? `/api/curriculum/sections?curriculum=${curriculumSelect.value}&grade=${gradeSelect.value}&volume=${volumeSelect.value}&chapter=${this.value}` : null;
+                    populateSelect(sectionSelect, url, null, '請選擇小節');
+                });
+            }
+
+            // 初始化 Modal 的下拉選單狀態 (主要用於編輯)
+            async function initializeModalSelects(modalPrefix, item) {
+                const curriculumSelect = document.getElementById(`${modalPrefix}_curriculum`);
+                const gradeSelect = document.getElementById(`${modalPrefix}_grade`);
+                const volumeSelect = document.getElementById(`${modalPrefix}_volume`);
+                const chapterSelect = document.getElementById(`${modalPrefix}_chapter`);
+                const sectionSelect = document.getElementById(`${modalPrefix}_section`);
+
+                // 1. 設定課綱和年級 (這兩個是靜態的)
+                curriculumSelect.value = item.curriculum;
+                gradeSelect.value = item.grade;
+
+                // 2. 根據已選的課綱和年級，載入冊別
+                await populateSelect(volumeSelect, `/api/curriculum/volumes?curriculum=${item.curriculum}&grade=${item.grade}`, item.volume, '請選擇冊別');
+
+                // 3. 根據已選的冊別，載入章節
+                await populateSelect(chapterSelect, `/api/curriculum/chapters?curriculum=${item.curriculum}&grade=${item.grade}&volume=${item.volume}`, item.chapter, '請選擇章節');
+
+                // 4. 根據已選的章節，載入小節
+                await populateSelect(sectionSelect, `/api/curriculum/sections?curriculum=${item.curriculum}&grade=${item.grade}&volume=${item.volume}&chapter=${item.chapter}`, item.section, '請選擇小節');
+            }
+
+            // 為新增和編輯 Modal 啟用連動功能
+            setupModalCascading('add');
+            // 編輯 Modal 的初始化會在 openEditModal 中被呼叫
+        });
     </script>
 </body>
 </html>

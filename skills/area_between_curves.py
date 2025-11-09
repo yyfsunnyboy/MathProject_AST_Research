@@ -5,16 +5,10 @@ def generate(level=1):
     """
     生成一道「兩曲線間面積」的題目。
     """
-    if level == 1:
-        c = random.randint(2, 5)
-        a, b = random.randint(0, 2), random.randint(3, 5)
-        question_text = f"請求出 y={c} 與 x 軸在區間 [{a}, {b}] 所圍成的面積。"
-        correct_answer = str(c * (b - a))
-    else: # level 2
-        a, b = 0, random.randint(2, 4)
-        question_text = f"請求出 y=x² 與 y=x 在區間 [0, 1] 所圍成的面積。"
-        # ∫[0,1] (x - x²) dx = [x²/2 - x³/3] from 0 to 1 = 1/2 - 1/3
-        correct_answer = "1/6"
+    a, b = 0, random.randint(2, 4)
+    question_text = f"請求出 y=x² 與 y=x 在區間 [0, 1] 所圍成的面積。"
+    # ∫[0,1] (x - x²) dx = [x²/2 - x³/3] from 0 to 1 = 1/2 - 1/3
+    correct_answer = "1/6"
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}
 
 def check(user_answer, correct_answer):

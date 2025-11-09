@@ -133,6 +133,21 @@ class SkillInfo(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     order_index = db.Column(db.Integer, default=0)
 
+    def to_dict(self):
+        """將物件轉換為可序列化的字典。"""
+        return {
+            'skill_id': self.skill_id,
+            'skill_en_name': self.skill_en_name,
+            'skill_ch_name': self.skill_ch_name,
+            'category': self.category,
+            'description': self.description,
+            'input_type': self.input_type,
+            'gemini_prompt': self.gemini_prompt,
+            'consecutive_correct_required': self.consecutive_correct_required,
+            'is_active': self.is_active,
+            'order_index': self.order_index
+        }
+
 # 新增 SkillCurriculum ORM 模型 (課程綱要)
 class SkillCurriculum(db.Model):
     __tablename__ = 'skill_curriculum'
@@ -154,3 +169,18 @@ class SkillCurriculum(db.Model):
 
     # 定義複合唯一約束
     __table_args__ = (db.UniqueConstraint('curriculum', 'grade', 'volume', 'chapter', 'section', 'paragraph', 'skill_id', 'difficulty_level', name='_curriculum_skill_uc'),)
+
+    def to_dict(self):
+        """將物件轉換為可序列化的字典。"""
+        return {
+            'id': self.id,
+            'skill_id': self.skill_id,
+            'curriculum': self.curriculum,
+            'grade': self.grade,
+            'volume': self.volume,
+            'chapter': self.chapter,
+            'section': self.section,
+            'paragraph': self.paragraph,
+            'display_order': self.display_order,
+            'difficulty_level': self.difficulty_level
+        }

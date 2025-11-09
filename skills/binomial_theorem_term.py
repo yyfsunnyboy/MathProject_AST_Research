@@ -7,19 +7,13 @@ def C(n, k):
 def generate(level=1):
     """
     生成一道「二項式定理求特定項」的題目。
-    level 1: (x+y)^n
-    level 2: (ax+by)^n
     """
     n = random.randint(4, 8)
     k = random.randint(1, n - 1)
-    if level == 1:
-        question_text = f"在 (x+y) 的 {n} 次方展開式中，請求出 x 的 {n-k} 次方項的係數。"
-        correct_answer = str(C(n, k))
-    else: # level 2
-        a = random.randint(2, 3)
-        b = random.randint(2, 3)
-        question_text = f"在 ({a}x+{b}y) 的 {n} 次方展開式中，請求出 x 的 {n-k} 次方、y 的 {k} 次方項的係數。"
-        correct_answer = str(C(n, k) * (a**(n - k)) * (b**k))
+    a = random.randint(2, 3)
+    b = random.randint(2, 3)
+    question_text = f"在 ({a}x+{b}y) 的 {n} 次方展開式中，請求出 x 的 {n-k} 次方、y 的 {k} 次方項的係數。".replace('^', '²' if n-k==2 else '³' if n-k==3 else '⁴' if n-k==4 else '⁵' if n-k==5 else '⁶' if n-k==6 else '⁷' if n-k==7 else '⁸')
+    correct_answer = str(C(n, k) * (a**(n - k)) * (b**k))
     return {"question_text": question_text, "answer": correct_answer, "correct_answer": "text"}
 
 def check(user_answer, correct_answer):
