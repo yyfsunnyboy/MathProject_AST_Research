@@ -31,7 +31,7 @@ math-master/
 
 * **後端框架**: Flask
 * **ORM**: Flask-SQLAlchemy
-* **資料庫**: SQLite (開發/生產)
+* **資料庫**: SQLite (開發/本地部署) / PostgreSQL (生產環境建議)
 * **前端**: HTML, CSS, JavaScript
 * **模板引擎**: Jinja2
 * **AI 服務**: Google Gemini API
@@ -51,7 +51,7 @@ erDiagram
     skills_info ||--o{ skill_curriculum : "對應到 (FK: skill_id)"
 
     users {
-        INTEGER id PK
+        INTEGER id PK "主鍵"
         TEXT username
         TEXT password_hash
         TEXT email
@@ -59,7 +59,7 @@ erDiagram
     }
 
     skills_info {
-        TEXT skill_id PK
+        TEXT skill_id PK "技能唯一ID"
         TEXT skill_ch_name
         TEXT category
         TEXT gemini_prompt
@@ -68,7 +68,6 @@ erDiagram
     }
 
     progress {
-        INTEGER id PK
         INTEGER user_id FK
         TEXT skill_id FK
         INTEGER current_level
@@ -76,6 +75,7 @@ erDiagram
         INTEGER consecutive_wrong
         INTEGER questions_solved
         DATETIME last_practiced
+        PK(user_id, skill_id) "複合主鍵"
     }
 
     skill_curriculum {
@@ -83,10 +83,12 @@ erDiagram
         TEXT skill_id FK
         TEXT curriculum
         TEXT grade
-        TEXT volume
+        TEXT volume "冊別"
         TEXT chapter
         TEXT section
+        TEXT paragraph "段落 (可選)"
         INTEGER display_order
+        INTEGER difficulty_level "難易度"
     }
 ````
 
