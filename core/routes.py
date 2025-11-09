@@ -1,12 +1,13 @@
 # core/routes.py
-from flask import Blueprint, request, jsonify, current_app, redirect, url_for
+from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
 from .session import set_current, get_current
 from .ai_analyzer import analyze, ask_ai_text_with_context, get_model
 from flask import session # 導入 session
 import importlib, os
 from core.utils import get_skill_info
-from models import db, Progress, SkillInfo, SkillCurriculum # 導入 SkillCurriculum
+from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites # 導入 SkillPrerequisites
+from sqlalchemy.orm import aliased
 import traceback
 
 core_bp = Blueprint('core', __name__)
@@ -361,3 +362,58 @@ def check_ghost_skills():
         # 使用 current_app.logger 記錄詳細錯誤
         current_app.logger.error(f"檢查幽靈技能時發生錯誤: {e}\n{traceback.format_exc()}")
         return jsonify({"success": False, "message": f"檢查時發生錯誤: {str(e)}"}), 500
+
+# === 技能前置依賴管理 ===
+@core_bp.route('/admin/prerequisites')
+def admin_prerequisites():
+    if not current_user.is_admin:
+        flash('您沒有權限存取此頁面。', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # 為了能同時顯示「目前技能」和「基礎技能」的中文名稱，需要進行 join 操作
+    # 建立 SkillInfo 的兩個別名
+    CurrentSkill = aliased(SkillInfo)
+    PrereqSkill = aliased(SkillInfo)
+
+    # 查詢所有依賴關係，並 join 兩次 SkillInfo 以取得名稱
+    prerequisites = db.session.query(
+        SkillPrerequisites.id,
+        CurrentSkill.skill_ch_name.label('current_skill_name'),
+        PrereqSkill.skill_ch_name.label('prereq_skill_name')
+    ).join(
+        CurrentSkill, SkillPrerequisites.skill_id == CurrentSkill.skill_id
+    ).join(
+        PrereqSkill, SkillPrerequisites.prerequisite_id == PrereqSkill.skill_id
+    ).order_by(CurrentSkill.skill_ch_name, PrereqSkill.skill_ch_name).all()
+
+    # 獲取所有技能列表，用於新增表單的下拉選單
+    all_skills = db.session.query(SkillInfo).order_by(SkillInfo.skill_ch_name).all()
+
+    return render_template('admin_prerequisites.html',
+                           prerequisites=prerequisites,
+                           all_skills=all_skills,
+                           username=current_user.username)
+
+@core_bp.route('/admin/prerequisites/add', methods=['POST'])
+def admin_add_prerequisite():
+    skill_id = request.form.get('skill_id')
+    prerequisite_id = request.form.get('prerequisite_id')
+
+    if not skill_id or not prerequisite_id:
+        flash('必須同時選擇「目前技能」和「基礎技能」。', 'warning')
+    elif skill_id == prerequisite_id:
+        flash('技能不能將自己設為前置技能。', 'warning')
+    else:
+        new_prereq = SkillPrerequisites(skill_id=skill_id, prerequisite_id=prerequisite_id)
+        db.session.add(new_prereq)
+        db.session.commit()
+        flash('前置技能關聯新增成功！', 'success')
+    return redirect(url_for('core.admin_prerequisites'))
+
+@core_bp.route('/admin/prerequisites/delete/<int:prereq_id>', methods=['POST'])
+def admin_delete_prerequisite(prereq_id):
+    prereq = db.get_or_404(SkillPrerequisites, prereq_id)
+    db.session.delete(prereq)
+    db.session.commit()
+    flash('前置技能關聯已刪除。', 'success')
+    return redirect(url_for('core.admin_prerequisites'))

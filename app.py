@@ -1,5 +1,6 @@
 # app.py
 import pandas as pd
+from sqlalchemy.orm import aliased
 import os
 from dotenv import load_dotenv
 
@@ -20,7 +21,7 @@ from config import (
     GEMINI_API_KEY,
     GEMINI_MODEL_NAME
 )
-from models import init_db, User, db, Progress, SkillInfo, SkillCurriculum
+from models import init_db, User, db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites
 from core.utils import get_all_active_skills
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -566,10 +567,10 @@ def admin_toggle_skill(skill_id):
 @app.route('/admin/db_maintenance', methods=['GET', 'POST'])
 @login_required
 def db_maintenance():
-    # 建議加上管理員權限檢查
-    # if not current_user.is_admin:
-    #     flash('您沒有權限存取此頁面。', 'danger')
-    #     return redirect(url_for('dashboard'))
+    # 啟用管理員權限檢查
+    if not current_user.is_admin:
+        flash('您沒有權限存取此頁面。', 'danger')
+        return redirect(url_for('dashboard'))
 
     inspector = inspect(db.engine)
     table_names = sorted(inspector.get_table_names())

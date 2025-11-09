@@ -69,6 +69,17 @@ def init_db(engine):
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS skill_prerequisites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            skill_id TEXT NOT NULL,
+            prerequisite_id TEXT NOT NULL,
+            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id) ON DELETE CASCADE,
+            FOREIGN KEY (prerequisite_id) REFERENCES skills_info (skill_id) ON DELETE CASCADE,
+            UNIQUE (skill_id, prerequisite_id)
+        )
+    ''')
+
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -138,6 +149,15 @@ class SkillInfo(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     order_index = db.Column(db.Integer, default=0)
 
+    # 定義技能之間的多對多自我參照關係
+    # 'prerequisites' 屬性將會得到此技能的所有前置技能
+    prerequisites = db.relationship(
+        'SkillInfo',
+        secondary='skill_prerequisites',
+        primaryjoin='SkillInfo.skill_id == SkillPrerequisites.skill_id',
+        secondaryjoin='SkillInfo.skill_id == SkillPrerequisites.prerequisite_id',
+        backref=db.backref('subsequent_skills', lazy='dynamic')
+    )
     def to_dict(self):
         """將物件轉換為可序列化的字典。"""
         return {
@@ -189,3 +209,14 @@ class SkillCurriculum(db.Model):
             'display_order': self.display_order,
             'difficulty_level': self.difficulty_level
         }
+
+# 新增 SkillPrerequisites ORM 模型 (技能前置依賴關聯表)
+class SkillPrerequisites(db.Model):
+    __tablename__ = 'skill_prerequisites'
+
+    id = db.Column(db.Integer, primary_key=True)
+    skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
+    prerequisite_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
+
+    # 定義複合唯一約束
+    __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)

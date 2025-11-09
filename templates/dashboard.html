@@ -255,6 +255,7 @@
         <div>
             <a href="{{ url_for('admin_curriculum') }}" style="background: #3498db; padding: 8px 15px; border-radius: 4px;">📚 課程分類管理</a>
             <a href="{{ url_for('admin_skills') }}" style="background: #9b59b6; padding: 8px 15px; border-radius: 4px;">⚙️ 單元管理</a>
+            <a href="{{ url_for('core.admin_prerequisites') }}" style="background: #1abc9c; padding: 8px 15px; border-radius: 4px;">🔗 技能關聯</a>
             <a href="{{ url_for('db_maintenance') }}" style="background: #e67e22; padding: 8px 15px; border-radius: 4px;">🗃️ 資料庫管理</a>
             <a href="{{ url_for('logout') }}">登出</a>
         </div>
@@ -365,7 +366,7 @@
 
                                 <div class="progress-info">
                                     <div class="progress-bar">
-                                        <div class="progress-fill" style="width: {{ (skill.consecutive_correct / skill.consecutive_correct_required) * 100 }}%"></div>
+                                        <div class="progress-fill" style="width: {{ (skill.consecutive_correct / skill.consecutive_correct_required * 100) if skill.consecutive_correct_required else 0 }}%"></div>
                                     </div>
                                     <small>連續答對 {{ skill.consecutive_correct }} / {{ skill.consecutive_correct_required }} 題 → 晉級</small>
                                     <br>
@@ -405,7 +406,7 @@
                         <p>{{ data.skill.description }}</p>
                         <div class="progress-info">
                             <div class="progress-bar">
-                                <div class="progress-fill" style="width: {{ (data.consecutive_correct / data.skill.consecutive_correct_required) * 100 }}%"></div>
+                                <div class="progress-fill" style="width: {{ (data.consecutive_correct / data.skill.consecutive_correct_required * 100) if data.skill.consecutive_correct_required else 0 }}%"></div>
                             </div>
                             <small>連續答對 {{ data.consecutive_correct }} / {{ data.skill.consecutive_correct_required }} 題 → 晉級</small>
                             <br>

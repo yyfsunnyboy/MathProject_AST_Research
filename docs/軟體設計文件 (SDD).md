@@ -48,6 +48,7 @@ math-master/
 erDiagram
     users ||--o{ progress : "記錄 (FK: user_id)"
     skills_info ||--o{ progress : "的進度 (FK: skill_id)"
+    skills_info }o--o{ skill_prerequisites : "定義"
     skills_info ||--o{ skill_curriculum : "對應到 (FK: skill_id)"
 
     users {
@@ -65,16 +66,24 @@ erDiagram
         TEXT gemini_prompt
         INTEGER consecutive_correct_required
         BOOLEAN is_active
+        INTEGER order_index
+    }
+
+    skill_prerequisites {
+        INTEGER id PK
+        TEXT skill_id FK "=> 目前技能"
+        TEXT prerequisite_id FK "基礎技能"
     }
 
     progress {
         INTEGER user_id PK
         TEXT skill_id PK
-        INTEGER current_level
+        INTEGER mastery_level "精熟度 (0:未開始, 1:學習中, 2:已精熟)"
         INTEGER consecutive_correct
         INTEGER consecutive_wrong
         INTEGER questions_solved
         DATETIME last_practiced
+        TEXT fallback_from_skill_id "從哪個技能回溯而來"
     }
 
     skill_curriculum {
@@ -118,15 +127,22 @@ erDiagram
 
 #### `progress` (學習進度動態記錄)
 
-  * 學習進度的「動態記錄本」。記錄了哪位使用者在哪個技能上的詳細學習狀況。
-  * **`id`**: INTEGER, 主鍵 (PK) - 記錄的唯一識別碼。
+  * 學習進度的「動態記錄本」。記錄了哪位使用者在哪個技能上的精熟度與練習狀況。
   * **`user_id`**: INTEGER, 外鍵 (FK) - 對應到 `users` 表的 `id`。
   * **`skill_id`**: TEXT, 外鍵 (FK) - 對應到 `skills_info` 表的 `skill_id`。
-  * **`current_level`**: INTEGER - 使用者在此技能的目前等級 (例如：1-10級)。
+  * **`mastery_level`**: INTEGER - 精熟度等級 (0: 未開始, 1: 學習中, 2: 已精熟)。
   * **`consecutive_correct`**: INTEGER - 連續答對次數 (答錯時會歸零)。
   * **`consecutive_wrong`**: INTEGER - 連續答錯次數 (用於判斷是否降級)。
   * **`questions_solved`**: INTEGER - 在此技能總共完成的題數。
   * **`last_practiced`**: DATETIME - 上次練習此技能的時間。
+  * **`fallback_from_skill_id`**: TEXT - (可選) 記錄此練習是從哪個進階技能回溯而來。
+  * **複合主鍵**: `(user_id, skill_id)`
+
+#### `skill_prerequisites` (技能前置依賴關聯表)
+  * 用於定義技能之間「多對多」的前置依賴關係。
+  * **`id`**: INTEGER, 主鍵 (PK)。
+  * **`skill_id`**: TEXT, 外鍵 (FK) - 指向 `skills_info`，代表「目前技能」。
+  * **`prerequisite_id`**: TEXT, 外鍵 (FK) - 指向 `skills_info`，代表「基礎技能」。
 
 #### `skill_curriculum` (課程結構地圖)
 
@@ -134,14 +150,13 @@ erDiagram
   * **`id`**: INTEGER, 主鍵 (PK) - 記錄的唯一識別碼。
   * **`skill_id`**: TEXT, 外鍵 (FK) - 對應到 `skills_info` 表的 `skill_id`。
   * **`curriculum`**: TEXT - 課綱 (例如: general, vocational)。
-  * **`grade`**: TEXT - 年級 (例如: 1, 2, 3)。
+  * **`grade`**: INTEGER - 年級 (例如: 10, 11, 12)。
   * **`volume`**: TEXT - 所屬冊別 (例如: B1, B2, C1, C2)。
   * **`chapter`**: TEXT - 所屬章節 (例如：「第一章 多項式」)。
   * **`section`**: TEXT - 所屬小節 (例如：「1-2 餘式定理」)。
   * **`paragraph`**: TEXT - (可選) 更細的段落劃分。
   * **`display_order`**: INTEGER - 在同一章節內的顯示順序。
   * **`diffcult_level`**: INTEGER - 難易度 (例如: 1, 2)。
-  * **`last_practiced`**: DATETIME - (建議欄位) 上次練習此技能的時間。
 
 -----
 
@@ -152,16 +167,16 @@ erDiagram
 `skills/` 目錄下的每個檔案代表一個技能，需提供至少兩個方法：
 
 ```python
-# 概念性介面 (非-真實-繼承)
+# 概念性介面 (非真實繼承)
 class BaseSkillModule:
-    def generate_question(self, level: int) -> dict:
+    def generate(self, level: int) -> dict:
         """
         依據等級生成題目
-        @return: {'question_text': '...', 'correct_answer': '...'}
+        @return: {'question_text': '...', 'answer': '...'}
         """
         pass
         
-    def check_answer(self, question_data: dict, user_answer: str) -> bool:
+    def check(self, user_answer: str, correct_answer: str) -> dict:
         """
         批改使用者答案
         """
