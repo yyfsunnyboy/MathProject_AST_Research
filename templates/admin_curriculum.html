@@ -223,8 +223,8 @@
         </a>
         <div>
             <a href="{{ url_for('dashboard') }}">返回儀表板</a>
-            <a href="{{ url_for('core.admin_prerequisites') }}">技能關聯</a>
-            <a href="{{ url_for('admin_skills') }}">主題管理</a>
+            <a href="{{ url_for('core.admin_prerequisites') }}">🔗 技能關聯</a>
+            <a href="{{ url_for('core.admin_skills') }}">⚙️ 單元管理</a>
             <a href="{{ url_for('logout') }}">登出</a>
         </div>
     </div>
@@ -237,7 +237,7 @@
 
         <!-- 篩選器 -->
         <div class="filter-bar">
-            <form id="filterForm" method="GET" action="{{ url_for('admin_curriculum') }}" style="display: flex; gap: 15px; align-items: flex-end;">
+            <form id="filterForm" method="GET" action="{{ url_for('core.admin_curriculum') }}" style="display: flex; gap: 15px; align-items: flex-end;">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label>課綱</label>
                     <select id="filter_curriculum" name="f_curriculum">
@@ -266,7 +266,7 @@
                     </select>
                 </div>
                 <button type="submit" class="btn btn-submit" style="height: 40px;">套用篩選</button>
-                <a href="{{ url_for('admin_curriculum') }}" class="btn btn-cancel" style="height: 40px; line-height: 28px;">清除</a>
+                <a href="{{ url_for('core.admin_curriculum') }}" class="btn btn-cancel" style="height: 40px; line-height: 28px;">清除</a>
             </form>
         </div>
 
@@ -312,7 +312,7 @@
                             <button class="btn btn-edit" onclick='openEditModal({{ item.to_dict() | tojson | safe }})'>
                                 編輯
                             </button>
-                            <form method="POST" action="{{ url_for('admin_delete_curriculum', curriculum_id=item.id) }}" 
+                            <form method="POST" action="{{ url_for('core.admin_delete_curriculum', curriculum_id=item.id) }}" 
                                   style="display: inline;" 
                                   onsubmit="return confirm('確定要刪除這個課程分類嗎？');">
                                 <button type="submit" class="btn btn-delete">刪除</button>
@@ -339,7 +339,7 @@
                 <h2>新增課程分類</h2>
                 <span class="close" onclick="closeModal('addModal')">&times;</span>
             </div>
-            <form method="POST" action="{{ url_for('admin_add_curriculum') }}">
+            <form method="POST" action="{{ url_for('core.admin_add_curriculum') }}">
                 <div class="form-group">
                     <label>課綱 *</label>
                     <select id="add_curriculum" name="curriculum" required>
@@ -474,7 +474,7 @@
             document.getElementById('edit_difficulty_level').value = item.difficulty_level;
             document.getElementById('edit_display_order').value = item.display_order;
             
-            document.getElementById('editForm').action = '/admin/curriculum/edit/' + item.id;
+            document.getElementById('editForm').action = "{{ url_for('core.admin_edit_curriculum', curriculum_id=0) }}".replace('0', item.id);
 
             // 觸發編輯視窗的連動載入
             initializeModalSelects('edit', item);
@@ -541,7 +541,7 @@
                 const curriculum = this.value;
                 let url = null;
                 if (curriculum) {
-                    url = `/api/curriculum/grades?curriculum=${curriculum}`;
+                    url = `{{ url_for('core.api_get_grades') }}?curriculum=${curriculum}`;
                 }
                 populateSelect(gradeSelect, url, null, '所有年級');
                 // 清空後續選單
@@ -555,7 +555,7 @@
                 const grade = this.value;
                 let url = null;
                 if (curriculum && grade) {
-                    url = `/api/curriculum/volumes?curriculum=${curriculum}&grade=${grade}`;
+                    url = `{{ url_for('core.api_get_volumes') }}?curriculum=${curriculum}&grade=${grade}`;
                 }
                 populateSelect(volumeSelect, url, null, '所有冊別');
                 // 清空後續選單
@@ -569,7 +569,7 @@
                 const volume = this.value;
                 let url = null;
                 if (curriculum && grade && volume) {
-                    url = `/api/curriculum/chapters?curriculum=${curriculum}&grade=${grade}&volume=${volume}`;
+                    url = `{{ url_for('core.api_get_chapters') }}?curriculum=${curriculum}&grade=${grade}&volume=${volume}`;
                 }
                 populateSelect(chapterSelect, url, null, '所有章節');
             });
@@ -582,13 +582,13 @@
                 const selectedChapter = selectedFilters.f_chapter;
 
                 if (selectedCurriculum) {
-                    await populateSelect(gradeSelect, `/api/curriculum/grades?curriculum=${selectedCurriculum}`, selectedGrade, '所有年級');
+                    await populateSelect(gradeSelect, `{{ url_for('core.api_get_grades') }}?curriculum=${selectedCurriculum}`, selectedGrade, '所有年級');
                 }
                 if (selectedCurriculum && selectedGrade) {
-                    await populateSelect(volumeSelect, `/api/curriculum/volumes?curriculum=${selectedCurriculum}&grade=${selectedGrade}`, selectedVolume, '所有冊別');
+                    await populateSelect(volumeSelect, `{{ url_for('core.api_get_volumes') }}?curriculum=${selectedCurriculum}&grade=${selectedGrade}`, selectedVolume, '所有冊別');
                 }
                 if (selectedCurriculum && selectedGrade && selectedVolume) {
-                    await populateSelect(chapterSelect, `/api/curriculum/chapters?curriculum=${selectedCurriculum}&grade=${selectedGrade}&volume=${selectedVolume}`, selectedChapter, '所有章節');
+                    await populateSelect(chapterSelect, `{{ url_for('core.api_get_chapters') }}?curriculum=${selectedCurriculum}&grade=${selectedGrade}&volume=${selectedVolume}`, selectedChapter, '所有章節');
                 }
             }
 
@@ -604,7 +604,7 @@
 
                 // 課綱 -> 年級
                 curriculumSelect.addEventListener('change', function() {
-                    const url = this.value ? `/api/curriculum/grades?curriculum=${this.value}` : null;
+                    const url = this.value ? `{{ url_for('core.api_get_grades') }}?curriculum=${this.value}` : null;
                     populateSelect(gradeSelect, url, null, '請選擇年級');
                     populateSelect(volumeSelect, null, null, '請先選擇年級');
                     populateSelect(chapterSelect, null, null, '請先選擇冊別');
@@ -613,7 +613,7 @@
 
                 // 年級 -> 冊
                 gradeSelect.addEventListener('change', function() {
-                    const url = (curriculumSelect.value && this.value) ? `/api/curriculum/volumes?curriculum=${curriculumSelect.value}&grade=${this.value}` : null;
+                    const url = (curriculumSelect.value && this.value) ? `{{ url_for('core.api_get_volumes') }}?curriculum=${curriculumSelect.value}&grade=${this.value}` : null;
                     populateSelect(volumeSelect, url, null, '請選擇冊別');
                     populateSelect(chapterSelect, null, null, '請先選擇冊別');
                     populateSelect(sectionSelect, null, null, '請先選擇章節');
@@ -621,14 +621,14 @@
 
                 // 冊 -> 章
                 volumeSelect.addEventListener('change', function() {
-                    const url = (curriculumSelect.value && gradeSelect.value && this.value) ? `/api/curriculum/chapters?curriculum=${curriculumSelect.value}&grade=${gradeSelect.value}&volume=${this.value}` : null;
+                    const url = (curriculumSelect.value && gradeSelect.value && this.value) ? `{{ url_for('core.api_get_chapters') }}?curriculum=${curriculumSelect.value}&grade=${gradeSelect.value}&volume=${this.value}` : null;
                     populateSelect(chapterSelect, url, null, '請選擇章節');
                     populateSelect(sectionSelect, null, null, '請先選擇章節');
                 });
 
                 // 章 -> 節
                 chapterSelect.addEventListener('change', function() {
-                    const url = (curriculumSelect.value && gradeSelect.value && volumeSelect.value && this.value) ? `/api/curriculum/sections?curriculum=${curriculumSelect.value}&grade=${gradeSelect.value}&volume=${volumeSelect.value}&chapter=${this.value}` : null;
+                    const url = (curriculumSelect.value && gradeSelect.value && volumeSelect.value && this.value) ? `{{ url_for('core.api_get_sections') }}?curriculum=${curriculumSelect.value}&grade=${gradeSelect.value}&volume=${volumeSelect.value}&chapter=${this.value}` : null;
                     populateSelect(sectionSelect, url, null, '請選擇小節');
                 });
             }
@@ -646,13 +646,13 @@
                 gradeSelect.value = item.grade;
 
                 // 2. 根據已選的課綱和年級，載入冊別
-                await populateSelect(volumeSelect, `/api/curriculum/volumes?curriculum=${item.curriculum}&grade=${item.grade}`, item.volume, '請選擇冊別');
+                await populateSelect(volumeSelect, `{{ url_for('core.api_get_volumes') }}?curriculum=${item.curriculum}&grade=${item.grade}`, item.volume, '請選擇冊別');
 
                 // 3. 根據已選的冊別，載入章節
-                await populateSelect(chapterSelect, `/api/curriculum/chapters?curriculum=${item.curriculum}&grade=${item.grade}&volume=${item.volume}`, item.chapter, '請選擇章節');
+                await populateSelect(chapterSelect, `{{ url_for('core.api_get_chapters') }}?curriculum=${item.curriculum}&grade=${item.grade}&volume=${item.volume}`, item.chapter, '請選擇章節');
 
                 // 4. 根據已選的章節，載入小節
-                await populateSelect(sectionSelect, `/api/curriculum/sections?curriculum=${item.curriculum}&grade=${item.grade}&volume=${item.volume}&chapter=${item.chapter}`, item.section, '請選擇小節');
+                await populateSelect(sectionSelect, `{{ url_for('core.api_get_sections') }}?curriculum=${item.curriculum}&grade=${item.grade}&volume=${item.volume}&chapter=${item.chapter}`, item.section, '請選擇小節');
             }
 
             // 為新增和編輯 Modal 啟用連動功能

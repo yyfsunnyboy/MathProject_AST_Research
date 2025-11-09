@@ -2,21 +2,29 @@
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
 from .session import set_current, get_current
-from .ai_analyzer import analyze, ask_ai_text_with_context, get_model
+from .ai_analyzer import analyze, get_model
 from flask import session # 導入 session
 import importlib, os
 from core.utils import get_skill_info
 from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites # 導入 SkillPrerequisites
 from sqlalchemy.orm import aliased
 import traceback
+import pandas as pd
 
-core_bp = Blueprint('core', __name__)
+core_bp = Blueprint('core', __name__, template_folder='../templates')
+practice_bp = Blueprint('practice', __name__) # 新增：練習專用的 Blueprint
 
 # 所有 core 路由都需要登入
 @core_bp.before_request
 def require_login():
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
+
+# 練習相關的路由也需要登入
+@practice_bp.before_request
+@login_required
+def practice_require_login():
+    pass
 
 def get_skill(skill_id):
     try:
@@ -63,7 +71,7 @@ def update_progress(user_id, skill_id, is_correct):
     # 提交變更到資料庫
     db.session.commit()
 
-@core_bp.route('/admin/batch_import_skills', methods=['POST'])
+@core_bp.route('/batch_import_skills', methods=['POST'])
 @login_required
 def batch_import_skills():
     if not current_user.is_admin:
@@ -93,7 +101,7 @@ def batch_import_skills():
         }), 500
 
 # Find your existing function for importing the curriculum and modify it similarly
-@core_bp.route('/admin/batch_import_curriculum', methods=['POST'])
+@core_bp.route('/batch_import_curriculum', methods=['POST'])
 @login_required
 def batch_import_curriculum():
     if not current_user.is_admin:
@@ -117,9 +125,19 @@ def batch_import_curriculum():
         }), 500
 
 
-@core_bp.route('/get_next_question')
+@practice_bp.route('/practice/<skill_id>')
+@login_required
+def practice(skill_id):
+    skill_info = db.session.get(SkillInfo, skill_id)
+    skill_ch_name = skill_info.skill_ch_name if skill_info else "未知技能"
+    return render_template('index.html', 
+                           skill_id=skill_id,
+                           skill_ch_name=skill_ch_name)
+
+@practice_bp.route('/get_next_question')
 def next_question():
     skill_id = request.args.get('skill', 'remainder')
+    requested_level = request.args.get('level', type=int) # 新增：從前端獲取請求的難度等級
     
     # 從 DB 驗證 skill 是否存在
     skill_info = get_skill_info(skill_id)
@@ -140,7 +158,9 @@ def next_question():
         ).first()
 
         # 3. 決定要使用的難度等級
-        if curriculum_entry and curriculum_entry.difficulty_level:
+        if requested_level: # 如果前端有明確指定等級，則優先使用
+            difficulty_level = requested_level
+        elif curriculum_entry and curriculum_entry.difficulty_level: # 否則，使用課綱設定的等級
             difficulty_level = curriculum_entry.difficulty_level
         else:
             difficulty_level = 1 # 如果在課綱中找不到特定設定，預設為等級 1
@@ -166,7 +186,7 @@ def next_question():
     except Exception as e:
         return jsonify({"error": f"生成題目失敗: {str(e)}"}), 500
 
-@core_bp.route('/check_answer', methods=['POST'])
+@practice_bp.route('/check_answer', methods=['POST'])
 def check_answer():
     user = request.json.get('answer', '').strip()
     current = get_current()
@@ -198,7 +218,7 @@ def check_answer():
     
     return jsonify(result)
 
-@core_bp.route('/analyze_handwriting', methods=['POST'])
+@practice_bp.route('/analyze_handwriting', methods=['POST'])
 def analyze_handwriting():
     data = request.get_json()
     img = data.get('image_data_url')
@@ -217,7 +237,7 @@ def analyze_handwriting():
     
     return jsonify(result)
 
-@core_bp.route('/chat_ai', methods=['POST'])
+@practice_bp.route('/chat_ai', methods=['POST'])
 def chat_ai():
     data = request.get_json()
     user_question = data.get('question', '').strip()
@@ -339,7 +359,7 @@ def api_get_sections():
     return jsonify([s[0] for s in sections])
 
 # === 檢查幽靈技能 API ===
-@core_bp.route('/admin/skills/check_ghosts')
+@core_bp.route('/skills/check_ghosts')
 def check_ghost_skills():
     if not current_user.is_admin: # 確保只有管理員能執行
         return jsonify({"success": False, "message": "權限不足"}), 403
@@ -364,37 +384,94 @@ def check_ghost_skills():
         return jsonify({"success": False, "message": f"檢查時發生錯誤: {str(e)}"}), 500
 
 # === 技能前置依賴管理 ===
-@core_bp.route('/admin/prerequisites')
+@core_bp.route('/prerequisites')
 def admin_prerequisites():
     if not current_user.is_admin:
         flash('您沒有權限存取此頁面。', 'danger')
         return redirect(url_for('dashboard'))
+    
+    selected_skill_id = request.args.get('skill_id')  # 獲取選擇的 skill_id 參數
+    try:
+        # 為了能同時顯示「目前技能」和「基礎技能」的中文名稱，需要進行 join 操作
+        # 建立 SkillInfo 的兩個別名
+        CurrentSkill = aliased(SkillInfo)
+        PrereqSkill = aliased(SkillInfo)
 
-    # 為了能同時顯示「目前技能」和「基礎技能」的中文名稱，需要進行 join 操作
-    # 建立 SkillInfo 的兩個別名
-    CurrentSkill = aliased(SkillInfo)
-    PrereqSkill = aliased(SkillInfo)
+        # 查詢所有依賴關係，並 join 兩次 SkillInfo 以取得名稱
+        prerequisites = db.session.query(
+            SkillPrerequisites.id,
+            CurrentSkill.skill_ch_name.label('current_skill_name'),
+            PrereqSkill.skill_ch_name.label('prereq_skill_name')
+        ).join(
+            CurrentSkill, SkillPrerequisites.skill_id == CurrentSkill.skill_id
+        ).join(
+            PrereqSkill, SkillPrerequisites.prerequisite_id == PrereqSkill.skill_id
+        ).order_by(CurrentSkill.skill_ch_name, PrereqSkill.skill_ch_name).all()
 
-    # 查詢所有依賴關係，並 join 兩次 SkillInfo 以取得名稱
-    prerequisites = db.session.query(
-        SkillPrerequisites.id,
-        CurrentSkill.skill_ch_name.label('current_skill_name'),
-        PrereqSkill.skill_ch_name.label('prereq_skill_name')
-    ).join(
-        CurrentSkill, SkillPrerequisites.skill_id == CurrentSkill.skill_id
-    ).join(
-        PrereqSkill, SkillPrerequisites.prerequisite_id == PrereqSkill.skill_id
-    ).order_by(CurrentSkill.skill_ch_name, PrereqSkill.skill_ch_name).all()
+        # 獲取所有技能列表，用於新增表單的下拉選單
+        all_skills = db.session.query(SkillInfo).filter_by(is_active=True).order_by(SkillInfo.skill_ch_name).all()
 
-    # 獲取所有技能列表，用於新增表單的下拉選單
-    all_skills = db.session.query(SkillInfo).order_by(SkillInfo.skill_ch_name).all()
+        # 新增：獲取所有唯一的技能類別，用於篩選器
+        all_categories = sorted([c[0] for c in db.session.query(SkillInfo.category).distinct().all() if c[0]])
 
-    return render_template('admin_prerequisites.html',
-                           prerequisites=prerequisites,
-                           all_skills=all_skills,
-                           username=current_user.username)
+        return render_template('admin_prerequisites.html',
+                               prerequisites=prerequisites,
+                               all_skills=all_skills,
+                               all_categories=all_categories,
+                               selected_skill_id=selected_skill_id, # 將選擇的 skill_id 傳給模板
+                               username=current_user.username
+                               )
+    except Exception as e:
+        current_app.logger.error(f"Error in admin_prerequisites: {e}\n{traceback.format_exc()}")
+        flash(f'載入技能關聯頁面時發生錯誤，請檢查伺服器日誌。錯誤：{e}', 'danger')
+        return redirect(url_for('dashboard'))
 
-@core_bp.route('/admin/prerequisites/add', methods=['POST'])
+@core_bp.route('/api/prerequisites/<string:skill_id>')
+@login_required
+def api_get_prerequisites_for_skill(skill_id):
+    """根據指定的 skill_id，回傳其所有前置技能的詳細資訊"""
+    if not current_user.is_admin:
+        return jsonify({"error": "權限不足"}), 403
+
+    # 使用 SQLAlchemy 的 relationship 來查詢
+    skill = db.session.get(SkillInfo, skill_id)
+
+    if not skill:
+        return jsonify([]) # 如果技能不存在，回傳空列表
+
+    # 為了獲取關聯本身的 ID，我們需要查詢關聯表
+    prerequisite_records = db.session.query(SkillPrerequisites).filter_by(skill_id=skill_id).all()
+
+    prerequisites_data = []
+    for record in prerequisite_records:
+        # 透過 record.prerequisite_id 找到對應的 SkillInfo
+        prereq_skill = db.session.get(SkillInfo, record.prerequisite_id)
+        if not prereq_skill: continue
+
+        prerequisites_data.append({
+            'prerequisite_record_id': record.id, # 加入關聯記錄的 ID
+            'skill_id': skill.skill_id,
+            'skill_ch_name': skill.skill_ch_name,
+            'prerequisite_id': prereq_skill.skill_id,
+            'prerequisite_ch_name': prereq_skill.skill_ch_name
+        })
+    return jsonify(prerequisites_data)
+
+@core_bp.route('/api/skills_by_category')
+@login_required
+def api_get_skills_by_category():
+    """根據指定的 category，回傳對應的技能列表"""
+    category = request.args.get('category')
+    query = db.session.query(SkillInfo).filter_by(is_active=True)
+
+    if category:
+        query = query.filter_by(category=category)
+    
+    skills = query.order_by(SkillInfo.skill_ch_name).all()
+    
+    return jsonify([{'id': s.skill_id, 'text': f"{s.skill_ch_name} ({s.skill_id})"} for s in skills])
+
+@core_bp.route('/prerequisites/add', methods=['POST'])
 def admin_add_prerequisite():
     skill_id = request.form.get('skill_id')
     prerequisite_id = request.form.get('prerequisite_id')
@@ -408,12 +485,315 @@ def admin_add_prerequisite():
         db.session.add(new_prereq)
         db.session.commit()
         flash('前置技能關聯新增成功！', 'success')
-    return redirect(url_for('core.admin_prerequisites'))
 
-@core_bp.route('/admin/prerequisites/delete/<int:prereq_id>', methods=['POST'])
+    # 為了在重新導向後能恢復篩選器狀態，我們需要找到 skill_id 對應的 category
+    selected_category = None
+    if skill_id:
+        skill_info = db.session.get(SkillInfo, skill_id)
+        if skill_info:
+            selected_category = skill_info.category
+
+    # 修改：重新導向時，同時帶上 skill_id 和 category 參數以保持狀態
+    return redirect(url_for('core.admin_prerequisites', skill_id=skill_id, category=selected_category))
+
+@core_bp.route('/prerequisites/delete/<int:prereq_id>', methods=['POST'])
 def admin_delete_prerequisite(prereq_id):
     prereq = db.get_or_404(SkillPrerequisites, prereq_id)
+    # 在刪除前，先記下我們要返回的 skill_id
+    skill_id_to_redirect = prereq.skill_id
+
     db.session.delete(prereq)
     db.session.commit()
     flash('前置技能關聯已刪除。', 'success')
-    return redirect(url_for('core.admin_prerequisites'))
+
+    # 為了在重新導向後能恢復篩選器狀態，我們需要找到 skill_id 對應的 category
+    selected_category = None
+    if skill_id_to_redirect:
+        skill_info = db.session.get(SkillInfo, skill_id_to_redirect)
+        if skill_info:
+            selected_category = skill_info.category
+
+    # 修改：重新導向時，同時帶上 skill_id 和 category 參數以保持狀態
+    return redirect(url_for('core.admin_prerequisites', skill_id=skill_id_to_redirect, category=selected_category))
+
+# === 資料庫管理 (從主應用程式移入) ===
+@core_bp.route('/db_maintenance', methods=['GET', 'POST'])
+@login_required
+def db_maintenance():
+    if not current_user.is_admin:
+        flash('您沒有權限存取此頁面。', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        if request.method == 'POST':
+            action = request.form.get('action')
+            table_name = request.form.get('table_name')
+
+            # 這裡的 table 獲取邏輯保持不變，因為它是直接操作
+            table = db.metadata.tables.get(table_name)
+            if table is None and action in ['clear_data', 'drop_table', 'upload_excel']:
+                flash(f'表格 "{table_name}" 不存在。', 'danger')
+                return redirect(url_for('core.db_maintenance'))
+
+            if action == 'clear_data':
+                db.session.execute(table.delete())
+                db.session.commit()
+                flash(f'表格 "{table_name}" 的所有資料已成功清除。', 'success')
+            elif action == 'drop_table':
+                table.drop(db.engine)
+                flash(f'表格 "{table_name}" 已成功刪除。', 'success')
+            elif action == 'upload_excel':
+                file = request.files.get('file')
+                if file and file.filename != '':
+                    df = pd.read_excel(file)
+                    df = df.where(pd.notnull(df), None) # 將 NaN 轉為 None
+                    df.to_sql(table_name, db.engine, if_exists='append', index=False)
+                    flash(f'成功將資料從 Excel 匯入到表格 "{table_name}"。', 'success')
+                else:
+                    flash('沒有選擇檔案或檔案無效。', 'warning')
+            
+            return redirect(url_for('core.db_maintenance'))
+
+        # GET request
+        inspector = db.inspect(db.engine)
+        tables = inspector.get_table_names()
+        return render_template('db_maintenance.html', tables=tables)
+    except Exception as e:
+        current_app.logger.error(f"Error in db_maintenance: {e}\n{traceback.format_exc()}")
+        flash(f'載入資料庫管理頁面時發生錯誤，請檢查伺服器日誌。錯誤：{e}', 'danger')
+        return redirect(url_for('dashboard'))
+
+# === 課程分類管理 (從 app.py 移入) ===
+@core_bp.route('/curriculum')
+@login_required
+def admin_curriculum():
+    f_curriculum = request.args.get('f_curriculum')
+    f_grade = request.args.get('f_grade')
+    f_volume = request.args.get('f_volume')
+    f_chapter = request.args.get('f_chapter')
+
+    skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
+
+    query = db.session.query(SkillCurriculum).options(db.joinedload(SkillCurriculum.skill_info))
+
+    if f_curriculum:
+        query = query.filter(SkillCurriculum.curriculum == f_curriculum)
+    if f_grade:
+        query = query.filter(SkillCurriculum.grade == int(f_grade))
+    if f_volume:
+        query = query.filter(SkillCurriculum.volume == f_volume)
+    if f_chapter:
+        query = query.filter(SkillCurriculum.chapter == f_chapter)
+
+    curriculum_items = query.order_by(
+        SkillCurriculum.curriculum,
+        SkillCurriculum.grade,
+        SkillCurriculum.volume,
+        SkillCurriculum.chapter,
+        SkillCurriculum.section,
+        SkillCurriculum.display_order
+    ).all()
+
+    distinct_filters = {
+        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()])
+    }
+
+    curriculum_map = {
+        'general': '普通高中',
+        'vocational': '技術型高中',
+        'junior_high': '國民中學'
+    }
+    grade_map = {
+        7: '國一', 8: '國二', 9: '國三',
+        10: '高一', 11: '高二', 12: '高三'
+    }
+
+    return render_template('admin_curriculum.html', 
+                           username=current_user.username,
+                           skills=skills,
+                           curriculum=curriculum_items,
+                           curriculum_map=curriculum_map,
+                           grade_map=grade_map,
+                           filters=distinct_filters,
+                           selected_filters={
+                               'f_curriculum': f_curriculum,
+                               'f_grade': f_grade,
+                               'f_volume': f_volume,
+                               'f_chapter': f_chapter
+                           })
+
+@core_bp.route('/curriculum/add', methods=['POST'])
+@login_required
+def admin_add_curriculum():
+    data = request.form
+    try:
+        new_item = SkillCurriculum(
+            curriculum=data['curriculum'],
+            grade=int(data['grade']),
+            volume=data['volume'],
+            chapter=data['chapter'],
+            section=data['section'],
+            paragraph=data.get('paragraph').strip() or None,
+            skill_id=data['skill_id'],
+            display_order=int(data.get('display_order', 0)),
+            difficulty_level=int(data.get('difficulty_level', 1))
+        )
+        db.session.add(new_item)
+        db.session.commit()
+        flash('課程分類新增成功！', 'success')
+    except IntegrityError:
+        db.session.rollback()
+        flash('新增失敗：該課程分類項目已存在（唯一性約束衝突）。', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'新增失敗：{str(e)}', 'danger')
+    return redirect(url_for('core.admin_curriculum'))
+
+@core_bp.route('/curriculum/edit/<int:curriculum_id>', methods=['POST'])
+@login_required
+def admin_edit_curriculum(curriculum_id):
+    item = db.get_or_404(SkillCurriculum, curriculum_id)
+    data = request.form
+    try:
+        item.curriculum = data['curriculum']
+        item.grade = int(data['grade'])
+        item.volume = data['volume']
+        item.chapter = data['chapter']
+        item.section = data['section']
+        item.paragraph = data.get('paragraph').strip() or None
+        item.skill_id = data['skill_id']
+        item.display_order = int(data.get('display_order', 0))
+        item.difficulty_level = int(data.get('difficulty_level', 1))
+        
+        db.session.commit()
+        flash('課程分類更新成功！', 'success')
+    except IntegrityError:
+        db.session.rollback()
+        flash('更新失敗：該課程分類項目已存在（唯一性約束衝突）。', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'更新失敗：{str(e)}', 'danger')
+    return redirect(url_for('core.admin_curriculum'))
+
+@core_bp.route('/curriculum/delete/<int:curriculum_id>', methods=['POST'])
+@login_required
+def admin_delete_curriculum(curriculum_id):
+    item = db.get_or_404(SkillCurriculum, curriculum_id)
+    try:
+        db.session.delete(item)
+        db.session.commit()
+        flash('課程分類刪除成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'刪除失敗：{str(e)}', 'danger')
+    return redirect(url_for('core.admin_curriculum'))
+
+@core_bp.route('/skills')
+@login_required
+def admin_skills():
+    selected_category = request.args.get('category')
+
+    query = db.session.query(SkillInfo)
+
+    if selected_category:
+        query = query.filter(SkillInfo.category == selected_category)
+
+    skills = query.order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
+
+    categories = sorted([row[0] for row in db.session.query(SkillInfo.category).distinct().all() if row[0]])
+
+    return render_template('admin_skills.html', 
+                           skills=skills, 
+                           categories=categories,
+                           selected_category=selected_category,
+                           username=current_user.username)
+
+@core_bp.route('/skills/add', methods=['POST'])
+@login_required
+def admin_add_skill():
+    data = request.form
+    
+    if db.session.get(SkillInfo, data['skill_id']):
+        flash('技能 ID 已存在！', 'danger')
+        return redirect(url_for('core.admin_skills'))
+
+    try:
+        new_skill = SkillInfo(
+            skill_id=data['skill_id'],
+            skill_en_name=data['skill_en_name'],
+            skill_ch_name=data['skill_ch_name'],
+            category=data['category'],
+            description=data['description'],
+            input_type=data.get('input_type', 'text'),
+            gemini_prompt=data['gemini_prompt'],
+            consecutive_correct_required=int(data['consecutive_correct_required']),
+            is_active=data.get('is_active') == 'on',
+            order_index=int(data.get('order_index', 999))
+        )
+        db.session.add(new_skill)
+        db.session.commit()
+        flash('技能新增成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'新增失敗：{str(e)}', 'danger')
+
+    return redirect(url_for('core.admin_skills'))
+
+@core_bp.route('/skills/edit/<skill_id>', methods=['POST'])
+@login_required
+def admin_edit_skill(skill_id):
+    skill = db.get_or_404(SkillInfo, skill_id)
+    data = request.form
+    
+    try:
+        skill.skill_en_name = data['skill_en_name']
+        skill.skill_ch_name = data['skill_ch_name']
+        skill.category = data['category']
+        skill.description = data['description']
+        skill.input_type = data.get('input_type', 'text')
+        skill.gemini_prompt = data['gemini_prompt']
+        skill.consecutive_correct_required = int(data['consecutive_correct_required'])
+        skill.is_active = data.get('is_active') == 'on'
+        skill.order_index = int(data.get('order_index', 999))
+        
+        db.session.commit()
+        flash('技能更新成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'更新失敗：{str(e)}', 'danger')
+
+    return redirect(url_for('core.admin_skills'))
+
+@core_bp.route('/skills/delete/<skill_id>', methods=['POST'])
+@login_required
+def admin_delete_skill(skill_id):
+    skill = db.get_or_404(SkillInfo, skill_id)
+    
+    try:
+        count = db.session.query(Progress).filter_by(skill_id=skill_id).count()
+        
+        if count > 0:
+            flash(f'無法刪除：目前有 {count} 位使用者正在練習此技能！建議改為「停用」', 'warning')
+        else:
+            db.session.delete(skill)
+            db.session.commit()
+            flash('技能刪除成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'刪除失敗：{str(e)}', 'danger')
+
+    return redirect(url_for('core.admin_skills'))
+
+@core_bp.route('/skills/toggle/<skill_id>', methods=['POST'])
+@login_required
+def admin_toggle_skill(skill_id):
+    skill = db.get_or_404(SkillInfo, skill_id)
+    try:
+        skill.is_active = not skill.is_active
+        db.session.commit()
+        flash(f'技能已{"啟用" if skill.is_active else "停用"}！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'操作失敗：{str(e)}', 'danger')
+
+    return redirect(url_for('core.admin_skills'))

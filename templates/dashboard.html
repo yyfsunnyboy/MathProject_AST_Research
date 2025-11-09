@@ -253,10 +253,10 @@
             功文數學 ( 歡迎, <strong>{{ username }}</strong>！ )
         </a>
         <div>
-            <a href="{{ url_for('admin_curriculum') }}" style="background: #3498db; padding: 8px 15px; border-radius: 4px;">📚 課程分類管理</a>
-            <a href="{{ url_for('admin_skills') }}" style="background: #9b59b6; padding: 8px 15px; border-radius: 4px;">⚙️ 單元管理</a>
+            <a href="{{ url_for('core.admin_curriculum') }}" style="background: #3498db; padding: 8px 15px; border-radius: 4px;">📚 課程分類管理</a>
+            <a href="{{ url_for('core.admin_skills') }}" style="background: #9b59b6; padding: 8px 15px; border-radius: 4px;">⚙️ 單元管理</a>
             <a href="{{ url_for('core.admin_prerequisites') }}" style="background: #1abc9c; padding: 8px 15px; border-radius: 4px;">🔗 技能關聯</a>
-            <a href="{{ url_for('db_maintenance') }}" style="background: #e67e22; padding: 8px 15px; border-radius: 4px;">🗃️ 資料庫管理</a>
+            <a href="{{ url_for('core.db_maintenance') }}" style="background: #e67e22; padding: 8px 15px; border-radius: 4px;">🗃️ 資料庫管理</a>
             <a href="{{ url_for('logout') }}">登出</a>
         </div>
     </div>
@@ -373,7 +373,7 @@
                                     <small>當前等級：{{ skill.current_level }} 級 | 總練習 {{ skill.questions_solved }} 題</small>
                                 </div>
 
-                                <a href="{{ url_for('practice', skill_id=skill.skill_id) }}" class="btn-practice">
+                                <a href="{{ url_for('practice.practice', skill_id=skill.skill_id) }}" class="btn-practice">
                                     開始練習
                                 </a>
                             </div>
@@ -412,7 +412,7 @@
                             <br>
                             <small>當前等級：{{ data.current_level }} 級 | 總練習 {{ data.questions_solved }} 題</small>
                         </div>
-                        <a href="{{ url_for('practice', skill_id=data.skill.skill_id) }}" class="btn-practice">
+                        <a href="{{ url_for('practice.practice', skill_id=data.skill.skill_id) }}" class="btn-practice">
                             開始練習
                         </a>
                     </div>

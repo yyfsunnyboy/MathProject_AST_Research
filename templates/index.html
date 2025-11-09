@@ -38,6 +38,21 @@
         }
         .navbar a:hover { background: #34495e; }
 
+        /* 新增：難度選擇按鈕樣式 */
+        .level-selector {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .level-button {
+            padding: 6px 12px; background: #ecf0f1; border: 1px solid #bdc3c7;
+            border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .level-button.active {
+            background: #1abc9c; color: white; border-color: #16a085; font-weight: bold;
+        }
+
         /* === 容器 === */
         .container {
             flex: 1;
@@ -337,6 +352,13 @@
                     <span id="level-indicator" style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span>
                     <span id="streak-counter">連續答對：0</span>
                 </h1>
+                <!-- 新增：難度選擇器 -->
+                <div class="level-selector">
+                    <strong>難度選擇：</strong>
+                    <button class="level-button active" data-level="1">等級 1</button>
+                    <button class="level-button" data-level="2">等級 2</button>
+                </div>
+
                 <div id="question-text"></div>
                 
                 <div class="input-group">
@@ -474,6 +496,7 @@
         let isErasing = false;
         let isDrawing = false;
         let undoStack = [];
+        let selectedLevel = 1; // 新增：用於儲存當前選擇的難度
         let redoStack = [];
         let blankCanvas = null;
         let currentContext = "";  // 儲存題目 context，用於 AI 助教
@@ -506,6 +529,7 @@
             initCanvas();
             setupTools();
             setupAIButton();
+            setupLevelSelector(); // 新增：初始化難度選擇器
             setupChat();
             setupSubmit();
             loadQuestion();
@@ -656,6 +680,21 @@
             document.querySelector(`.color-button[data-color="${currentColor}"]`).classList.add('active');
         }
     
+        // === 新增：難度選擇器 ===
+        function setupLevelSelector() {
+            document.querySelectorAll('.level-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const level = parseInt(button.dataset.level, 10);
+                    if (level !== selectedLevel) {
+                        selectedLevel = level;
+                        document.querySelectorAll('.level-button').forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                        loadQuestion(); // 切換難度後立即重新出題
+                    }
+                });
+            });
+        }
+
         // === 連續答對 ===
         function updateStreak(correct) {
             currentStreak = correct ? currentStreak + 1 : 0;
@@ -756,7 +795,7 @@
 
         function loadQuestion() {
             const skill = getSkillId();
-            fetch(`/get_next_question?skill=${skill}`)
+            fetch(`/get_next_question?skill=${skill}&level=${selectedLevel}`) // 修改：帶上 level 參數
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) {
@@ -771,15 +810,15 @@
                     setTimeout(autoResizeQuestionFont, 50);
                 
                     // ⭐ 從後端同步連續答對數
-                    if (data.consecutive_correct !== undefined) {
+                    if (data.consecutive_correct !== undefined && selectedLevel === 1) { // 只在等級1時顯示連續答對
                         currentStreak = data.consecutive_correct;
                         streakCounter.textContent = `連續答對：${currentStreak}`;
+                        streakCounter.style.display = 'inline-block';
+                    } else {
+                        streakCounter.style.display = 'none'; // 其他等級隱藏
                     }
 
-                    // ⭐ 從後端同步目前等級
-                    if (data.current_level !== undefined) {
-                        levelIndicator.textContent = `等級：${data.current_level}`;
-                    }
+                    levelIndicator.textContent = `等級：${data.current_level}`;
                 
                     // 統一儲存 context
                     currentContext = data.context_string || data.inequality_string || "";

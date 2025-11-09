@@ -45,7 +45,7 @@
 <body>
     <div class="container">
         <div class="navbar">
-            <div class="logo">資料庫管理</div>
+            <div class="logo">🗃️ 資料庫管理</div>
             <a href="{{ url_for('dashboard') }}">返回儀表板</a>
         </div>
 
@@ -72,21 +72,21 @@
                     <td><strong>{{ table_name }}</strong></td>
                     <td class="actions">
                         <!-- 清空資料 -->
-                        <form action="{{ url_for('db_maintenance') }}" method="POST" onsubmit="return confirm('您確定要刪除表格「{{ table_name }}」中的所有資料嗎？此操作無法復原！');">
+                        <form action="{{ url_for('core.db_maintenance') }}" method="POST" onsubmit="return confirm('您確定要刪除表格「{{ table_name }}」中的所有資料嗎？此操作無法復原！');">
                             <input type="hidden" name="action" value="clear_data">
                             <input type="hidden" name="table_name" value="{{ table_name }}">
                             <button type="submit" class="btn btn-warning">清空資料</button>
                         </form>
 
                         <!-- 刪除表格 -->
-                        <form action="{{ url_for('db_maintenance') }}" method="POST" onsubmit="return confirm('警告！您確定要「永久刪除」整個「{{ table_name }}」表格嗎？這會導致應用程式錯誤，且無法復原！');">
+                        <form action="{{ url_for('core.db_maintenance') }}" method="POST" onsubmit="return confirm('警告！您確定要「永久刪除」整個「{{ table_name }}」表格嗎？這會導致應用程式錯誤，且無法復原！');">
                             <input type="hidden" name="action" value="drop_table">
                             <input type="hidden" name="table_name" value="{{ table_name }}">
                             <button type="submit" class="btn btn-danger">刪除表格</button>
                         </form>
 
                         <!-- 從 Excel 上傳 -->
-                        <form class="upload-form" action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data">
+                        <form class="upload-form" action="{{ url_for('core.db_maintenance') }}" method="POST" enctype="multipart/form-data">
                             <input type="hidden" name="action" value="upload_excel">
                             <input type="hidden" name="table_name" value="{{ table_name }}">
                             <input type="file" name="file" required accept=".xlsx, .xls">
@@ -103,7 +103,7 @@
         <h2>從資料夾批次匯入課程綱要 (skill_curriculum)</h2>
         <p style="color: #555;">此功能會將您選取的多個檔案，逐一新增至 `skill_curriculum` 資料庫。系統會自動過濾檔案中的註解或空白行，但不會檢查重複資料。適合用於首次大量匯入不同冊別的資料。</p>
         <br>
-        <form action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleBatchUpload(event);">
+        <form action="{{ url_for('core.db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleBatchUpload(event);">
             <input type="hidden" name="action" value="batch_import_folder">
             <div class="form-group" style="display: flex; align-items: center; gap: 20px;">
                 <div>
@@ -122,7 +122,7 @@
         <h2>從資料夾批次匯入技能單元 (skills_info)</h2>
         <p style="color: #555;">此功能會將您選取的多個檔案，逐一<strong>更新或新增</strong>至 `skills_info` 資料庫。系統會根據 `skill_id` 判斷是應更新現有資料還是新增資料。</p>
         <br>
-        <form action="{{ url_for('db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleBatchSkillsInfoUpload(event);">
+        <form action="{{ url_for('core.db_maintenance') }}" method="POST" enctype="multipart/form-data" onsubmit="return handleBatchSkillsInfoUpload(event);">
             <input type="hidden" name="action" value="batch_upsert_skills_info">
             <div class="form-group" style="display: flex; align-items: center; gap: 20px;">
                 <div>
@@ -137,23 +137,6 @@
     </div>
 
     <script>
-        // 讓檔案選擇器在選擇檔案後自動提交表單
-        document.querySelectorAll('.upload-form input[type="file"]').forEach(input => {
-            input.addEventListener('change', function() {
-                if (this.files.length > 0) {
-                    const form = this.closest('form');
-                    const tableName = form.querySelector('input[name="table_name"]').value;
-                    const fileName = this.files[0].name;
-                    if (confirm(`您確定要將檔案「${fileName}」的資料新增到表格「${tableName}」嗎？`)) {
-                        form.submit();
-                    } else {
-                        // 如果用戶取消，重置文件輸入
-                        this.value = '';
-                    }
-                }
-            });
-        });
-
         function handleBatchUpload(event) {
             const files = document.getElementById('batch_files').files;
             if (files.length === 0) return false;

@@ -350,7 +350,7 @@
 
         <!-- 篩選器 -->
         <div class="filter-bar">
-            <form id="filterForm" method="GET" action="{{ url_for('admin_skills') }}" style="display: flex; gap: 15px; align-items: center;">
+            <form id="filterForm" method="GET" action="{{ url_for('core.admin_skills') }}" style="display: flex; gap: 15px; align-items: center;">
                 <label for="category_filter" style="font-weight: 600;">依類別篩選：</label>
                 <select id="category_filter" name="category" onchange="this.form.submit()" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
                     <option value="">所有類別</option>
@@ -358,7 +358,7 @@
                     <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
                     {% endfor %}
                 </select>
-                <a href="{{ url_for('admin_skills') }}" class="btn" style="background: #7f8c8d; color: white;">清除篩選</a>
+                <a href="{{ url_for('core.admin_skills') }}" class="btn" style="background: #7f8c8d; color: white;">清除篩選</a>
             </form>
         </div>
 
@@ -409,12 +409,12 @@
                                         data-skill='{{ skill.to_dict() | tojson | e }}' 
                                         onclick='openEditModal(this.dataset.skill)'>
                                     編輯</button>
-                                <form method="POST" action="{{ url_for('admin_toggle_skill', skill_id=skill.skill_id) }}" style="display: inline;">
+                                <form method="POST" action="{{ url_for('core.admin_toggle_skill', skill_id=skill.skill_id) }}" style="display: inline;">
                                     <button type="submit" class="btn btn-toggle">
                                         {{ '停用' if skill.is_active else '啟用' }}
                                     </button>
                                 </form>
-                                <form method="POST" action="{{ url_for('admin_delete_skill', skill_id=skill.skill_id) }}" 
+                                <form method="POST" action="{{ url_for('core.admin_delete_skill', skill_id=skill.skill_id) }}" 
                                       onsubmit="return confirm('確定要刪除「{{ skill.skill_ch_name }}」嗎？此操作無法復原！')" 
                                       style="display: inline;">
                                     <button type="submit" class="btn btn-delete">刪除</button>
@@ -441,7 +441,7 @@
                 <h2>新增技能</h2>
                 <span class="close" onclick="closeModal('addModal')">&times;</span>
             </div>
-            <form method="POST" action="{{ url_for('admin_add_skill') }}">
+            <form method="POST" action="{{ url_for('core.admin_add_skill') }}">
                 <div class="form-group">
                     <label for="skill_id">技能 ID *</label>
                     <input type="text" id="skill_id" name="skill_id" required
@@ -605,7 +605,7 @@
             document.getElementById('edit_order_index').value = skill.order_index;
             document.getElementById('edit_is_active').checked = skill.is_active == 1;
             
-            document.getElementById('editForm').action = `/admin/skills/edit/${skill.skill_id}`;
+            document.getElementById('editForm').action = "{{ url_for('core.admin_edit_skill', skill_id='0') }}".replace('0', skill.skill_id);
             document.getElementById('editModal').style.display = 'block';
         }
 
