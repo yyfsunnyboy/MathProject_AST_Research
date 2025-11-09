@@ -68,14 +68,13 @@ erDiagram
     }
 
     progress {
-        INTEGER user_id FK
-        TEXT skill_id FK
+        INTEGER user_id PK
+        TEXT skill_id PK
         INTEGER current_level
         INTEGER consecutive_correct
         INTEGER consecutive_wrong
         INTEGER questions_solved
         DATETIME last_practiced
-        PRIMARY KEY (user_id, skill_id)
     }
 
     skill_curriculum {
