@@ -21,7 +21,7 @@ def generate(level=1):
     a_str = f"{a.numerator}/{a.denominator}"
     b_str = f"{b.numerator}/{b.denominator}"
 
-    question_text = f"請求解方程式：\\frac{{x}}{{{den1}}} + {a_str} = {b_str}"
+    question_text = f"請求解方程式：$\\dfrac{{x}}{{{den1}}} + \\dfrac{{{a.numerator}}}{{{a.denominator}}} = \\dfrac{{{b.numerator}}}{{{b.denominator}}}$"
 
     correct_answer = str(x)
 

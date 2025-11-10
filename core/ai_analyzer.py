@@ -20,11 +20,14 @@ def get_model():
         raise RuntimeError("Gemini 尚未初始化！")
     return gemini_model
 
-def analyze(image_data_url, context, api_key):
+def analyze(image_data_url, context, api_key, prerequisite_skills=None):
     """
     強制 Gemini 回傳純 JSON，失敗時自動重試一次
     """
     def _call_gemini():
+        # 將前置技能列表轉換為文字描述
+        prereq_text = ", ".join([f"{p['name']} ({p['id']})" for p in prerequisite_skills]) if prerequisite_skills else "無"
+
         # 解碼 Base64 圖片
         _, b64 = image_data_url.split(',', 1)
         img_data = base64.b64decode(b64)
@@ -41,8 +44,10 @@ def analyze(image_data_url, context, api_key):
             # 強制 JSON 輸出 Prompt
             prompt = f"""你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
 題目：{context}
+此單元的前置基礎技能有：{prereq_text}
 
-請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚：
+請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
+如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
 
 {{
   "reply": "用 Markdown 格式寫出具體建議（步驟對錯、遺漏、改進點）。如果計算過程完全正確，reply 內容應為「答對了，計算過程很正確！」。",

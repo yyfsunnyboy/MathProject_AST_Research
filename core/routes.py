@@ -184,11 +184,23 @@ def next_question():
         progress = db.session.query(Progress).filter_by(user_id=current_user.id, skill_id=skill_id).first()
         consecutive = progress.consecutive_correct if progress else 0
 
+        # 新增：查詢前置技能，並準備給 AI 的資訊
+        prereq_query = db.session.query(SkillInfo).join(
+            SkillPrerequisites, SkillInfo.skill_id == SkillPrerequisites.prerequisite_id
+        ).filter(
+            SkillPrerequisites.skill_id == skill_id,
+            SkillInfo.is_active == True
+        ).order_by(SkillInfo.skill_ch_name).all()
+        
+        prereq_info_for_ai = [{'id': p.skill_id, 'name': p.skill_ch_name} for p in prereq_query]
+
         data = mod.generate(level=difficulty_level) # 將從課綱查到的 difficulty_level 傳入 generate 函數
         
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
-        set_current(skill_id, data)
+        # 修正：在 data 產生後，才加入前置技能資訊
+        data['prereq_skills'] = prereq_info_for_ai
+        set_current(skill_id, data) # set_current 會將整個 data 存入 session
         
         return jsonify({
             "new_question_text": data["question_text"],
@@ -242,7 +254,11 @@ def analyze_handwriting():
     
     state = get_current()
     api_key = current_app.config['GEMINI_API_KEY']
-    result = analyze(img, state['question'], api_key)
+    # 新增：從 session 讀取前置技能資訊並傳遞給 analyze 函式
+    prereq_skills = state.get('prereq_skills', [])
+    result = analyze(image_data_url=img, context=state['question'], 
+                     api_key=api_key, 
+                     prerequisite_skills=prereq_skills)
     
     # 更新進度
     if result.get('correct') or result.get('is_process_correct'):
@@ -265,6 +281,7 @@ def chat_ai():
     # 安全取得當前題目
     current = get_current()
     skill_id = current.get("skill")
+    prereq_skills = current.get('prereq_skills', []) # 新增：從 session 讀取前置技能資訊
     
     # 優先使用傳入的題目文字，否則使用 session 中的，最後使用 context
     if question_text:
@@ -297,7 +314,11 @@ def chat_ai():
         enhanced_context = f"當前題目：{full_question_context}"
         if context and context != full_question_context:
             enhanced_context += f"\n詳細資訊：{context}"
-        
+
+        # 新增：將前置技能資訊加入 prompt
+        prereq_text = ", ".join([f"{p['name']} ({p['id']})" for p in prereq_skills]) if prereq_skills else "無"
+        enhanced_context += f"\n\n此單元的前置基礎技能有：{prereq_text}。"
+
         full_prompt = prompt_template.format(
             user_answer=user_question,
             correct_answer="（待批改）",
