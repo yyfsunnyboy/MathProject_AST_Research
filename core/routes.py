@@ -128,11 +128,26 @@ def batch_import_curriculum():
 @practice_bp.route('/practice/<skill_id>')
 @login_required
 def practice(skill_id):
+    # 查詢當前技能的資訊
     skill_info = db.session.get(SkillInfo, skill_id)
     skill_ch_name = skill_info.skill_ch_name if skill_info else "未知技能"
+
+    # 查詢與此技能相關的前置基礎技能
+    # 我們 JOIN SkillPrerequisites 和 SkillInfo 來找到所有 prerequisite_id 對應的技能名稱
+    prerequisites = db.session.query(SkillInfo).join(
+        SkillPrerequisites, SkillInfo.skill_id == SkillPrerequisites.prerequisite_id
+    ).filter(
+        SkillPrerequisites.skill_id == skill_id,
+        SkillInfo.is_active == True  # 只顯示啟用的技能
+    ).order_by(SkillInfo.skill_ch_name).all()
+
+    # 將查詢結果轉換為字典列表，方便模板使用
+    prereq_skills = [{'skill_id': p.skill_id, 'skill_ch_name': p.skill_ch_name} for p in prerequisites]
+
     return render_template('index.html', 
                            skill_id=skill_id,
-                           skill_ch_name=skill_ch_name)
+                           skill_ch_name=skill_ch_name,
+                           prereq_skills=prereq_skills) # 將前置技能列表傳遞給模板
 
 @practice_bp.route('/get_next_question')
 def next_question():

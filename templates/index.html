@@ -361,6 +361,17 @@
                     <strong>難度選擇：</strong>
                     <button class="level-button active" data-level="1">等級 1</button>
                     <button class="level-button" data-level="2">等級 2</button>
+                    {% if prereq_skills %}
+                    <div class="input-group" style="margin-left: 20px; margin-top: 0;">
+                        <select id="prereq-skill-select" class="form-select" style="padding: 5px; border-radius: 6px; border: 1px solid #bdc3c7;">
+                            <option value="" selected disabled>練習基礎技能...</option>
+                            {% for prereq in prereq_skills %}
+                                <option value="{{ prereq.skill_id }}">{{ prereq.skill_ch_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="level-button" type="button" id="practice-prereq-btn" style="background-color: #f39c12; color: white;">練習</button>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div id="question-text"></div>
@@ -740,6 +751,22 @@
                     }
                 });
             });
+
+            // === 新增：基礎技能跳轉功能 ===
+            const practicePrereqBtn = document.getElementById('practice-prereq-btn');
+            if (practicePrereqBtn) {
+                practicePrereqBtn.addEventListener('click', function() {
+                    const select = document.getElementById('prereq-skill-select');
+                    const selectedSkillId = select.value;
+                    if (selectedSkillId) {
+                        // 跳轉到所選基礎技能的練習頁面
+                        window.location.href = `/practice/${selectedSkillId}`;
+                    } else {
+                        // 使用自定義提示框
+                        showCustomAlert('請先選擇一個基礎技能！');
+                    }
+                });
+            }
         }
 
         // === 連續答對 ===
