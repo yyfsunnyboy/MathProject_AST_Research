@@ -356,6 +356,31 @@
             cursor: pointer;
         }
         #chat-send-button:hover { background: #8e44ad; }
+
+        /* === 新增：問題與示意圖排版 === */
+        .question-content {
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            flex: 1; /* 讓此容器填滿剩餘空間 */
+            min-height: 0; /* 確保在 flex 容器中可以正確縮放 */
+            overflow: hidden; /* 隱藏內部溢出 */
+        }
+
+        .diagram-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-basis: 220px; /* 給示意圖一個固定的基礎寬度 */
+            flex-shrink: 0; /* 防止示意圖容器被壓縮 */
+        }
+
+        #diagram-image {
+            max-width: 200px;
+            max-height: 200px; /* 增加最大高度以獲得更好的可視性 */
+            margin-top: 0 !important; /* 覆蓋內聯樣式 */
+        }
     </style>
 </head>
 <body>
@@ -394,11 +419,14 @@
                     {% endif %}
                 </div>
 
-                <div id="question-text"></div>
-
-                <!-- New Diagram Button and Image -->
-                <div id="diagram-loading" style="display: none; margin-top: 10px; color: #2c3e50;">正在繪製圖形...</div>
-                <img id="diagram-image" src="" alt="Diagram" style="display: none; margin-top: 10px;"/>
+                <!-- 修改後的版面：問題和示意圖並排 -->
+                <div class="question-content">
+                    <div id="question-text"></div>
+                    <div class="diagram-container">
+                        <div id="diagram-loading" style="display: none; color: #2c3e50;">正在繪製圖形...</div>
+                        <img id="diagram-image" src="" alt="Diagram" style="display: none;"/>
+                    </div>
+                </div>
                 
                 <div class="input-group">
                     <input type="text" id="answer-input" placeholder="輸入答案...">
@@ -957,44 +985,25 @@
         // === 動態調整題目字型大小 ===
         function autoResizeQuestionFont() {
             if (!questionText) return;
-            
-            // 重置到最大字體
-            const maxFontSize = 1.2;  // em
-            const minFontSize = 0.65;  // em
+
+            const container = questionText;
+            const maxFontSize = 1.5; // em, 增加最大字體以提高可讀性
+            const minFontSize = 0.7; // em
             let fontSize = maxFontSize;
-            
-            questionText.style.fontSize = fontSize + 'em';
-            
-            // 檢查是否溢出，如果溢出則縮小字體
-            function checkAndResize() {
-                const element = questionText;
-                const parent = element.parentElement;  // practice-top
-                
-                // 檢查高度是否超出父容器
-                const elementHeight = element.scrollHeight;
-                const parentHeight = parent.clientHeight;
-                const availableHeight = parentHeight - 120;  // 預留空間給標題、輸入框等
-                
-                // 如果內容溢出，逐漸減小字體
-                if (elementHeight > availableHeight && fontSize > minFontSize) {
-                    fontSize -= 0.05;
-                    element.style.fontSize = fontSize + 'em';
-                    // 遞迴檢查
-                    setTimeout(checkAndResize, 0);
-                } else if (elementHeight < availableHeight * 0.8 && fontSize < maxFontSize) {
-                    // 如果空間還很多，可以稍微增大字體（但不要太大）
-                    const testFontSize = Math.min(fontSize + 0.05, maxFontSize);
-                    element.style.fontSize = testFontSize + 'em';
-                    if (element.scrollHeight <= availableHeight) {
-                        fontSize = testFontSize;
-                    } else {
-                        element.style.fontSize = fontSize + 'em';
-                    }
-                }
+
+            // 重置為最大字體
+            container.style.fontSize = fontSize + 'em';
+
+            // 檢查是否溢出 (垂直或水平)
+            const isOverflowing = (el) => {
+                return el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
+            };
+
+            // 如果溢出，則逐步減小字體直到適合為止
+            while (isOverflowing(container) && fontSize > minFontSize) {
+                fontSize -= 0.05;
+                container.style.fontSize = fontSize + 'em';
             }
-            
-            // 等待 DOM 更新後檢查
-            setTimeout(checkAndResize, 10);
         }
     
         // === 自定義提示框 ===
@@ -1052,17 +1061,35 @@
                     questionText.innerHTML = data.new_question_text;
                     isInitialQuestionLoaded = true; // 標記為已載入
                     
-                    // 修正：將排版任務推入 MathJax 佇列
-                    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-                        // 如果 MathJax 已完全載入，直接執行
-                        window.MathJax.typesetPromise([questionText]).catch((err) => console.log('MathJax typeset failed: ' + err.message));
-                    } else if (window.MathJax && window.MathJax.startup) {
-                        // 如果 MathJax 正在載入，將任務推入佇列
-                        window.MathJax.startup.promise.then(() => window.MathJax.typesetPromise([questionText]));
-                    }
+                    // 修正：將排版任務推入 MathJax 佇列，並在完成後調整字體大小
+                    const typesetPromise = () => {
+                        return new Promise((resolve) => {
+                            if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+                                window.MathJax.typesetPromise([questionText])
+                                    .then(() => resolve())
+                                    .catch((err) => {
+                                        console.log('MathJax typeset failed: ' + err.message);
+                                        resolve(); // 即使失敗也繼續
+                                    });
+                            } else if (window.MathJax && window.MathJax.startup) {
+                                window.MathJax.startup.promise.then(() => {
+                                    window.MathJax.typesetPromise([questionText])
+                                        .then(() => resolve())
+                                        .catch(err => {
+                                            console.log('MathJax typeset failed after startup: ' + err.message);
+                                            resolve();
+                                        });
+                                });
+                            } else {
+                                resolve(); // 如果沒有 MathJax，直接繼續
+                            }
+                        });
+                    };
 
-                    // 動態調整字型大小
-                    setTimeout(autoResizeQuestionFont, 50);
+                    // 執行排版並在之後調整字體
+                    typesetPromise().then(() => {
+                        autoResizeQuestionFont();
+                    });
                 
                     // ⭐ 從後端同步連續答對數
                     if (data.consecutive_correct !== undefined && selectedLevel === 1) { // 只在等級1時顯示連續答對
