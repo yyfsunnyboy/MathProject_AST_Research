@@ -395,6 +395,10 @@
                 </div>
 
                 <div id="question-text"></div>
+
+                <!-- New Diagram Button and Image -->
+                <div id="diagram-loading" style="display: none; margin-top: 10px; color: #2c3e50;">正在繪製圖形...</div>
+                <img id="diagram-image" src="" alt="Diagram" style="display: none; margin-top: 10px;"/>
                 
                 <div class="input-group">
                     <input type="text" id="answer-input" placeholder="輸入答案...">
@@ -413,6 +417,7 @@
                     <input type="range" id="pen-width" min="1" max="10" value="2">
                     <span id="pen-width-label">2</span>
                     <div class="canvas-actions">
+                        <button id="draw-diagram-button" class="tool-button" style="background-color: #27ae60; color: white;">繪製示意圖</button>
                         <button id="undo-button">上一步</button>
                         <button id="redo-button">下一步</button>
                 <button id="upload-image-button">上傳圖片</button>
@@ -438,6 +443,13 @@
                 <input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
         </div>
+    </div>
+
+    <!-- The Image Modal -->
+    <div id="imageModal" class="image-modal">
+        <span class="close">&times;</span>
+        <img class="image-modal-content" id="modalImg">
+        <div id="caption"></div>
     </div>
 
     <!-- Custom Alert Modal (Moved inside body) -->
@@ -538,6 +550,77 @@
             background-color: #7f8c8d;
         }
 
+        /* --- Styles for Image Modal --- */
+        #diagram-image {
+            max-width: 200px;
+            max-height: 120px;
+            cursor: pointer;
+            transition: 0.3s;
+            border-radius: 5px;
+        }
+
+        #diagram-image:hover {
+            opacity: 0.7;
+        }
+
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 10001;
+            padding-top: 50px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+        }
+
+        .image-modal-content {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+        }
+
+        #caption {
+            margin: auto;
+            display: block;
+            width: 80%;
+            max-width: 700px;
+            text-align: center;
+            color: #ccc;
+            padding: 10px 0;
+            height: 150px;
+        }
+
+        .image-modal-content, #caption {
+            animation-name: zoom;
+            animation-duration: 0.6s;
+        }
+
+        @keyframes zoom {
+            from {transform:scale(0)}
+            to {transform:scale(1)}
+        }
+
+        .image-modal .close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .image-modal .close:hover,
+        .image-modal .close:focus {
+            color: #bbb;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
     </style>
 
     <script>
@@ -593,6 +676,8 @@
             setupLevelSelector(); // 新增：初始化難度選擇器
             setupChat();
             setupSubmit();
+            setupDiagramButton(); // 新增：初始化繪圖按鈕
+            setupImageModal(); // 新增：初始化圖片放大功能
 
             // 修正：不再直接呼叫 loadQuestion()。
             // MathJax 準備好後會自動呼叫它。
@@ -613,6 +698,40 @@
         function ensureInitialLoad() {
             if (!isInitialQuestionLoaded) {
                 loadQuestion();
+            }
+        }
+
+        // === 新增：圖片放大 Modal ===
+        function setupImageModal() {
+            var modal = document.getElementById("imageModal");
+            var img = document.getElementById("diagram-image");
+            var modalImg = document.getElementById("modalImg");
+            var captionText = document.getElementById("caption");
+            
+            if(img) {
+                img.onclick = function(){
+                    if(this.src && this.style.display !== 'none') {
+                        modal.style.display = "block";
+                        modalImg.src = this.src;
+                        captionText.innerHTML = this.alt;
+                    }
+                }
+            }
+
+            var span = document.querySelector(".image-modal .close");
+
+            if(span) {
+                span.onclick = function() {
+                    modal.style.display = "none";
+                }
+            }
+            
+            if(modal) {
+                modal.onclick = function(e) {
+                    if (e.target === modal || e.target === modalImg) {
+                        modal.style.display = "none";
+                    }
+                }
             }
         }
     
@@ -1075,6 +1194,52 @@
                     submitBtn.disabled = false;
                 });
             };
+        }
+
+        // === 新增：繪製示意圖 ===
+        function setupDiagramButton() {
+            const drawBtn = document.getElementById('draw-diagram-button');
+            const diagramImg = document.getElementById('diagram-image');
+            const loadingIndicator = document.getElementById('diagram-loading');
+
+            drawBtn.addEventListener('click', () => {
+                const question = questionText.innerText;
+                if (!question) {
+                    showCustomAlert('請先載入題目！');
+                    return;
+                }
+
+                loadingIndicator.style.display = 'block';
+                diagramImg.style.display = 'none';
+
+                fetch('/draw_diagram', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question_text: question })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('繪圖失敗，請查看伺服器日誌。');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // 使用時間戳記來避免圖片快取問題
+                        diagramImg.src = data.image_path + '?t=' + new Date().getTime();
+                        diagramImg.style.display = 'block';
+                    } else {
+                        showCustomAlert(data.message || '繪圖時發生未知錯誤。');
+                    }
+                })
+                .catch(error => {
+                    console.error('繪圖請求失敗:', error);
+                    showCustomAlert(error.message);
+                })
+                .finally(() => {
+                    loadingIndicator.style.display = 'none';
+                });
+            });
         }
     
         // === 新增：顯示基礎技能建議 Modal ===

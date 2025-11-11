@@ -8,3 +8,5 @@ google-generativeai
 sqlalchemy
 flask_sqlalchemy
 openpyxl
+matplotlib
+numpy

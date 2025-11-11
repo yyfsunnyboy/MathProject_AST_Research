@@ -10,6 +10,12 @@ from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites 
 from sqlalchemy.orm import aliased
 import traceback
 import pandas as pd
+import google.generativeai as genai
+import numpy as np
+import matplotlib
+matplotlib.use('Agg') # Use non-interactive backend
+import matplotlib.pyplot as plt
+
 
 core_bp = Blueprint('core', __name__, template_folder='../templates')
 practice_bp = Blueprint('practice', __name__) # 新增：練習專用的 Blueprint
@@ -344,6 +350,108 @@ def chat_ai():
     except Exception as e:
         print(f"[CHAT_AI ERROR] {e}")
         return jsonify({"reply": "AI 暫時無法回應，請稍後再試！"}), 500
+
+@practice_bp.route('/draw_diagram', methods=['POST'])
+@login_required
+def draw_diagram():
+    try:
+        data = request.get_json()
+        question_text = data.get('question_text')
+
+        if not question_text:
+            return jsonify({"success": False, "message": "沒有收到題目文字。"}), 400
+
+        # 1. Call Gemini API to get equations
+        # IMPORTANT: The user provided a hardcoded key.
+        api_key = "AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY"
+        genai.configure(api_key=api_key)
+        
+        # Use the model from app config for consistency
+        model_name = current_app.config.get('GEMINI_MODEL_NAME', 'gemini-1.5-flash')
+        model = genai.GenerativeModel(model_name)
+        
+        prompt = f"""
+        從以下數學題目中提取出所有可以用來繪製2D圖形的方程式或不等式。
+        - 請只回傳方程式/不等式，每個一行。
+        - 例如，如果題目是 "y = 2x + 1 和 x^2 + y^2 = 9"，你就回傳：
+          y = 2x + 1
+          x**2 + y**2 = 9
+        - 請將 '^' 符號轉換為 '**' 以利 Python 運算。
+        - 如果找不到任何可繪製的方程式或不等式，請回傳 "No equation found"。
+
+        題目：
+        {question_text}
+        """
+        
+        response = model.generate_content(prompt)
+        equations_text = response.text.strip()
+
+        if "No equation found" in equations_text or not equations_text:
+            return jsonify({"success": False, "message": "AI 無法從題目中找到可繪製的方程式。"}), 400
+
+        # 2. Use Matplotlib to plot
+        plt.figure(figsize=(6, 6))
+        x = np.linspace(-10, 10, 400)
+        y = np.linspace(-10, 10, 400)
+        x, y = np.meshgrid(x, y)
+
+        has_plot = False
+        for line in equations_text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            
+            try:
+                # This is a simplified and somewhat unsafe way to plot.
+                # It assumes the AI returns valid Python boolean expressions.
+                if '=' in line and '==' not in line and '>' not in line and '<' not in line:
+                    # Likely an equation like y = 2*x + 1 or x**2 + y**2 = 9
+                    parts = line.split('=')
+                    expr = f"({parts[0].strip()}) - ({parts[1].strip()})"
+                    # Plot contour where expression is zero
+                    plt.contour(x, y, eval(expr, {'x': x, 'y': y, 'np': np}), levels=[0], colors='b')
+                    has_plot = True
+                elif '>' in line or '<' in line:
+                    # Likely an inequality like y > 2*x or x + y <= 5
+                    plt.contourf(x, y, eval(line, {'x': x, 'y': y, 'np': np}), levels=[0, np.inf], colors=['#3498db'], alpha=0.3)
+                    has_plot = True
+
+            except Exception as e:
+                current_app.logger.error(f"無法繪製方程式 '{line}': {e}")
+                # Don't stop, try to plot other equations
+                continue
+        
+        if not has_plot:
+            return jsonify({"success": False, "message": "成功提取方程式，但無法繪製任何有效的圖形。"}), 400
+
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.axhline(0, color='black', linewidth=0.5)
+        plt.axvline(0, color='black', linewidth=0.5)
+        plt.title("Equation Diagram")
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        # 3. Save the image
+        # Ensure the static directory exists
+        static_dir = os.path.join(current_app.static_folder)
+        if not os.path.exists(static_dir):
+            os.makedirs(static_dir)
+            
+        image_path = os.path.join(static_dir, 'diagram.png')
+        plt.savefig(image_path)
+        plt.close() # Close the figure to free up memory
+
+        # 4. Return the path
+        return jsonify({
+            "success": True,
+            "image_path": url_for('static', filename='diagram.png')
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"繪製示意圖時發生錯誤: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "message": f"伺服器內部錯誤: {e}"}), 500
+
 
 # === API 路由：用於連動式下拉選單 ===
 # 這些路由註冊在 core_bp 上，會自動受到 before_request 的登入保護
