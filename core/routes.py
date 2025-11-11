@@ -7,8 +7,9 @@ from flask import session # 導入 session
 import importlib, os
 from core.utils import get_skill_info
 from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites # 導入 SkillPrerequisites
-from sqlalchemy.orm import aliased
 import traceback
+import re
+from sqlalchemy.orm import aliased
 import pandas as pd
 import google.generativeai as genai
 import numpy as np
@@ -400,6 +401,14 @@ def draw_diagram():
             line = line.strip()
             if not line:
                 continue
+
+            # Sanitize equation string for safer evaluation
+            # 1. Normalize operators like '+ -' to '-'
+            line = line.replace('+ -', '-')
+            # 2. Insert '*' for implicit multiplication, e.g., '2x' -> '2*x' or '-3y' -> '-3*y'
+            #    This regex finds a number (potentially with a sign) followed immediately by 'x' or 'y'
+            #    and inserts a '*' between them.
+            line = re.sub(r'(-?\d+(?:\.\d+)?)([xy])', r'\1*\2', line)
             
             try:
                 # This is a simplified and somewhat unsafe way to plot.
