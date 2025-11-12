@@ -69,8 +69,10 @@ def create_app():
 
     # 註冊藍圖
     from core.routes import practice_bp # 導入新的 blueprint
+    from core.pdf import pdf_bp # 導入 PDF 藍圖
     app.register_blueprint(core_bp, url_prefix='/admin')
     app.register_blueprint(practice_bp) # 註冊練習用的 blueprint，沒有前綴
+    app.register_blueprint(pdf_bp, url_prefix='/pdf') # 註冊 PDF 藍圖
 
     # === 路由定義 ===
     # 將所有路由定義移至工廠函式內部

@@ -245,6 +245,35 @@
             color: #007bff;
             margin-bottom: 12px; /* 縮小標題和卡片之間的距離 */
         }
+        .pdf-upload-section {
+            background: #e9f5ff;
+            border: 2px dashed #007bff;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 25px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .pdf-upload-section h3 {
+            color: #0056b3;
+            margin-top: 0;
+        }
+        .pdf-upload-section input[type="file"] {
+            margin: 15px 0;
+        }
+        .pdf-upload-section .btn-generate {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .pdf-upload-section .btn-generate:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -295,6 +324,23 @@
                     顯示所有
                 </a>
             </div>
+        </div>
+
+        <!-- PDF Upload Section -->
+        <div class="pdf-upload-section">
+            <h3>從 PDF 文件自動生成練習題</h3>
+            <p>上傳您的 PDF 學習材料，AI 將為您量身打造練習題目。</p>
+            <form action="{{ url_for('pdf.generate_from_pdf') }}" method="post" enctype="multipart/form-data">
+                <input type="file" name="pdf_file" accept=".pdf" required>
+                <br>
+                <label for="question_type">選擇題目類型：</label>
+                <select name="question_type" id="question_type">
+                    <option value="multiple_choice">選擇題</option>
+                    <option value="short_answer">簡答題</option>
+                </select>
+                <br>
+                <button type="submit" class="btn-generate">開始生成</button>
+            </form>
         </div>
         
         {% if view_mode == 'curriculum' %}
