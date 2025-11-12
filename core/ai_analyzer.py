@@ -148,4 +148,81 @@ def ask_ai_text_with_context(user_question, context=""):
         return resp.text.strip()
     except Exception as e:
         return f"AI 內部錯誤：{str(e)}"
+    # ...existing code...
+
+from datetime import datetime
+from typing import List, Optional, Dict
+
+def _build_analysis_prompt(answer_steps: List[str], student_answer: str, correct_answer: Optional[str]=None, skill_prompt: Optional[str]=None) -> str:
+    """
+    建構傳給 AI 的 prompt，要求回傳 JSON 格式：
+    {"error_category": "...", "error_explanation": "...", "guidance": "..."}
+    """
+    prompt_lines = [
+        "你是數學助教。請根據學生的作答過程判斷錯誤並生成簡短回饋（繁體中文）。",
+        "輸出必須是 JSON，包含三個欄位：error_category, error_explanation, guidance。",
+        "error_category: 一個簡短分類（例如: 計算錯誤、概念誤解、公式套用錯誤、粗心）。",
+        "error_explanation: 一句話說明學生錯在哪裡（最多 30 字）。",
+        "guidance: 一至兩句簡短指導，告訴學生下一步怎麼改進（最多 50 字）。",
+        ""
+    ]
+    if skill_prompt:
+        prompt_lines.append(f"技能提示: {skill_prompt}")
+    if correct_answer:
+        prompt_lines.append(f"正確答案或目標: {correct_answer}")
+    prompt_lines.append("學生作答過程（步驟）：")
+    for i, step in enumerate(answer_steps, start=1):
+        prompt_lines.append(f"{i}. {step}")
+    prompt_lines.append("")
+    prompt_lines.append("學生最終作答：")
+    prompt_lines.append(student_answer or "<無>")
+    prompt_lines.append("")
+    prompt_lines.append("請只輸出 JSON，並確保 keys 如上。")
+    return "\n".join(prompt_lines)
+
+def analyze_student_answer(answer_steps: List[str], student_answer: str, correct_answer: Optional[str]=None, skill_prompt: Optional[str]=None, timeout_sec: int=10) -> Dict:
+    """
+    以結構化格式回傳 AI 對學生作答的分析：
+    回傳 dict 範例：
+    {
+      "error_category": "計算錯誤",
+      "error_explanation": "在第三步乘法寫錯",
+      "guidance": "重新檢查乘法並約簡分數",
+      "raw_response": "...",
+      "generated_at": "2025-11-11T12:34:56"
+    }
+
+    若無法呼叫外部 AI，會回傳 fallback 的簡短分析。
+    """
+    prompt = _build_analysis_prompt(answer_steps, student_answer, correct_answer, skill_prompt)
+
+    # 嘗試呼叫已設定的 Gemini (genai) client；若未設定則使用 fallback
+    try:
+        model = get_model()
+        resp = model.generate_content(prompt)
+        text = getattr(resp, "text", str(resp)).strip()
+        
+        # 若有實際 text，嘗試解析為 JSON
+        parsed = json.loads(text)
+        return {
+            "error_category": parsed.get("error_category", "").strip(),
+            "error_explanation": parsed.get("error_explanation", "").strip(),
+            "guidance": parsed.get("guidance", "").strip(),
+            "raw_response": text,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        # Fallback logic in case of API error or JSON parsing failure
+        # 若非 JSON，做最小化的回傳
+        raw_text_fallback = f"fallback due to: {str(e)}"
+        if 'text' in locals():
+             raw_text_fallback = text
+        return {
+            "error_category": "分析失敗",
+            "error_explanation": f"無法解析 AI 回應: {str(e)}",
+            "guidance": "請檢查你的作答，或稍後再試。",
+            "raw_response": raw_text_fallback,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+# ...existing code...
     

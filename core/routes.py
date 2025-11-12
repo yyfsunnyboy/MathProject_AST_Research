@@ -2,11 +2,11 @@
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
 from .session import set_current, get_current
-from .ai_analyzer import analyze, get_model
+from .ai_analyzer import analyze, get_model, analyze_student_answer # 修正：匯入 analyze_student_answer
 from flask import session # 導入 session
 import importlib, os
 from core.utils import get_skill_info
-from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites # 導入 SkillPrerequisites
+from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites, StudentErrorRecord # 導入 StudentErrorRecord
 import traceback
 import re
 from sqlalchemy.orm import aliased
@@ -249,6 +249,42 @@ def check_answer():
 
     # 更新進度
     update_progress(current_user.id, skill, is_correct)
+
+    # === 新增：如果答錯，呼叫 AI 分析並記錄錯誤 ===
+    if not is_correct:
+        ai_guidance = None # 初始化 AI 指導為 None
+        try:
+            # 1. 準備給 AI 的資料
+            #    - question_id: 使用題目文字的 hash 作為唯一識別
+            #    - answer_steps: 目前先用用戶的單一答案作為步驟
+            import hashlib
+            question_id = hashlib.md5(current.get("question", "").encode()).hexdigest()
+            answer_steps = [user] # 暫時將用戶答案當作單一步驟
+
+            # 2. 呼叫 AI 分析
+            ai_analysis = analyze_student_answer(
+                answer_steps=answer_steps,
+                student_answer=user,
+                correct_answer=str(correct_answer)
+            )
+            ai_guidance = ai_analysis.get('guidance') # 取得 AI 的指導
+
+            # 3. 建立並儲存錯誤記錄
+            new_error_record = StudentErrorRecord(
+                user_id=current_user.id,
+                skill_id=skill,
+                question_id=question_id,
+                is_correct=False,
+                error_category=ai_analysis.get('error_category'),
+                error_explanation=ai_analysis.get('error_explanation'),
+                guidance=ai_guidance
+            )
+            db.session.add(new_error_record)
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"寫入錯誤記錄失敗: {e}\n{traceback.format_exc()}")
+        
+        result['guidance'] = ai_guidance # 將 AI 指導加入回傳給前端的 JSON
     
     return jsonify(result)
 
@@ -267,12 +303,33 @@ def analyze_handwriting():
                      api_key=api_key, 
                      prerequisite_skills=prereq_skills)
     
+    # 判斷 AI 批改結果
+    is_correct_by_ai = result.get('correct', False) or result.get('is_process_correct', False)
+
     # 更新進度
-    if result.get('correct') or result.get('is_process_correct'):
-        update_progress(current_user.id, state['skill'], True)
-    else:
-        update_progress(current_user.id, state['skill'], False)
+    update_progress(current_user.id, state['skill'], is_correct_by_ai)
     
+    # === 新增：如果 AI 判斷過程錯誤，記錄到資料庫 ===
+    if not is_correct_by_ai:
+        try:
+            import hashlib
+            question_id = hashlib.md5(state.get("question", "").encode()).hexdigest()
+
+            # 建立並儲存錯誤記錄
+            new_error_record = StudentErrorRecord(
+                user_id=current_user.id,
+                skill_id=state['skill'],
+                question_id=question_id,
+                is_correct=False,
+                error_category="手寫過程錯誤", # 給定一個分類
+                error_explanation=result.get('reply', 'AI 未提供詳細說明'), # 使用 AI 的 reply 作為說明
+                guidance=result.get('reply', '請根據 AI 建議修正') # 同上
+            )
+            db.session.add(new_error_record)
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"寫入 AI 手寫分析錯誤記錄失敗: {e}\n{traceback.format_exc()}")
+
     return jsonify(result)
 
 @practice_bp.route('/chat_ai', methods=['POST'])
