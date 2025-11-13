@@ -777,10 +777,10 @@ def db_maintenance():
 @core_bp.route('/curriculum')
 @login_required
 def admin_curriculum():
-    f_curriculum = request.args.get('f_curriculum')
-    f_grade = request.args.get('f_grade')
-    f_volume = request.args.get('f_volume')
-    f_chapter = request.args.get('f_chapter')
+    f_curriculum = request.args.get('f_curriculum', type=str)
+    f_grade = request.args.get('f_grade', type=int)
+    f_volume = request.args.get('f_volume', type=str)
+    f_chapter = request.args.get('f_chapter', type=str)
 
     skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
 
@@ -789,7 +789,7 @@ def admin_curriculum():
     if f_curriculum:
         query = query.filter(SkillCurriculum.curriculum == f_curriculum)
     if f_grade:
-        query = query.filter(SkillCurriculum.grade == int(f_grade))
+        query = query.filter(SkillCurriculum.grade == f_grade)
     if f_volume:
         query = query.filter(SkillCurriculum.volume == f_volume)
     if f_chapter:
@@ -804,9 +804,21 @@ def admin_curriculum():
         SkillCurriculum.display_order
     ).all()
 
+    # 為連動下拉選單準備資料
     distinct_filters = {
-        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()])
+        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()]),
+        'grades': [],
+        'volumes': [],
+        'chapters': []
     }
+    if f_curriculum:
+        distinct_filters['grades'] = sorted([row[0] for row in db.session.query(SkillCurriculum.grade).filter_by(curriculum=f_curriculum).distinct().all()])
+    if f_curriculum and f_grade:
+        distinct_filters['volumes'] = sorted([row[0] for row in db.session.query(SkillCurriculum.volume).filter_by(curriculum=f_curriculum, grade=f_grade).distinct().all()])
+    if f_curriculum and f_grade and f_volume:
+        chapters_query = db.session.query(SkillCurriculum.chapter).filter_by(curriculum=f_curriculum, grade=f_grade, volume=f_volume).distinct().all()
+        # 這裡可以加入更複雜的排序邏輯，但暫時先用字串排序
+        distinct_filters['chapters'] = sorted([row[0] for row in chapters_query])
 
     curriculum_map = {
         'general': '普通高中',

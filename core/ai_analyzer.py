@@ -162,8 +162,8 @@ def _build_analysis_prompt(answer_steps: List[str], student_answer: str, correct
         "你是數學助教。請根據學生的作答過程判斷錯誤並生成簡短回饋（繁體中文）。",
         "輸出必須是 JSON，包含三個欄位：error_category, error_explanation, guidance。",
         "error_category: 一個簡短分類（例如: 計算錯誤、概念誤解、公式套用錯誤、粗心）。",
-        "error_explanation: 一句話說明學生錯在哪裡（最多 30 字）。",
-        "guidance: 一至兩句簡短指導，告訴學生下一步怎麼改進（最多 50 字）。",
+        "error_explanation: 一句話說明學生錯在哪裡（最多 20 字）。",
+        "guidance: 一至兩句簡短指導，告訴學生下一步怎麼改進（最多 30 字）。",
         ""
     ]
     if skill_prompt:
