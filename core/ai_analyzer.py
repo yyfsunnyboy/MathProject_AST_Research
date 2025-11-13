@@ -6,6 +6,8 @@ import tempfile
 import os
 import re
 from flask import current_app
+from datetime import datetime
+from typing import List, Optional, Dict
 
 # 初始化 gemini_model 為 None，避免 NameError
 gemini_model = None
@@ -58,7 +60,8 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
 
 直接輸出 JSON 內容，不要包在 ```json 標記內。"""
 
-            model = genai.GenerativeModel("gemini-2.5-flash")
+            # 修正：使用 get_model() 來獲取已初始化的模型，而不是硬編碼模型名稱
+            model = get_model()
             resp = model.generate_content([prompt, file])
             raw_text = resp.text.strip()
 
@@ -150,8 +153,40 @@ def ask_ai_text_with_context(user_question, context=""):
         return f"AI 內部錯誤：{str(e)}"
     # ...existing code...
 
-from datetime import datetime
-from typing import List, Optional, Dict
+def generate_suggested_questions(question_context: str) -> List[str]:
+    """
+    根據當前題目，由 AI 生成 2-3 個建議問題。
+    """
+    if not question_context:
+        return []
+
+    try:
+        model = get_model()
+        prompt = f"""
+        你是一個聰明的數學家教，正在協助一名學生解題。
+        學生的題目是：「{question_context}」
+
+        請根據這個題目，設想學生可能會卡關的地方，並提供 2 到 3 個「引導性」的建議問題，幫助學生思考。
+        重點：每個建議問題都必須非常簡短，嚴格限制在 10 個字以內。
+
+        你的回覆必須是純粹的 JSON 格式，結構如下：
+        {{
+          "suggestions": ["簡短問題一", "簡短問題二"]
+        }}
+
+        請直接輸出 JSON，不要包含任何 ```json 標記或額外說明。
+        """
+        
+        resp = model.generate_content(prompt)
+        data = json.loads(resp.text)
+        return data.get("suggestions", [])
+    except json.JSONDecodeError as e:
+        current_app.logger.error(f"生成建議問題失敗：無法解析 Gemini 回傳的 JSON。錯誤: {e}")
+        current_app.logger.error(f"Gemini 原始回傳內容: {resp.text}")
+        return []
+    except Exception as e:
+        current_app.logger.error(f"生成建議問題失敗: {e}")
+        return [] # 發生錯誤時回傳空列表，避免前端出錯
 
 def _build_analysis_prompt(answer_steps: List[str], student_answer: str, correct_answer: Optional[str]=None, skill_prompt: Optional[str]=None) -> str:
     """

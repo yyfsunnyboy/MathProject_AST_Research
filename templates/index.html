@@ -463,6 +463,11 @@
             <div id="chat-history">
                 <div class="bot-message"><pre>你好！有問題問我～</pre></div>
             </div>
+            <!-- ================= ▼▼▼ 新增這個區塊 ▼▼▼ ================= -->
+            <div id="suggested-questions-container">
+                <!-- 建議問題按鈕將會被動態加到這裡 -->
+            </div>
+            <!-- ================= ▲▲▲ 新增這個區塊 ▲▲▲ ================= -->
             <div class="chat-input-area">
                 <input type="text" id="chat-input" placeholder="問我觀念...">
                 <button id="chat-send-button">送出</button>
@@ -1125,6 +1130,34 @@
                     undoStack = [];
                     redoStack = [];
                     saveState();
+
+                    // ================= ▼▼▼ 在這裡加入新程式碼 ▼▼▼ =================
+                    const suggestionsContainer = document.getElementById('suggested-questions-container');
+                    suggestionsContainer.innerHTML = ''; // 清空舊的建議
+
+                    if (data.suggested_questions && data.suggested_questions.length > 0) {
+                        // 遍歷問題列表，為每一個問題建立按鈕
+                        data.suggested_questions.forEach(questionText => {
+                            const button = document.createElement('button');
+                            button.innerText = questionText;
+                            button.className = 'suggestion-btn'; // 套用 CSS 樣式
+
+                            // 為按鈕加上點擊事件
+                            button.onclick = () => {
+                                const aiInput = document.getElementById('chat-input');
+                                aiInput.value = questionText; // 將問題填入輸入框
+                                aiInput.focus(); // 讓使用者可以直接按 Enter 發送
+                            };
+
+                            // 將按鈕加入到容器中
+                            suggestionsContainer.appendChild(button);
+                        });
+                        suggestionsContainer.style.display = 'flex'; // 確保容器可見
+                    } else {
+                        suggestionsContainer.style.display = 'none'; // 如果沒有建議，隱藏容器
+                    }
+                    // ================= ▲▲▲ 新程式碼結束 ▲▲▲ =================
+
                 })
                 .catch(err => {
                     console.error('出題失敗:', err);

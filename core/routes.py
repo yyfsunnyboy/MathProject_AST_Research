@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
 from .session import set_current, get_current
-from .ai_analyzer import analyze, get_model, analyze_student_answer # 修正：匯入 analyze_student_answer
+from .ai_analyzer import analyze, get_model, analyze_student_answer, generate_suggested_questions
 from flask import session # 導入 session
 import importlib, os
 from core.utils import get_skill_info
@@ -205,12 +205,17 @@ def next_question():
         
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
+        # 新增：呼叫 AI 生成建議問題
+        suggested_questions = generate_suggested_questions(data["question_text"])
+        current_app.logger.info(f"為題目生成的建議問題: {suggested_questions}") # 新增日誌
+        data['suggested_questions'] = suggested_questions
         # 修正：在 data 產生後，才加入前置技能資訊
         data['prereq_skills'] = prereq_info_for_ai
         set_current(skill_id, data) # set_current 會將整個 data 存入 session
         
         return jsonify({
             "new_question_text": data["question_text"],
+            "suggested_questions": suggested_questions, # 新增：將建議問題回傳給前端
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
             "consecutive_correct": consecutive, # 連續答對

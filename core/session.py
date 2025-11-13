@@ -13,6 +13,7 @@ def set_current(skill, data):
 
     # 新增：儲存前置技能資訊
     session['current_prereq_skills'] = data.get('prereq_skills', [])
+    session['current_suggested_questions'] = data.get('suggested_questions', []) # 新增
     
     # 安全取 inequality_string
     session['current_inequality'] = data.get("inequality_string", "")
@@ -29,6 +30,7 @@ def get_current():
         "question": session.get('current_question'),
         "answer": session.get('current_answer'),
         "prereq_skills": session.get('current_prereq_skills', []), # 新增：讀取前置技能
+        "suggested_questions": session.get('current_suggested_questions', []), # 新增
         "inequality": session.get('current_inequality'),
         "correct_answer": session.get('current_correct_answer', "text")
     }
@@ -37,7 +39,7 @@ def clear():
     """
     清除所有 current 資料
     """
-    keys = ['current_skill', 'current_question', 'current_answer', 'current_prereq_skills',
+    keys = ['current_skill', 'current_question', 'current_answer', 'current_prereq_skills', 'current_suggested_questions',
             'current_inequality', 'current_correct_answer']
     for k in keys:
         session.pop(k, None)
