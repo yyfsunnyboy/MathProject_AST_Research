@@ -10,4 +10,3 @@ flask_sqlalchemy
 openpyxl
 matplotlib
 numpy
-pdfplumber

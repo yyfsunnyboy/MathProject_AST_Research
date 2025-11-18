@@ -6,8 +6,8 @@ import tempfile
 import os
 import re
 from flask import current_app
-from datetime import datetime
-from typing import List, Optional, Dict
+import PIL.Image
+import io
 
 # 初始化 gemini_model 為 None，避免 NameError
 gemini_model = None
@@ -60,8 +60,7 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
 
 直接輸出 JSON 內容，不要包在 ```json 標記內。"""
 
-            # 修正：使用 get_model() 來獲取已初始化的模型，而不是硬編碼模型名稱
-            model = get_model()
+            model = genai.GenerativeModel("gemini-2.5-flash")
             resp = model.generate_content([prompt, file])
             raw_text = resp.text.strip()
 
@@ -103,6 +102,67 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
         "next_question": False
     }
     
+def identify_skills_from_problem(problem_text):
+    """
+    Analyzes a math problem's text to identify relevant skills.
+    """
+    try:
+        model = get_model()
+        
+        # Get the list of available skills from the skills directory
+        skills_dir = os.path.join(os.path.dirname(__file__), '..', 'skills')
+        skill_files = [f.replace('.py', '') for f in os.listdir(skills_dir) if f.endswith('.py') and f != '__init__.py']
+        
+        prompt = f"""
+        You are an expert math teacher. Your task is to analyze a math problem and identify the key concepts or skills required to solve it.
+        I will provide you with a math problem and a list of available skill IDs.
+
+        **Math Problem:**
+        "{problem_text}"
+
+        **Available Skills:**
+        {', '.join(skill_files)}
+
+        Please identify up to 3 of the most relevant skills from the list that are directly applicable to solving this problem.
+
+        **Instructions:**
+        1.  Carefully read the problem to understand what is being asked.
+        2.  Review the list of available skills.
+        3.  Choose the skill IDs that best match the problem's requirements.
+        4.  Return your answer in a JSON format with a single key "skill_ids" containing a list of the chosen skill ID strings.
+
+        **Example Response:**
+        {{
+          "skill_ids": ["quadratic_equation", "factoring"]
+        }}
+
+        Do not include any other text or explanations. Just the JSON object.
+        """
+        
+        resp = model.generate_content(prompt)
+        raw_text = resp.text.strip()
+        
+        # Clean up potential markdown formatting
+        cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
+        
+        data = json.loads(cleaned)
+        
+        # Basic validation
+        if "skill_ids" in data and isinstance(data["skill_ids"], list):
+            return data["skill_ids"]
+        else:
+            # Log or handle the case where the response is not in the expected format
+            return []
+            
+    except json.JSONDecodeError as e:
+        # Log or handle JSON parsing errors
+        print(f"AI response JSON decode error: {e}")
+        return []
+    except Exception as e:
+        # Log or handle other exceptions
+        print(f"An error occurred in identify_skills_from_problem: {e}")
+        return []
+
 def ask_ai_text(user_question):
     try:
         model = get_model()
@@ -151,113 +211,70 @@ def ask_ai_text_with_context(user_question, context=""):
         return resp.text.strip()
     except Exception as e:
         return f"AI 內部錯誤：{str(e)}"
-    # ...existing code...
 
-def generate_suggested_questions(question_context: str) -> List[str]:
-    """
-    根據當前題目，由 AI 生成 2-3 個建議問題。
-    """
-    if not question_context:
-        return []
 
+def generate_quiz_from_image(image_file, description):
+    """
+    Generates a quiz from an image and a text description using a multimodal AI model.
+    """
     try:
         model = get_model()
+
+        # Prepare the image for the API
+        img = PIL.Image.open(image_file.stream)
+
         prompt = f"""
-        你是一個聰明的數學家教，正在協助一名學生解題。
-        學生的題目是：「{question_context}」
+        You are an expert math quiz generator. Your task is to create a quiz based on the provided image and description.
 
-        請根據這個題目，設想學生可能會卡關的地方，並提供 2 到 3 個「引導性」的建議問題，幫助學生思考。
-        重點：每個建議問題都必須非常簡短，嚴格限制在 10 個字以內。
+        **Description:**
+        "{description}"
 
-        你的回覆必須是純粹的 JSON 格式，結構如下：
+        **Instructions:**
+        1.  Analyze the image, which contains a math problem or concept.
+        2.  Use the user's description to understand what kind of quiz to generate (e.g., number of questions, question type).
+        3.  Generate a list of questions. Each question should have a question text, a list of options (if applicable), and the correct answer.
+        4.  Return your answer in a JSON format with a single key "questions" containing a list of the question objects.
+        5.  The structure for each question object should be: {{"question_text": "...", "options": ["...", "...", "..."], "correct_answer": "..."}}. For free-response questions, the "options" key can be omitted.
+
+        **Example Response:**
         {{
-          "suggestions": ["簡短問題一", "簡短問題二"]
+          "questions": [
+            {{
+              "question_text": "What is the first step to solve the equation in the image?",
+              "options": ["Add 5 to both sides", "Subtract 5 from both sides", "Multiply by 2"],
+              "correct_answer": "Subtract 5 from both sides"
+            }},
+            {{
+              "question_text": "What is the final value of x?",
+              "correct_answer": "x = 3"
+            }}
+          ]
         }}
 
-        請直接輸出 JSON，不要包含任何 ```json 標記或額外說明。
+        Do not include any other text or explanations. Just the JSON object.
         """
-        
-        resp = model.generate_content(prompt)
-        data = json.loads(resp.text)
-        return data.get("suggestions", [])
+
+        # Generate content with both the prompt and the image
+        response = model.generate_content([prompt, img])
+        raw_text = response.text.strip()
+
+        # Clean up potential markdown formatting
+        cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
+
+        data = json.loads(cleaned)
+
+        # Basic validation
+        if "questions" in data and isinstance(data["questions"], list):
+            return data.get("questions", [])
+        else:
+            current_app.logger.error("AI response for quiz generation was not in the expected format.")
+            return []
+
     except json.JSONDecodeError as e:
-        current_app.logger.error(f"生成建議問題失敗：無法解析 Gemini 回傳的 JSON。錯誤: {e}")
-        current_app.logger.error(f"Gemini 原始回傳內容: {resp.text}")
+        current_app.logger.error(f"AI response JSON decode error in quiz generation: {e}")
         return []
     except Exception as e:
-        current_app.logger.error(f"生成建議問題失敗: {e}")
-        return [] # 發生錯誤時回傳空列表，避免前端出錯
+        current_app.logger.error(f"An error occurred in generate_quiz_from_image: {e}")
+        return []
 
-def _build_analysis_prompt(answer_steps: List[str], student_answer: str, correct_answer: Optional[str]=None, skill_prompt: Optional[str]=None) -> str:
-    """
-    建構傳給 AI 的 prompt，要求回傳 JSON 格式：
-    {"error_category": "...", "error_explanation": "...", "guidance": "..."}
-    """
-    prompt_lines = [
-        "你是數學助教。請根據學生的作答過程判斷錯誤並生成簡短回饋（繁體中文）。",
-        "輸出必須是 JSON，包含三個欄位：error_category, error_explanation, guidance。",
-        "error_category: 一個簡短分類（例如: 計算錯誤、概念誤解、公式套用錯誤、粗心）。",
-        "error_explanation: 一句話說明學生錯在哪裡（最多 20 字）。",
-        "guidance: 一至兩句簡短指導，告訴學生下一步怎麼改進（最多 30 字）。",
-        ""
-    ]
-    if skill_prompt:
-        prompt_lines.append(f"技能提示: {skill_prompt}")
-    if correct_answer:
-        prompt_lines.append(f"正確答案或目標: {correct_answer}")
-    prompt_lines.append("學生作答過程（步驟）：")
-    for i, step in enumerate(answer_steps, start=1):
-        prompt_lines.append(f"{i}. {step}")
-    prompt_lines.append("")
-    prompt_lines.append("學生最終作答：")
-    prompt_lines.append(student_answer or "<無>")
-    prompt_lines.append("")
-    prompt_lines.append("請只輸出 JSON，並確保 keys 如上。")
-    return "\n".join(prompt_lines)
-
-def analyze_student_answer(answer_steps: List[str], student_answer: str, correct_answer: Optional[str]=None, skill_prompt: Optional[str]=None, timeout_sec: int=10) -> Dict:
-    """
-    以結構化格式回傳 AI 對學生作答的分析：
-    回傳 dict 範例：
-    {
-      "error_category": "計算錯誤",
-      "error_explanation": "在第三步乘法寫錯",
-      "guidance": "重新檢查乘法並約簡分數",
-      "raw_response": "...",
-      "generated_at": "2025-11-11T12:34:56"
-    }
-
-    若無法呼叫外部 AI，會回傳 fallback 的簡短分析。
-    """
-    prompt = _build_analysis_prompt(answer_steps, student_answer, correct_answer, skill_prompt)
-
-    # 嘗試呼叫已設定的 Gemini (genai) client；若未設定則使用 fallback
-    try:
-        model = get_model()
-        resp = model.generate_content(prompt)
-        text = getattr(resp, "text", str(resp)).strip()
-        
-        # 若有實際 text，嘗試解析為 JSON
-        parsed = json.loads(text)
-        return {
-            "error_category": parsed.get("error_category", "").strip(),
-            "error_explanation": parsed.get("error_explanation", "").strip(),
-            "guidance": parsed.get("guidance", "").strip(),
-            "raw_response": text,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        # Fallback logic in case of API error or JSON parsing failure
-        # 若非 JSON，做最小化的回傳
-        raw_text_fallback = f"fallback due to: {str(e)}"
-        if 'text' in locals():
-             raw_text_fallback = text
-        return {
-            "error_category": "分析失敗",
-            "error_explanation": f"無法解析 AI 回應: {str(e)}",
-            "guidance": "請檢查你的作答，或稍後再試。",
-            "raw_response": raw_text_fallback,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-# ...existing code...
     

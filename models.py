@@ -80,23 +80,6 @@ def init_db(engine):
         )
     ''')
 
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS student_error_records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            skill_id TEXT NOT NULL,
-            question_id TEXT NOT NULL,
-            is_correct BOOLEAN DEFAULT FALSE,
-            error_category TEXT,
-            error_explanation TEXT,
-            guidance TEXT,
-            attempt_number INTEGER DEFAULT 1,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id)
-        )
-    ''')
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -237,36 +220,3 @@ class SkillPrerequisites(db.Model):
 
     # 定義複合唯一約束
     __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)
-    
-class StudentErrorRecord(db.Model):
-    __tablename__ = 'student_error_records'
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id'), nullable=False)
-    question_id = db.Column(db.String, nullable=False)
-    is_correct = db.Column(db.Boolean, default=False)
-    error_category = db.Column(db.String(100))
-    error_explanation = db.Column(db.Text)
-    guidance = db.Column(db.Text)
-    attempt_number = db.Column(db.Integer, default=1)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('error_records', lazy=True))
-    skill_info = db.relationship('SkillInfo', backref=db.backref('error_records', lazy=True))
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'skill_id': self.skill_id,
-            'question_id': self.question_id,
-            'is_correct': self.is_correct,
-            'error_category': self.error_category,
-            'error_explanation': self.error_explanation,
-            'guidance': self.guidance,
-            'attempt_number': self.attempt_number,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }

@@ -2,11 +2,12 @@
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
 from .session import set_current, get_current
-from .ai_analyzer import analyze, get_model, analyze_student_answer, generate_suggested_questions
+from .ai_analyzer import analyze, get_model, generate_quiz_from_image
 from flask import session # 導入 session
 import importlib, os
+from werkzeug.utils import secure_filename # Import secure_filename
 from core.utils import get_skill_info
-from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites, StudentErrorRecord # 導入 StudentErrorRecord
+from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites # 導入 SkillPrerequisites
 import traceback
 import re
 from sqlalchemy.orm import aliased
@@ -205,17 +206,12 @@ def next_question():
         
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
-        # 新增：呼叫 AI 生成建議問題
-        suggested_questions = generate_suggested_questions(data["question_text"])
-        current_app.logger.info(f"為題目生成的建議問題: {suggested_questions}") # 新增日誌
-        data['suggested_questions'] = suggested_questions
         # 修正：在 data 產生後，才加入前置技能資訊
         data['prereq_skills'] = prereq_info_for_ai
         set_current(skill_id, data) # set_current 會將整個 data 存入 session
         
         return jsonify({
             "new_question_text": data["question_text"],
-            "suggested_questions": suggested_questions, # 新增：將建議問題回傳給前端
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
             "consecutive_correct": consecutive, # 連續答對
@@ -254,42 +250,6 @@ def check_answer():
 
     # 更新進度
     update_progress(current_user.id, skill, is_correct)
-
-    # === 新增：如果答錯，呼叫 AI 分析並記錄錯誤 ===
-    if not is_correct:
-        ai_guidance = None # 初始化 AI 指導為 None
-        try:
-            # 1. 準備給 AI 的資料
-            #    - question_id: 使用題目文字的 hash 作為唯一識別
-            #    - answer_steps: 目前先用用戶的單一答案作為步驟
-            import hashlib
-            question_id = hashlib.md5(current.get("question", "").encode()).hexdigest()
-            answer_steps = [user] # 暫時將用戶答案當作單一步驟
-
-            # 2. 呼叫 AI 分析
-            ai_analysis = analyze_student_answer(
-                answer_steps=answer_steps,
-                student_answer=user,
-                correct_answer=str(correct_answer)
-            )
-            ai_guidance = ai_analysis.get('guidance') # 取得 AI 的指導
-
-            # 3. 建立並儲存錯誤記錄
-            new_error_record = StudentErrorRecord(
-                user_id=current_user.id,
-                skill_id=skill,
-                question_id=question_id,
-                is_correct=False,
-                error_category=ai_analysis.get('error_category'),
-                error_explanation=ai_analysis.get('error_explanation'),
-                guidance=ai_guidance
-            )
-            db.session.add(new_error_record)
-            db.session.commit()
-        except Exception as e:
-            current_app.logger.error(f"寫入錯誤記錄失敗: {e}\n{traceback.format_exc()}")
-        
-        result['guidance'] = ai_guidance # 將 AI 指導加入回傳給前端的 JSON
     
     return jsonify(result)
 
@@ -308,33 +268,12 @@ def analyze_handwriting():
                      api_key=api_key, 
                      prerequisite_skills=prereq_skills)
     
-    # 判斷 AI 批改結果
-    is_correct_by_ai = result.get('correct', False) or result.get('is_process_correct', False)
-
     # 更新進度
-    update_progress(current_user.id, state['skill'], is_correct_by_ai)
+    if result.get('correct') or result.get('is_process_correct'):
+        update_progress(current_user.id, state['skill'], True)
+    else:
+        update_progress(current_user.id, state['skill'], False)
     
-    # === 新增：如果 AI 判斷過程錯誤，記錄到資料庫 ===
-    if not is_correct_by_ai:
-        try:
-            import hashlib
-            question_id = hashlib.md5(state.get("question", "").encode()).hexdigest()
-
-            # 建立並儲存錯誤記錄
-            new_error_record = StudentErrorRecord(
-                user_id=current_user.id,
-                skill_id=state['skill'],
-                question_id=question_id,
-                is_correct=False,
-                error_category="手寫過程錯誤", # 給定一個分類
-                error_explanation=result.get('reply', 'AI 未提供詳細說明'), # 使用 AI 的 reply 作為說明
-                guidance=result.get('reply', '請根據 AI 建議修正') # 同上
-            )
-            db.session.add(new_error_record)
-            db.session.commit()
-        except Exception as e:
-            current_app.logger.error(f"寫入 AI 手寫分析錯誤記錄失敗: {e}\n{traceback.format_exc()}")
-
     return jsonify(result)
 
 @practice_bp.route('/chat_ai', methods=['POST'])
@@ -782,10 +721,10 @@ def db_maintenance():
 @core_bp.route('/curriculum')
 @login_required
 def admin_curriculum():
-    f_curriculum = request.args.get('f_curriculum', type=str)
-    f_grade = request.args.get('f_grade', type=int)
-    f_volume = request.args.get('f_volume', type=str)
-    f_chapter = request.args.get('f_chapter', type=str)
+    f_curriculum = request.args.get('f_curriculum')
+    f_grade = request.args.get('f_grade')
+    f_volume = request.args.get('f_volume')
+    f_chapter = request.args.get('f_chapter')
 
     skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
 
@@ -794,7 +733,7 @@ def admin_curriculum():
     if f_curriculum:
         query = query.filter(SkillCurriculum.curriculum == f_curriculum)
     if f_grade:
-        query = query.filter(SkillCurriculum.grade == f_grade)
+        query = query.filter(SkillCurriculum.grade == int(f_grade))
     if f_volume:
         query = query.filter(SkillCurriculum.volume == f_volume)
     if f_chapter:
@@ -809,21 +748,9 @@ def admin_curriculum():
         SkillCurriculum.display_order
     ).all()
 
-    # 為連動下拉選單準備資料
     distinct_filters = {
-        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()]),
-        'grades': [],
-        'volumes': [],
-        'chapters': []
+        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()])
     }
-    if f_curriculum:
-        distinct_filters['grades'] = sorted([row[0] for row in db.session.query(SkillCurriculum.grade).filter_by(curriculum=f_curriculum).distinct().all()])
-    if f_curriculum and f_grade:
-        distinct_filters['volumes'] = sorted([row[0] for row in db.session.query(SkillCurriculum.volume).filter_by(curriculum=f_curriculum, grade=f_grade).distinct().all()])
-    if f_curriculum and f_grade and f_volume:
-        chapters_query = db.session.query(SkillCurriculum.chapter).filter_by(curriculum=f_curriculum, grade=f_grade, volume=f_volume).distinct().all()
-        # 這裡可以加入更複雜的排序邏輯，但暫時先用字串排序
-        distinct_filters['chapters'] = sorted([row[0] for row in chapters_query])
 
     curriculum_map = {
         'general': '普通高中',
@@ -1024,3 +951,119 @@ def admin_toggle_skill(skill_id):
         flash(f'操作失敗：{str(e)}', 'danger')
 
     return redirect(url_for('core.admin_skills'))
+
+@practice_bp.route('/similar-questions-page')
+@login_required
+def similar_questions_page():
+    return render_template('similar_questions.html')
+
+@practice_bp.route('/generate-similar-questions', methods=['POST'])
+@login_required
+def generate_similar_questions():
+    data = request.get_json()
+    problem_text = data.get('problem_text')
+
+    if not problem_text:
+        return jsonify({"error": "Missing problem_text"}), 400
+
+    # Import the function from the analyzer
+    from .ai_analyzer import identify_skills_from_problem
+    
+    # Get skill IDs from the AI
+    skill_ids = identify_skills_from_problem(problem_text)
+
+    if not skill_ids:
+        return jsonify({"questions": [], "message": "AI 無法從您的問題中識別出相關的數學技能，請嘗試更具體地描述您的問題。"
+})
+
+    generated_questions = []
+    for skill_id in skill_ids:
+        try:
+            # Dynamically import the skill module
+            mod = importlib.import_module(f"skills.{skill_id}")
+            
+            # Check if the module has a 'generate' function
+            if hasattr(mod, 'generate') and callable(mod.generate):
+                # Generate a question with a default level (e.g., 1)
+                new_question = mod.generate(level=1)
+                
+                # Add skill info for context
+                skill_info = get_skill_info(skill_id)
+                new_question['skill_id'] = skill_id
+                new_question['skill_ch_name'] = skill_info.skill_ch_name if skill_info else "未知技能"
+                
+                generated_questions.append(new_question)
+            else:
+                current_app.logger.warning(f"Skill module {skill_id} does not have a 'generate' function.")
+
+        except ImportError:
+            current_app.logger.error(f"Could not import skill module: {skill_id}")
+        except Exception as e:
+            current_app.logger.error(f"Error generating question for skill {skill_id}: {e}")
+
+    return jsonify({"questions": generated_questions})
+
+
+@practice_bp.route('/image-quiz-generator')
+@login_required
+def image_quiz_generator():
+    return render_template('image_quiz_generator.html')
+
+@practice_bp.route('/generate-quiz-from-image', methods=['POST'])
+@login_required
+def generate_quiz_from_image():
+    if 'image_file' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+    
+    file = request.files['image_file']
+    description = request.form.get('description', '')
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    try:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        questions = generate_quiz_from_image(filepath, description) # Pass filepath instead of file object
+        return jsonify({"questions": questions})
+    except Exception as e:
+        current_app.logger.error(f"Error in generate_quiz_from_image route: {e}")
+        return jsonify({"error": "An unexpected error occurred on the server."}), 500
+
+
+SUGGESTED_PROMPTS = {
+    "common_log_definition": [
+        "什麼是對數？",
+        "log(100) 是多少？為什麼？",
+        "對數和指數有什麼關係？"
+    ],
+    "common_logarithm": [
+        "常用對數是什麼？",
+        "如何計算 log(50) 的大約值？",
+        "對數的換底公式是什麼？"
+    ],
+    "log_properties_basic": [
+        "對數有哪些基本性質？",
+        "log(a) + log(b) 等於什麼？",
+        "log(a^n) 可以怎麼簡化？"
+    ],
+    "log_change_of_base": [
+        "什麼時候需要使用換底公式？",
+        "如何用計算機算 log₂(7)？",
+        "把 log₃(5) 換成以 10 為底的對數。"
+    ],
+    # Add more skills and prompts here
+    "default": [
+        "這題的解題思路是什麼？",
+        "可以給我一個相關的例子嗎？",
+        "這個概念在生活中有什麼應用？"
+    ]
+}
+
+@practice_bp.route('/get_suggested_prompts/<skill_id>')
+@login_required
+def get_suggested_prompts(skill_id):
+    prompts = SUGGESTED_PROMPTS.get(skill_id, SUGGESTED_PROMPTS.get("default", []))
+    return jsonify(prompts)

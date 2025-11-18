@@ -333,6 +333,29 @@
         }
         .chat-input-area {
             display: flex;
+            flex-direction: column; /* 改為垂直排列 */
+            gap: 10px;
+        }
+        .symbol-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+        }
+        .symbol-button {
+            padding: 5px 10px;
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background 0.2s;
+        }
+        .symbol-button:hover {
+            background: #dfe6e9;
+        }
+        .chat-input-group {
+            display: flex;
             gap: 10px;
         }
         #chat-input {
@@ -356,6 +379,38 @@
             cursor: pointer;
         }
         #chat-send-button:hover { background: #8e44ad; }
+
+        /* === Suggested Prompts === */
+        #suggested-prompts-container {
+            margin-bottom: 15px;
+        }
+        #suggested-prompts-container h4 {
+            color: #9b59b6;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        #suggested-prompts {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .prompt-button {
+            width: 100%;
+            padding: 8px 12px;
+            background: #fdfefe;
+            border: 1px solid #dfe6e9;
+            border-radius: 6px;
+            text-align: left;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #2c3e50;
+            transition: all 0.2s;
+        }
+        .prompt-button:hover {
+            background: #ecf0f1;
+            border-color: #9b59b6;
+        }
 
         /* === 新增：問題與示意圖排版 === */
         .question-content {
@@ -463,15 +518,31 @@
             <div id="chat-history">
                 <div class="bot-message"><pre>你好！有問題問我～</pre></div>
             </div>
-            <!-- ================= ▼▼▼ 新增這個區塊 ▼▼▼ ================= -->
-            <div id="suggested-questions-container">
-                <!-- 建議問題按鈕將會被動態加到這裡 -->
+            <div id="suggested-prompts-container" style="display: none;">
+                <h4>試試這樣問：</h4>
+                <div id="suggested-prompts"></div>
             </div>
-            <!-- ================= ▲▲▲ 新增這個區塊 ▲▲▲ ================= -->
             <div class="chat-input-area">
-                <input type="text" id="chat-input" placeholder="問我觀念...">
-                <button id="chat-send-button">送出</button>
-                
+                <div class="symbol-buttons">
+                    <button class="symbol-button" data-symbol="π">π</button>
+                    <button class="symbol-button" data-symbol="√">√</button>
+                    <button class="symbol-button" data-symbol="²">²</button>
+                    <button class="symbol-button" data-symbol="³">³</button>
+                    <button class="symbol-button" data-symbol="°">°</button>
+                    <button class="symbol-button" data-symbol="θ">θ</button>
+                    <button class="symbol-button" data-symbol="∞">∞</button>
+                    <button class="symbol-button" data-symbol="±">±</button>
+                    <button class="symbol-button" data-symbol="≠">≠</button>
+                    <button class="symbol-button" data-symbol="≤">≤</button>
+                    <button class="symbol-button" data-symbol="≥">≥</button>
+                    <button class="symbol-button" data-symbol="≈">≈</button>
+                    <button class="symbol-button" data-symbol="∑">∑</button>
+                    <button class="symbol-button" data-symbol="∫">∫</button>
+                </div>
+                <div class="chat-input-group">
+                    <input type="text" id="chat-input" placeholder="問我觀念...">
+                    <button id="chat-send-button">送出</button>
+                </div>
                 <!-- 新增：隱藏的圖片上傳 input -->
                 <input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
@@ -1051,9 +1122,42 @@
             };
         }
 
+        function updateSuggestedPrompts(skillId) {
+            const promptsContainer = document.getElementById('suggested-prompts');
+            const container = document.getElementById('suggested-prompts-container');
+            if (!promptsContainer || !container) return;
+
+            fetch(`/get_suggested_prompts/${skillId}`)
+                .then(response => response.json())
+                .then(prompts => {
+                    promptsContainer.innerHTML = ''; // Clear old prompts
+                    if (prompts && prompts.length > 0) {
+                        prompts.forEach(promptText => {
+                            const button = document.createElement('button');
+                            button.className = 'prompt-button';
+                            button.textContent = promptText;
+                            button.onclick = () => {
+                                const chatInput = document.getElementById('chat-input');
+                                const chatSendBtn = document.getElementById('chat-send-button');
+                                chatInput.value = promptText;
+                                chatSendBtn.click();
+                            };
+                            promptsContainer.appendChild(button);
+                        });
+                        container.style.display = 'block'; // Show the container
+                    } else {
+                        container.style.display = 'none'; // Hide if no prompts
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching suggested prompts:', error);
+                    container.style.display = 'none'; // Hide on error
+                });
+        }
 
         function loadQuestion() {
             const skill = getSkillId();
+            updateSuggestedPrompts(skill); // Call the new function
             fetch(`/get_next_question?skill=${skill}&level=${selectedLevel}`) // 修改：帶上 level 參數
                 .then(r => r.json())
                 .then(data => {
@@ -1130,34 +1234,6 @@
                     undoStack = [];
                     redoStack = [];
                     saveState();
-
-                    // ================= ▼▼▼ 在這裡加入新程式碼 ▼▼▼ =================
-                    const suggestionsContainer = document.getElementById('suggested-questions-container');
-                    suggestionsContainer.innerHTML = ''; // 清空舊的建議
-
-                    if (data.suggested_questions && data.suggested_questions.length > 0) {
-                        // 遍歷問題列表，為每一個問題建立按鈕
-                        data.suggested_questions.forEach(questionText => {
-                            const button = document.createElement('button');
-                            button.innerText = questionText;
-                            button.className = 'suggestion-btn'; // 套用 CSS 樣式
-
-                            // 為按鈕加上點擊事件
-                            button.onclick = () => {
-                                const aiInput = document.getElementById('chat-input');
-                                aiInput.value = questionText; // 將問題填入輸入框
-                                aiInput.focus(); // 讓使用者可以直接按 Enter 發送
-                            };
-
-                            // 將按鈕加入到容器中
-                            suggestionsContainer.appendChild(button);
-                        });
-                        suggestionsContainer.style.display = 'flex'; // 確保容器可見
-                    } else {
-                        suggestionsContainer.style.display = 'none'; // 如果沒有建議，隱藏容器
-                    }
-                    // ================= ▲▲▲ 新程式碼結束 ▲▲▲ =================
-
                 })
                 .catch(err => {
                     console.error('出題失敗:', err);
@@ -1442,6 +1518,20 @@
         function setupChat() {
             const chatSendBtn = document.getElementById('chat-send-button');
             const chatInput = document.getElementById('chat-input');
+
+            document.querySelectorAll('.symbol-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault(); // 防止按鈕觸發 form 提交
+                    const symbol = button.dataset.symbol;
+                    const start = chatInput.selectionStart;
+                    const end = chatInput.selectionEnd;
+                    const text = chatInput.value;
+
+                    chatInput.value = text.substring(0, start) + symbol + text.substring(end);
+                    chatInput.focus();
+                    chatInput.selectionStart = chatInput.selectionEnd = start + symbol.length;
+                });
+            });
         
             function addUserMessage(text) {
                 const msg = document.createElement('div');
