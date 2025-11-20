@@ -98,6 +98,10 @@ def init_db(engine):
     add_column_if_not_exists('skills_info', 'input_type', 'TEXT DEFAULT "text"')
     add_column_if_not_exists('skills_info', 'is_active', 'BOOLEAN DEFAULT TRUE')
     add_column_if_not_exists('skills_info', 'order_index', 'INTEGER DEFAULT 0')
+    # 新增：為 suggested_prompts 安全新增欄位
+    add_column_if_not_exists('skills_info', 'suggested_prompt_1', 'TEXT')
+    add_column_if_not_exists('skills_info', 'suggested_prompt_2', 'TEXT')
+    add_column_if_not_exists('skills_info', 'suggested_prompt_3', 'TEXT')
 
     conn.commit()
     conn.close()
@@ -149,6 +153,11 @@ class SkillInfo(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     order_index = db.Column(db.Integer, default=0)
 
+    # 新增：對應 Excel 中的 K, L, M 欄位
+    suggested_prompt_1 = db.Column(db.String, nullable=True)
+    suggested_prompt_2 = db.Column(db.String, nullable=True)
+    suggested_prompt_3 = db.Column(db.String, nullable=True)
+
     # 定義技能之間的多對多自我參照關係
     # 'prerequisites' 屬性將會得到此技能的所有前置技能
     prerequisites = db.relationship(
@@ -170,7 +179,10 @@ class SkillInfo(db.Model):
             'gemini_prompt': self.gemini_prompt,
             'consecutive_correct_required': self.consecutive_correct_required,
             'is_active': self.is_active,
-            'order_index': self.order_index
+            'order_index': self.order_index,
+            'suggested_prompt_1': self.suggested_prompt_1,
+            'suggested_prompt_2': self.suggested_prompt_2,
+            'suggested_prompt_3': self.suggested_prompt_3
         }
 
 # 新增 SkillCurriculum ORM 模型 (課程綱要)

@@ -343,6 +343,9 @@ def chat_ai():
         model = get_model()
         resp = model.generate_content(full_prompt)
         reply = resp.text.strip()
+
+        # 新增：移除 AI 回覆中用於標記 LaTeX 數學式子的 '$' 符號
+        reply = reply.replace('$', '')
         
         # 強制加鼓勵話（避免 AI 太冷）
         if not any(word in reply for word in ['加油', '試試', '可以的', '棒']):
@@ -699,9 +702,16 @@ def db_maintenance():
             elif action == 'upload_excel':
                 file = request.files.get('file')
                 if file and file.filename != '':
+                    # 1. 獲取目標表格的所有欄位名稱
+                    inspector = db.inspect(db.engine)
+                    table_columns = [c['name'] for c in inspector.get_columns(table_name)]
+                    # 2. 讀取 Excel
                     df = pd.read_excel(file)
-                    df = df.where(pd.notnull(df), None) # 將 NaN 轉為 None
-                    df.to_sql(table_name, db.engine, if_exists='append', index=False)
+                    # 3. 過濾 DataFrame，只保留資料庫表格中存在的欄位
+                    df_filtered = df[[col for col in df.columns if col in table_columns]]
+                    # 4. 將 NaN 轉為 None，並使用過濾後的 DataFrame 寫入資料庫
+                    df_filtered = df_filtered.where(pd.notnull(df_filtered), None)
+                    df_filtered.to_sql(table_name, db.engine, if_exists='append', index=False)
                     flash(f'成功將資料從 Excel 匯入到表格 "{table_name}"。', 'success')
                 else:
                     flash('沒有選擇檔案或檔案無效。', 'warning')
@@ -1033,37 +1043,27 @@ def generate_quiz_from_image():
         return jsonify({"error": "An unexpected error occurred on the server."}), 500
 
 
-SUGGESTED_PROMPTS = {
-    "common_log_definition": [
-        "什麼是對數？",
-        "log(100) 是多少？為什麼？",
-        "對數和指數有什麼關係？"
-    ],
-    "common_logarithm": [
-        "常用對數是什麼？",
-        "如何計算 log(50) 的大約值？",
-        "對數的換底公式是什麼？"
-    ],
-    "log_properties_basic": [
-        "對數有哪些基本性質？",
-        "log(a) + log(b) 等於什麼？",
-        "log(a^n) 可以怎麼簡化？"
-    ],
-    "log_change_of_base": [
-        "什麼時候需要使用換底公式？",
-        "如何用計算機算 log₂(7)？",
-        "把 log₃(5) 換成以 10 為底的對數。"
-    ],
-    # Add more skills and prompts here
-    "default": [
-        "這題的解題思路是什麼？",
-        "可以給我一個相關的例子嗎？",
-        "這個概念在生活中有什麼應用？"
-    ]
-}
+# 預設的建議問題，當資料庫中沒有設定時使用
+DEFAULT_PROMPTS = [
+    "這題的解題思路是什麼？",
+    "可以給我一個相關的例子嗎？",
+    "這個概念在生活中有什麼應用？"
+]
 
 @practice_bp.route('/get_suggested_prompts/<skill_id>')
 @login_required
 def get_suggested_prompts(skill_id):
-    prompts = SUGGESTED_PROMPTS.get(skill_id, SUGGESTED_PROMPTS.get("default", []))
+    skill_info = db.session.get(SkillInfo, skill_id)
+    prompts = []
+    if skill_info:
+        # 假設您的 SkillInfo 模型中有 suggested_prompt_1, suggested_prompt_2, suggested_prompt_3 欄位
+        # 請根據您 Excel 中 K, L, M 欄對應的實際欄位名稱修改
+        prompts = [p for p in [getattr(skill_info, 'suggested_prompt_1', None), 
+                               getattr(skill_info, 'suggested_prompt_2', None), 
+                               getattr(skill_info, 'suggested_prompt_3', None)] if p]
+
+    # 如果從資料庫找不到任何提示，或技能不存在，則使用預設提示
+    if not prompts:
+        prompts = DEFAULT_PROMPTS
+
     return jsonify(prompts)
