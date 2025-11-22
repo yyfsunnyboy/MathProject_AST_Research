@@ -5,11 +5,11 @@ import random
 
 # ================= 設定區 =================
 # 1. 請在此填入你的 Gemini API Key
-GOOGLE_API_KEY = "AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY"
+GOOGLE_API_KEY = "AIzaSyAgLGBxMt1CuA49Zfl094cGLRu9Xi-s_i0"
 
 # 2. 檔案路徑 (維持您上次提供的路徑)
-INPUT_FILE_PATH = r"C:\Mathproject_1118backup\datasource\data source_課程資料\skills_info\普高\skills_info\skills_info_數學1.xlsx"
-OUTPUT_FILE_PATH = r"C:\Mathproject_1118backup\datasource\data source_課程資料\skills_info\普高\skills_info\skills_info_數學1_short.xlsx"
+INPUT_FILE_PATH = r"C:\Mathproject\datasource\data source_課程資料\skills_info\技高\skills_info\skills_info_數學C2.xlsx"
+OUTPUT_FILE_PATH = r"C:\Mathproject\datasource\data source_課程資料\skills_info\技高\skills_info\skills_info_數學C2_short.xlsx"
 
 # 3. 設定 Gemini 模型 (繼續使用速度最快的 2.5 Flash)
 genai.configure(api_key=GOOGLE_API_KEY)
