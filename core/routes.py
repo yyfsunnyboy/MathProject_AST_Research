@@ -1233,3 +1233,104 @@ def add_student_to_class(class_id):
         db.session.rollback()
         current_app.logger.error(f"建立學生帳號失敗: {e}")
         return jsonify({"success": False, "message": "建立學生帳號失敗"}), 500
+
+@core_bp.route('/api/classes/<int:class_id>/students/upload', methods=['POST'])
+@login_required
+def upload_students_excel(class_id):
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+
+    try:
+        # 確保是該老師的班級
+        class_obj = db.session.query(Class).filter_by(id=class_id, teacher_id=current_user.id).first()
+        if not class_obj:
+            return jsonify({"success": False, "message": "找不到班級或無權限"}), 404
+
+        if 'file' not in request.files:
+            return jsonify({"success": False, "message": "未上傳檔案"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"success": False, "message": "未選擇檔案"}), 400
+
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({"success": False, "message": "請上傳 Excel 檔案 (.xlsx, .xls)"}), 400
+
+        # 讀取 Excel，不預設標題，以便我們自己判斷
+        df = pd.read_excel(file, header=None)
+        
+        if df.shape[1] < 2:
+            return jsonify({"success": False, "message": "Excel 檔案格式錯誤：至少需要兩欄 (帳號, 密碼)"}), 400
+
+        stats = {
+            "total": 0,
+            "added": 0,
+            "skipped": 0,
+            "failed": 0,
+            "errors": []
+        }
+
+        # 開始處理每一列
+        for index, row in df.iterrows():
+            try:
+                username = str(row[0]).strip()
+                password = str(row[1]).strip()
+
+                # 簡單判斷是否為標題列 (如果第一欄包含 'account' 或 'username' 或 '帳號')
+                if index == 0 and any(x in username.lower() for x in ['account', 'username', '帳號']):
+                    continue
+                
+                if not username or not password or pd.isna(row[0]) or pd.isna(row[1]):
+                    continue
+
+                stats["total"] += 1
+
+                # 檢查帳號是否已存在
+                existing_user = db.session.query(User).filter_by(username=username).first()
+                
+                if existing_user:
+                    # 如果使用者已存在，檢查是否已在班級中
+                    in_class = db.session.query(ClassStudent).filter_by(class_id=class_id, student_id=existing_user.id).first()
+                    if not in_class:
+                        # 加入班級
+                        new_class_student = ClassStudent(class_id=class_id, student_id=existing_user.id)
+                        db.session.add(new_class_student)
+                        stats["added"] += 1
+                    else:
+                        stats["skipped"] += 1 # 已經在班級中
+                else:
+                    # 建立新使用者
+                    new_student = User(
+                        username=username,
+                        password_hash=generate_password_hash(password),
+                        role='student'
+                    )
+                    db.session.add(new_student)
+                    db.session.flush() # 取得 ID
+
+                    # 加入班級
+                    new_class_student = ClassStudent(class_id=class_id, student_id=new_student.id)
+                    db.session.add(new_class_student)
+                    stats["added"] += 1
+
+            except Exception as row_error:
+                stats["failed"] += 1
+                stats["errors"].append(f"Row {index+1}: {str(row_error)}")
+                continue
+
+        db.session.commit()
+        
+        message = f"處理完成。共 {stats['total']} 筆資料，新增 {stats['added']} 位學生，略過 {stats['skipped']} 位 (已存在)，失敗 {stats['failed']} 筆。"
+        if stats['errors']:
+            message += f" 錯誤詳情: {'; '.join(stats['errors'][:3])}..."
+
+        return jsonify({
+            "success": True, 
+            "message": message,
+            "stats": stats
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"批次匯入學生失敗: {e}")
+        return jsonify({"success": False, "message": f"匯入失敗: {str(e)}"}), 500

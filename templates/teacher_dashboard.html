@@ -168,6 +168,7 @@
             </div>
         </div>
     </div>
+    </div>
 
     <!-- 管理學生 Modal -->
     <div id="studentModal"
@@ -182,11 +183,22 @@
 
             <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
                 <h4 style="margin-top: 0;">新增學生</h4>
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <input type="text" id="newStudentUsername" placeholder="帳號" style="flex: 1; padding: 8px;">
                     <input type="text" id="newStudentPassword" placeholder="密碼" style="flex: 1; padding: 8px;">
                     <button onclick="addStudent()"
                         style="background-color: #2ecc71; color: white; border: none; padding: 8px 15px; border-radius: 3px; cursor: pointer;">新增</button>
+                </div>
+
+                <div style="border-top: 1px dashed #ccc; padding-top: 15px;">
+                    <h4 style="margin-top: 0; font-size: 0.9em; color: #555;">批次新增 (Excel)</h4>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="studentExcelFile" accept=".xlsx, .xls" style="flex: 1;">
+                        <button onclick="uploadStudentExcel()"
+                            style="background-color: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 3px; cursor: pointer;">上傳
+                            Excel</button>
+                    </div>
+                    <p style="font-size: 0.8em; color: #7f8c8d; margin: 5px 0 0 0;">格式：第一欄為帳號，第二欄為密碼 (自動略過標題列)</p>
                 </div>
             </div>
 
@@ -379,6 +391,56 @@
             } catch (error) {
                 console.error('Error adding student:', error);
                 alert('發生錯誤，請稍後再試');
+            }
+        }
+
+        async function uploadStudentExcel() {
+            if (!currentClassId) return;
+
+            const fileInput = document.getElementById('studentExcelFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('請選擇 Excel 檔案');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loading state
+            const btn = document.querySelector('button[onclick="uploadStudentExcel()"]');
+            const originalText = btn ? btn.textContent : '上傳 Excel';
+            if (btn) {
+                btn.textContent = '處理中...';
+                btn.disabled = true;
+            }
+
+            try {
+                const url = "{{ url_for('core.upload_students_excel', class_id=0) }}".replace('0', currentClassId);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    fileInput.value = ''; // Clear input
+                    loadClassStudents(currentClassId); // Reload list
+                    loadClasses(); // Update counts
+                } else {
+                    alert(data.message || '上傳失敗');
+                }
+            } catch (error) {
+                console.error('Error uploading Excel:', error);
+                alert('發生錯誤，請稍後再試');
+            } finally {
+                if (btn) {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
             }
         }
 
