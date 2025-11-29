@@ -1,3 +1,5 @@
+"""此模組負責管理使用者在練習過程中的 Session 資料，提供安全存取、設定與清除當前題目、答案及相關技能資訊的函式。"""
+
 # core/session.py
 from flask import session
 

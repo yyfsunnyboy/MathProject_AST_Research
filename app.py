@@ -86,12 +86,23 @@ def create_app():
         if request.method == 'POST':
             username = request.form['username']
             password = request.form['password']
+            role = request.form.get('role', 'student') # 獲取身分，預設為學生
             
             user = db.session.query(User).filter_by(username=username).first()
 
             if user and check_password_hash(user.password_hash, password):
+                # 檢查身分是否相符
+                if user.role != role:
+                    flash(f'身分錯誤！此帳號為「{user.role}」帳號，請切換身分後再試。', 'warning')
+                    return redirect(url_for('login'))
+
                 login_user(user)
-                return redirect(url_for('dashboard'))
+                
+                # 根據身分導向不同頁面
+                if user.role == 'teacher':
+                    return redirect(url_for('teacher_dashboard'))
+                else:
+                    return redirect(url_for('dashboard'))
             flash('帳號或密碼錯誤', 'danger')
         return render_template('login.html')
 
@@ -100,6 +111,8 @@ def create_app():
         if request.method == 'POST':
             username = request.form['username']
             password = request.form['password']
+            role = request.form.get('role', 'student') # 獲取身分
+
             if len(password) < 4:
                 flash('密碼至少 4 個字', 'warning')
                 return redirect(url_for('register'))
@@ -110,11 +123,12 @@ def create_app():
 
             new_user = User(
                 username=username,
-                password_hash=generate_password_hash(password, method='pbkdf2:sha256')
+                password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
+                role=role # 儲存身分
             )
             db.session.add(new_user)
             db.session.commit()
-            flash('註冊成功！請登入', 'success')
+            flash(f'註冊成功！身分：{role}。請登入', 'success')
             return redirect(url_for('login'))
         return render_template('register.html')
 
@@ -125,9 +139,21 @@ def create_app():
         flash('已登出', 'info')
         return redirect(url_for('login'))
 
+    @app.route('/teacher_dashboard')
+    @login_required
+    def teacher_dashboard():
+        if current_user.role != 'teacher':
+            flash('權限不足，無法存取教師頁面', 'warning')
+            return redirect(url_for('dashboard'))
+        return render_template('teacher_dashboard.html', username=current_user.username)
+
     @app.route('/dashboard')
     @login_required
     def dashboard():
+        # 如果是老師誤入學生儀表板，導回教師儀表板
+        if current_user.role == 'teacher':
+            return redirect(url_for('teacher_dashboard'))
+
         view_mode = request.args.get('view', 'curriculum')
         curriculum = request.args.get('curriculum', 'junior_high')
         volume = request.args.get('volume')

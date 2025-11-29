@@ -80,6 +80,31 @@ def init_db(engine):
         )
     ''')
 
+    # 新增：建立 classes 表格
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS classes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            teacher_id INTEGER NOT NULL,
+            class_code TEXT UNIQUE NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (teacher_id) REFERENCES users (id)
+        )
+    ''')
+
+    # 新增：建立 class_students 表格
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS class_students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            class_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (class_id) REFERENCES classes (id) ON DELETE CASCADE,
+            FOREIGN KEY (student_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(class_id, student_id)
+        )
+    ''')
+
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -87,21 +112,8 @@ def init_db(engine):
         if column not in columns:
             c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
-    # 為 progress 表新增欄位（安全）
-    add_column_if_not_exists('progress', 'current_level', 'INTEGER DEFAULT 1')
-    add_column_if_not_exists('progress', 'questions_solved', 'INTEGER DEFAULT 0')
-    add_column_if_not_exists('progress', 'consecutive_wrong', 'INTEGER DEFAULT 0') # 修正：安全新增
-    add_column_if_not_exists('progress', 'last_practiced', 'DATETIME') # 新增
-
-    # 為 skills_info 表新增欄位（安全）
-    add_column_if_not_exists('skills_info', 'category', 'TEXT')
-    add_column_if_not_exists('skills_info', 'input_type', 'TEXT DEFAULT "text"')
-    add_column_if_not_exists('skills_info', 'is_active', 'BOOLEAN DEFAULT TRUE')
-    add_column_if_not_exists('skills_info', 'order_index', 'INTEGER DEFAULT 0')
-    # 新增：為 suggested_prompts 安全新增欄位
-    add_column_if_not_exists('skills_info', 'suggested_prompt_1', 'TEXT')
-    add_column_if_not_exists('skills_info', 'suggested_prompt_2', 'TEXT')
-    add_column_if_not_exists('skills_info', 'suggested_prompt_3', 'TEXT')
+    # 新增：為 users 表新增 role 欄位
+    add_column_if_not_exists('users', 'role', 'TEXT DEFAULT "student"')
 
     conn.commit()
     conn.close()
@@ -116,6 +128,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), nullable=True)
+    role = db.Column(db.String(20), default='student') # 新增身分欄位
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
@@ -232,3 +245,37 @@ class SkillPrerequisites(db.Model):
 
     # 定義複合唯一約束
     __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)
+
+# 新增 Class ORM 模型 (班級)
+class Class(db.Model):
+    __tablename__ = 'classes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    class_code = db.Column(db.String(10), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 關聯到教師
+    teacher = db.relationship('User', foreign_keys=[teacher_id], backref=db.backref('teaching_classes', lazy=True))
+    
+    # 關聯到學生 (透過 ClassStudent)
+    students = db.relationship('User', secondary='class_students', backref=db.backref('enrolled_classes', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'class_code': self.class_code,
+            'student_count': len(self.students),
+            'created_at': self.created_at.strftime('%Y-%m-%d')
+        }
+
+# 新增 ClassStudent ORM 模型 (班級-學生關聯)
+class ClassStudent(db.Model):
+    __tablename__ = 'class_students'
+
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)

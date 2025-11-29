@@ -1,28 +1,33 @@
 # core/routes.py
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
 from flask_login import login_required, current_user
-from .session import set_current, get_current
-from .ai_analyzer import analyze, get_model, generate_quiz_from_image
-from flask import session # 導入 session
-import importlib, os
-from werkzeug.utils import secure_filename # Import secure_filename
-from core.utils import get_skill_info
-from models import db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites # 導入 SkillPrerequisites
-import traceback
-import re
-from sqlalchemy.orm import aliased
-import pandas as pd
-import google.generativeai as genai
+from werkzeug.security import generate_password_hash
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') # Use non-interactive backend
 import matplotlib.pyplot as plt
+import traceback
+import os
+import re
+import importlib
+import pandas as pd
+import google.generativeai as genai
+import random
+import string
+from sqlalchemy.orm import aliased
+from flask import session
+from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User
+from sqlalchemy.exc import IntegrityError
+from core.utils import get_skill_info
+from core.session import get_current, set_current
+from core.ai_analyzer import get_model, analyze
+from werkzeug.utils import secure_filename
 
 
 core_bp = Blueprint('core', __name__, template_folder='../templates')
 practice_bp = Blueprint('practice', __name__) # 新增：練習專用的 Blueprint
 
-# 所有 core 路由都需要登入
+
 @core_bp.before_request
 def require_login():
     if not current_user.is_authenticated:
@@ -543,7 +548,7 @@ def check_ghost_skills():
 # === 技能前置依賴管理 ===
 @core_bp.route('/prerequisites')
 def admin_prerequisites():
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.role == "teacher"):
         flash('您沒有權限存取此頁面。', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -677,7 +682,7 @@ def admin_delete_prerequisite(prereq_id):
 @core_bp.route('/db_maintenance', methods=['GET', 'POST'])
 @login_required
 def db_maintenance():
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.role == "teacher"):
         flash('您沒有權限存取此頁面。', 'danger')
         return redirect(url_for('dashboard'))
 
@@ -1061,9 +1066,170 @@ def get_suggested_prompts(skill_id):
         prompts = [p for p in [getattr(skill_info, 'suggested_prompt_1', None), 
                                getattr(skill_info, 'suggested_prompt_2', None), 
                                getattr(skill_info, 'suggested_prompt_3', None)] if p]
-
-    # 如果從資料庫找不到任何提示，或技能不存在，則使用預設提示
-    if not prompts:
-        prompts = DEFAULT_PROMPTS
-
     return jsonify(prompts)
+
+# === 班級管理功能 ===
+
+def generate_class_code():
+    """產生 6 碼隨機班級代碼 (大寫字母 + 數字)"""
+    chars = string.ascii_uppercase + string.digits
+    while True:
+        code = ''.join(random.choice(chars) for _ in range(6))
+        # 確保代碼唯一
+        if not db.session.query(Class).filter_by(class_code=code).first():
+            return code
+
+@core_bp.route('/classes/create', methods=['POST'])
+@login_required
+def create_class():
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+    
+    try:
+        data = request.get_json()
+        class_name = data.get('name')
+        
+        if not class_name:
+            return jsonify({"success": False, "message": "請輸入班級名稱"}), 400
+            
+        new_class = Class(
+            name=class_name,
+            teacher_id=current_user.id,
+            class_code=generate_class_code()
+        )
+        db.session.add(new_class)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True, 
+            "message": "班級建立成功",
+            "class": new_class.to_dict()
+        })
+    except Exception as e:
+        current_app.logger.error(f"建立班級失敗: {e}")
+        return jsonify({"success": False, "message": "建立班級失敗"}), 500
+
+@core_bp.route('/classes/delete/<int:class_id>', methods=['POST'])
+@login_required
+def delete_class(class_id):
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+        
+    try:
+        # 確保只能刪除自己的班級
+        target_class = db.session.query(Class).filter_by(id=class_id, teacher_id=current_user.id).first()
+        if not target_class:
+            return jsonify({"success": False, "message": "找不到班級或無權限刪除"}), 404
+            
+        db.session.delete(target_class)
+        db.session.commit()
+        
+        return jsonify({"success": True, "message": "班級已刪除"})
+    except Exception as e:
+        current_app.logger.error(f"刪除班級失敗: {e}")
+        return jsonify({"success": False, "message": "刪除班級失敗"}), 500
+
+@core_bp.route('/api/teacher/classes')
+@login_required
+def get_teacher_classes():
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+        
+    try:
+        classes = db.session.query(Class).filter_by(teacher_id=current_user.id).order_by(Class.created_at.desc()).all()
+        return jsonify({
+            "success": True,
+            "classes": [c.to_dict() for c in classes]
+        })
+    except Exception as e:
+        current_app.logger.error(f"獲取班級列表失敗: {e}")
+        return jsonify({"success": False, "message": "獲取班級列表失敗"}), 500
+
+# === 學生帳號管理路由 ===
+
+@core_bp.route('/api/classes/<int:class_id>/students', methods=['GET'])
+@login_required
+def get_class_students(class_id):
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+
+    try:
+        # 確保是該老師的班級
+        class_obj = db.session.query(Class).filter_by(id=class_id, teacher_id=current_user.id).first()
+        if not class_obj:
+            return jsonify({"success": False, "message": "找不到班級或無權限"}), 404
+
+        # 查詢班級學生
+        students = db.session.query(User).join(ClassStudent).filter(ClassStudent.class_id == class_id).all()
+        
+        return jsonify({
+            "success": True,
+            "students": [{
+                "id": s.id,
+                "username": s.username,
+                "role": s.role,
+                "created_at": s.created_at.strftime('%Y-%m-%d')
+            } for s in students]
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"獲取學生列表失敗: {e}")
+        return jsonify({"success": False, "message": "獲取學生列表失敗"}), 500
+
+@core_bp.route('/api/classes/<int:class_id>/students', methods=['POST'])
+@login_required
+def add_student_to_class(class_id):
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+
+    try:
+        # 確保是該老師的班級
+        class_obj = db.session.query(Class).filter_by(id=class_id, teacher_id=current_user.id).first()
+        if not class_obj:
+            return jsonify({"success": False, "message": "找不到班級或無權限"}), 404
+
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({"success": False, "message": "請輸入帳號與密碼"}), 400
+
+        # 檢查帳號是否已存在
+        existing_user = db.session.query(User).filter_by(username=username).first()
+        if existing_user:
+            return jsonify({"success": False, "message": "此帳號已存在,請更換使用者名稱"}), 400
+
+        # 建立新學生帳號
+        new_student = User(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role='student'
+        )
+        db.session.add(new_student)
+        db.session.flush() # 取得 new_student.id
+
+        # 將學生加入班級
+        class_student = ClassStudent(
+            class_id=class_id,
+            student_id=new_student.id
+        )
+        db.session.add(class_student)
+        
+        db.session.commit()
+
+        return jsonify({
+            "success": True, 
+            "message": "學生帳號建立成功",
+            "student": {
+                "id": new_student.id,
+                "username": new_student.username,
+                "role": new_student.role,
+                "created_at": new_student.created_at.strftime('%Y-%m-%d')
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"建立學生帳號失敗: {e}")
+        return jsonify({"success": False, "message": "建立學生帳號失敗"}), 500

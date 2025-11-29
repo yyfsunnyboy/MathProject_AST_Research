@@ -1,3 +1,5 @@
+"""此模組負責與 Google Gemini AI 模型進行互動，提供圖片分析、手寫辨識、題目技能識別以及從圖片生成測驗等功能。"""
+
 # core/ai_analyzer.py
 import google.generativeai as genai
 import base64

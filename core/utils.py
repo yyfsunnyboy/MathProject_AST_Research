@@ -1,3 +1,5 @@
+"""此模組提供與資料庫互動的通用工具函式，包含查詢技能資訊、課綱結構（年級、冊別、章節）以及管理技能與課綱關聯的 CRUD 操作。"""
+
 # core/utils.py （新建檔案）
 from sqlalchemy import func
 import re
