@@ -54,10 +54,13 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
 如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
 
 {{
-  "reply": "用 Markdown 格式寫出具體建議（步驟對錯、遺漏、改進點）。如果計算過程完全正確，reply 內容應為「答對了，計算過程很正確！」。",
+  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
   "is_process_correct": true 或 false,
   "correct": true 或 false,
-  "next_question": true 或 false
+  "next_question": true 或 false,
+  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
+  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
+  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null"
 }}
 
 直接輸出 JSON 內容，不要包在 ```json 標記內。"""

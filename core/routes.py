@@ -259,6 +259,7 @@ def check_answer():
     return jsonify(result)
 
 @practice_bp.route('/analyze_handwriting', methods=['POST'])
+@login_required
 def analyze_handwriting():
     data = request.get_json()
     img = data.get('image_data_url')
@@ -278,6 +279,27 @@ def analyze_handwriting():
         update_progress(current_user.id, state['skill'], True)
     else:
         update_progress(current_user.id, state['skill'], False)
+
+        # 記錄錯誤到資料庫
+        try:
+            from models import MistakeLog
+            
+            mistake_log = MistakeLog(
+                user_id=current_user.id,
+                skill_id=state['skill'],
+                question_content=state['question'],
+                user_answer="手寫作答(圖片)",
+                correct_answer=state.get('correct_answer', '未知'),
+                error_type=result.get('error_type'),
+                error_description=result.get('error_description'),
+                improvement_suggestion=result.get('improvement_suggestion')
+            )
+            db.session.add(mistake_log)
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"記錄錯誤失敗: {e}")
+            db.session.rollback()
+            # 不影響主流程,繼續執行
     
     return jsonify(result)
 

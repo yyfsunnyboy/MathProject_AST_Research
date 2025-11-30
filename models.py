@@ -105,6 +105,23 @@ def init_db(engine):
         )
     ''')
 
+    # 新增：建立 mistake_logs 表格
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS mistake_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            skill_id TEXT NOT NULL,
+            question_content TEXT NOT NULL,
+            user_answer TEXT NOT NULL,
+            correct_answer TEXT NOT NULL,
+            error_type TEXT,
+            error_description TEXT,
+            improvement_suggestion TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -119,7 +136,6 @@ def init_db(engine):
     conn.close()
     print("資料庫初始化成功！")
 
-# 將 User 類別改寫為 SQLAlchemy ORM 模型
 # 它會自動對應到 init_db() 中建立的 'users' 表格
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
@@ -279,3 +295,20 @@ class ClassStudent(db.Model):
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# 新增 MistakeLog ORM 模型 (錯誤記錄)
+class MistakeLog(db.Model):
+    __tablename__ = 'mistake_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    skill_id = db.Column(db.String, nullable=False)
+    question_content = db.Column(db.Text, nullable=False)
+    user_answer = db.Column(db.Text, nullable=False)
+    correct_answer = db.Column(db.Text, nullable=False)
+    error_type = db.Column(db.String(50)) # e.g., 'calculation', 'concept', 'other'
+    error_description = db.Column(db.Text)
+    improvement_suggestion = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('mistakes', lazy=True))
