@@ -747,7 +747,10 @@ def db_maintenance():
 
         # GET request
         inspector = db.inspect(db.engine)
-        tables = inspector.get_table_names()
+        all_tables = inspector.get_table_names()
+        # 只顯示這三個技能相關的表格
+        allowed_tables = ['skills_info', 'skill_prerequisites', 'skill_curriculum']
+        tables = [t for t in all_tables if t in allowed_tables]
         return render_template('db_maintenance.html', tables=tables)
     except Exception as e:
         current_app.logger.error(f"Error in db_maintenance: {e}\n{traceback.format_exc()}")
