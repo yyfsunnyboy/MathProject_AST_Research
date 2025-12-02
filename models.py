@@ -122,6 +122,29 @@ def init_db(engine):
         )
     ''')
 
+    # 新增：建立 exam_analysis 表格 (考卷診斷分析結果)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS exam_analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            skill_id TEXT NOT NULL,
+            curriculum TEXT,
+            grade INTEGER,
+            volume TEXT,
+            chapter TEXT,
+            section TEXT,
+            is_correct BOOLEAN NOT NULL,
+            error_type TEXT,
+            confidence FLOAT,
+            student_answer_latex TEXT,
+            feedback TEXT,
+            image_path TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id)
+        )
+    ''')
+
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -312,3 +335,57 @@ class MistakeLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('mistakes', lazy=True))
+
+# 新增 ExamAnalysis ORM 模型 (考卷診斷分析結果)
+class ExamAnalysis(db.Model):
+    __tablename__ = 'exam_analysis'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id'), nullable=False)
+    
+    # 課程資訊 (從 skill_curriculum 複製)
+    curriculum = db.Column(db.String)  # 'general', 'vocational', 'junior_high'
+    grade = db.Column(db.Integer)      # 7, 10, 11, 12
+    volume = db.Column(db.String)      # '數學1上', '數A', '數B' 等
+    chapter = db.Column(db.String)     # '第一章 多項式'
+    section = db.Column(db.String)     # '1-2 餘式定理'
+    
+    # 分析結果
+    is_correct = db.Column(db.Boolean, nullable=False)
+    error_type = db.Column(db.String)  # CALCULATION, CONCEPTUAL, LOGIC, COMPREHENSION, UNATTEMPTED
+    confidence = db.Column(db.Float)   # 0.0 - 1.0
+    
+    # 學生作答內容
+    student_answer_latex = db.Column(db.Text)
+    feedback = db.Column(db.Text)
+    
+    # 圖片儲存路徑
+    image_path = db.Column(db.String, nullable=False)
+    
+    # 時間戳記
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 關聯
+    user = db.relationship('User', backref=db.backref('exam_analyses', lazy=True))
+    skill_info = db.relationship('SkillInfo', backref=db.backref('exam_analyses', lazy=True))
+    
+    def to_dict(self):
+        """將物件轉換為可序列化的字典。"""
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'skill_id': self.skill_id,
+            'curriculum': self.curriculum,
+            'grade': self.grade,
+            'volume': self.volume,
+            'chapter': self.chapter,
+            'section': self.section,
+            'is_correct': self.is_correct,
+            'error_type': self.error_type,
+            'confidence': self.confidence,
+            'student_answer_latex': self.student_answer_latex,
+            'feedback': self.feedback,
+            'image_path': self.image_path,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }

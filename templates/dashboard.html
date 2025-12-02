@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
     <meta charset="UTF-8">
     <title>學習儀表板 - 功文數學</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            background-color: #f4f7f6; 
-            margin: 0; 
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
         }
+
         .navbar {
             background-color: #333;
             color: white;
@@ -17,35 +19,43 @@
             justify-content: space-between;
             align-items: center;
         }
+
         .navbar a {
             color: white;
             text-decoration: none;
         }
+
         .navbar .logo {
             font-weight: bold;
             font-size: 1.2em;
         }
+
         .container {
             max-width: 1400px;
             margin: 20px auto;
             padding: 20px;
             width: 100%;
         }
+
         h2 {
             color: #333;
         }
-        .alert { 
-            padding: 15px; 
-            margin-bottom: 20px; 
-            border-radius: 4px; 
-            background-color: #d4edda; 
-            color: #155724; 
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #d4edda;
+            color: #155724;
             border: 1px solid #c3e6cb;
         }
+
         .alert-warning {
-            background-color: #fff3cd; color: #856404; border-color: #ffeeba;
+            background-color: #fff3cd;
+            color: #856404;
+            border-color: #ffeeba;
         }
-        
+
         /* 麵包屑導航 */
         .breadcrumb {
             display: flex;
@@ -54,41 +64,57 @@
             padding: 10px 0;
             font-size: 0.9em;
         }
+
         .breadcrumb a {
             color: #007bff;
             text-decoration: none;
             margin-right: 5px;
         }
+
         .breadcrumb a:hover {
             text-decoration: underline;
         }
+
         .breadcrumb span {
             margin: 0 8px;
             color: #666;
         }
+
         .breadcrumb .current {
             color: #333;
             font-weight: bold;
         }
-        
+
         /* 層級卡片樣式 */
-        .level-grid.volumes-grid { /* 冊別網格保持彈性 */
+        .level-grid.volumes-grid {
+            /* 冊別網格保持彈性 */
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
         }
-        .level-grid.chapters-grid { /* 章節網格改為固定四欄 */
+
+        .level-grid.chapters-grid {
+            /* 章節網格改為固定四欄 */
             display: grid;
-            grid-template-columns: repeat(4, 1fr); /* 固定四欄 */
-            gap: 15px; /* 縮小卡片間距 */
-            grid-auto-rows: 1fr; /* 讓每行卡片等高 */
+            grid-template-columns: repeat(4, 1fr);
+            /* 固定四欄 */
+            gap: 15px;
+            /* 縮小卡片間距 */
+            grid-auto-rows: 1fr;
+            /* 讓每行卡片等高 */
         }
-        .level-grid.categories-grid { /* 技能分類網格改為固定八欄 */
+
+        .level-grid.categories-grid {
+            /* 技能分類網格改為固定八欄 */
             display: grid;
-            grid-template-columns: repeat(8, 1fr); /* 固定八欄 */
-            gap: 10px; /* 進一步縮小卡片間距 */
-            grid-auto-rows: 1fr; /* 讓每行卡片等高 */
+            grid-template-columns: repeat(8, 1fr);
+            /* 固定八欄 */
+            gap: 10px;
+            /* 進一步縮小卡片間距 */
+            grid-auto-rows: 1fr;
+            /* 讓每行卡片等高 */
         }
+
         .level-card {
             background: #fff;
             border: 2px solid #ddd;
@@ -97,57 +123,76 @@
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
+
         .level-card:hover {
             border-color: #007bff;
             transform: translateY(-3px);
-            box-shadow: 0 4px 10px rgba(0,123,255,0.2);
+            box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
         }
+
         .level-card h3 {
             margin: 0 0 10px 0;
             color: #007bff;
             font-size: 1.5em;
         }
+
         .level-card.volume-card h3 {
             color: #28a745;
             font-size: 2em;
         }
+
         .level-card.chapter-card h3 {
             color: #17a2b8;
-            font-size: 1.0em; /* 再次縮小字體以適應更小的卡片 */
+            font-size: 1.0em;
+            /* 再次縮小字體以適應更小的卡片 */
         }
+
         /* 僅針對第二層（章節）卡片的美化 */
         .level-grid .level-card.chapter-card {
-            height: 70px; /* 再次縮小卡片高度 */
+            height: 70px;
+            /* 再次縮小卡片高度 */
             display: flex;
             flex-direction: column;
-            justify-content: center; /* 垂直置中 */
-            align-items: center; /* 水平置中 */
-            overflow: hidden; /* 隱藏溢出內容 */
-            padding: 5px; /* 再次縮小內邊距 */
-            line-height: 1.3; /* 調整行高以容納多行文字 */
+            justify-content: center;
+            /* 垂直置中 */
+            align-items: center;
+            /* 水平置中 */
+            overflow: hidden;
+            /* 隱藏溢出內容 */
+            padding: 5px;
+            /* 再次縮小內邊距 */
+            line-height: 1.3;
+            /* 調整行高以容納多行文字 */
         }
+
         /* 針對第一層（冊別）卡片的樣式 */
         .level-card.volume-card h3 {
             color: #28a745;
-            font-size: 1.4em; /* 縮小字體以適應卡片 */
+            font-size: 1.4em;
+            /* 縮小字體以適應卡片 */
         }
-        
+
         /* 針對冊別卡片的美化，實現固定大小和文字自適應 */
         .level-card.volume-card {
-            width: 120px; /* 縮小卡片寬度 */
-            height: 80px; /* 縮小卡片高度 */
+            width: 120px;
+            /* 縮小卡片寬度 */
+            height: 80px;
+            /* 縮小卡片高度 */
             display: flex;
             flex-direction: column;
-            justify-content: center; /* 垂直置中 */
-            align-items: center; /* 水平置中 */
+            justify-content: center;
+            /* 垂直置中 */
+            align-items: center;
+            /* 水平置中 */
         }
-        
+
         /* 技能卡片 */
         .skill-grid {
             display: grid !important;
-            grid-template-columns: repeat(4, 1fr) !important; /* 固定四列 */
+            grid-template-columns: repeat(4, 1fr) !important;
+            /* 固定四列 */
             gap: 20px;
             width: 100%;
             box-sizing: border-box;
@@ -160,42 +205,52 @@
             width: 100% !important;
             grid-auto-flow: row !important;
         }
-        
+
         .skill-card {
             background: #fff;
             border: 1px solid #ddd;
             border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            padding: 15px; /* 縮小卡片內距 */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            padding: 15px;
+            /* 縮小卡片內距 */
             display: flex;
             flex-direction: column;
-            min-width: 0; /* 防止 grid 項目溢出 */
+            min-width: 0;
+            /* 防止 grid 項目溢出 */
             box-sizing: border-box;
-            width: 100%; /* 確保卡片填滿 grid 單元 */
+            width: 100%;
+            /* 確保卡片填滿 grid 單元 */
             max-width: 100%;
         }
+
         .skill-card h3 {
-            font-size: 1.2em; /* 標題字體大小 */
+            font-size: 1.2em;
+            /* 標題字體大小 */
             line-height: 1.3;
             /* 自動縮放以適應單行 */
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
         .skill-card h3 {
             margin-top: 0;
             color: #007bff;
         }
+
         .skill-card p {
-            font-size: 0.85em; /* 縮小描述文字 */
+            font-size: 0.85em;
+            /* 縮小描述文字 */
             color: #555;
             flex-grow: 1;
         }
+
         .progress-info {
             font-size: 0.9em;
             color: #666;
             margin-bottom: 15px;
         }
+
         .progress-bar {
             width: 100%;
             height: 10px;
@@ -203,14 +258,16 @@
             border-radius: 5px;
             overflow: hidden;
             margin-bottom: 8px;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
         }
+
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, #28a745, #20c997);
             transition: width 0.5s ease;
             box-shadow: 0 2px 5px rgba(40, 167, 69, 0.3);
         }
+
         .btn-practice {
             display: block;
             text-align: center;
@@ -222,205 +279,230 @@
             font-weight: bold;
             transition: background-color 0.2s;
         }
+
         .btn-practice:hover {
             background-color: #218838;
         }
-        
+
         /* 技能分組（按節、段） */
         .skill-section-group {
-            margin-bottom: 15px; /* 縮小組間的下邊距 */
-            margin-top: 20px; /* 縮小組間的上邊距 */
-            padding: 12px; /* 縮小組的內距 */
+            margin-bottom: 15px;
+            /* 縮小組間的下邊距 */
+            margin-top: 20px;
+            /* 縮小組間的上邊距 */
+            padding: 12px;
+            /* 縮小組的內距 */
             background: #f8f9fa;
             border-radius: 8px;
             border-left: 4px solid #007bff;
             width: 100%;
         }
-        
+
         .skill-section-group:first-child {
             margin-top: 0;
         }
+
         .skill-section-group h4 {
             margin-top: 0;
             color: #007bff;
-            margin-bottom: 12px; /* 縮小標題和卡片之間的距離 */
+            margin-bottom: 12px;
+            /* 縮小標題和卡片之間的距離 */
         }
     </style>
 </head>
+
 <body>
     <div class="navbar">
         <a href="{{ url_for('dashboard') }}" class="logo">
             功文數學 ( 歡迎, <strong>{{ username }}</strong>！ )
         </a>
         <div>
-            <a href="{{ url_for('core.admin_curriculum') }}" style="background: #3498db; padding: 8px 15px; border-radius: 4px;">📚 課程分類管理</a>
-            <a href="{{ url_for('core.admin_skills') }}" style="background: #9b59b6; padding: 8px 15px; border-radius: 4px;">⚙️ 單元管理</a>
-            <a href="{{ url_for('core.admin_prerequisites') }}" style="background: #1abc9c; padding: 8px 15px; border-radius: 4px;">🔗 技能關聯</a>
-            <a href="{{ url_for('core.db_maintenance') }}" style="background: #e67e22; padding: 8px 15px; border-radius: 4px;">🗃️ 資料庫管理</a>
-            <a href="{{ url_for('practice.similar_questions_page') }}" style="background: #f1c40f; color: #2c3e50; padding: 8px 15px; border-radius: 4px;">✨ 生成相似題</a>
+            <a href="{{ url_for('core.admin_curriculum') }}"
+                style="background: #3498db; padding: 8px 15px; border-radius: 4px;">📚 課程分類管理</a>
+            <a href="{{ url_for('core.admin_skills') }}"
+                style="background: #9b59b6; padding: 8px 15px; border-radius: 4px;">⚙️ 單元管理</a>
+            <a href="{{ url_for('core.admin_prerequisites') }}"
+                style="background: #1abc9c; padding: 8px 15px; border-radius: 4px;">🔗 技能關聯</a>
+            <a href="{{ url_for('core.db_maintenance') }}"
+                style="background: #e67e22; padding: 8px 15px; border-radius: 4px;">🗃️ 資料庫管理</a>
+            <a href="{{ url_for('practice.similar_questions_page') }}"
+                style="background: #f1c40f; color: #2c3e50; padding: 8px 15px; border-radius: 4px;">✨ 生成相似題</a>
+            <a href="{{ url_for('core.exam_upload_page') }}"
+                style="background: #e74c3c; padding: 8px 15px; border-radius: 4px;">📝 考卷診斷</a>
             <a href="{{ url_for('logout') }}">登出</a>
         </div>
     </div>
 
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              {% if category in ['success', 'warning'] %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-              {% endif %}
-            {% endfor %}
-          {% endif %}
+        {% if messages %}
+        {% for category, message in messages %}
+        {% if category in ['success', 'warning'] %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
         {% endwith %}
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2 style="margin: 0;">學習儀表板</h2>
             <!-- 新增：普高/技高/國中 切換按鈕 -->
             <div style="flex-grow: 1; text-align: center;">
-                <a href="{{ url_for('dashboard', view='curriculum', curriculum='junior_high') }}" 
-                   style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'junior_high' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum='junior_high') }}"
+                    style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'junior_high' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
                     國中
                 </a>
-                <a href="{{ url_for('dashboard', view='curriculum', curriculum='general') }}" 
-                   style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'general' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum='general') }}"
+                    style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'general' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
                     普高
                 </a>
-                <a href="{{ url_for('dashboard', view='curriculum', curriculum='vocational') }}" 
-                   style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'vocational' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum='vocational') }}"
+                    style="padding: 8px 24px; margin: 0 10px; background: {{ '#007bff' if curriculum == 'vocational' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 20px; font-weight: bold;">
                     技高
                 </a>
             </div>
             <div>
-                <a href="{{ url_for('dashboard', view='all') }}" 
-                   style="padding: 8px 16px; margin-left: 10px; background: {{ '#28a745' if view_mode == 'all' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 4px;">
+                <a href="{{ url_for('dashboard', view='all') }}"
+                    style="padding: 8px 16px; margin-left: 10px; background: {{ '#28a745' if view_mode == 'all' else '#6c757d' }}; color: white; text-decoration: none; border-radius: 4px;">
                     顯示所有
                 </a>
             </div>
         </div>
-        
+
         {% if view_mode == 'curriculum' %}
-            <!-- 麵包屑導航 -->
-            <div class="breadcrumb">
-                <a href="{{ url_for('dashboard', view='curriculum') }}">課程首頁</a>
-                {% if curriculum and (volume or chapter) %}
-                    {% set curriculum_map = {'general': '普通高中', 'vocational': '技術型高中', 'junior_high': '國民中學'} %}
-                    {% set curriculum_name = curriculum_map.get(curriculum, curriculum) %}
-                    <span>→</span>
-                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum) }}">{{ curriculum_name }}</a>
-                {% endif %}
-                {% if volume %}
-                    <span>→</span>
-                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=volume) }}">{{ volume }}</a>
-                {% endif %}
-                {% if chapter %}
-                    <span>→</span>
-                    <span class="current">{{ chapter }}</span>
-                {% endif %}
+        <!-- 麵包屑導航 -->
+        <div class="breadcrumb">
+            <a href="{{ url_for('dashboard', view='curriculum') }}">課程首頁</a>
+            {% if curriculum and (volume or chapter) %}
+            {% set curriculum_map = {'general': '普通高中', 'vocational': '技術型高中', 'junior_high': '國民中學'} %}
+            {% set curriculum_name = curriculum_map.get(curriculum, curriculum) %}
+            <span>→</span>
+            <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum) }}">{{ curriculum_name }}</a>
+            {% endif %}
+            {% if volume %}
+            <span>→</span>
+            <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=volume) }}">{{ volume
+                }}</a>
+            {% endif %}
+            {% if chapter %}
+            <span>→</span>
+            <span class="current">{{ chapter }}</span>
+            {% endif %}
+        </div>
+
+        {% if level == 'volumes' %}
+        <!-- 顯示冊別 -->
+        {% set curriculum_map = {'general': '普通高中', 'vocational': '技術型高中', 'junior_high': '國民中學'} %}
+        {% set curriculum_name = curriculum_map.get(curriculum, curriculum) %}
+        <p>{{ curriculum_name }} - 請選擇冊別：</p>
+        {% for grade, grade_volumes in volumes.items() %}
+        <div class="grade-row"
+            style="display: flex; align-items: center; margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e9ecef;">
+            <div class="grade-label" style="margin-right: 20px; min-width: 80px;">
+                <h4 style="font-size: 1.4em; color: #34495e;">{{ grade_map.get(grade, '未知年級') }}</h4>
             </div>
-            
-            {% if level == 'volumes' %}
-                <!-- 顯示冊別 -->
-                {% set curriculum_map = {'general': '普通高中', 'vocational': '技術型高中', 'junior_high': '國民中學'} %}
-                {% set curriculum_name = curriculum_map.get(curriculum, curriculum) %}
-                <p>{{ curriculum_name }} - 請選擇冊別：</p>
-                {% for grade, grade_volumes in volumes.items() %}
-                    <div class="grade-row" style="display: flex; align-items: center; margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e9ecef;">
-                        <div class="grade-label" style="margin-right: 20px; min-width: 80px;">
-                            <h4 style="font-size: 1.4em; color: #34495e;">{{ grade_map.get(grade, '未知年級') }}</h4>
-                        </div>
-                        <div class="level-grid volumes-grid" style="flex-grow: 1; display: flex; flex-wrap: wrap; gap: 20px;">
-                            {% for vol in grade_volumes %}
-                            <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=vol) }}" style="text-decoration: none;">
-                                <div class="level-card volume-card">
-                                    <h3>{{ vol }}</h3>
-                                </div>
-                            </a>
-                            {% endfor %}
-                        </div>
+            <div class="level-grid volumes-grid" style="flex-grow: 1; display: flex; flex-wrap: wrap; gap: 20px;">
+                {% for vol in grade_volumes %}
+                <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=vol) }}"
+                    style="text-decoration: none;">
+                    <div class="level-card volume-card">
+                        <h3>{{ vol }}</h3>
                     </div>
+                </a>
                 {% endfor %}
-            {% elif level == 'chapters' %}
-                <!-- 顯示章節 -->
-                <p>{{ volume }} - 請選擇章節：</p>
-                <div class="level-grid chapters-grid">
-                    {% for ch in chapters %}
-                    <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=volume, chapter=ch) }}" style="text-decoration: none;">
-                        <div class="level-card chapter-card">
-                            <h3>{{ ch }}</h3>
-                        </div>
-                    </a>
-                    {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+        {% elif level == 'chapters' %}
+        <!-- 顯示章節 -->
+        <p>{{ volume }} - 請選擇章節：</p>
+        <div class="level-grid chapters-grid">
+            {% for ch in chapters %}
+            <a href="{{ url_for('dashboard', view='curriculum', curriculum=curriculum, volume=volume, chapter=ch) }}"
+                style="text-decoration: none;">
+                <div class="level-card chapter-card">
+                    <h3>{{ ch }}</h3>
                 </div>
-            {% elif level == 'skills' %}
-                <!-- 顯示技能 -->
-                <p>{{ volume }} / {{ chapter }} - 請選擇要練習的技能：</p>
-                
-                <!-- 為每個 section 建立獨立的群組和網格 -->
-                {% for section_group in grouped_sections %}
-                    <div class="skill-section-group">
-                        <h4>{{ section_group.section }}</h4>
-                        <div class="skill-grid curriculum-skills">
-                        {% for skill in section_group.skills %}
-                            <div class="skill-card" style="width: 100%; max-width: 100%; height: 100%;">
-                                <h3>{{ skill.skill_ch_name }}</h3>
-                                <p>{{ skill.description }}</p>
+            </a>
+            {% endfor %}
+        </div>
+        {% elif level == 'skills' %}
+        <!-- 顯示技能 -->
+        <p>{{ volume }} / {{ chapter }} - 請選擇要練習的技能：</p>
 
-                                <div class="progress-info">
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" style="width: {{ (skill.consecutive_correct / skill.consecutive_correct_required * 100) if skill.consecutive_correct_required else 0 }}%"></div>
-                                    </div>
-                                    <small>連續答對 {{ skill.consecutive_correct }} / {{ skill.consecutive_correct_required }} 題 → 晉級</small>
-                                    <br>
-                                    <small>當前等級：{{ skill.current_level }} 級 | 總練習 {{ skill.questions_solved }} 題</small>
-                                </div>
+        <!-- 為每個 section 建立獨立的群組和網格 -->
+        {% for section_group in grouped_sections %}
+        <div class="skill-section-group">
+            <h4>{{ section_group.section }}</h4>
+            <div class="skill-grid curriculum-skills">
+                {% for skill in section_group.skills %}
+                <div class="skill-card" style="width: 100%; max-width: 100%; height: 100%;">
+                    <h3>{{ skill.skill_ch_name }}</h3>
+                    <p>{{ skill.description }}</p>
 
-                                <a href="{{ url_for('practice.practice', skill_id=skill.skill_id) }}" class="btn-practice">
-                                    開始練習
-                                </a>
+                    <div class="progress-info">
+                        <div class="progress-bar">
+                            <div class="progress-fill"
+                                style="width: {{ (skill.consecutive_correct / skill.consecutive_correct_required * 100) if skill.consecutive_correct_required else 0 }}%">
                             </div>
-                        {% endfor %}
                         </div>
+                        <small>連續答對 {{ skill.consecutive_correct }} / {{ skill.consecutive_correct_required }} 題 →
+                            晉級</small>
+                        <br>
+                        <small>當前等級：{{ skill.current_level }} 級 | 總練習 {{ skill.questions_solved }} 題</small>
                     </div>
+
+                    <a href="{{ url_for('practice.practice', skill_id=skill.skill_id) }}" class="btn-practice">
+                        開始練習
+                    </a>
+                </div>
                 {% endfor %}
-            {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
         {% else %}
-            <!-- 顯示所有 -->
-            {% if level == 'categories' %}
-                <!-- 第一層：顯示所有技能分類 -->
-                <p>請選擇您今天要練習的技能類別：</p>
-                <div class="level-grid categories-grid">
-                    {% for cat in categories %}
-                    <a href="{{ url_for('dashboard', view='all', category=cat) }}" style="text-decoration: none;">
-                        <div class="level-card chapter-card">
-                            <h3>{{ cat }}</h3>
-                        </div>
-                    </a>
-                    {% endfor %}
+        <!-- 顯示所有 -->
+        {% if level == 'categories' %}
+        <!-- 第一層：顯示所有技能分類 -->
+        <p>請選擇您今天要練習的技能類別：</p>
+        <div class="level-grid categories-grid">
+            {% for cat in categories %}
+            <a href="{{ url_for('dashboard', view='all', category=cat) }}" style="text-decoration: none;">
+                <div class="level-card chapter-card">
+                    <h3>{{ cat }}</h3>
                 </div>
-            {% elif level == 'skills_in_category' %}
-                <!-- 第二層：顯示特定分類下的技能 -->
-                <p>類別：{{ category }} - 請選擇要練習的單元：</p>
-                <div class="skill-grid">
-                    {% for data in dashboard_data %}
-                    <div class="skill-card" style="height: 100%;">
-                        <h3>{{ data.skill.skill_ch_name }}</h3>
-                        <p>{{ data.skill.description }}</p>
-                        <div class="progress-info">
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: {{ (data.consecutive_correct / data.skill.consecutive_correct_required * 100) if data.skill.consecutive_correct_required else 0 }}%"></div>
-                            </div>
-                            <small>連續答對 {{ data.consecutive_correct }} / {{ data.skill.consecutive_correct_required }} 題 → 晉級</small>
-                            <br>
-                            <small>當前等級：{{ data.current_level }} 級 | 總練習 {{ data.questions_solved }} 題</small>
+            </a>
+            {% endfor %}
+        </div>
+        {% elif level == 'skills_in_category' %}
+        <!-- 第二層：顯示特定分類下的技能 -->
+        <p>類別：{{ category }} - 請選擇要練習的單元：</p>
+        <div class="skill-grid">
+            {% for data in dashboard_data %}
+            <div class="skill-card" style="height: 100%;">
+                <h3>{{ data.skill.skill_ch_name }}</h3>
+                <p>{{ data.skill.description }}</p>
+                <div class="progress-info">
+                    <div class="progress-bar">
+                        <div class="progress-fill"
+                            style="width: {{ (data.consecutive_correct / data.skill.consecutive_correct_required * 100) if data.skill.consecutive_correct_required else 0 }}%">
                         </div>
-                        <a href="{{ url_for('practice.practice', skill_id=data.skill.skill_id) }}" class="btn-practice">
-                            開始練習
-                        </a>
                     </div>
-                    {% endfor %}
+                    <small>連續答對 {{ data.consecutive_correct }} / {{ data.skill.consecutive_correct_required }} 題 →
+                        晉級</small>
+                    <br>
+                    <small>當前等級：{{ data.current_level }} 級 | 總練習 {{ data.questions_solved }} 題</small>
                 </div>
-            {% endif %}
+                <a href="{{ url_for('practice.practice', skill_id=data.skill.skill_id) }}" class="btn-practice">
+                    開始練習
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endif %}
     </div>
 </body>
+
 </html>
