@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session
-from sqlalchemy import inspect, Table, MetaData
+from sqlalchemy import inspect, Table, MetaData, text
 from sqlalchemy.exc import IntegrityError
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, AnonymousUserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -57,7 +57,10 @@ def create_app():
         SECRET_KEY=SECRET_KEY,
         GEMINI_API_KEY=GEMINI_API_KEY,
         GEMINI_MODEL_NAME=GEMINI_MODEL_NAME
-    )
+        ,SQLALCHEMY_ENGINE_OPTIONS={
+            "connect_args": {"timeout": 30}  # 增加等待解鎖的時間到 30 秒
+        }
+    )    
 
     # 驗證 API Key
     if not app.config['GEMINI_API_KEY']:
@@ -302,6 +305,16 @@ def create_app():
 
     with app.app_context():
         init_db(db.engine)
+        # 啟用 WAL (Write-Ahead Logging) 模式以提高併發性並減少鎖定
+        try:
+            with db.engine.connect() as conn:
+                # 啟用 WAL 模式，允許讀取和寫入並行
+                conn.execute(text("PRAGMA journal_mode=WAL"))
+                # 設定同步等級為 NORMAL，在 WAL 模式下是安全且高效的選擇
+                conn.execute(text("PRAGMA synchronous=NORMAL"))
+        except Exception as e:
+            app.logger.error(f"Failed to set WAL mode for SQLite: {e}")
+
         configure_gemini(
             api_key=app.config['GEMINI_API_KEY'],
             model_name=app.config['GEMINI_MODEL_NAME']

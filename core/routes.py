@@ -25,6 +25,8 @@ from core.ai_analyzer import get_model, analyze
 from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
 from core.data_importer import import_textbook_examples_from_file
 from werkzeug.utils import secure_filename
+from sqlalchemy.exc import OperationalError
+import time
 import uuid
 
 
@@ -824,35 +826,36 @@ def db_maintenance():
 
             elif action == 'clear_all_data':
                 # 清空所有資料（保留 admin 帳號）
+                # 1. 強制釋放舊連線，避免因先前操作佔用而導致鎖定
+                db.session.remove()
+
                 try:
                     meta = db.metadata
-                    admin_preserved = False
-                    
+
+                    # 2. 在一個事務中處理所有表格
                     for table in reversed(meta.sorted_tables):
                         table_name = table.name
-                        
+
                         # 特殊處理 users 表：保留 admin 帳號
                         if table_name == 'users':
-                            # 使用 SQLAlchemy 2.0 兼容方式
-                            with db.engine.connect() as conn:
-                                result = conn.execute(
-                                    db.text("DELETE FROM users WHERE username != 'admin'")
-                                )
-                                conn.commit()
-                                deleted_count = result.rowcount
-                            admin_preserved = True
-                            current_app.logger.info(f"Cleared users table, deleted {deleted_count} users, preserved admin")
+                            # 改用 ORM 語法並停用 session 同步以提升效率
+                            db.session.query(User).filter(User.username != 'admin').delete(synchronize_session=False)
+                            current_app.logger.info("Cleared non-admin users from 'users' table.")
                         else:
                             # 其他表格：完全清空
                             db.session.execute(table.delete())
-                    
+                            current_app.logger.info(f"Cleared all data from '{table_name}' table.")
+
+                    # 3. 所有操作完成後，一次性提交
                     db.session.commit()
-                    
-                    if admin_preserved:
-                        flash('所有資料已清空！（已保留 admin 管理員帳號）', 'success')
+                    flash('所有資料已清空！（已保留 admin 管理員帳號）', 'success')
+
+                except OperationalError as e:
+                    db.session.rollback()
+                    if "locked" in str(e).lower():
+                        flash('資料庫忙碌中 (Locked)，請稍後再試。', 'danger')
                     else:
-                        flash('所有資料已清空！', 'success')
-                        
+                        flash(f'資料庫操作錯誤: {str(e)}', 'danger')
                 except Exception as e:
                     db.session.rollback()
                     flash(f'清空失敗: {str(e)}', 'danger')
