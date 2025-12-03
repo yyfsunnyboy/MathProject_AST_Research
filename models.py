@@ -145,6 +145,26 @@ def init_db(engine):
         )
     ''')
 
+    # 新增：建立 textbook_examples 表格 (課本例題)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS textbook_examples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            skill_id TEXT NOT NULL,
+            source_curriculum TEXT NOT NULL,
+            source_volume TEXT NOT NULL,
+            source_chapter TEXT NOT NULL,
+            source_section TEXT NOT NULL,
+            source_description TEXT NOT NULL,
+            source_paragraph TEXT,
+            problem_text TEXT NOT NULL,
+            problem_type TEXT,
+            correct_answer TEXT,
+            detailed_solution TEXT,
+            difficulty_level INTEGER DEFAULT 1,
+            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id) ON DELETE CASCADE
+        )
+    ''')
+
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -388,4 +408,47 @@ class ExamAnalysis(db.Model):
             'feedback': self.feedback,
             'image_path': self.image_path,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }
+
+# 新增 TextbookExample ORM 模型 (課本例題)
+class TextbookExample(db.Model):
+    __tablename__ = 'textbook_examples'
+
+    id = db.Column(db.Integer, primary_key=True)
+    skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
+    
+    # 來源資訊
+    source_curriculum = db.Column(db.String, nullable=False)  # 'general', 'vocational', 'junior_high'
+    source_volume = db.Column(db.String, nullable=False)      # '數學1上', '數A', '數B' 等
+    source_chapter = db.Column(db.String, nullable=False)     # '3 多項式的運算'
+    source_section = db.Column(db.String, nullable=False)     # '3-1 多項式的基本概念與四則運算'
+    source_description = db.Column(db.String, nullable=False) # '1-2 餘式定理'
+    source_paragraph = db.Column(db.String)                   # 更細的段落劃分 (可選)
+    
+    # 題目內容 (核心資產)
+    problem_text = db.Column(db.Text, nullable=False)         # 題目完整文字 (支援 LaTeX)
+    problem_type = db.Column(db.String)                       # 'calculation', 'word_problem', 'proof', 'true_false', 'multiple_choice'
+    correct_answer = db.Column(db.String)                     # 最終答案
+    detailed_solution = db.Column(db.Text)                    # 詳細解法 (供 AI 參考)
+    difficulty_level = db.Column(db.Integer, default=1)       # 難易度等級
+    
+    # 關聯到 SkillInfo
+    skill_info = db.relationship('SkillInfo', backref=db.backref('textbook_examples', lazy=True, cascade="all, delete-orphan"))
+    
+    def to_dict(self):
+        """將物件轉換為可序列化的字典。"""
+        return {
+            'id': self.id,
+            'skill_id': self.skill_id,
+            'source_curriculum': self.source_curriculum,
+            'source_volume': self.source_volume,
+            'source_chapter': self.source_chapter,
+            'source_section': self.source_section,
+            'source_description': self.source_description,
+            'source_paragraph': self.source_paragraph,
+            'problem_text': self.problem_text,
+            'problem_type': self.problem_type,
+            'correct_answer': self.correct_answer,
+            'detailed_solution': self.detailed_solution,
+            'difficulty_level': self.difficulty_level
         }

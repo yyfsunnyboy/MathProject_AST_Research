@@ -6,7 +6,7 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 # === 資料庫 ===
 # 使用相對路徑，Flask 會自動將其放在專案的 'instance' 資料夾中。
 # 這是 Flask 推薦的最佳實踐，可以將執行時資料與原始碼分離。
-SQLALCHEMY_DATABASE_URI = 'sqlite:///math_master.db'
+SQLALCHEMY_DATABASE_URI = 'sqlite:///kumon_math.db'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # === 檔案上傳 ===

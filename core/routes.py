@@ -1,7 +1,8 @@
 # core/routes.py
-from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash
+from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash, send_file
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
+import io
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') # Use non-interactive backend
@@ -16,12 +17,13 @@ import random
 import string
 from sqlalchemy.orm import aliased
 from flask import session
-from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User, ExamAnalysis
+from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User, ExamAnalysis, init_db
 from sqlalchemy.exc import IntegrityError
 from core.utils import get_skill_info
 from core.session import get_current, set_current
 from core.ai_analyzer import get_model, analyze
 from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
+from core.data_importer import import_textbook_examples_from_file
 from werkzeug.utils import secure_filename
 import uuid
 
@@ -86,51 +88,40 @@ def update_progress(user_id, skill_id, is_correct):
     # 提交變更到資料庫
     db.session.commit()
 
-@core_bp.route('/batch_import_skills', methods=['POST'])
+@core_bp.route('/admin/import_skills', methods=['POST'])
 @login_required
-def batch_import_skills():
+def import_skills():
     if not current_user.is_admin:
         return jsonify({"success": False, "message": "Permission denied."}), 403
     
     try:
-        # This is where your actual import logic is called.
-        # I am assuming it's in a module named 'data_importer'.
-        # Please adjust this to match your code.
         from . import data_importer 
         count = data_importer.import_skills_from_json()
         
-        # If successful, return a success message
         return jsonify({"success": True, "message": f"成功匯入 {count} 個技能單元！"})
 
     except Exception as e:
-        # This block will catch ANY error that occurs during the import
-        
-        # 1. Log the full, detailed error to your server console for debugging
         error_details = traceback.format_exc()
         current_app.logger.error(f"Batch import skills failed: {e}\n{error_details}")
         
-        # 2. Return a clear error message to the frontend page
         return jsonify({
             "success": False, 
             "message": f"批次匯入技能失敗！\n\n錯誤原因：\n{str(e)}\n\n請檢查伺服器日誌以獲取詳細資訊。"
         }), 500
 
-# Find your existing function for importing the curriculum and modify it similarly
-@core_bp.route('/batch_import_curriculum', methods=['POST'])
+@core_bp.route('/admin/import_curriculum', methods=['POST'])
 @login_required
-def batch_import_curriculum():
+def import_curriculum():
     if not current_user.is_admin:
         return jsonify({"success": False, "message": "Permission denied."}), 403
 
     try:
-        # Adjust this to match your code
         from . import data_importer
         count = data_importer.import_curriculum_from_json()
         
         return jsonify({"success": True, "message": f"成功匯入 {count} 個課程綱要項目！"})
 
     except Exception as e:
-        # Catch and report any errors
         error_details = traceback.format_exc()
         current_app.logger.error(f"Batch import curriculum failed: {e}\n{error_details}")
         
@@ -571,6 +562,7 @@ def check_ghost_skills():
 
 # === 技能前置依賴管理 ===
 @core_bp.route('/prerequisites')
+@core_bp.route('/admin/prerequisites')  # Add alias for navbar compatibility
 def admin_prerequisites():
     if not (current_user.is_admin or current_user.role == "teacher"):
         flash('您沒有權限存取此頁面。', 'danger')
@@ -633,7 +625,6 @@ def api_get_prerequisites_for_skill(skill_id):
         # 透過 record.prerequisite_id 找到對應的 SkillInfo
         prereq_skill = db.session.get(SkillInfo, record.prerequisite_id)
         if not prereq_skill: continue
-
         prerequisites_data.append({
             'prerequisite_record_id': record.id, # 加入關聯記錄的 ID
             'skill_id': skill.skill_id,
@@ -702,7 +693,14 @@ def admin_delete_prerequisite(prereq_id):
     # 修改：重新導向時，同時帶上 skill_id 和 category 參數以保持狀態
     return redirect(url_for('core.admin_prerequisites', skill_id=skill_id_to_redirect, category=selected_category))
 
+@core_bp.route('/admin/examples')
+@login_required
+def admin_examples():
+    return "課本例題管理頁面 (開發中...)" # 暫時的佔位符
+
 # === 資料庫管理 (從主應用程式移入) ===
+
+
 @core_bp.route('/db_maintenance', methods=['GET', 'POST'])
 @login_required
 def db_maintenance():
@@ -715,7 +713,245 @@ def db_maintenance():
             action = request.form.get('action')
             table_name = request.form.get('table_name')
 
-            # 這裡的 table 獲取邏輯保持不變，因為它是直接操作
+            # === 全域操作 ===
+            if action == 'export_db':
+                # 匯出整個資料庫為 Excel
+                output = io.BytesIO()
+                writer = pd.ExcelWriter(output, engine='xlsxwriter')
+                
+                inspector = db.inspect(db.engine)
+                all_tables = inspector.get_table_names()
+                
+                for table in all_tables:
+                    try:
+                        df = pd.read_sql_table(table, db.engine)
+                        df.to_excel(writer, sheet_name=table[:31], index=False) # Sheet name limit 31 chars
+                    except Exception as e:
+                        current_app.logger.error(f"Error exporting table {table}: {e}")
+                
+                writer.close()
+                output.seek(0)
+                
+                return send_file(
+                    output,
+                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    as_attachment=True,
+                    download_name='backup.xlsx'
+                )
+
+            elif action == 'import_db':
+                # 還原資料庫 (Upsert 模式 - 更新或插入)
+                file = request.files.get('file')
+                if file and file.filename != '':
+                    try:
+                        xls = pd.ExcelFile(file)
+                        total_inserted = 0
+                        total_updated = 0
+                        
+                        for sheet_name in xls.sheet_names:
+                            if sheet_name in db.metadata.tables:
+                                df = pd.read_excel(file, sheet_name=sheet_name)
+                                
+                                # Filter columns and clean NaN values thoroughly
+                                inspector = db.inspect(db.engine)
+                                table_columns = [c['name'] for c in inspector.get_columns(sheet_name)]
+                                df_filtered = df[[col for col in df.columns if col in table_columns]]
+                                
+                                # Clean NaN values: convert to None for proper NULL handling
+                                df_filtered = df_filtered.where(pd.notnull(df_filtered), None)
+                                # Also replace any remaining NaN, inf, -inf with None
+                                df_filtered = df_filtered.replace([float('inf'), float('-inf')], None)
+                                
+                                # Get primary key columns for this table
+                                pk_columns = inspector.get_pk_constraint(sheet_name)['constrained_columns']
+                                
+                                # Use INSERT OR REPLACE for SQLite (simpler and more efficient)
+                                for _, row in df_filtered.iterrows():
+                                    row_dict = row.to_dict()
+                                    
+                                    # Clean the row_dict: ensure no NaN values
+                                    cleaned_dict = {}
+                                    for key, value in row_dict.items():
+                                        if pd.isna(value):
+                                            cleaned_dict[key] = None
+                                        else:
+                                            cleaned_dict[key] = value
+                                    
+                                    # Use INSERT OR REPLACE (SQLite specific)
+                                    # This will update if PK exists, insert if not
+                                    cols = ', '.join(cleaned_dict.keys())
+                                    placeholders = ', '.join([f":{col}" for col in cleaned_dict.keys()])
+                                    
+                                    # INSERT OR REPLACE is SQLite's upsert
+                                    upsert_query = f"INSERT OR REPLACE INTO {sheet_name} ({cols}) VALUES ({placeholders})"
+                                    
+                                    try:
+                                        with db.engine.connect() as conn:
+                                            result = conn.execute(db.text(upsert_query), cleaned_dict)
+                                            conn.commit()
+                                            
+                                            # Check if it was an insert or update
+                                            # In SQLite, rowcount > 0 means operation succeeded
+                                            if result.rowcount > 0:
+                                                # Check if record existed before
+                                                if pk_columns:
+                                                    pk_values = {col: cleaned_dict[col] for col in pk_columns if col in cleaned_dict}
+                                                    check_query = f"SELECT COUNT(*) as cnt FROM {sheet_name} WHERE "
+                                                    conditions = [f"{col} = :{col}" for col in pk_values.keys()]
+                                                    check_query += " AND ".join(conditions)
+                                                    
+                                                    # Simple heuristic: if we have all PK values, assume update
+                                                    if all(v is not None for v in pk_values.values()):
+                                                        total_updated += 1
+                                                    else:
+                                                        total_inserted += 1
+                                                else:
+                                                    total_inserted += 1
+                                    except Exception as e:
+                                        current_app.logger.warning(f"Failed to upsert row in {sheet_name}: {e}")
+                                        # Continue with next row
+                                        pass
+                        
+                        db.session.commit()
+                        flash(f'資料庫還原成功！新增 {total_inserted} 筆，更新 {total_updated} 筆', 'success')
+                    except Exception as e:
+                        db.session.rollback()
+                        flash(f'還原失敗: {str(e)}', 'danger')
+                        current_app.logger.error(f"Import DB error: {e}\n{traceback.format_exc()}")
+                else:
+                    flash('未選擇檔案', 'warning')
+                return redirect(url_for('core.db_maintenance'))
+
+            elif action == 'clear_all_data':
+                # 清空所有資料（保留 admin 帳號）
+                try:
+                    meta = db.metadata
+                    admin_preserved = False
+                    
+                    for table in reversed(meta.sorted_tables):
+                        table_name = table.name
+                        
+                        # 特殊處理 users 表：保留 admin 帳號
+                        if table_name == 'users':
+                            # 使用 SQLAlchemy 2.0 兼容方式
+                            with db.engine.connect() as conn:
+                                result = conn.execute(
+                                    db.text("DELETE FROM users WHERE username != 'admin'")
+                                )
+                                conn.commit()
+                                deleted_count = result.rowcount
+                            admin_preserved = True
+                            current_app.logger.info(f"Cleared users table, deleted {deleted_count} users, preserved admin")
+                        else:
+                            # 其他表格：完全清空
+                            db.session.execute(table.delete())
+                    
+                    db.session.commit()
+                    
+                    if admin_preserved:
+                        flash('所有資料已清空！（已保留 admin 管理員帳號）', 'success')
+                    else:
+                        flash('所有資料已清空！', 'success')
+                        
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'清空失敗: {str(e)}', 'danger')
+                    current_app.logger.error(f"Clear all data error: {e}\n{traceback.format_exc()}")
+                return redirect(url_for('core.db_maintenance'))
+
+            # === 批次匯入操作 ===
+            elif action == 'batch_import_folder':
+                # 批次匯入課程綱要 (SkillCurriculum)
+                files = request.files.getlist('files')
+                if not files or files[0].filename == '':
+                    flash('未選擇檔案', 'warning')
+                    return redirect(url_for('core.db_maintenance'))
+                
+                success_count = 0
+                error_count = 0
+                
+                for file in files:
+                    if file and (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+                        try:
+                            if file.filename.endswith('.csv'):
+                                df = pd.read_csv(file)
+                            else:
+                                df = pd.read_excel(file)
+                            
+                            # 標準化欄位
+                            df.columns = [str(c).lower().strip() for c in df.columns]
+                            
+                            # 預期欄位: curriculum, grade, volume, chapter, section, skill_id
+                            for _, row in df.iterrows():
+                                if pd.isna(row.get('skill_id')): continue
+                                
+                                item = SkillCurriculum(
+                                    curriculum=row.get('curriculum', 'general'),
+                                    grade=int(row.get('grade', 10)),
+                                    volume=row.get('volume', ''),
+                                    chapter=row.get('chapter', ''),
+                                    section=row.get('section', ''),
+                                    paragraph=row.get('paragraph', '') if 'paragraph' in row and not pd.isna(row['paragraph']) else None,
+                                    skill_id=str(row['skill_id']).strip(),
+                                    display_order=int(row.get('display_order', 0)) if 'display_order' in row else 0,
+                                    difficulty_level=int(row.get('difficulty_level', 1)) if 'difficulty_level' in row else 1
+                                )
+                                db.session.add(item)
+                            success_count += 1
+                        except Exception as e:
+                            error_count += 1
+                            current_app.logger.error(f"Error importing file {file.filename}: {e}")
+                
+                db.session.commit()
+                flash(f'批次匯入完成：成功 {success_count} 個檔案，失敗 {error_count} 個檔案。', 'success')
+                return redirect(url_for('core.db_maintenance'))
+
+            elif action == 'batch_upsert_skills_info':
+                # 批次更新/新增技能資訊 (SkillInfo)
+                files = request.files.getlist('files')
+                if not files or files[0].filename == '':
+                    flash('未選擇檔案', 'warning')
+                    return redirect(url_for('core.db_maintenance'))
+                
+                count = 0
+                for file in files:
+                    if file and (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+                        try:
+                            if file.filename.endswith('.csv'):
+                                df = pd.read_csv(file)
+                            else:
+                                df = pd.read_excel(file)
+                            
+                            df.columns = [str(c).lower().strip() for c in df.columns]
+                            
+                            for _, row in df.iterrows():
+                                if pd.isna(row.get('skill_id')): continue
+                                skill_id = str(row['skill_id']).strip()
+                                
+                                skill = db.session.get(SkillInfo, skill_id)
+                                if not skill:
+                                    skill = SkillInfo(skill_id=skill_id)
+                                    db.session.add(skill)
+                                
+                                # Update fields if present
+                                if 'skill_en_name' in row: skill.skill_en_name = row['skill_en_name']
+                                if 'skill_ch_name' in row: skill.skill_ch_name = row['skill_ch_name']
+                                if 'category' in row: skill.category = row['category']
+                                if 'description' in row: skill.description = row['description']
+                                if 'gemini_prompt' in row: skill.gemini_prompt = row['gemini_prompt']
+                                if 'consecutive_correct_required' in row: 
+                                    skill.consecutive_correct_required = int(row['consecutive_correct_required'])
+                                
+                                count += 1
+                        except Exception as e:
+                            current_app.logger.error(f"Error processing skill file {file.filename}: {e}")
+                
+                db.session.commit()
+                flash(f'批次處理完成，共處理 {count} 筆技能資料。', 'success')
+                return redirect(url_for('core.db_maintenance'))
+
+
+            # === 單一表格操作 (既有功能) ===
             table = db.metadata.tables.get(table_name)
             if table is None and action in ['clear_data', 'drop_table', 'upload_excel']:
                 flash(f'表格 "{table_name}" 不存在。', 'danger')
@@ -731,14 +967,10 @@ def db_maintenance():
             elif action == 'upload_excel':
                 file = request.files.get('file')
                 if file and file.filename != '':
-                    # 1. 獲取目標表格的所有欄位名稱
                     inspector = db.inspect(db.engine)
                     table_columns = [c['name'] for c in inspector.get_columns(table_name)]
-                    # 2. 讀取 Excel
                     df = pd.read_excel(file)
-                    # 3. 過濾 DataFrame，只保留資料庫表格中存在的欄位
                     df_filtered = df[[col for col in df.columns if col in table_columns]]
-                    # 4. 將 NaN 轉為 None，並使用過濾後的 DataFrame 寫入資料庫
                     df_filtered = df_filtered.where(pd.notnull(df_filtered), None)
                     df_filtered.to_sql(table_name, db.engine, if_exists='append', index=False)
                     flash(f'成功將資料從 Excel 匯入到表格 "{table_name}"。', 'success')
@@ -750,8 +982,8 @@ def db_maintenance():
         # GET request
         inspector = db.inspect(db.engine)
         all_tables = inspector.get_table_names()
-        # 只顯示這三個技能相關的表格
-        allowed_tables = ['skills_info', 'skill_prerequisites', 'skill_curriculum']
+        # 允許顯示的表格，加入 textbook_examples
+        allowed_tables = ['skills_info', 'skill_prerequisites', 'skill_curriculum', 'textbook_examples']
         tables = [t for t in all_tables if t in allowed_tables]
         return render_template('db_maintenance.html', tables=tables)
     except Exception as e:
@@ -759,8 +991,50 @@ def db_maintenance():
         flash(f'載入資料庫管理頁面時發生錯誤，請檢查伺服器日誌。錯誤：{e}', 'danger')
         return redirect(url_for('dashboard'))
 
+@core_bp.route('/admin/import_textbook_examples', methods=['POST'])
+@login_required
+def import_textbook_examples():
+    """處理課本例題匯入"""
+    if not (current_user.is_admin or current_user.role == "teacher"):
+        flash('您沒有權限執行此操作。', 'danger')
+        return redirect(url_for('core.db_maintenance'))
+    
+    if 'file' not in request.files:
+        flash('沒有選擇檔案', 'error')
+        return redirect(url_for('core.db_maintenance'))
+        
+    file = request.files['file']
+    if file.filename == '':
+        flash('未選擇檔案', 'error')
+        return redirect(url_for('core.db_maintenance'))
+        
+    if file:
+        try:
+            filename = secure_filename(file.filename)
+            upload_dir = os.path.join(current_app.root_path, 'uploads')
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
+                
+            filepath = os.path.join(upload_dir, filename)
+            file.save(filepath)
+            
+            # 執行匯入
+            count = import_textbook_examples_from_file(filepath)
+            
+            # 清理暫存檔
+            os.remove(filepath)
+            
+            flash(f'成功匯入 {count} 筆課本例題！', 'success')
+            
+        except Exception as e:
+            current_app.logger.error(f"Import textbook examples failed: {e}\n{traceback.format_exc()}")
+            flash(f'匯入失敗: {str(e)}', 'error')
+            
+    return redirect(url_for('core.db_maintenance'))
+
 # === 課程分類管理 (從 app.py 移入) ===
 @core_bp.route('/curriculum')
+@core_bp.route('/admin/curriculum')  # Add alias for navbar compatibility
 @login_required
 def admin_curriculum():
     f_curriculum = request.args.get('f_curriculum')
@@ -885,6 +1159,7 @@ def admin_delete_curriculum(curriculum_id):
     return redirect(url_for('core.admin_curriculum'))
 
 @core_bp.route('/skills')
+@core_bp.route('/admin/skills')  # Add alias for navbar compatibility
 @login_required
 def admin_skills():
     selected_category = request.args.get('category')
@@ -1490,6 +1765,20 @@ def exam_history():
 @login_required
 def exam_upload_page():
     """
-    顯示考卷上傳頁面
+    顯示試卷上傳頁面
     """
     return render_template('exam_upload.html', username=current_user.username)
+
+@core_bp.route('/admin/init_db', methods=['POST'])
+@login_required
+def init_db_route():
+    """執行資料庫初始化"""
+    try:
+        # 使用 current_app 取得 engine
+        from models import init_db
+        init_db(db.engine)
+        flash('資料庫初始化成功！', 'success')
+    except Exception as e:
+        flash(f'初始化失敗: {str(e)}', 'error')
+        current_app.logger.error(f"Init DB Error: {e}")
+    return redirect(url_for('core.db_maintenance'))

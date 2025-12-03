@@ -1,0 +1,26 @@
+<div class="navbar">
+    <a href="{{ url_for('dashboard') }}" class="logo">
+        Math-Master 後台管理 ( 歡迎, <strong>{{ username or current_user.username }}</strong>！ )
+    </a>
+    <div>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('core.admin_curriculum') }}" style="padding: 8px 12px; border-radius: 4px;"
+            onmouseover="this.style.background='#3498db'" onmouseout="this.style.background='none'">📚 課程分類管理</a>
+
+        <a href="{{ url_for('core.admin_skills') }}" style="padding: 8px 12px; border-radius: 4px;"
+            onmouseover="this.style.background='#9b59b6'" onmouseout="this.style.background='none'">⚙️ 技能管理</a>
+
+        <a href="{{ url_for('core.admin_prerequisites') }}" style="padding: 8px 12px; border-radius: 4px;"
+            onmouseover="this.style.background='#1abc9c'" onmouseout="this.style.background='none'">🔗 技能關聯</a>
+
+        <a href="{{ url_for('core.admin_examples') }}" style="padding: 8px 12px; border-radius: 4px;"
+            onmouseover="this.style.background='#e67e22'" onmouseout="this.style.background='none'">📖 例題管理</a>
+
+        <a href="{{ url_for('core.db_maintenance') }}"
+            style="padding: 8px 12px; border-radius: 4px; border-bottom: 2px solid #ffc107;"
+            onmouseover="this.style.background='#f1c40f'" onmouseout="this.style.background='none'">🛠️ 資料庫維護</a>
+        {% endif %}
+
+        <a href="{{ url_for('logout') }}" style="margin-left: 20px; color: #aaa;">登出</a>
+    </div>
+</div>
