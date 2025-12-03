@@ -16,7 +16,7 @@ import google.generativeai as genai
 import random
 import string
 from sqlalchemy.orm import aliased
-from flask import session
+from flask import session, jsonify
 from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User, ExamAnalysis, init_db
 from sqlalchemy.exc import IntegrityError
 from core.utils import get_skill_info
@@ -25,6 +25,7 @@ from core.ai_analyzer import get_model, analyze
 from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
 from core.data_importer import import_textbook_examples_from_file
 from werkzeug.utils import secure_filename
+from sqlalchemy import distinct
 from sqlalchemy.exc import OperationalError
 import time
 import uuid
@@ -1036,64 +1037,96 @@ def import_textbook_examples():
     return redirect(url_for('core.db_maintenance'))
 
 # === 課程分類管理 (從 app.py 移入) ===
-@core_bp.route('/curriculum')
-@core_bp.route('/admin/curriculum')  # Add alias for navbar compatibility
+@core_bp.route('/admin/curriculum', methods=['GET', 'POST'])
 @login_required
 def admin_curriculum():
-    f_curriculum = request.args.get('f_curriculum')
-    f_grade = request.args.get('f_grade')
-    f_volume = request.args.get('f_volume')
-    f_chapter = request.args.get('f_chapter')
+    # 簡易權限檢查
+    if not current_user.is_admin:
+        flash('權限不足', 'error')
+        return redirect(url_for('core.dashboard'))
 
+    if request.method == 'POST':
+        try:
+            skill_id = request.form.get('skill_id')
+            curriculum = request.form.get('curriculum')
+            grade = request.form.get('grade')
+            volume = request.form.get('volume')
+            chapter = request.form.get('chapter')
+            section = request.form.get('section')
+            
+            skill = db.session.get(SkillInfo, skill_id)
+            if not skill:
+                flash(f'無效的技能 ID: {skill_id}', 'error')
+                return redirect(url_for('core.admin_curriculum'))
+            
+            # 建立新資料
+            new_curr = SkillCurriculum(
+                skill_id=skill_id,
+                curriculum=curriculum,
+                grade=int(grade) if grade and grade.isdigit() else 0, # 防呆：確保寫入 DB 的是 int
+                volume=volume,
+                chapter=chapter,
+                section=section,
+                display_order=0
+            )
+            db.session.add(new_curr)
+            db.session.commit()
+            flash('課程關聯新增成功！', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'新增失敗: {str(e)}', 'error')
+            
+    # --- GET: 準備頁面資料 ---
+    
+    # 1. 取得所有資料 (限制 100 筆避免太慢)
+    # User requested: items = SkillCurriculum.query.join(SkillInfo).order_by(SkillCurriculum.id.desc()).limit(100).all()
+    # Adapting to use db.session.query style consistent with project if needed, or just use Model.query if available.
+    # Assuming SkillCurriculum is a db.Model, .query should work.
+    items = SkillCurriculum.query.join(SkillInfo).order_by(SkillCurriculum.id.desc()).limit(100).all()
+
+    # 2. [Critical Fix] 建立 grade_map 並強制 Key 為字串
+    unique_grades = db.session.query(distinct(SkillCurriculum.grade)).filter(SkillCurriculum.grade != None).all()
+    
+    grade_map = {}
+    for g in unique_grades:
+        val = g[0]
+        # 強制轉型 str，解決 TypeError: '<' not supported between instances of 'int' and 'str'
+        grade_map[str(val)] = str(val) 
+
+    # --- Restore Context for Template ---
     skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
-
-    query = db.session.query(SkillCurriculum).options(db.joinedload(SkillCurriculum.skill_info))
-
-    if f_curriculum:
-        query = query.filter(SkillCurriculum.curriculum == f_curriculum)
-    if f_grade:
-        query = query.filter(SkillCurriculum.grade == int(f_grade))
-    if f_volume:
-        query = query.filter(SkillCurriculum.volume == f_volume)
-    if f_chapter:
-        query = query.filter(SkillCurriculum.chapter == f_chapter)
-
-    curriculum_items = query.order_by(
-        SkillCurriculum.curriculum,
-        SkillCurriculum.grade,
-        SkillCurriculum.volume,
-        SkillCurriculum.chapter,
-        SkillCurriculum.section,
-        SkillCurriculum.display_order
-    ).all()
-
-    distinct_filters = {
-        'curriculums': sorted([row[0] for row in db.session.query(SkillCurriculum.curriculum).distinct().all()])
-    }
-
+    
     curriculum_map = {
         'general': '普通高中',
         'vocational': '技術型高中',
         'junior_high': '國民中學'
     }
-    grade_map = {
-        7: '國一', 8: '國二', 9: '國三',
-        10: '高一', 11: '高二', 12: '高三'
+    
+    # Recreate filters object for the template
+    filters = {
+        'curriculums': sorted(curriculum_map.keys()),
+        'grades': [], # Simplified, as user removed filter logic
+        'volumes': [],
+        'chapters': [],
+        'sections': []
+    }
+    
+    selected_filters = {
+       'f_curriculum': '',
+       'f_grade': '',
+       'f_volume': '',
+       'f_chapter': '',
+       'f_section': ''
     }
 
     return render_template('admin_curriculum.html', 
                            username=current_user.username,
-                           skills=skills,
-                           curriculum=curriculum_items,
-                           curriculum_map=curriculum_map,
+                           curriculum=items, # Pass items as 'curriculum' for template compatibility
                            grade_map=grade_map,
-                           filters=distinct_filters,
-                           selected_filters={
-                               'f_curriculum': f_curriculum,
-                               'f_grade': f_grade,
-                               'f_volume': f_volume,
-                               'f_chapter': f_chapter
-                           })
+                           skills=skills,
+                           curriculum_map=curriculum_map,
+                           filters=filters,
+                           selected_filters=selected_filters)
 
 @core_bp.route('/curriculum/add', methods=['POST'])
 @login_required
@@ -1105,11 +1138,10 @@ def admin_add_curriculum():
             grade=int(data['grade']),
             volume=data['volume'],
             chapter=data['chapter'],
-            section=data['section'],
-            paragraph=data.get('paragraph').strip() or None,
+            section=data.get('section', ''),
             skill_id=data['skill_id'],
-            display_order=int(data.get('display_order', 0)),
-            difficulty_level=int(data.get('difficulty_level', 1))
+            display_order=int(data.get('display_order', 99)),
+            difficulty_level=int(data.get('difficulty_level', 1)),
         )
         db.session.add(new_item)
         db.session.commit()
@@ -1122,44 +1154,48 @@ def admin_add_curriculum():
         flash(f'新增失敗：{str(e)}', 'danger')
     return redirect(url_for('core.admin_curriculum'))
 
-@core_bp.route('/curriculum/edit/<int:curriculum_id>', methods=['POST'])
+@core_bp.route('/admin/curriculum/edit/<int:id>', methods=['POST'])
 @login_required
-def admin_edit_curriculum(curriculum_id):
-    item = db.get_or_404(SkillCurriculum, curriculum_id)
-    data = request.form
+def admin_edit_curriculum(id):  # 函式名稱必須是 admin_edit_curriculum
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    
     try:
-        item.curriculum = data['curriculum']
-        item.grade = int(data['grade'])
-        item.volume = data['volume']
-        item.chapter = data['chapter']
-        item.section = data['section']
-        item.paragraph = data.get('paragraph').strip() or None
-        item.skill_id = data['skill_id']
-        item.display_order = int(data.get('display_order', 0))
-        item.difficulty_level = int(data.get('difficulty_level', 1))
+        curr = SkillCurriculum.query.get_or_404(id)
+        # 更新欄位
+        curr.curriculum = request.form.get('curriculum')
+        curr.grade = request.form.get('grade')
+        curr.volume = request.form.get('volume')
+        curr.chapter = request.form.get('chapter')
+        curr.section = request.form.get('section')
+        # 如果有其他欄位如 display_order 也可在此更新
+        curr.skill_id = request.form.get('skill_id')
+        curr.display_order = request.form.get('display_order')
+        curr.difficulty_level = request.form.get('difficulty_level')
         
         db.session.commit()
-        flash('課程分類更新成功！', 'success')
-    except IntegrityError:
-        db.session.rollback()
-        flash('更新失敗：該課程分類項目已存在（唯一性約束衝突）。', 'danger')
+        flash('課程更新成功', 'success')
+        return redirect(url_for('core.admin_curriculum')) # 為了配合 Form submit 重整頁面
+        
     except Exception as e:
         db.session.rollback()
-        flash(f'更新失敗：{str(e)}', 'danger')
-    return redirect(url_for('core.admin_curriculum'))
+        flash(f'更新失敗: {str(e)}', 'error')
+        return redirect(url_for('core.admin_curriculum'))
 
-@core_bp.route('/curriculum/delete/<int:curriculum_id>', methods=['POST'])
+@core_bp.route('/admin/curriculum/delete/<int:id>', methods=['POST'])
 @login_required
-def admin_delete_curriculum(curriculum_id):
-    item = db.get_or_404(SkillCurriculum, curriculum_id)
+def admin_delete_curriculum(id): # 函式名稱必須是 admin_delete_curriculum
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+
     try:
-        db.session.delete(item)
+        curr = SkillCurriculum.query.get_or_404(id)
+        db.session.delete(curr)
         db.session.commit()
-        flash('課程分類刪除成功！', 'success')
+        return jsonify({'success': True, 'message': '刪除成功'})
     except Exception as e:
         db.session.rollback()
-        flash(f'刪除失敗：{str(e)}', 'danger')
-    return redirect(url_for('core.admin_curriculum'))
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @core_bp.route('/skills')
 @core_bp.route('/admin/skills')  # Add alias for navbar compatibility

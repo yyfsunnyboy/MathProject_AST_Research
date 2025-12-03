@@ -153,9 +153,10 @@ def create_app():
     @app.route('/dashboard')
     @login_required
     def dashboard():
-        # 如果是老師誤入學生儀表板，導回教師儀表板
-        if current_user.role == 'teacher':
-            return redirect(url_for('teacher_dashboard'))
+        # --- 修改點：允許教師訪問學生儀表板 ---
+        # 原本會將教師重導向，現在註解掉此邏輯，讓教師可以查看學生介面。
+        # if current_user.role == 'teacher':
+        #     return redirect(url_for('teacher_dashboard'))
 
         view_mode = request.args.get('view', 'curriculum')
         curriculum = request.args.get('curriculum', 'junior_high')

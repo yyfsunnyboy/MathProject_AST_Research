@@ -2,7 +2,6 @@ Flask
 Flask-SQLAlchemy
 Flask-Login
 pandas
-openpyxl
 python-dotenv
 google-generativeai
 sqlalchemy
@@ -11,3 +10,4 @@ openpyxl
 matplotlib
 numpy
 xlsxwriter
+tqdm

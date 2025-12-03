@@ -317,6 +317,11 @@
             功文數學 ( 歡迎, <strong>{{ username }}</strong>！ )
         </a>
         <div>
+            {% if current_user.role == 'teacher' or current_user.is_admin %}
+            <a href="{{ url_for('teacher_dashboard') }}" style="background-color: #f39c12; color: white; padding: 8px 15px; border-radius: 4px; margin-right: 15px; text-decoration: none;">
+                👨‍🏫 返回教師後台
+            </a>
+            {% endif %}
             <a href="{{ url_for('core.admin_curriculum') }}"
                 style="background: #3498db; padding: 8px 15px; border-radius: 4px;">📚 課程分類管理</a>
             <a href="{{ url_for('core.admin_skills') }}"

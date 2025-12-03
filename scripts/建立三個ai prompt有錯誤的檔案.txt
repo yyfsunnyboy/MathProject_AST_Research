@@ -1,0 +1,16 @@
+📊 根據您的篩選，共找到 130 個技能需要處理。
+
+處理進度:  15%|██████████▉                                                            | 20/130 [03:29<19:39, 10.72s/it]Error generating prompt for jh_數學1下_IntroductionToOneVariableLinearInequalities: Invalid \escape: line 2 column 65 (char 66)
+處理進度:  23%|████████████████▍                                                      | 30/130 [05:10<18:02, 10.83s/it]Error generating prompt for jh_數學1下_PointsLinesAnglesAndNotation: Invalid \escape: line 4 column 30 (char 131)
+處理進度:  27%|███████████████████                                                    | 35/130 [06:06<17:59, 11.36s/it]Error generating prompt for jh_數學2上_ComprehensiveApplications: Invalid \escape: line 2 column 44 (char 45)
+處理進度:  32%|██████████████████████▍                                                | 41/130 [07:21<18:43, 12.62s/it]Error generating prompt for jh_數學2上_MeaningOfSquareRootSymbol: Invalid \escape: line 2 column 20 (char 21)
+處理進度:  32%|██████████████████████▉                                                | 42/130 [07:39<20:51, 14.22s/it]Error generating prompt for jh_數學2上_ValueOfSquareRootA: Invalid \escape: line 2 column 23 (char 24)
+處理進度:  48%|██████████████████████████████████▍                                    | 63/130 [12:33<14:07, 12.65s/it]Error generating prompt for jh_數學2上_RelativeAndCumulativeRelativeFrequencyDistributionAndLineChart: Invalid \escape: line 4 column 25 (char 100)
+處理進度:  59%|██████████████████████████████████████████                             | 77/130 [15:21<11:12, 12.70s/it]Error generating prompt for jh_數學2下_PolygonInteriorAndExteriorAngles: Invalid \escape: line 4 column 44 (char 135)
+處理進度:  88%|█████████████████████████████████████████████████████████████▍        | 114/130 [22:50<03:06, 11.64s/it]Error generating prompt for jh_數學3上_RelationshipBetweenCentralAngleAndArc: Invalid \escape: line 3 column 39 (char 80)
+處理進度:  90%|███████████████████████████████████████████████████████████████       | 117/130 [23:33<02:54, 13.45s/it]Error generating prompt for jh_數學3上_IncenterOfTriangle: Invalid \escape: line 3 column 31 (char 75)
+處理進度:  98%|████████████████████████████████████████████████████████████████████▉ | 128/130 [25:48<00:23, 11.53s/it]Error generating prompt for jh_數學3下_SpatialVerticalParallelAndSkewRelationships: Invalid \escape: line 4 column 45 (char 122)
+處理進度: 100%|██████████████████████████████████████████████████████████████████████| 130/130 [26:13<00:00, 12.10s/it]
+
+✅ 作業完成！
+(venv) (base) PS D:\Python\Mathproject>

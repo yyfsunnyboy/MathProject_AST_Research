@@ -3,10 +3,19 @@ import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# === 資料庫 ===
-# 使用相對路徑，Flask 會自動將其放在專案的 'instance' 資料夾中。
-# 這是 Flask 推薦的最佳實踐，可以將執行時資料與原始碼分離。
-SQLALCHEMY_DATABASE_URI = 'sqlite:///kumon_math.db'
+# === 資料庫 (絕對路徑設定) ===
+# 為了避免 "雙胞胎資料庫" 問題，我們強制使用絕對路徑。
+
+# 1. 建立 instance 資料夾的路徑 (如果不存在)
+instance_path = os.path.join(basedir, 'instance')
+os.makedirs(instance_path, exist_ok=True)
+
+# 2. 構建資料庫檔案的絕對路徑
+db_path = os.path.join(instance_path, 'kumon_math.db')
+
+# 3. 設定資料庫連線 URI
+# 使用 f-string 和三個斜線開頭來表示本地檔案系統的絕對路徑
+SQLALCHEMY_DATABASE_URI = f'sqlite:///{db_path}'
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # === 檔案上傳 ===
