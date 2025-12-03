@@ -1,15 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>技能管理 - 功文數學</title>
+    <title>技能管理 - Math Master Admin</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* Global Styles */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background: #f5f7fa;
-            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding-bottom: 50px;
         }
 
         /* Navbar */
@@ -20,12 +25,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
+
         .navbar .logo {
             font-weight: bold;
             font-size: 1.3em;
         }
+
         .navbar a {
             color: #ecf0f1;
             text-decoration: none;
@@ -34,9 +41,7 @@
             transition: background 0.2s;
             margin-left: 10px;
         }
-        .navbar a:hover { background: #34495e; }
 
-        /* Container */
         .container {
             max-width: 1200px;
             margin: 30px auto;
@@ -50,123 +55,183 @@
             align-items: center;
             margin-bottom: 30px;
         }
+
         .header h1 {
             color: #2c3e50;
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
         }
+
         .btn-add {
-            background: #27ae60;
+            background: #3498db;
             color: white;
-            padding: 12px 25px;
+            padding: 10px 20px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 1em;
+            text-decoration: none;
+            font-size: 1rem;
             transition: background 0.2s;
-        }
-        .btn-check {
-            background: #8e44ad;
-            color: white;
-            margin-left: 15px;
-        }
-        .btn-check:hover { background: #732d91; }
-
-        .btn-add:hover { background: #229954; }
-
-        /* Alert */
-        .alert {
-            padding: 15px 20px;
-            margin-bottom: 20px;
-            border-radius: 6px;
-            border: 1px solid transparent;
-        }
-        .alert-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
-        .alert-warning { background: #fff3cd; color: #856404; border-color: #ffeeba; }
-        .alert-danger { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
-
-        /* 篩選器樣式 */
-        .filter-bar {
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        /* Skills Table */
-        .skills-table {
+        .btn-add:hover {
+            background: #2980b9;
+        }
+
+        /* Card Styles */
+        .card {
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
             overflow: hidden;
         }
+
+        .card-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: 500;
+        }
+
+        .form-control,
+        .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        /* Table Styles */
+        .skills-table {
+            width: 100%;
+            overflow-x: auto;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
-        thead {
-            background: #34495e;
-            color: white;
-        }
-        th, td {
+
+        th,
+        td {
             padding: 15px;
             text-align: left;
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid #eee;
         }
+
         th {
+            background-color: #f8f9fa;
+            color: #7f8c8d;
             font-weight: 600;
-            font-size: 0.95em;
+            text-transform: uppercase;
+            font-size: 0.85rem;
         }
-        tbody tr:hover {
-            background: #f8f9fa;
+
+        tr:hover {
+            background-color: #f8f9fa;
         }
-        /* 技能 ID 樣式優化 */
-        td code {
-            background: #f8f9fa;
-            padding: 6px 12px;
-            border-radius: 5px;
-            font-family: 'Courier New', Consolas, monospace;
-            font-size: 0.95em;
-            font-weight: 600;
-            color: #2c3e50;
-            border: 1px solid #dee2e6;
-        }
+
+        /* Status Badge */
         .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.85em;
-            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
         }
+
         .status-active {
-            background: #d4edda;
-            color: #155724;
+            background-color: #e8f8f5;
+            color: #27ae60;
         }
+
         .status-inactive {
-            background: #f8d7da;
-            color: #721c24;
+            background-color: #fdedec;
+            color: #c0392b;
         }
 
         /* Action Buttons */
         .btn-group {
             display: flex;
-            gap: 8px;
+            gap: 5px;
         }
+
         .btn {
             padding: 6px 12px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.9em;
-            transition: all 0.2s;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .btn-edit { background: #3498db; color: white; }
-        .btn-edit:hover { background: #2980b9; }
-        .btn-toggle { background: #f39c12; color: white; }
-        .btn-toggle:hover { background: #e67e22; }
-        .btn-delete { background: #e74c3c; color: white; }
-        .btn-delete:hover { background: #c0392b; }
 
-        /* Modal */
+        .btn:hover {
+            opacity: 0.8;
+        }
+
+        .btn-edit {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-prereq {
+            background: #9b59b6;
+            color: white;
+        }
+
+        .btn-toggle {
+            background: #34495e;
+            color: white;
+        }
+
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -175,102 +240,72 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
-            animation: fadeIn 0.3s;
-            overflow-y: auto; /* 允許整個模態框滾動 */
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+
         .modal-content {
-            background: white;
-            margin: 30px auto; /* 縮小上下邊距 */
-            padding: 25px 30px; /* 縮小內距 */
+            background-color: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 10px;
             width: 90%;
             max-width: 600px;
-            max-height: 90vh; /* 限制最大高度 */
-            border-radius: 10px;
-            box-shadow: 0 5px 30px rgba(0,0,0,0.3);
-            animation: slideDown 0.3s;
-            overflow-y: auto; /* 內容區域可滾動 */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
         }
-        @keyframes slideDown {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
         }
+
         .modal-header h2 {
+            margin: 0;
             color: #2c3e50;
         }
+
         .close {
+            color: #aaa;
             font-size: 28px;
             font-weight: bold;
-            color: #aaa;
             cursor: pointer;
-            transition: color 0.2s;
         }
-        .close:hover { color: #000; }
 
-        /* Form */
-        .form-group {
-            margin-bottom: 18px; /* 縮小間距 */
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 6px; /* 縮小間距 */
+        .close:hover {
             color: #2c3e50;
-            font-weight: 600;
-            font-size: 0.95em;
         }
-        .form-group input[type="text"],
-        .form-group input[type="number"],
-        .form-group textarea {
+
+        textarea {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ced4da;
+            padding: 10px;
+            border: 1px solid #ddd;
             border-radius: 5px;
-            font-size: 0.95em; /* 稍微縮小字體 */
-            transition: border-color 0.2s;
-        }
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #3498db;
-            box-shadow: 0 0 0 3px rgba(52,152,219,0.1);
-        }
-        .form-group textarea {
-            min-height: 70px; /* 縮小預設高度 */
-            max-height: 150px; /* 限制最大高度 */
+            min-height: 100px;
+            font-family: inherit;
             resize: vertical;
-            font-family: 'Courier New', Consolas, monospace; /* 等寬字體 */
-            font-size: 0.9em;
         }
-        /* 針對 Gemini Prompt 的文字區域，提供更大的編輯空間 */
+
         .gemini-prompt-textarea {
-            min-height: 140px; /* 原本 70px 的兩倍 */
-            max-height: 300px; /* 原本 150px 的兩倍 */
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            min-height: 150px;
+            background-color: #f8f9fa;
         }
-        .form-group small {
-            display: block;
-            margin-top: 4px;
-            color: #6c757d;
-            font-size: 0.85em;
-        }
+
         .checkbox-group {
             display: flex;
             align-items: center;
             gap: 10px;
         }
+
         .checkbox-group input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
+            width: 18px;
+            height: 18px;
         }
 
         .form-actions {
@@ -279,6 +314,7 @@
             justify-content: flex-end;
             margin-top: 25px;
         }
+
         .btn-submit {
             background: #27ae60;
             color: white;
@@ -289,7 +325,11 @@
             font-size: 1em;
             transition: background 0.2s;
         }
-        .btn-submit:hover { background: #229954; }
+
+        .btn-submit:hover {
+            background: #229954;
+        }
+
         .btn-cancel {
             background: #95a5a6;
             color: white;
@@ -300,7 +340,10 @@
             font-size: 1em;
             transition: background 0.2s;
         }
-        .btn-cancel:hover { background: #7f8c8d; }
+
+        .btn-cancel:hover {
+            background: #7f8c8d;
+        }
 
         /* Empty State */
         .empty-state {
@@ -308,15 +351,18 @@
             padding: 60px 20px;
             color: #6c757d;
         }
+
         .empty-state h3 {
             margin-bottom: 10px;
             color: #95a5a6;
         }
+
         /* Ghost Skills Modal List */
         .ghost-list {
             list-style-type: none;
             padding: 0;
         }
+
         .ghost-list li {
             background: #f1f2f6;
             padding: 8px 12px;
@@ -326,49 +372,134 @@
         }
     </style>
 </head>
+
 <body>
-    <!-- Navbar -->
-    <div class="navbar">
-        <div class="logo">🎓 功文數學 - 技能管理</div>
-        <div>
-            <a href="{{ url_for('dashboard') }}">返回儀表板</a>
-            <a href="{{ url_for('core.admin_prerequisites') }}">技能關聯</a>
-            <a href="{{ url_for('logout') }}">登出</a>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99999; justify-content: center; align-items: center; flex-direction: column;">
+        <div
+            style="background: white; padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5 class="mt-3">AI 正在撰寫 Python 程式碼...</h5>
+            <p class="text-muted mb-0">請稍候，這可能需要 10-20 秒...</p>
         </div>
     </div>
+    <!-- Loading Overlay - Must be at top level for z-index to work -->
+
+
+
+    {% include '_admin_navbar.html' %}
 
     <!-- Container -->
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>技能管理中心</h1>
+            <h1><i class="bi bi-tools" style="color: #9b59b6;"></i> 技能管理中心</h1>
             <div>
-                <button class="btn-add btn-check" onclick="checkGhostSkills()">🔍 檢查幽靈程式</button>
-                <button class="btn-add" onclick="openAddModal()">➕ 新增單元</button>
+                <button class="btn btn-secondary" onclick="checkGhostSkills()"><i class="bi bi-ghost"></i>
+                    檢查幽靈程式</button>
+                <button class="btn-add" onclick="openAddModal()"><i class="bi bi-plus-lg"></i> 新增單元</button>
             </div>
         </div>
 
-        <!-- 篩選器 -->
-        <div class="filter-bar">
-            <form id="filterForm" method="GET" action="{{ url_for('core.admin_skills') }}" style="display: flex; gap: 15px; align-items: center;">
-                <label for="category_filter" style="font-weight: 600;">依類別篩選：</label>
-                <select id="category_filter" name="category" onchange="this.form.submit()" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
-                    <option value="">所有類別</option>
-                    {% for category in categories %}
-                    <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
-                    {% endfor %}
-                </select>
-                <a href="{{ url_for('core.admin_skills') }}" class="btn" style="background: #7f8c8d; color: white;">清除篩選</a>
-            </form>
+        <!-- 多層篩選器 -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-filter"></i> 課程篩選器
+            </div>
+            <div class="card-body">
+                <form id="filter-form" action="{{ url_for('core.admin_skills') }}" method="get"
+                    style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <!-- 課綱 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_curriculum">課綱</label>
+                        <select id="f_curriculum" name="f_curriculum" class="form-select"
+                            style="width: 100%; padding: 8px;">
+                            <option value="">-- 請選擇 --</option>
+                            {% for c in filters.curriculums %}
+                            <option value="{{ c }}" {% if selected_filters.f_curriculum==c %}selected{% endif %}>{{
+                                curriculum_map.get(c, c) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!-- 年級 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_grade">年級</label>
+                        <select id="f_grade" name="f_grade" class="form-select" {% if not selected_filters.f_curriculum
+                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
+                            <option value="">-- 請選擇 --</option>
+                            {% if filters.grades %}
+                            {% for g in filters.grades %}
+                            <option value="{{ g }}" {% if selected_filters.f_grade==g|string %}selected{% endif %}>{{
+                                grade_map.get(g, g) }}</option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 冊別 -->
+                    <div class="form-group" style="flex: 1; min-width: 180px;">
+                        <label for="f_volume">冊別</label>
+                        <select id="f_volume" name="f_volume" class="form-select" {% if not selected_filters.f_grade
+                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
+                            <option value="">-- 請選擇 --</option>
+                            {% if filters.volumes %}
+                            {% for v in filters.volumes %}
+                            <option value="{{ v }}" {% if selected_filters.f_volume==v %}selected{% endif %}>{{ v }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 章節 -->
+                    <div class="form-group" style="flex: 1; min-width: 200px;">
+                        <label for="f_chapter">章</label>
+                        <select id="f_chapter" name="f_chapter" class="form-select" {% if not selected_filters.f_volume
+                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
+                            <option value="">-- 請選擇 --</option>
+                            {% if filters.chapters %}
+                            {% for ch in filters.chapters %}
+                            <option value="{{ ch }}" {% if selected_filters.f_chapter==ch %}selected{% endif %}>{{ ch }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 節 -->
+                    <div class="form-group" style="flex: 1; min-width: 200px;">
+                        <label for="f_section">節</label>
+                        <select id="f_section" name="f_section" class="form-select" {% if not selected_filters.f_chapter
+                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
+                            <option value="">-- 請選擇 --</option>
+                            {% if filters.sections %}
+                            {% for s in filters.sections %}
+                            <option value="{{ s }}" {% if selected_filters.f_section==s %}selected{% endif %}>{{ s }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="flex: 0 0 auto;">
+                        <!-- Hidden input to signal if curriculum was changed, as used by JS -->
+                        <input type="hidden" id="curriculum_changed" name="curriculum_changed" value="false">
+                        <!-- The 'Clear' button should also point to the correct skills admin page -->
+                        <a href="{{ url_for('core.admin_skills') }}" class="btn"
+                            style="padding: 8px 20px; background: #7f8c8d; color: white;"><i class="bi bi-x-circle"></i>
+                            清除</a>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
 
         <!-- Skills Table -->
@@ -378,11 +509,10 @@
                 <thead>
                     <tr>
                         <th>排序</th>
-                        <th>技能 ID</th>
-                        <th>英文名稱</th>
+                        <th style="width: 20%;">技能 ID / 英文名稱</th>
                         <th>中文名稱</th>
-                        <th>類別</th>
-                        <th>作答類型</th>
+                        <th style="width: 15%;">類別</th>
+                        <th>作答</th>
                         <th>晉級門檻</th>
                         <th>狀態</th>
                         <th>操作</th>
@@ -392,11 +522,11 @@
                     {% for skill in skills %}
                     <tr>
                         <td>{{ skill.order_index }}</td>
-                        <td><code>{{ skill.skill_id }}</code></td>
-                        <td>{{ skill.skill_en_name }}</td>
+                        <td><code>{{ skill.skill_id }}</code><br><small style="color: #6c757d;">{{ skill.skill_en_name
+                                }}</small></td>
                         <td><strong>{{ skill.skill_ch_name }}</strong></td>
                         <td>{{ skill.category }}</td>
-                        <td>{{ skill.input_type }}</td>
+                        <td>{{ '手寫' if skill.input_type == 'handwriting' else '文字' }}</td>
                         <td>{{ skill.consecutive_correct_required }} 題</td>
                         <td>
                             <span class="status-badge status-{{ 'active' if skill.is_active else 'inactive' }}">
@@ -405,19 +535,30 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <button class="btn btn-edit" 
-                                        data-skill='{{ skill.to_dict() | tojson | e }}' 
-                                        onclick='openEditModal(this.dataset.skill)'>
-                                    編輯</button>
-                                <form method="POST" action="{{ url_for('core.admin_toggle_skill', skill_id=skill.skill_id) }}" style="display: inline;">
-                                    <button type="submit" class="btn btn-toggle">
-                                        {{ '停用' if skill.is_active else '啟用' }}
+                                <button class="btn btn-edit" onclick="openEditModal('{{ skill.skill_id }}')">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button type="button" class="btn btn-secondary"
+                                    onclick="regenerateSkillCode('{{ skill.skill_id }}')" title="重新生成程式碼">
+                                    <i class="bi bi-arrow-clockwise"></i> 重建 Code
+                                </button>
+                                <a href="{{ url_for('core.admin_prerequisites', skill_id=skill.skill_id) }}"
+                                    class="btn btn-prereq" title="設定前置技能"><i class="bi bi-diagram-2-fill"></i></a>
+                                <form method="POST"
+                                    action="{{ url_for('core.admin_toggle_skill', skill_id=skill.skill_id) }}"
+                                    style="display: inline;">
+                                    <button type="submit" class="btn btn-toggle"
+                                        title="{{ '停用' if skill.is_active else '啟用' }}">
+                                        {% if skill.is_active %}<i class="bi bi-pause-circle-fill"></i>{% else %}<i
+                                            class="bi bi-play-circle-fill"></i>{% endif %}
                                     </button>
                                 </form>
-                                <form method="POST" action="{{ url_for('core.admin_delete_skill', skill_id=skill.skill_id) }}" 
-                                      onsubmit="return confirm('確定要刪除「{{ skill.skill_ch_name }}」嗎？此操作無法復原！')" 
-                                      style="display: inline;">
-                                    <button type="submit" class="btn btn-delete">刪除</button>
+                                <form method="POST"
+                                    action="{{ url_for('core.admin_delete_skill', skill_id=skill.skill_id) }}"
+                                    onsubmit="return confirm('確定要刪除「{{ skill.skill_ch_name }}」嗎？此操作無法復原！')"
+                                    style="display: inline;">
+                                    <button type="submit" class="btn btn-delete" title="刪除"><i
+                                            class="bi bi-trash-fill"></i></button>
                                 </form>
                             </div>
                         </td>
@@ -439,30 +580,27 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>新增技能</h2>
-                <span class="close" onclick="closeModal('addModal')">&times;</span>
+                <span class="close" onclick="closeModal('addModal')">×</span>
             </div>
             <form method="POST" action="{{ url_for('core.admin_add_skill') }}">
                 <div class="form-group">
                     <label for="skill_id">技能 ID *</label>
-                    <input type="text" id="skill_id" name="skill_id" required
-                           pattern="^[a-z_]+$"
-                           placeholder="例如：quadratic_equation">
+                    <input type="text" id="skill_id" name="skill_id" required pattern="^[a-z_]+$"
+                        placeholder="例如：quadratic_equation">
                     <small>只能使用小寫英文字母和底線，例如：remainder、factor_theorem</small>
                 </div>
                 <div class="form-group">
                     <label for="skill_en_name">英文名稱 *</label>
-                    <input type="text" id="skill_en_name" name="skill_en_name" required 
-                           placeholder="例如：Quadratic Equation">
+                    <input type="text" id="skill_en_name" name="skill_en_name" required
+                        placeholder="例如：Quadratic Equation">
                 </div>
                 <div class="form-group">
                     <label for="skill_ch_name">中文名稱 *</label>
-                    <input type="text" id="skill_ch_name" name="skill_ch_name" required 
-                           placeholder="例如：一元二次方程式">
+                    <input type="text" id="skill_ch_name" name="skill_ch_name" required placeholder="例如：一元二次方程式">
                 </div>
                 <div class="form-group">
                     <label for="category">技能類別 *</label>
-                    <input type="text" id="category" name="category" required 
-                           placeholder="例如：多項式、三角函數">
+                    <input type="text" id="category" name="category" required placeholder="例如：多項式、三角函數">
                 </div>
                 <div class="form-group">
                     <label for="input_type">作答類型 *</label>
@@ -474,19 +612,18 @@
                 </div>
                 <div class="form-group">
                     <label for="description">描述 *</label>
-                    <textarea id="description" name="description" required 
-                              placeholder="簡短描述這個技能的學習目標"></textarea>
+                    <textarea id="description" name="description" required placeholder="簡短描述這個技能的學習目標"></textarea>
                 </div>
                 <div class="form-group">
                     <label for="gemini_prompt">Gemini 提示模板 *</label>
                     <textarea id="gemini_prompt" name="gemini_prompt" required class="gemini-prompt-textarea"
-                              placeholder="分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導..."></textarea>
+                        placeholder="分析學生答案：{user_answer}，正確答案：{correct_answer}，如果錯誤，教導..."></textarea>
                     <small>可用變數：{user_answer}、{correct_answer}、{context}</small>
                 </div>
                 <div class="form-group">
                     <label for="consecutive_correct_required">晉級門檻（連續答對題數）*</label>
-                    <input type="number" id="consecutive_correct_required" name="consecutive_correct_required" 
-                           value="10" min="1" max="50" required>
+                    <input type="number" id="consecutive_correct_required" name="consecutive_correct_required"
+                        value="10" min="1" max="50" required>
                 </div>
                 <div class="form-group">
                     <label for="order_index">排序順序</label>
@@ -512,13 +649,12 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>編輯技能</h2>
-                <span class="close" onclick="closeModal('editModal')">&times;</span>
+                <span class="close" onclick="closeModal('editModal')">×</span>
             </div>
             <form id="editForm" method="POST">
                 <div class="form-group">
                     <label>技能 ID</label>
-                    <input type="text" id="edit_skill_id" disabled 
-                           style="background: #e9ecef; cursor: not-allowed;">
+                    <input type="text" id="edit_skill_id" disabled style="background: #e9ecef; cursor: not-allowed;">
                     <small>技能 ID 無法修改</small>
                 </div>
                 <div class="form-group">
@@ -546,12 +682,31 @@
                 </div>
                 <div class="form-group">
                     <label for="edit_gemini_prompt">Gemini 提示模板 *</label>
-                    <textarea id="edit_gemini_prompt" name="gemini_prompt" required class="gemini-prompt-textarea"></textarea>
+                    <textarea id="edit_gemini_prompt" name="gemini_prompt" required
+                        class="gemini-prompt-textarea"></textarea>
+                </div>
+
+                <hr class="my-4">
+                <h6 class="text-primary"><i class="bi bi-lightbulb"></i> AI 推薦提問 (學生求救用)</h6>
+                <div class="mb-3">
+                    <label class="form-label">推薦提問 1 - 觀察例題</label>
+                    <textarea class="form-control" id="edit_suggested_prompt_1" name="suggested_prompt_1" rows="2"
+                        placeholder="例：請觀察例題..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">推薦提問 2 - 步驟提示</label>
+                    <textarea class="form-control" id="edit_suggested_prompt_2" name="suggested_prompt_2" rows="2"
+                        placeholder="例：先做通分..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">推薦提問 3 - 自我檢查</label>
+                    <textarea class="form-control" id="edit_suggested_prompt_3" name="suggested_prompt_3" rows="2"
+                        placeholder="例：檢查正負號..."></textarea>
                 </div>
                 <div class="form-group">
                     <label for="edit_consecutive_correct_required">晉級門檻 *</label>
-                    <input type="number" id="edit_consecutive_correct_required" 
-                           name="consecutive_correct_required" min="1" max="50" required>
+                    <input type="number" id="edit_consecutive_correct_required" name="consecutive_correct_required"
+                        min="1" max="50" required>
                 </div>
                 <div class="form-group">
                     <label for="edit_order_index">排序順序</label>
@@ -576,7 +731,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>幽靈程式檢查結果</h2>
-                <span class="close" onclick="closeModal('ghostModal')">&times;</span>
+                <span class="close" onclick="closeModal('ghostModal')">×</span>
             </div>
             <div id="ghostResult">
                 <p>正在檢查中...</p>
@@ -588,77 +743,192 @@
     </div>
 
     <script>
+        // Modal Functions
         function openAddModal() {
             document.getElementById('addModal').style.display = 'block';
-        }
-
-        function openEditModal(skillJson) {
-            const skill = JSON.parse(skillJson);
-            document.getElementById('edit_skill_id').value = skill.skill_id;
-            document.getElementById('edit_skill_en_name').value = skill.skill_en_name;
-            document.getElementById('edit_skill_ch_name').value = skill.skill_ch_name;
-            document.getElementById('edit_category').value = skill.category;
-            document.getElementById('edit_input_type').value = skill.input_type || 'text';
-            document.getElementById('edit_description').value = skill.description;
-            document.getElementById('edit_gemini_prompt').value = skill.gemini_prompt;
-            document.getElementById('edit_consecutive_correct_required').value = skill.consecutive_correct_required;
-            document.getElementById('edit_order_index').value = skill.order_index;
-            document.getElementById('edit_is_active').checked = skill.is_active == 1;
-            
-            document.getElementById('editForm').action = "{{ url_for('core.admin_edit_skill', skill_id='0') }}".replace('0', skill.skill_id);
-            document.getElementById('editModal').style.display = 'block';
         }
 
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
         }
 
-        async function checkGhostSkills() {
-            const modal = document.getElementById('ghostModal');
-            const resultDiv = document.getElementById('ghostResult');
-            modal.style.display = 'block';
-            resultDiv.innerHTML = '<p>正在檢查中，請稍候...</p>';
-
-            try {
-                const response = await fetch("{{ url_for('core.check_ghost_skills') }}");
-                const data = await response.json();
-
-                if (data.success) {
-                    if (data.ghost_files.length > 0) {
-                        let fileListHtml = '<p>以下檔案存在於 `skills` 資料夾中，但在資料庫 `skills_info` 表格內沒有對應的紀錄。請確認後手動刪除：</p>';
-                        fileListHtml += '<ul class="ghost-list">';
-                        data.ghost_files.forEach(file => {
-                            fileListHtml += `<li>${file}.py</li>`;
-                        });
-                        fileListHtml += '</ul>';
-                        resultDiv.innerHTML = fileListHtml;
-                    } else {
-                        resultDiv.innerHTML = '<p style="color: #155724; font-weight: bold;">太棒了！沒有發現任何幽靈程式。</p>';
-                    }
-                } else {
-                    resultDiv.innerHTML = `<p style="color: #721c24;">檢查失敗：${data.message}</p>`;
+        function openEditModal(skillId) {
+            // 顯示 Loading
+            Swal.fire({
+                title: '載入中...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
                 }
-            } catch (error) {
-                resultDiv.innerHTML = `<p style="color: #721c24;">無法連接到伺服器或發生未知錯誤。</p>`;
-            }
+            });
+
+            fetch(`/admin/skills/${skillId}/details`)
+                .then(response => response.json())
+                .then(skill => {
+                    Swal.close();
+
+                    document.getElementById('edit_skill_id').value = skill.skill_id;
+                    document.getElementById('edit_skill_en_name').value = skill.skill_en_name;
+                    document.getElementById('edit_skill_ch_name').value = skill.skill_ch_name;
+                    document.getElementById('edit_category').value = skill.category;
+                    document.getElementById('edit_input_type').value = skill.input_type;
+                    document.getElementById('edit_description').value = skill.description;
+                    document.getElementById('edit_gemini_prompt').value = skill.gemini_prompt;
+                    document.getElementById('edit_consecutive_correct_required').value = skill.consecutive_correct_required;
+                    document.getElementById('edit_order_index').value = skill.order_index;
+                    document.getElementById('edit_is_active').checked = skill.is_active;
+
+                    // Populate suggested prompts
+                    document.getElementById('edit_suggested_prompt_1').value = skill.suggested_prompt_1 || '';
+                    document.getElementById('edit_suggested_prompt_2').value = skill.suggested_prompt_2 || '';
+                    document.getElementById('edit_suggested_prompt_3').value = skill.suggested_prompt_3 || '';
+
+                    const form = document.getElementById('editForm');
+                    form.action = "/admin/skills/edit/" + skill.skill_id;
+
+                    document.getElementById('editModal').style.display = 'block';
+                })
+                .catch(error => {
+                    Swal.fire('錯誤', '無法載入技能資料', 'error');
+                    console.error('Error:', error);
+                });
         }
 
-        // 點擊模態框外部關閉
-        window.onclick = function(event) {
-            const modals = ['addModal', 'editModal', 'ghostModal'];
-            if (modals.map(id => document.getElementById(id)).includes(event.target)) {
-                event.target.style.display = 'none';
-            }
+        function checkGhostSkills() {
+            document.getElementById('ghostModal').style.display = 'block';
+            const resultDiv = document.getElementById('ghostResult');
+            resultDiv.innerHTML = '<p>正在檢查中...</p>';
+
+            fetch('/api/check_ghost_skills')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        resultDiv.innerHTML = '<p>太棒了！沒有發現幽靈程式。</p>';
+                    } else {
+                        let html = '<p>發現以下技能檔案沒有對應的資料庫紀錄：</p><ul class="ghost-list">';
+                        data.forEach(skill => {
+                            html += `<li>${skill}.py</li>`;
+                        });
+                        html += '</ul>';
+                        resultDiv.innerHTML = html;
+                    }
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = '<p style="color: red;">檢查失敗：' + error + '</p>';
+                });
         }
 
-        // ESC 鍵關閉
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                closeModal('addModal');
-                closeModal('editModal');
-                closeModal('ghostModal');
+        // Close modal with Esc key
+        document.addEventListener('keydown', function (event) {
+            if (event.key === "Escape") {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (modal.style.display === 'block') {
+                        modal.style.display = 'none';
+                    }
+                });
             }
         });
+
+        // --- 連動式篩選器邏輯 (表單提交版本) ---
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('filter-form');
+            const curriculumSelect = document.getElementById('f_curriculum');
+            const gradeSelect = document.getElementById('f_grade');
+            const volumeSelect = document.getElementById('f_volume');
+            const chapterSelect = document.getElementById('f_chapter');
+            const sectionSelect = document.getElementById('f_section');
+
+            if (curriculumSelect) {
+                curriculumSelect.addEventListener('change', function () {
+                    // 當課綱改變時，我們需要重設後面的選項。
+                    document.getElementById('curriculum_changed').value = 'true';
+                    form.submit();
+                });
+            }
+
+            [gradeSelect, volumeSelect, chapterSelect, sectionSelect].forEach(select => {
+                if (select) {
+                    select.addEventListener('change', () => form.submit());
+                }
+            });
+        });
+
+        // 全域函式：重新生成技能程式碼 (使用 SweetAlert2)
+        function regenerateSkillCode(skillId) {
+            // 1. 確認對話框 (美化版)
+            Swal.fire({
+                title: '確定要重新生成嗎？',
+                text: `這將會覆蓋現有的 ${skillId}.py 檔案。`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: '是的，重新生成！',
+                cancelButtonText: '取消'
+            }).then((result) => {
+                if (result.isConfirmed) {
+
+                    // 2. 顯示 Loading (美化版)
+                    Swal.fire({
+                        title: 'AI 正在撰寫程式碼...',
+                        html: '請稍候，這可能需要 10-20 秒。<br><br><b>正在處理中...</b>',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    // 3. 發送請求
+                    fetch(`/admin/skills/${skillId}/regenerate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    })
+                        .then(async response => {
+                            const contentType = response.headers.get("content-type");
+                            if (contentType && contentType.indexOf("application/json") !== -1) {
+                                return response.json().then(data => {
+                                    if (!response.ok) throw new Error(data.message || '伺服器錯誤');
+                                    return data;
+                                });
+                            } else {
+                                const text = await response.text();
+                                console.error("Server Error HTML:", text);
+                                let errorMsg = '伺服器發生內部錯誤 (500)';
+                                const titleMatch = text.match(/<title>(.*?)<\/title>/);
+                                if (titleMatch) errorMsg += ': ' + titleMatch[1];
+                                throw new Error(errorMsg);
+                            }
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                // 4. 成功提示 (美化版)
+                                Swal.fire({
+                                    title: '✨ 生成成功！',
+                                    text: `技能程式碼 ${skillId}.py 已建立完成。`,
+                                    icon: 'success',
+                                    confirmButtonText: '太棒了！'
+                                }).then(() => {
+                                    window.location.reload();
+                                });
+                            } else {
+                                throw new Error(data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Fetch Error:', error);
+                            // 5. 錯誤提示 (美化版)
+                            Swal.fire({
+                                title: '❌ 執行失敗',
+                                text: error.message,
+                                icon: 'error'
+                            });
+                        });
+                }
+            });
+        }
     </script>
+
 </body>
+
 </html>

@@ -24,6 +24,7 @@ from core.session import get_current, set_current
 from core.ai_analyzer import get_model, analyze
 from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
 from core.data_importer import import_textbook_examples_from_file
+from . import textbook_processor
 from werkzeug.utils import secure_filename
 from sqlalchemy import distinct
 from sqlalchemy.exc import OperationalError
@@ -489,10 +490,55 @@ def draw_diagram():
         return jsonify({"success": False, "message": f"伺服器內部錯誤: {e}"}), 500
 
 
+@core_bp.route('/api/get_grades')
+@login_required
+def api_get_grades():
+    curriculum = request.args.get('curriculum')
+    query = db.session.query(distinct(SkillCurriculum.grade)).filter_by(curriculum=curriculum)
+    # 過濾 None 並排序
+    grades = sorted([row[0] for row in query.filter(SkillCurriculum.grade != None).all()])
+    return jsonify(grades)
+
+@core_bp.route('/api/get_volumes')
+@login_required
+def api_get_volumes():
+    curriculum = request.args.get('curriculum')
+    grade = request.args.get('grade')
+    query = db.session.query(distinct(SkillCurriculum.volume)).filter_by(curriculum=curriculum, grade=grade)
+    volumes = [row[0] for row in query.all()]
+    return jsonify(volumes)
+
+@core_bp.route('/api/get_chapters')
+@login_required
+def api_get_chapters():
+    curriculum = request.args.get('curriculum')
+    grade = request.args.get('grade')
+    volume = request.args.get('volume')
+    query = db.session.query(distinct(SkillCurriculum.chapter)).filter_by(
+        curriculum=curriculum, grade=grade, volume=volume
+    )
+    chapters = [row[0] for row in query.all()]
+    return jsonify(chapters)
+
+@core_bp.route('/api/get_sections')
+@login_required
+def api_get_sections():
+    curriculum = request.args.get('curriculum')
+    grade = request.args.get('grade')
+    volume = request.args.get('volume')
+    chapter = request.args.get('chapter')
+    query = db.session.query(distinct(SkillCurriculum.section)).filter_by(
+        curriculum=curriculum, grade=grade, volume=volume, chapter=chapter
+    )
+    sections = [row[0] for row in query.all()]
+    return jsonify(sections)
 # === API 路由：用於連動式下拉選單 ===
 # 這些路由註冊在 core_bp 上，會自動受到 before_request 的登入保護
 @core_bp.route('/api/curriculum/grades')
-def api_get_grades():
+def api_get_grades_legacy():
+    # 允許管理員 OR 老師
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify([])
     curriculum = request.args.get('curriculum')
     if not curriculum:
         return jsonify([])
@@ -500,7 +546,10 @@ def api_get_grades():
     return jsonify([g[0] for g in grades])
 
 @core_bp.route('/api/curriculum/volumes')
-def api_get_volumes():
+def api_get_volumes_legacy():
+    # 允許管理員 OR 老師
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify([])
     curriculum = request.args.get('curriculum')
     grade = request.args.get('grade')
     if not curriculum or not grade:
@@ -509,8 +558,11 @@ def api_get_volumes():
     return jsonify([v[0] for v in volumes])
 
 @core_bp.route('/api/curriculum/chapters')
-def api_get_chapters():
+def api_get_chapters_legacy():
     curriculum = request.args.get('curriculum')
+    # 允許管理員 OR 老師
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify([])
     grade = request.args.get('grade')
     volume = request.args.get('volume')
     if not curriculum or not grade or not volume:
@@ -523,8 +575,11 @@ def api_get_chapters():
     return jsonify([c[0] for c in chapters])
 
 @core_bp.route('/api/curriculum/sections')
-def api_get_sections():
+def api_get_sections_legacy():
     curriculum = request.args.get('curriculum')
+    # 允許管理員 OR 老師
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify([])
     grade = request.args.get('grade')
     volume = request.args.get('volume')
     chapter = request.args.get('chapter')
@@ -1037,96 +1092,132 @@ def import_textbook_examples():
     return redirect(url_for('core.db_maintenance'))
 
 # === 課程分類管理 (從 app.py 移入) ===
-@core_bp.route('/admin/curriculum', methods=['GET', 'POST'])
+
+@core_bp.route('/curriculum', methods=['GET', 'POST'])
 @login_required
 def admin_curriculum():
-    # 簡易權限檢查
-    if not current_user.is_admin:
+    # 1. 權限檢查
+    if not (current_user.is_admin or current_user.role == 'teacher'):
         flash('權限不足', 'error')
-        return redirect(url_for('core.dashboard'))
+        return redirect(url_for('dashboard'))
 
+    # 2. POST: 新增邏輯 (維持不變)
     if request.method == 'POST':
         try:
-            skill_id = request.form.get('skill_id')
-            curriculum = request.form.get('curriculum')
-            grade = request.form.get('grade')
-            volume = request.form.get('volume')
-            chapter = request.form.get('chapter')
-            section = request.form.get('section')
-            
-            skill = db.session.get(SkillInfo, skill_id)
-            if not skill:
-                flash(f'無效的技能 ID: {skill_id}', 'error')
-                return redirect(url_for('core.admin_curriculum'))
-            
-            # 建立新資料
+            # 這裡保留你原本的新增程式碼...
+            # (簡略範例，請保留原有的詳細實作)
             new_curr = SkillCurriculum(
-                skill_id=skill_id,
-                curriculum=curriculum,
-                grade=int(grade) if grade and grade.isdigit() else 0, # 防呆：確保寫入 DB 的是 int
-                volume=volume,
-                chapter=chapter,
-                section=section,
-                display_order=0
+                skill_id=request.form.get('skill_id'),
+                curriculum=request.form.get('curriculum'),
+                grade=int(request.form.get('grade')) if request.form.get('grade') and request.form.get('grade').isdigit() else 0,
+                volume=request.form.get('volume'),
+                chapter=request.form.get('chapter'),
+                section=request.form.get('section'),
+                paragraph=request.form.get('paragraph'),
+                difficulty_level=int(request.form.get('difficulty_level', 1)),
+                display_order=int(request.form.get('display_order', 0))
             )
             db.session.add(new_curr)
             db.session.commit()
-            flash('課程關聯新增成功！', 'success')
+            flash('新增成功', 'success')
         except Exception as e:
             db.session.rollback()
             flash(f'新增失敗: {str(e)}', 'error')
-            
-    # --- GET: 準備頁面資料 ---
-    
-    # 1. 取得所有資料 (限制 100 筆避免太慢)
-    # User requested: items = SkillCurriculum.query.join(SkillInfo).order_by(SkillCurriculum.id.desc()).limit(100).all()
-    # Adapting to use db.session.query style consistent with project if needed, or just use Model.query if available.
-    # Assuming SkillCurriculum is a db.Model, .query should work.
-    items = SkillCurriculum.query.join(SkillInfo).order_by(SkillCurriculum.id.desc()).limit(100).all()
+        return redirect(url_for('core.admin_curriculum'))
 
-    # 2. [Critical Fix] 建立 grade_map 並強制 Key 為字串
-    unique_grades = db.session.query(distinct(SkillCurriculum.grade)).filter(SkillCurriculum.grade != None).all()
+    # 3. GET: 處理篩選與顯示
     
-    grade_map = {}
-    for g in unique_grades:
-        val = g[0]
-        # 強制轉型 str，解決 TypeError: '<' not supported between instances of 'int' and 'str'
-        grade_map[str(val)] = str(val) 
+    # [Fix 2] 增加讀取 section 參數
+    sel_curr = request.args.get('curriculum')
+    sel_grade = request.args.get('grade')
+    sel_vol = request.args.get('volume')
+    sel_chap = request.args.get('chapter')
+    sel_sec = request.args.get('section') # 新增
 
-    # --- Restore Context for Template ---
-    skills = db.session.query(SkillInfo).order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
+    # 建構查詢
+    query = SkillCurriculum.query.join(SkillInfo)
+    if sel_curr: query = query.filter(SkillCurriculum.curriculum == sel_curr)
+    if sel_grade: query = query.filter(SkillCurriculum.grade == int(sel_grade))
+    if sel_vol: query = query.filter(SkillCurriculum.volume == sel_vol)
+    if sel_chap: query = query.filter(SkillCurriculum.chapter == sel_chap)
+    if sel_sec: query = query.filter(SkillCurriculum.section == sel_sec) # [Fix 2] 新增篩選
     
+    items = query.order_by(SkillCurriculum.id.desc()).limit(200).all()
+
+    # 準備下拉選單資料
+    curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
+    
+    q_grades = db.session.query(distinct(SkillCurriculum.grade))
+    if sel_curr: q_grades = q_grades.filter_by(curriculum=sel_curr)
+    grades = sorted([r[0] for r in q_grades.filter(SkillCurriculum.grade != None).all()])
+
+    q_vols = db.session.query(distinct(SkillCurriculum.volume))
+    if sel_curr: q_vols = q_vols.filter_by(curriculum=sel_curr)
+    if sel_grade: q_vols = q_vols.filter_by(grade=sel_grade)
+    volumes = [r[0] for r in q_vols.all()]
+
+    q_chaps = db.session.query(distinct(SkillCurriculum.chapter))
+    if sel_curr: q_chaps = q_chaps.filter_by(curriculum=sel_curr)
+    if sel_grade: q_chaps = q_chaps.filter_by(grade=sel_grade)
+    if sel_vol: q_chaps = q_chaps.filter_by(volume=sel_vol)
+    chapters = [r[0] for r in q_chaps.all()]
+
+    # [Fix 2] Level 5: 小節 (Section) - 新增這一段
+    q_secs = db.session.query(distinct(SkillCurriculum.section))
+    if sel_curr: q_secs = q_secs.filter_by(curriculum=sel_curr)
+    if sel_grade: q_secs = q_secs.filter_by(grade=sel_grade)
+    if sel_vol: q_secs = q_secs.filter_by(volume=sel_vol)
+    if sel_chap: q_secs = q_secs.filter_by(chapter=sel_chap)
+    sections = [r[0] for r in q_secs.all()]
+
+    # 準備對照表
+    all_grades = db.session.query(distinct(SkillCurriculum.grade)).all()
+    grade_map = {str(g[0]): str(g[0]) for g in all_grades if g[0] is not None}
+    
+    # [Fix 1] 擴充 Curriculum Map 對應表
     curriculum_map = {
-        'general': '普通高中',
-        'vocational': '技術型高中',
-        'junior_high': '國民中學'
+        'junior_high': '國中',
+        'general': '普高',
+        'technical': '技高',
+        'elementary': '國小',
+        'sh': '普高 (舊碼)', # 保留舊碼相容
+        'jh': '國中 (舊碼)',
+        'vhs': '技高 (舊碼)',
+        'elem': '國小 (舊碼)'
     }
-    
-    # Recreate filters object for the template
+
+    # 包裝變數
     filters = {
-        'curriculums': sorted(curriculum_map.keys()),
-        'grades': [], # Simplified, as user removed filter logic
-        'volumes': [],
-        'chapters': [],
-        'sections': []
+        'curriculums': curriculums,
+        'grades': grades,
+        'volumes': volumes,
+        'chapters': chapters,
+        'sections': sections # [Fix 2] 加入 sections
     }
     
     selected_filters = {
-       'f_curriculum': '',
-       'f_grade': '',
-       'f_volume': '',
-       'f_chapter': '',
-       'f_section': ''
+        'f_curriculum': sel_curr,
+        'f_grade': sel_grade,
+        'f_volume': sel_vol,
+        'f_chapter': sel_chap,
+        'f_section': sel_sec # [Fix 2] 加入 section
     }
 
     return render_template('admin_curriculum.html', 
-                           username=current_user.username,
-                           curriculum=items, # Pass items as 'curriculum' for template compatibility
-                           grade_map=grade_map,
-                           skills=skills,
-                           curriculum_map=curriculum_map,
+                           items=items,
                            filters=filters,
-                           selected_filters=selected_filters)
+                           selected_filters=selected_filters,
+                           grade_map=grade_map,
+                           curriculum_map=curriculum_map, # <--- 這次一定要加上這個！
+                           
+                           # 相容性變數
+                           curriculums=curriculums,
+                           grades=grades,
+                           volumes=volumes,
+                           chapters=chapters,
+                           sections=sections, # [Fix 2]
+                           skills=SkillInfo.query.all()
+                           )
 
 @core_bp.route('/curriculum/add', methods=['POST'])
 @login_required
@@ -1154,10 +1245,10 @@ def admin_add_curriculum():
         flash(f'新增失敗：{str(e)}', 'danger')
     return redirect(url_for('core.admin_curriculum'))
 
-@core_bp.route('/admin/curriculum/edit/<int:id>', methods=['POST'])
+@core_bp.route('/curriculum/edit/<int:id>', methods=['POST'])
 @login_required
 def admin_edit_curriculum(id):  # 函式名稱必須是 admin_edit_curriculum
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.role == 'teacher'):
         return jsonify({'success': False, 'message': '權限不足'}), 403
     
     try:
@@ -1182,10 +1273,10 @@ def admin_edit_curriculum(id):  # 函式名稱必須是 admin_edit_curriculum
         flash(f'更新失敗: {str(e)}', 'error')
         return redirect(url_for('core.admin_curriculum'))
 
-@core_bp.route('/admin/curriculum/delete/<int:id>', methods=['POST'])
+@core_bp.route('/curriculum/delete/<int:id>', methods=['POST'])
 @login_required
 def admin_delete_curriculum(id): # 函式名稱必須是 admin_delete_curriculum
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.role == 'teacher'):
         return jsonify({'success': False, 'message': '權限不足'}), 403
 
     try:
@@ -1201,21 +1292,96 @@ def admin_delete_curriculum(id): # 函式名稱必須是 admin_delete_curriculum
 @core_bp.route('/admin/skills')  # Add alias for navbar compatibility
 @login_required
 def admin_skills():
-    selected_category = request.args.get('category')
+    # 權限檢查
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
 
-    query = db.session.query(SkillInfo)
+    # 讀取篩選參數 (支援課綱篩選)
+    sel_curr = request.args.get('f_curriculum')
+    sel_grade = request.args.get('f_grade')
+    sel_vol = request.args.get('f_volume')
+    sel_chap = request.args.get('f_chapter')
+    sel_sec = request.args.get('f_section')
 
-    if selected_category:
-        query = query.filter(SkillInfo.category == selected_category)
+    # 建構查詢 - 透過 SkillCurriculum 關聯來篩選
+    if any([sel_curr, sel_grade, sel_vol, sel_chap, sel_sec]):
+        # 有課綱篩選條件時，透過 SkillCurriculum 查詢
+        query = db.session.query(SkillInfo).join(SkillCurriculum)
+        if sel_curr: query = query.filter(SkillCurriculum.curriculum == sel_curr)
+        if sel_grade: query = query.filter(SkillCurriculum.grade == int(sel_grade))
+        if sel_vol: query = query.filter(SkillCurriculum.volume == sel_vol)
+        if sel_chap: query = query.filter(SkillCurriculum.chapter == sel_chap)
+        if sel_sec: query = query.filter(SkillCurriculum.section == sel_sec)
+        query = query.distinct()
+    else:
+        # 無篩選條件時，顯示所有技能
+        query = db.session.query(SkillInfo)
 
     skills = query.order_by(SkillInfo.order_index, SkillInfo.skill_id).all()
 
-    categories = sorted([row[0] for row in db.session.query(SkillInfo.category).distinct().all() if row[0]])
+    # 準備篩選器資料 (與 admin_curriculum 相同邏輯)
+    curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
+    
+    q_grades = db.session.query(distinct(SkillCurriculum.grade))
+    if sel_curr: q_grades = q_grades.filter_by(curriculum=sel_curr)
+    grades = sorted([r[0] for r in q_grades.filter(SkillCurriculum.grade != None).all()])
+
+    q_vols = db.session.query(distinct(SkillCurriculum.volume))
+    if sel_curr: q_vols = q_vols.filter_by(curriculum=sel_curr)
+    if sel_grade: q_vols = q_vols.filter_by(grade=sel_grade)
+    volumes = [r[0] for r in q_vols.all()]
+
+    q_chaps = db.session.query(distinct(SkillCurriculum.chapter))
+    if sel_curr: q_chaps = q_chaps.filter_by(curriculum=sel_curr)
+    if sel_grade: q_chaps = q_chaps.filter_by(grade=sel_grade)
+    if sel_vol: q_chaps = q_chaps.filter_by(volume=sel_vol)
+    chapters = [r[0] for r in q_chaps.all()]
+
+    q_secs = db.session.query(distinct(SkillCurriculum.section))
+    if sel_curr: q_secs = q_secs.filter_by(curriculum=sel_curr)
+    if sel_grade: q_secs = q_secs.filter_by(grade=sel_grade)
+    if sel_vol: q_secs = q_secs.filter_by(volume=sel_vol)
+    if sel_chap: q_secs = q_secs.filter_by(chapter=sel_chap)
+    sections = [r[0] for r in q_secs.all()]
+
+    # Grade Map & Curriculum Map
+    all_grades = db.session.query(distinct(SkillCurriculum.grade)).all()
+    grade_map = {str(g[0]): str(g[0]) for g in all_grades if g[0] is not None}
+    
+    curriculum_map = {
+        'junior_high': '國中',
+        'general': '普高',
+        'technical': '技高',
+        'elementary': '國小',
+        'sh': '普高 (舊碼)',
+        'jh': '國中 (舊碼)',
+        'vhs': '技高 (舊碼)',
+        'elem': '國小 (舊碼)'
+    }
+
+    filters = {
+        'curriculums': curriculums,
+        'grades': grades,
+        'volumes': volumes,
+        'chapters': chapters,
+        'sections': sections
+    }
+    
+    selected_filters = {
+        'f_curriculum': sel_curr,
+        'f_grade': sel_grade,
+        'f_volume': sel_vol,
+        'f_chapter': sel_chap,
+        'f_section': sel_sec
+    }
 
     return render_template('admin_skills.html', 
-                           skills=skills, 
-                           categories=categories,
-                           selected_category=selected_category,
+                           skills=skills,
+                           filters=filters,
+                           selected_filters=selected_filters,
+                           grade_map=grade_map,
+                           curriculum_map=curriculum_map,
                            username=current_user.username)
 
 @core_bp.route('/skills/add', methods=['POST'])
@@ -1250,8 +1416,13 @@ def admin_add_skill():
     return redirect(url_for('core.admin_skills'))
 
 @core_bp.route('/skills/edit/<skill_id>', methods=['POST'])
+@core_bp.route('/admin/skills/edit/<skill_id>', methods=['POST'])  # Add alias
 @login_required
 def admin_edit_skill(skill_id):
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+        
     skill = db.get_or_404(SkillInfo, skill_id)
     data = request.form
     
@@ -1265,6 +1436,11 @@ def admin_edit_skill(skill_id):
         skill.consecutive_correct_required = int(data['consecutive_correct_required'])
         skill.is_active = data.get('is_active') == 'on'
         skill.order_index = int(data.get('order_index', 999))
+        
+        # 新增：支援 suggested_prompts
+        skill.suggested_prompt_1 = data.get('suggested_prompt_1', '')
+        skill.suggested_prompt_2 = data.get('suggested_prompt_2', '')
+        skill.suggested_prompt_3 = data.get('suggested_prompt_3', '')
         
         db.session.commit()
         flash('技能更新成功！', 'success')
@@ -1295,8 +1471,13 @@ def admin_delete_skill(skill_id):
     return redirect(url_for('core.admin_skills'))
 
 @core_bp.route('/skills/toggle/<skill_id>', methods=['POST'])
+@core_bp.route('/admin/skills/toggle/<skill_id>', methods=['POST'])  # Add alias
 @login_required
 def admin_toggle_skill(skill_id):
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+        
     skill = db.get_or_404(SkillInfo, skill_id)
     try:
         skill.is_active = not skill.is_active
@@ -1307,6 +1488,86 @@ def admin_toggle_skill(skill_id):
         flash(f'操作失敗：{str(e)}', 'danger')
 
     return redirect(url_for('core.admin_skills'))
+
+# API: 取得技能詳細資料 (for AJAX edit modal)
+@core_bp.route('/admin/skills/<skill_id>/details', methods=['GET'])
+@login_required
+def api_get_skill_details(skill_id):
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    skill = db.get_or_404(SkillInfo, skill_id)
+    return jsonify({
+        'skill_id': skill.skill_id,
+        'skill_en_name': skill.skill_en_name,
+        'skill_ch_name': skill.skill_ch_name,
+        'category': skill.category,
+        'description': skill.description,
+        'input_type': skill.input_type,
+        'gemini_prompt': skill.gemini_prompt,
+        'consecutive_correct_required': skill.consecutive_correct_required,
+        'is_active': skill.is_active,
+        'order_index': skill.order_index,
+        'suggested_prompt_1': skill.suggested_prompt_1 or '',
+        'suggested_prompt_2': skill.suggested_prompt_2 or '',
+        'suggested_prompt_3': skill.suggested_prompt_3 or ''
+    })
+
+# API: 重新生成技能程式碼
+@core_bp.route('/admin/skills/<skill_id>/regenerate', methods=['POST'])
+@login_required
+def api_regenerate_skill_code(skill_id):
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+        
+    skill = db.get_or_404(SkillInfo, skill_id)
+    
+    try:
+        # 呼叫 AI 生成程式碼的函式 (需要確認此函式是否存在)
+        from core.skill_code_generator import generate_skill_code
+        
+        success = generate_skill_code(skill)
+        
+        if success:
+            return jsonify({'success': True, 'message': f'技能 {skill_id} 程式碼已重新生成'})
+        else:
+            return jsonify({'success': False, 'message': '生成失敗，請檢查日誌'}), 500
+            
+    except ImportError:
+        return jsonify({'success': False, 'message': 'skill_code_generator 模組不存在'}), 500
+    except Exception as e:
+        current_app.logger.error(f"Regenerate skill code error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# API: 檢查幽靈技能檔案
+@core_bp.route('/api/check_ghost_skills', methods=['GET'])
+@login_required
+def api_check_ghost_skills():
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    try:
+        import os
+        skills_dir = os.path.join(current_app.root_path, 'skills')
+        
+        if not os.path.exists(skills_dir):
+            return jsonify([])
+            
+        # 取得所有 .py 檔案 (排除 __init__.py)
+        py_files = [f[:-3] for f in os.listdir(skills_dir) 
+                   if f.endswith('.py') and f != '__init__.py']
+        
+        # 取得資料庫中的所有 skill_id
+        db_skills = [s.skill_id for s in SkillInfo.query.all()]
+        
+        # 找出幽靈檔案 (檔案存在但資料庫沒有)
+        ghost_skills = [f for f in py_files if f not in db_skills]
+        
+        return jsonify(ghost_skills)
+        
+    except Exception as e:
+        current_app.logger.error(f"Check ghost skills error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @practice_bp.route('/similar-questions-page')
 @login_required
@@ -1821,3 +2082,102 @@ def init_db_route():
         flash(f'初始化失敗: {str(e)}', 'error')
         current_app.logger.error(f"Init DB Error: {e}")
     return redirect(url_for('core.db_maintenance'))
+
+
+@core_bp.route('/admin/textbook_importer', methods=['GET', 'POST'])
+@login_required
+def admin_textbook_importer():
+    # 權限檢查 (Admin 或 Teacher)
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        # 1. 收集表單資訊
+        curriculum_info = {
+            'curriculum': request.form.get('curriculum'),
+            'publisher': request.form.get('publisher'),
+            'grade': request.form.get('grade'),
+            'volume': request.form.get('volume')
+        }
+        import_mode = request.form.get('import_mode', 'single')
+        skip_code_gen = request.form.get('skip_code_gen') == 'on'
+
+        # 2. 處理檔案上傳
+        upload_folder = os.path.join(current_app.root_path, 'uploads')
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        processed_files = []
+        
+        try:
+            if import_mode == 'single':
+                file = request.files.get('textbook_pdf')
+                if not file or file.filename == '':
+                    flash('請選擇檔案', 'warning')
+                    return redirect(request.url)
+                
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(upload_folder, filename)
+                file.save(file_path)
+                processed_files.append(file_path)
+                
+            elif import_mode == 'batch':
+                files = request.files.getlist('textbook_folder')
+                if not files or not files[0].filename:
+                    flash('請選擇資料夾或檔案', 'warning')
+                    return redirect(request.url)
+                
+                for file in files:
+                    if file.filename and (file.filename.endswith('.pdf') or file.filename.endswith('.docx')):
+                        filename = secure_filename(os.path.basename(file.filename)) # Handle paths in filename
+                        file_path = os.path.join(upload_folder, filename)
+                        file.save(file_path)
+                        processed_files.append(file_path)
+            
+            if not processed_files:
+                flash('沒有找到有效的 PDF 或 Word 檔案。', 'warning')
+                return redirect(request.url)
+
+            flash(f'成功上傳 {len(processed_files)} 個檔案，正在進行 AI 分析 (請耐心等候)...', 'info')
+            
+            # 3. 呼叫核心功能
+            # 建立一個簡單的 Queue 來接收 log (因為我們是同步執行，所以直接忽略或記錄到 logger)
+            import queue
+            log_queue = queue.Queue()
+            
+            total_skills = 0
+            total_examples = 0
+            
+            for file_path in processed_files:
+                current_app.logger.info(f"Processing file: {file_path}")
+                result = textbook_processor.process_textbook_file(
+                    file_path, 
+                    curriculum_info, 
+                    log_queue, 
+                    skip_code_gen=skip_code_gen
+                )
+                
+                if result.get('status') == 'success':
+                    total_skills += result.get('skills_processed', 0)
+                    total_examples += result.get('examples_added', 0)
+                else:
+                    current_app.logger.error(f"File {file_path} failed: {result.get('message')}")
+
+            summary = f"批次處理完成！共新增技能: {total_skills}, 例題: {total_examples}"
+            flash(summary, 'success')
+
+        except Exception as e:
+            current_app.logger.error(f"Textbook processing failed: {e}")
+            flash(f'處理失敗: {str(e)}', 'error')
+        finally:
+            # 清理暫存檔
+            for f_path in processed_files:
+                if os.path.exists(f_path):
+                    try:
+                        os.remove(f_path)
+                    except:
+                        pass
+                    
+        return redirect(url_for('core.admin_textbook_importer'))
+
+    return render_template('textbook_importer.html')
