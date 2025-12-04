@@ -1,250 +1,220 @@
-import random
-from fractions import Fraction
-import uuid
+import sys
+import os
+import json
+import time
+from tqdm import tqdm  # 如果沒安裝 tqdm，請執行 pip install tqdm
+import re
+from sqlalchemy import distinct
 
-# 使用 raw string 定義 LaTeX 指令
-ANGLE_CMD = r"\angle"
-OVERLINE_CMD = r"\overline"
+# 1. 設定路徑以匯入專案模組 (指回專案根目錄)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def generate(level=1):
-    """
-    生成「等線段與等角作圖」相關題目。
-    包含：
-    1. 比較線段長短 (疊合與圓規)
-    2. 比較角度大小 (圓規測量)
-    3. 等線段作圖的目的
-    4. 等角作圖的目的
-    5. 尺規作圖的定義及規則
-    """
-    problem_type = random.choice([
-        'compare_line_segments_overlap',
-        'compare_line_segments_compass',
-        'compare_angles_conceptual',
-        'construct_equal_segment_purpose',
-        'construct_equal_angle_purpose',
-        'ruler_compass_definition'
-    ])
-    
-    if problem_type == 'compare_line_segments_overlap':
-        return generate_compare_line_segments_overlap()
-    elif problem_type == 'compare_line_segments_compass':
-        return generate_compare_line_segments_compass()
-    elif problem_type == 'compare_angles_conceptual':
-        return generate_compare_angles_conceptual()
-    elif problem_type == 'construct_equal_segment_purpose':
-        return generate_construct_equal_segment_purpose()
-    elif problem_type == 'construct_equal_angle_purpose':
-        return generate_construct_equal_angle_purpose()
-    elif problem_type == 'ruler_compass_definition':
-        return generate_ruler_compass_definition()
+from app import create_app
+from models import db, SkillInfo, TextbookExample, SkillCurriculum
+# 使用專案統一的 AI 介面
+from core.ai_analyzer import get_model
 
-def generate_compare_line_segments_overlap():
+def get_user_selection(options, prompt_text):
     """
-    生成比較線段長短的題目，情境為疊合。
+    通用互動函式：讓使用者從選項中選擇，或輸入 0 全選
     """
-    scenarios = [
-        {"desc": "若 $D$ 點落在 $A$、$B$ 兩點之間", "answer_raw": "AB", "answer_latex": r"$\overline{AB}$"},
-        {"desc": "若 $B$ 點落在 $C$、$D$ 兩點之間", "answer_raw": "CD", "answer_latex": r"$\overline{CD}$"},
-        {"desc": "若 $B$ 點與 $D$ 點重合", "answer_raw": "AB 與 CD 相等", "answer_latex": r"$\overline{AB}$ 與 $\overline{CD}$ 相等"}
-    ]
+    if not options:
+        return None
     
-    chosen_scenario = random.choice(scenarios)
+    # 去除 None 值並排序
+    options = sorted([o for o in options if o is not None])
     
-    # [Fix] 使用 raw string 與 {{}} 轉義
-    question_text = (
-        f"已知 ${OVERLINE_CMD}{{AB}}$、${OVERLINE_CMD}{{CD}}$，比較兩線段長短時，將 ${OVERLINE_CMD}{{AB}}$ 移到 ${OVERLINE_CMD}{{CD}}$ 上，"
-        f"使 $A$ 點與 $C$ 點重合。{chosen_scenario['desc']}，則哪一個線段較長？(若相等請回答：AB 與 CD 相等)"
-    )
-    
-    return {
-        "question_text": question_text,
-        "answer": chosen_scenario['answer_raw'], 
-        "correct_answer": chosen_scenario['answer_raw']
-    }
-
-def generate_compare_line_segments_compass():
-    """
-    生成比較線段長短的題目，情境為圓規測量。
-    """
-    scenarios = [
-        {"compare_op": "大於", "answer_raw": "AB", "answer_latex": r"$\overline{AB}$"},
-        {"compare_op": "小於", "answer_raw": "CD", "answer_latex": r"$\overline{CD}$"},
-        {"compare_op": "等於", "answer_raw": "AB 與 CD 相等", "answer_latex": r"$\overline{AB}$ 與 $\overline{CD}$ 相等"}
-    ]
-    
-    chosen_scenario = random.choice(scenarios)
-    
-    question_text = (
-        f"比較兩線段 ${OVERLINE_CMD}{{AB}}$ 與 ${OVERLINE_CMD}{{CD}}$ 的長短，"
-        f"若以 $A$ 點為圓心，${OVERLINE_CMD}{{AB}}$ 長為半徑畫弧，再以 $C$ 點為圓心，${OVERLINE_CMD}{{CD}}$ 長為半徑畫弧，"
-        f"發現 ${OVERLINE_CMD}{{AB}}$ 的長度{chosen_scenario['compare_op']}${OVERLINE_CMD}{{CD}}$ 的長度，"
-        f"則哪一個線段較長？(若相等請回答：AB 與 CD 相等)"
-    )
+    print(f"\n{prompt_text}")
+    print("   [0] ALL (全部處理)")
+    for i, opt in enumerate(options, 1):
+        print(f"   [{i}] {opt}")
         
-    return {
-        "question_text": question_text,
-        "answer": chosen_scenario['answer_raw'],
-        "correct_answer": chosen_scenario['answer_raw']
-    }
+    while True:
+        try:
+            choice = input("👉 請選擇 (輸入數字): ").strip()
+            if choice == '0':
+                return None  # 代表全選
+            idx = int(choice) - 1
+            if 0 <= idx < len(options):
+                return options[idx]
+            print("❌ 輸入無效，請重試。")
+        except ValueError:
+            print("❌ 請輸入數字。")
 
-def generate_compare_angles_conceptual():
+def generate_prompts(model, skill, examples):
     """
-    生成比較角度大小的題目，情境為圓規測量兩邊交點距離。
+    針對技能生成符合「功文數學 (Kumon)」理念的引導提問。
     """
-    angles = ['A', 'B']
-    random.shuffle(angles)
-    angle1_label, angle2_label = angles[0], angles[1]
+    
+    example_text = ""
+    if examples:
+        example_text = "\n\n【參考例題】:\n"
+        for i, ex in enumerate(examples, 1):
+            example_text += f"例題 {i}:\n{ex.problem_text}\n詳解: {ex.detailed_solution}\n\n"
+            
+    # [Prompt 優化] Kumon 風格 + LaTeX/JSON 防護
+    prompt = f"""
+    # Role
+    你是一位資深的「功文數學 (Kumon)」輔導員。你的學生是正在進行自學自習的學生。
+    技能單元: {skill.skill_ch_name} ({skill.skill_en_name})
+    單元描述: {skill.description}
+    {example_text}
 
-    comparison_results = [
-        {"relationship": "大於", "answer_raw": f"L{angle1_label}", "answer_latex": f"$\\angle {angle1_label}$"},
-        {"relationship": "小於", "answer_raw": f"L{angle2_label}", "answer_latex": f"$\\angle {angle2_label}$"},
-        {"relationship": "等於", "answer_raw": f"L{angle1_label} 與 L{angle2_label} 相等", "answer_latex": f"$\\angle {angle1_label}$ 與 $\\angle {angle2_label}$ 相等"}
-    ]
+    # Task
+    請設計 3 個「精簡短促」的引導式提問 (Suggested Prompts)，協助學生自學。
+    學生看到的例題跟你看到的不同，請綜合所有狀況，設計通用的引導提問。
+    每個提問請聚焦在「引導學生思考下一步該做什麼」，而非直接給出解答。
     
-    chosen_result = random.choice(comparison_results)
+    # Guidelines (功文式哲學)
+    1. **極度精簡**: 每個提問盡量控制在 **30 個字以內**。
+    2. **例題導向**: 遇到不懂，先叫學生「觀察例題」找規律。
+    3. **專注運算**: 少講大道理，多提示「下一步要做什麼動作」。
+    4. **不直接給答案**: 只提示路徑，讓學生自己完成最後一步。
+    5. **繁體中文**: 使用台灣用語。
     
-    question_text = (
-        f"比較 ${ANGLE_CMD} {angle1_label}$ 與 ${ANGLE_CMD} {angle2_label}$ 的大小，"
-        f"若以兩角的頂點為圓心，相同長度為半徑畫弧，"
-        f"且發現 ${ANGLE_CMD} {angle1_label}$ 兩邊與弧的交點距離{chosen_result['relationship']}${ANGLE_CMD} {angle2_label}$ 兩邊與弧的交點距離，"
-        f"則哪一個角度較大？(若相等請回答：L{angle1_label} 與 L{angle2_label} 相等)"
-    )
-    
-    return {
-        "question_text": question_text,
-        "answer": chosen_result['answer_raw'],
-        "correct_answer": chosen_result['answer_raw']
-    }
+    # Constraints (技術限制)
+    1. **LaTeX 格式**: 所有數學符號必須用 $ 包覆 (例如: $x^2$)。
+    2. **JSON 轉義**: 輸出 JSON 字串時，若包含 LaTeX 反斜線 (\\)，必須使用雙反斜線 (\\\\) 轉義。
+    3. **純淨輸出**: 只回傳 JSON，不要有 Markdown 標記或其他廢話。
 
-def generate_construct_equal_segment_purpose():
-    """
-    生成關於等線段作圖目的的題目。
-    """
-    correct_answers_pool = [
-        "畫出與已知線段等長的線段",
-        "複製已知線段的長度",
-        "將已知線段的長度轉移到其他位置"
-    ]
-    
-    correct_answer = random.choice(correct_answers_pool)
-    
-    question_template = [
-        f"在尺規作圖中，已知線段 ${OVERLINE_CMD}{{AB}}$，我們如何畫出線段 ${OVERLINE_CMD}{{CD}}$ 使得 ${OVERLINE_CMD}{{CD}} = {OVERLINE_CMD}{{AB}}$？此作圖的目的是什麼？",
-        f"當我們使用尺規作圖複製線段 ${OVERLINE_CMD}{{AB}}$ 到一條直線上，使之成為 ${OVERLINE_CMD}{{CD}}$，這項作圖的目的是什麼？",
-        f"尺規作圖中，複製線段長度的基本操作，目的是什麼？"
-    ]
-    
-    question_text = random.choice(question_template)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+    # Levels
+    - **prompt_1 (觀察例題)**: 引導學生觀察例題的特徵或規律。(例如：「請觀察例題，指數的位置發生了什麼變化？」)
+    - **prompt_2 (關鍵步驟)**: 提示解題的「第一個小動作」。(例如：「先將分母通分，再進行加減。」)
+    - **prompt_3 (自我檢查)**: 引導學生檢查計算細節。(例如：「檢查一下，正負號有沒有變對？」)
 
-def generate_construct_equal_angle_purpose():
+    # Output Format (JSON Only)
+    {{
+        "prompt_1": "...",
+        "prompt_2": "...",
+        "prompt_3": "..."
+    }}
     """
-    生成關於等角作圖目的的題目。
-    """
-    correct_answers_pool = [
-        "畫出與已知角等大的角",
-        "複製一個角的角度大小",
-        "將一個角的角度轉移到其他位置"
-    ]
-    
-    correct_answer = random.choice(correct_answers_pool)
 
-    question_template = [
-        f"尺規作圖中，複製 ${ANGLE_CMD} A$ 的目的為何？",
-        f"若要畫出一個與已知 ${ANGLE_CMD} A$ 等大的角，這項作圖的目的是什麼？",
-        f"尺規作圖複製角度時，最終目標是什麼？"
-    ]
+    try:
+        response = model.generate_content(prompt)
+        text = response.text.replace('```json', '').replace('```', '').strip()
+        
+        # [修復] 使用 Regex 修復常見的 LaTeX JSON 轉義錯誤
+        # 保護標準 JSON 轉義符 (u, ", \, /, b, f, n, r, t)，其餘單反斜線轉為雙反斜線
+        text = re.sub(r'\\(?![u"\\/bfnrt])', r'\\\\', text)
 
-    question_text = random.choice(question_template)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+        return json.loads(text)
+    except Exception as e:
+        print(f"   ⚠️ 生成失敗 (JSON Parse Error). Raw snippet: {text[:50]}...")
+        return None
 
-def generate_ruler_compass_definition():
-    """
-    生成關於尺規作圖定義及規則的題目。
-    """
-    question_data = [
-        {"q_type": "definition", "question": "尺規作圖的定義是什麼？", "ans": "只使用沒有刻度的直尺和圓規進行的幾何作圖"},
-        {"q_type": "allowed_tools", "question": "尺規作圖允許使用哪些工具？", "ans": "沒有刻度的直尺和圓規"},
-        {"q_type": "forbidden_actions_ruler", "question": "在尺規作圖中，直尺有哪些限制？(請列出一項)", "ans": "直尺不能用來測量長度"},
-        {"q_type": "forbidden_actions_compass", "question": "在尺規作圖中，圓規有哪些限制？(請列出一項)", "ans": "圓規不能直接用來畫直線或移動刻度"}
-    ]
-    
-    chosen_data = random.choice(question_data)
-    
-    return {
-        "question_text": chosen_data['question'],
-        "answer": chosen_data['ans'],
-        "correct_answer": chosen_data['ans']
-    }
+if __name__ == "__main__":
+    app = create_app()
+    with app.app_context():
+        print("🚀 開始為技能補充 AI 提示詞 (Enrich Skills - Interactive Mode)...")
+        
+        try:
+            model = get_model()
+        except Exception as e:
+            print(f"❌ 無法初始化 AI 模型: {e}")
+            sys.exit(1)
 
-def normalize_text_for_comparison(text):
-    """
-    正規化文本用於比較：去除首尾空白、轉為小寫、移除所有非字母數字及非中文字符。
-    """
-    text = text.strip().lower()
-    normalized_chars = []
-    for char in text:
-        if char.isalnum() or ('\u4e00' <= char <= '\u9fff'):  # 字母數字或中文字符
-            normalized_chars.append(char)
-    return "".join(normalized_chars)
+        # ==========================================
+        # 1. 階層篩選 (Hierarchical Filtering)
+        # ==========================================
+        base_query = db.session.query(SkillCurriculum)
 
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    """
-    user_norm = normalize_text_for_comparison(str(user_answer))
-    correct_norm = normalize_text_for_comparison(str(correct_answer))
-    
-    is_correct = False
+        # Level 1: Curriculum
+        curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).order_by(SkillCurriculum.curriculum).all()]
+        selected_curr = get_user_selection(curriculums, "請選擇要處理的課綱:")
+        if selected_curr:
+            base_query = base_query.filter(SkillCurriculum.curriculum == selected_curr)
 
-    # 1. 首先嘗試正規化後的精確匹配
-    if user_norm == correct_norm:
-        is_correct = True
-    else:
-        # 2. 針對概念性答案，退回關鍵字匹配
-        if "ab與cd相等" == correct_norm and "ab" in user_norm and "cd" in user_norm and "相等" in user_norm:
-            is_correct = True
-        elif "la與lb相等" == correct_norm and "la" in user_norm and "lb" in user_norm and "相等" in user_norm:
-            is_correct = True
-        elif correct_norm == "ab" and "ab" in user_norm:
-            is_correct = True
-        elif correct_norm == "cd" and "cd" in user_norm:
-            is_correct = True
-        elif correct_norm == "la" and "la" in user_norm:
-            is_correct = True
-        elif correct_norm == "lb" and "lb" in user_norm:
-            is_correct = True
+        # Level 2: Grade
+        grades = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.grade)).order_by(SkillCurriculum.grade).all()]
+        selected_grade = get_user_selection(grades, "請選擇年級:")
+        if selected_grade:
+            base_query = base_query.filter(SkillCurriculum.grade == selected_grade)
 
-        # 針對較長的概念性答案，進行關鍵字檢查
-        if not is_correct:
-            if "直尺" in correct_norm and "圓規" in correct_norm and "作圖" in correct_norm and "沒有刻度" in correct_norm:
-                if "直尺" in user_norm and "圓規" in user_norm and ("沒有刻度" in user_norm or "無刻度" in user_norm) and "作圖" in user_norm:
-                    is_correct = True
-            elif "直尺" in correct_norm and "圓規" in correct_norm and ("沒有刻度" in correct_norm or "無刻度" in correct_norm) and "作圖" not in correct_norm:
-                if "直尺" in user_norm and "圓規" in user_norm and ("沒有刻度" in user_norm or "無刻度" in user_norm):
-                    is_correct = True
-            elif "直尺不能用來測量長度" in correct_answer:
-                if "直尺" in user_norm and "不能" in user_norm and ("測量" in user_norm or "量" in user_norm) and "長度" in user_norm:
-                    is_correct = True
-            elif "圓規不能直接用來畫直線或移動刻度" in correct_answer:
-                if "圓規" in user_norm and "不能" in user_norm and ("畫直線" in user_norm or "移動刻度" in user_norm):
-                    is_correct = True
-            elif ("複製線段" in correct_norm or "等長線段" in correct_norm) or ("轉移線段" in correct_norm and "長度" in correct_norm):
-                if ("複製" in user_norm or "畫出" in user_norm or "轉移" in user_norm) and ("等長" in user_norm or "相等" in user_norm) and "線段" in user_norm:
-                    is_correct = True
-            elif ("複製角度" in correct_norm or "等大角" in correct_norm) or ("轉移角度" in correct_norm and "大小" in correct_norm):
-                if ("複製" in user_norm or "畫出" in user_norm or "轉移" in user_norm) and ("等大" in user_norm or "相等" in user_norm) and "角" in user_norm:
-                    is_correct = True
-                
-    result_text = f"完全正確！答案是：{correct_answer}。" if is_correct else f"答案不正確。正確答案應為：{correct_answer}。"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+        # Level 3: Volume
+        volumes = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.volume)).order_by(SkillCurriculum.volume).all()]
+        selected_volume = get_user_selection(volumes, "請選擇冊別:")
+        if selected_volume:
+            base_query = base_query.filter(SkillCurriculum.volume == selected_volume)
+
+        # Level 4: Chapter
+        chapters = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.chapter)).order_by(SkillCurriculum.chapter).all()]
+        selected_chapter = get_user_selection(chapters, "請選擇章節:")
+        if selected_chapter:
+            base_query = base_query.filter(SkillCurriculum.chapter == selected_chapter)
+
+        # ==========================================
+        # 2. 準備處理清單
+        # ==========================================
+        final_query = db.session.query(SkillInfo).join(SkillCurriculum, SkillInfo.skill_id == SkillCurriculum.skill_id).filter(SkillInfo.is_active == True)
+        
+        # 再次應用篩選條件以確保正確對應到 SkillInfo
+        if selected_curr: final_query = final_query.filter(SkillCurriculum.curriculum == selected_curr)
+        if selected_grade: final_query = final_query.filter(SkillCurriculum.grade == selected_grade)
+        if selected_volume: final_query = final_query.filter(SkillCurriculum.volume == selected_volume)
+        if selected_chapter: final_query = final_query.filter(SkillCurriculum.chapter == selected_chapter)
+
+        skills_to_process = final_query.distinct().all()
+        total = len(skills_to_process)
+        print(f"\n📊 根據您的篩選，共找到 {total} 個技能範圍。\n")
+        
+        if total == 0:
+            print("✅ 無需處理。")
+            sys.exit(0)
+
+        # ==========================================
+        # 3. 模式選擇 (Mode Selection)
+        # ==========================================
+        print("請選擇執行模式：")
+        print("   [1] 僅生成缺失檔案 (Safe Mode) - 檢查 suggested_prompt_2 是否為空")
+        print("   [2] 強制重新生成範圍內所有檔案 (Overwrite All)")
+        
+        mode = None
+        while True:
+            choice = input("👉 請選擇 (1 或 2): ").strip()
+            if choice in ['1', '2']:
+                mode = choice
+                break
+            print("❌ 輸入無效，請輸入 1 或 2。")
+
+        # ==========================================
+        # 4. 執行生成
+        # ==========================================
+        count_processed = 0
+        count_skipped = 0
+
+        for skill in tqdm(skills_to_process, desc="處理進度"):
+            
+            # [邏輯檢查] 根據模式決定是否跳過
+            if mode == '1': # Safe Mode
+                # 如果 suggested_prompt_2 已經有內容，則跳過
+                if skill.suggested_prompt_2 and skill.suggested_prompt_2.strip():
+                    count_skipped += 1
+                    continue
+            
+            # 若為 Overwrite 模式，或 Safe Mode 且欄位為空，則繼續執行
+            
+            # 取得例題上下文
+            examples = db.session.query(TextbookExample).filter_by(skill_id=skill.skill_id).limit(2).all()
+            
+            # 生成提示詞
+            prompts = generate_prompts(model, skill, examples)
+            
+            if prompts:
+                try:
+                    skill.suggested_prompt_1 = prompts.get('prompt_1')
+                    skill.suggested_prompt_2 = prompts.get('prompt_2')
+                    skill.suggested_prompt_3 = prompts.get('prompt_3')
+                    
+                    db.session.commit()
+                    count_processed += 1
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"寫入 DB 失敗: {e}")
+            
+            # 避免 API Rate Limit
+            time.sleep(1)
+
+        print(f"\n✨ 全部作業完成！")
+        print(f"   - 實際處理/更新: {count_processed} 個")
+        print(f"   - 跳過 (原本已有內容): {count_skipped} 個")

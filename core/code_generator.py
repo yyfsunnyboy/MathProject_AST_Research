@@ -12,23 +12,46 @@ TEMPLATE_PATH = 'skills/Example_Program.py'
 
 def fix_code_syntax(code_str, error_msg=""):
     """
-    [保留 GitHub 版本功能] 自動修復常見的 AI 生成語法錯誤
+    [保留 GitHub 版本功能 + 針對數列組合擴充] 自動修復常見的 AI 生成語法錯誤
     """
     fixed_code = code_str
 
     # 1. 修復 f-string 中的 LaTeX 單獨大括號 (f-string: single '}' is not allowed)
-    latex_patterns = [r'sqrt', r'frac', r'text', r'angle', r'overline', r'degree', r'mathbf', r'mathrm', r'hat', r'vec', r'times', r'div']
+    # [擴充] 加入 sum (級數), prod (乘積), binom (組合), sigma (統計), lim (極限)
+    latex_patterns = [
+        r'sqrt', r'frac', r'text', r'angle', r'overline', r'degree', 
+        r'mathbf', r'mathrm', r'mathbb', r'mathcal', 
+        r'hat', r'vec', r'bar', r'dot', 
+        r'times', r'div', r'pm', r'mp',
+        r'sin', r'cos', r'tan', r'cot', r'sec', r'csc',
+        r'log', r'ln', r'lim', 
+        r'sum', r'prod', r'binom', r'sigma', # 新增針對 \s 錯誤的修復
+        r'%' 
+    ]
     
     for pat in latex_patterns:
         # 將 \pat{ 替換為 \pat{{
-        fixed_code = re.sub(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
+        if pat == r'%':
+             fixed_code = re.sub(r'\\%\{', r'\\%{{', fixed_code)
+        else:
+             fixed_code = re.sub(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
 
     # 簡單暴力修法：針對特定錯誤直接全域替換常見 LaTeX 結構
     if "single '}'" in error_msg or "single '{'" in error_msg:
-        # 修復分數 \frac{...}{...}
+        # 修復分數
         fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)
         fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
-        # 修復結尾括號 (例如 x^{2} -> x^{{2}})
+        
+        # [新增] 修復下標 (遞迴數列常用 a_{n}) 和 上標 (次方)
+        # 把 _{n} 變成 _{{n}}, ^{n} 變成 ^{{n}}
+        fixed_code = re.sub(r'_\{(\w+|\d+)\}', r'_{{\1}}', fixed_code)
+        fixed_code = re.sub(r'\^\{(\w+|\d+)\}', r'^{{\1}}', fixed_code)
+        
+        # 修復三角函數/加總/組合
+        fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code)
+        fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\^\{', r'\\\1^{{', fixed_code)
+
+        # 修復一般結尾括號
         fixed_code = re.sub(r'(\d|\w)\}(?=\"|\')', r'\1}}', fixed_code)
 
     # 2. 修復缺漏的括號 (Python 2 style print)
@@ -48,8 +71,7 @@ def validate_python_code(code_str):
     except SyntaxError as e:
         return False, f"{e.msg} (Line {e.lineno})"
 
-# --- 定義 Prompt 骨架 (完整 12 點規則版) ---
-# 使用 <<TAG>> 替換，避免 .format() 吃掉括號
+# --- 定義 Prompt 骨架 (完整 13 點規則版，使用 replace 避免括號衝突) ---
 PROMPT_SKELETON = """
 You are a Python expert specializing in educational software for math learning.
 Your task is to write a Python script for a specific math skill.
@@ -66,7 +88,7 @@ Input Type: <<INPUT_TYPE>> (If 'graph', use matplotlib to generate an image)
 
 --- REQUIREMENTS ---
 1. **Functionality**:
-   - Implement `generate(level=1)`: Return a dict with `question_text`, `answer`, `correct_answer`.
+   - Implement `def generate(level=1):` returning a dict with `question_text`, `answer`, `correct_answer`.
    - Implement `check(user_answer, correct_answer)`: Return dict with `correct` (bool) and `result` (feedback string).
    - The code must be robust, handling random number generation to create unique problems each time.
 
@@ -93,23 +115,25 @@ Input Type: <<INPUT_TYPE>> (If 'graph', use matplotlib to generate an image)
 
 3. **Raw Strings for LaTeX**:
    - For LaTeX commands, ALWAYS use raw strings (r"...") or double backslashes (\\\\).
-   - ✅ CORRECT: r"\\angle A", r"\\frac{{1}}{{2}}"
-   - ❌ WRONG: "\\angle A" (SyntaxWarning)
+   - ✅ CORRECT: r"\\angle A", r"\\frac{{1}}{{2}}", r"\\sum", r"\\%"
+   - ❌ WRONG: "\\angle A", "\\sum", "\\%" (SyntaxWarning: invalid escape sequence)
 
 4. **Clean Output**: 
    - Output ONLY valid Python code starting with `import ...`. 
 
 5. **LaTeX in f-strings - DETAILED EXAMPLES**: 
    - Exponents: f"$x^{{2}}$" (NOT f"$x^{2}$")
+   - Subscripts (Recursion): f"$a_{{n}}$" (NOT f"$a_{n}$")
    - Fractions: f"$\\frac{{a}}{{b}}$" (NOT f"$\\frac{a}{b}$")
-   - Subscripts: f"$a_{{1}}$" (NOT f"$a_{1}$")
+   - Sets: f"$x \\in \\mathbb{{R}}$"
+   - Summation: f"$\\sum_{{i=1}}^{{n}}$" (Double braces for limits)
    - **Common Pitfall**: If using variables inside LaTeX, do NOT double brace the variable itself, only the LaTeX braces.
      - Correct: f"$\\frac{{{numerator}}}{{{denominator}}}$" (Outer {} for Python variable, Inner {} for LaTeX syntax)
 
-6. **Escape Sequences**:
-   - For LaTeX backslashes (e.g., \\frac, \\circ, \\triangle), you MUST use **Python Raw Strings (r"...")** OR **Double Backslashes (\\\\)**.
-   - ❌ WRONG: "\\frac{{1}}{{2}}", "\\circ" (Python raises SyntaxWarning/Error)
-   - ✅ CORRECT: r"\\frac{{1}}{{2}}", r"\\circ"
+6. **Escape Sequences & Percent Signs**:
+   - For LaTeX backslashes (e.g., \\frac, \\circ, \\triangle, \\sum) and PERCENT SIGNS (%), you MUST use **Python Raw Strings (r"...")** OR **Double Backslashes (\\\\)**.
+   - ❌ WRONG: "\\sum", "\\%" (Python raises SyntaxWarning because of \\s and \\%)
+   - ✅ CORRECT: r"\\sum", r"\\%"
 
 7. **No Full-width Characters**:
    - Do NOT use full-width symbols (？, ：, ，, ＋) in variable names or logic flow. They are ONLY allowed inside display strings (question_text).
@@ -118,8 +142,7 @@ Input Type: <<INPUT_TYPE>> (If 'graph', use matplotlib to generate an image)
    - NEVER include template markers like `${{` or `}}` inside the final Python code.
 
 9. **CRITICAL LATEX COMMAND ESCAPING**:
-   - All LaTeX commands (e.g., \\angle, \\begin, \\frac, \\overline, \\circ) MUST be written with a double backslash (\\\\) if inside normal strings, or standard backslash if inside raw strings (r"...").
-   - The final generated code MUST contain: "\\\\angle", "\\\\overline", "\\\\frac", etc. if using normal strings.
+   - All LaTeX commands (e.g., \\angle, \\begin, \\frac, \\overline, \\circ, \\sum) MUST be written with a double backslash (\\\\) if inside normal strings, or standard backslash if inside raw strings (r"...").
 
 10. **F-STRING & LATEX INTERACTION (THE "NO DOUBLE $" RULE)**:
     - **CRITICAL**: DO NOT put `$` signs directly inside the curly braces `{{ }}` or immediately next to them if the variable is already within a `$...$` block.
@@ -146,7 +169,7 @@ Now, generate the Python code for '<<SKILL_ID>>'.
 def auto_generate_skill_code(skill_id, queue=None):
     """
     自動為指定的 skill_id 生成 Python 出題程式碼。
-    [完整版] 結合 GitHub 版本的完整規則與最穩定的 Prompt 處理方式。
+    [完整版] 結合 13 點規則 + Replace 策略 + 數列/級數/組合專項修復。
     """
     message = f"正在為技能 '{skill_id}' 自動生成程式碼..."
     if current_app: current_app.logger.info(message)
@@ -171,7 +194,6 @@ def auto_generate_skill_code(skill_id, queue=None):
     input_type = skill.input_type if skill else "text"
 
     # 3. 構建 Prompt (使用 replace 策略)
-    # [關鍵修正] 使用字串替換，確保我們精心寫好的 12 點規則與範例括號不會被 Python 修改
     prompt = PROMPT_SKELETON.replace("<<SKILL_ID>>", skill_id) \
                             .replace("<<TOPIC_DESCRIPTION>>", str(topic_description)) \
                             .replace("<<INPUT_TYPE>>", input_type) \
@@ -190,12 +212,23 @@ def auto_generate_skill_code(skill_id, queue=None):
         if generated_code.endswith("```"): generated_code = generated_code.rsplit("```", 1)[0]
         generated_code = generated_code.strip()
 
-        # 6. Regex LaTeX 預防性修復 (保留 GitHub 版本邏輯)
-        latex_commands = ['angle', 'frac', 'sqrt', 'pi', 'times', 'div', 'pm', 'circ', 'triangle', 'overline', 'degree']
+        # 6. Regex LaTeX 預防性修復
+        # [擴充] 針對您遇到的 \s, \m 錯誤，加入 sum, sigma, mathbb 等指令
+        latex_commands = [
+            'angle', 'frac', 'sqrt', 'pi', 'times', 'div', 'pm', 'circ', 'triangle', 'overline', 'degree',
+            'alpha', 'beta', 'gamma', 'delta', 'theta', 'phi', 'rho', 'sigma', 'omega', 'Delta', 'lambda',
+            'mathbb', 'mathrm', 'mathbf', 'mathcal', 'infty', 
+            'in', 'notin', 'subset', 'subseteq', 'cup', 'cap', 'neq', 'approx', 'le', 'ge', 'cdot',
+            'left', 'right', 'sum', 'prod', 'int', 'lim', 'binom',
+            'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'log', 'ln',
+            '%' # 特殊符號
+        ]
+        
         for cmd in latex_commands:
+            # 確保反斜線 (raw string 修正)
             generated_code = re.sub(rf'(?<!\\)\\{cmd}', rf'\\\\{cmd}', generated_code)
 
-        # 7. 語法驗證與修復 (保留 GitHub 版本邏輯)
+        # 7. 語法驗證與修復
         is_valid, syntax_error = validate_python_code(generated_code)
         if not is_valid:
             if current_app: current_app.logger.warning(f"語法錯誤: {syntax_error}，嘗試修復...")
