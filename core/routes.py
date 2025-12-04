@@ -30,6 +30,14 @@ from sqlalchemy import distinct
 from sqlalchemy.exc import OperationalError
 import time
 import uuid
+import threading
+import queue
+from flask import Response, stream_with_context
+import glob
+
+# 用於暫存正在執行的任務佇列 (簡易版 In-memory store)
+# Key: task_id, Value: queue.Queue
+TASK_QUEUES = {}
 
 
 core_bp = Blueprint('core', __name__, template_folder='../templates')
@@ -46,6 +54,57 @@ def require_login():
 @login_required
 def practice_require_login():
     pass
+
+# --- Helper Function for Threading ---
+# --- Helper Function for Threading ---
+def background_processing(file_paths, task_queue, app_context, curriculum_info, skip_code_gen):
+    """
+    背景處理函式 (支援單檔或多檔)
+    :param file_paths: list, 包含絕對路徑的字串列表
+    """
+    with app_context:
+        try:
+            total_skills = 0
+            total_examples = 0
+            total_files = len(file_paths)
+            
+            task_queue.put(f"INFO: 開始處理任務，共 {total_files} 個檔案...")
+
+            for idx, file_path in enumerate(file_paths, 1):
+                filename = os.path.basename(file_path)
+                task_queue.put(f"INFO: [{idx}/{total_files}] 正在分析: {filename} ...")
+                
+                try:
+                    # 呼叫核心處理邏輯，並傳入 queue
+                    result = textbook_processor.process_textbook_file(
+                        file_path, 
+                        curriculum_info=curriculum_info, 
+                        queue=task_queue,
+                        skip_code_gen=skip_code_gen
+                    )
+                    
+                    if result:
+                        total_skills += result.get('skills_processed', 0)
+                        total_examples += result.get('examples_added', 0)
+                except Exception as e:
+                    task_queue.put(f"ERROR: 檔案 {filename} 處理失敗: {e}")
+                    print(f"Background Error processing {filename}: {e}")
+                
+                # 如果是暫存檔 (上傳的)，處理完後刪除；如果是本機資料夾的檔，則保留
+                # 這裡透過判斷路徑是否在 uploads 資料夾來決定
+                if 'uploads' in file_path and os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except:
+                        pass
+
+            task_queue.put(f"SUCCESS: 所有作業完成！總計新增技能: {total_skills}, 例題: {total_examples}")
+
+        except Exception as e:
+            task_queue.put(f"ERROR: 任務執行發生例外: {str(e)}")
+            print(f"Background Task Error: {e}")
+        finally:
+            task_queue.put("END_OF_STREAM")
 
 def get_skill(skill_id):
     try:
@@ -755,6 +814,142 @@ def admin_delete_prerequisite(prereq_id):
 @login_required
 def admin_examples():
     return "課本例題管理頁面 (開發中...)" # 暫時的佔位符
+
+@core_bp.route('/textbook_importer', methods=['GET', 'POST'])
+@login_required
+def admin_textbook_importer():
+    # 1. 權限檢查
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        # --- Debug Logs ---
+        # print(f"DEBUG: Files Data: {request.files}") # 除錯用
+        
+        target_files = []
+        upload_dir = os.path.join(current_app.root_path, 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # 1. 嘗試取得單一檔案
+        single_file = request.files.get('textbook_pdf')
+        
+        # 2. 嘗試取得批次資料夾檔案 (這是關鍵修正!)
+        # 前端若是 <input type="file" name="textbook_folder" webkitdirectory>，會傳送檔案列表
+        batch_files = request.files.getlist('textbook_folder')
+
+        # Extract curriculum info (Common for both modes)
+        curriculum_info = {
+            'curriculum': request.form.get('curriculum'),
+            'publisher': request.form.get('publisher'),
+            'grade': request.form.get('grade'),
+            'volume': request.form.get('volume')
+        }
+        skip_code_gen = request.form.get('skip_code_gen') == 'on'
+
+        # --- 邏輯分支 ---
+
+        # Case A: 單一檔案有效
+        if single_file and single_file.filename != '':
+            print(f"DEBUG: Mode A - Single File: {single_file.filename}")
+            try:
+                filename = secure_filename(single_file.filename)
+                file_path = os.path.join(upload_dir, filename)
+                single_file.save(file_path)
+                target_files.append(file_path)
+            except Exception as e:
+                flash(f'單檔儲存失敗: {e}', 'error')
+                return redirect(request.url)
+
+        # Case B: 批次檔案有效 (檢查列表是否非空，且第一個檔案有名稱)
+        elif batch_files and len(batch_files) > 0 and batch_files[0].filename != '':
+            print(f"DEBUG: Mode B - Batch Upload: {len(batch_files)} files received")
+            
+            saved_count = 0
+            for f in batch_files:
+                # 過濾掉空檔名或非 PDF 檔 (可選)
+                if f.filename == '' or not f.filename.lower().endswith('.pdf'):
+                    continue
+                
+                try:
+                    # secure_filename 會把 "folder/file.pdf" 變成 "folder_file.pdf" 或 "file.pdf"
+                    # 這邊我們只求存下來能分析即可
+                    safe_name = secure_filename(os.path.basename(f.filename))
+                    # 避免檔名重複覆蓋，加個 uuid 前綴 (可選，這裡先維持簡單)
+                    save_path = os.path.join(upload_dir, safe_name)
+                    
+                    f.save(save_path)
+                    target_files.append(save_path)
+                    saved_count += 1
+                except Exception as e:
+                    print(f"DEBUG: Skipped file {f.filename} due to error: {e}")
+
+            if saved_count == 0:
+                flash('上傳的資料夾中沒有有效的 PDF 檔案。', 'warning')
+                return redirect(request.url)
+
+        # Case C: 無有效輸入
+        else:
+            print("DEBUG: Mode C - No Input Provided")
+            flash('請選擇「PDF 檔案」或「資料夾」。', 'warning')
+            return redirect(request.url)
+
+        # --- 啟動背景任務 ---
+        if target_files:
+            try:
+                task_id = str(uuid.uuid4())
+                q = queue.Queue()
+                
+                # 存入全域字典
+                TASK_QUEUES[task_id] = q
+
+                app = current_app._get_current_object()
+                app_context = app.app_context()
+
+                thread = threading.Thread(
+                    target=background_processing,
+                    args=(target_files, q, app_context, curriculum_info, skip_code_gen)
+                )
+                thread.start()
+
+                flash(f'分析啟動！共 {len(target_files)} 個檔案排程中...', 'success')
+                return redirect(url_for('core.importer_status', task_id=task_id))
+            except Exception as e:
+                current_app.logger.error(f"Task Start Error: {e}")
+                flash(f"任務啟動失敗: {e}", 'error')
+                return redirect(request.url)
+                
+    return render_template('textbook_importer.html')
+
+@core_bp.route('/importer/status/<task_id>')
+@login_required
+def importer_status(task_id):
+    # 確認任務是否存在 (簡單檢查)
+    if task_id not in TASK_QUEUES:
+        flash('找不到該任務或任務已過期', 'warning')
+        return redirect(url_for('core.admin_textbook_importer'))
+    return render_template('importer_status.html', task_id=task_id)
+
+@core_bp.route('/importer/stream/<task_id>')
+@login_required
+def importer_stream(task_id):
+    def event_stream():
+        q = TASK_QUEUES.get(task_id)
+        if not q:
+            yield "data: END_OF_STREAM\n\n"
+            return
+
+        while True:
+            # 阻塞式讀取，直到有訊息
+            msg = q.get()
+            yield f"data: {msg}\n\n"
+            
+            if msg == "END_OF_STREAM":
+                # 清理 Queue 以釋放記憶體
+                TASK_QUEUES.pop(task_id, None)
+                break
+
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
 # === 資料庫管理 (從主應用程式移入) ===
 
@@ -2084,100 +2279,4 @@ def init_db_route():
     return redirect(url_for('core.db_maintenance'))
 
 
-@core_bp.route('/admin/textbook_importer', methods=['GET', 'POST'])
-@login_required
-def admin_textbook_importer():
-    # 權限檢查 (Admin 或 Teacher)
-    if not (current_user.is_admin or current_user.role == 'teacher'):
-        flash('權限不足', 'error')
-        return redirect(url_for('dashboard'))
 
-    if request.method == 'POST':
-        # 1. 收集表單資訊
-        curriculum_info = {
-            'curriculum': request.form.get('curriculum'),
-            'publisher': request.form.get('publisher'),
-            'grade': request.form.get('grade'),
-            'volume': request.form.get('volume')
-        }
-        import_mode = request.form.get('import_mode', 'single')
-        skip_code_gen = request.form.get('skip_code_gen') == 'on'
-
-        # 2. 處理檔案上傳
-        upload_folder = os.path.join(current_app.root_path, 'uploads')
-        os.makedirs(upload_folder, exist_ok=True)
-        
-        processed_files = []
-        
-        try:
-            if import_mode == 'single':
-                file = request.files.get('textbook_pdf')
-                if not file or file.filename == '':
-                    flash('請選擇檔案', 'warning')
-                    return redirect(request.url)
-                
-                filename = secure_filename(file.filename)
-                file_path = os.path.join(upload_folder, filename)
-                file.save(file_path)
-                processed_files.append(file_path)
-                
-            elif import_mode == 'batch':
-                files = request.files.getlist('textbook_folder')
-                if not files or not files[0].filename:
-                    flash('請選擇資料夾或檔案', 'warning')
-                    return redirect(request.url)
-                
-                for file in files:
-                    if file.filename and (file.filename.endswith('.pdf') or file.filename.endswith('.docx')):
-                        filename = secure_filename(os.path.basename(file.filename)) # Handle paths in filename
-                        file_path = os.path.join(upload_folder, filename)
-                        file.save(file_path)
-                        processed_files.append(file_path)
-            
-            if not processed_files:
-                flash('沒有找到有效的 PDF 或 Word 檔案。', 'warning')
-                return redirect(request.url)
-
-            flash(f'成功上傳 {len(processed_files)} 個檔案，正在進行 AI 分析 (請耐心等候)...', 'info')
-            
-            # 3. 呼叫核心功能
-            # 建立一個簡單的 Queue 來接收 log (因為我們是同步執行，所以直接忽略或記錄到 logger)
-            import queue
-            log_queue = queue.Queue()
-            
-            total_skills = 0
-            total_examples = 0
-            
-            for file_path in processed_files:
-                current_app.logger.info(f"Processing file: {file_path}")
-                result = textbook_processor.process_textbook_file(
-                    file_path, 
-                    curriculum_info, 
-                    log_queue, 
-                    skip_code_gen=skip_code_gen
-                )
-                
-                if result.get('status') == 'success':
-                    total_skills += result.get('skills_processed', 0)
-                    total_examples += result.get('examples_added', 0)
-                else:
-                    current_app.logger.error(f"File {file_path} failed: {result.get('message')}")
-
-            summary = f"批次處理完成！共新增技能: {total_skills}, 例題: {total_examples}"
-            flash(summary, 'success')
-
-        except Exception as e:
-            current_app.logger.error(f"Textbook processing failed: {e}")
-            flash(f'處理失敗: {str(e)}', 'error')
-        finally:
-            # 清理暫存檔
-            for f_path in processed_files:
-                if os.path.exists(f_path):
-                    try:
-                        os.remove(f_path)
-                    except:
-                        pass
-                    
-        return redirect(url_for('core.admin_textbook_importer'))
-
-    return render_template('textbook_importer.html')

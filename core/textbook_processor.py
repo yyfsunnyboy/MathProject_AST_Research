@@ -522,7 +522,12 @@ def call_gemini_for_analysis(content_by_page, curriculum_info, queue):
 對於每個識別出的「核心觀念」，請生成以下欄位：
 - `concept_name`: 觀念的中文標題。
 - `concept_en_id`: 英文 ID，使用 **PascalCase**。
-- `concept_description`: 簡短描述。
+- `concept_description`: 基於內容的簡短描述(150字內)。
+- `concept_paragraph`: **觀念的中文標題**
+      - 絕對不允許換行
+      - 絕對不允許加說明文字
+      - 絕對不允許超過15個中文字
+      - 如果找不到 → 填「未分類」
 - **EXAMPLES (例題提取)**：
     - 務必提取「例題 X」、「隨堂練習」。
     - 每個例題包含：`source_description`, `problem_text`, `detailed_solution`, `problem_type`。
@@ -560,7 +565,7 @@ def call_gemini_for_analysis(content_by_page, curriculum_info, queue):
 ### 2. 資料提取與格式
 - `concept_name`: 例如 "有理數"。
 - `concept_en_id`: **PascalCase** 格式 (例如 `RationalNumbers`)。
-- `concept_description`: 基於內容的簡短描述。
+- `concept_description`: 基於內容的簡短描述(150字內)。
 - `concept_paragraph`: **只能是「甲.數列」這種短標題**
       - 允許格式：甲. / 乙. / 丙.
       - 絕對不允許換行
@@ -627,7 +632,7 @@ JSON 結構範例 (注意 section_title 為空字串的情況)：
 {{
   "chapters": [
     {{
-      "chapter_title": "單元1 實數",
+      "chapter_title": "1 實數",
       "sections": [
         {{
           "section_title": "1.實數", 

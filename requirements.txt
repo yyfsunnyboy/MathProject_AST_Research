@@ -14,3 +14,8 @@ tqdm
 PyMuPDF
 werkzeug
 pypandoc
+frontend
+tools
+pypandoc
+pytesseract
+Pillow

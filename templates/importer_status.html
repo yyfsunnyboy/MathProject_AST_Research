@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>AI 教材分析進度</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+        }
+
+        .navbar {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+        }
+
+        .navbar .logo {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+        }
+
+        #log-container {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 6px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .log-info {
+            color: #bdc3c7;
+        }
+
+        .log-success {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+
+        .log-error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .log-debug {
+            color: #9b59b6;
+            font-style: italic;
+        }
+
+        .status-indicator {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="navbar">
+        <a href="{{ url_for('dashboard') }}" class="logo">
+            功文數學 ( 歡迎, <strong>{{ username }}</strong>！ )
+        </a>
+        <div>
+            <a href="{{ url_for('core.admin_textbook_importer') }}"
+                style="background: #2ecc71; padding: 8px 15px; border-radius: 4px;">返回匯入頁面</a>
+            <a href="{{ url_for('logout') }}">登出</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI 教材分析進度</h1>
+            <p style="color: #555;">系統正在即時處理中，請勿關閉此頁面...</p>
+        </div>
+
+        <div id="log-container"></div>
+        <div id="status-indicator" class="status-indicator">處理中...</div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('log-container');
+        const statusIndicator = document.getElementById('status-indicator');
+        const task_id = "{{ task_id }}";
+        const eventSource = new EventSource(`/admin/importer/stream/${task_id}`);
+
+        eventSource.onmessage = function (event) {
+            const message = event.data;
+
+            if (message === "END_OF_STREAM") {
+                eventSource.close();
+                statusIndicator.textContent = "處理完成！";
+                statusIndicator.style.color = "#2ecc71";
+                return;
+            }
+
+            const logEntry = document.createElement('div');
+            const [type, ...contentParts] = message.split(': ');
+            const content = contentParts.join(': ');
+            logEntry.textContent = content;
+            logEntry.className = `log-${type.toLowerCase()}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight; // 自動滾動到底部
+        };
+
+        eventSource.onerror = function (err) {
+            console.error("EventSource failed:", err);
+            statusIndicator.textContent = "連線中斷，請檢查伺服器狀態。";
+            statusIndicator.style.color = "#e74c3c";
+            eventSource.close();
+        };
+    </script>
+</body>
+
+</html>
