@@ -1709,30 +1709,46 @@ def api_get_skill_details(skill_id):
     })
 
 # API: 重新生成技能程式碼
-@core_bp.route('/admin/skills/<skill_id>/regenerate', methods=['POST'])
+@core_bp.route('/skills/<skill_id>/regenerate', methods=['POST'])
 @login_required
-def api_regenerate_skill_code(skill_id):
-    if not (current_user.is_admin or current_user.role == 'teacher'):
-        return jsonify({'success': False, 'message': 'Permission denied'}), 403
-        
-    skill = db.get_or_404(SkillInfo, skill_id)
-    
+def admin_regenerate_skill_code(skill_id):
+    """
+    手動重新生成單一技能的 Python 程式碼 (AJAX JSON 版本)
+    """
     try:
-        # 呼叫 AI 生成程式碼的函式 (需要確認此函式是否存在)
-        from core.skill_code_generator import generate_skill_code
+        # 延遲匯入，避免與 app.py 循環參照
+        from core.code_generator import auto_generate_skill_code
         
-        success = generate_skill_code(skill)
+        current_app.logger.info(f"收到重新生成請求: {skill_id}")
+        
+        # 呼叫生成邏輯 (同步執行，不使用 queue)
+        # result 可能是 bool 或 (bool, message)
+        result = auto_generate_skill_code(skill_id, queue=None)
+        
+        success = False
+        message = ""
+        
+        if isinstance(result, tuple):
+            success, message = result
+        else:
+            success = result
+            message = "生成成功" if success else "生成失敗"
         
         if success:
-            return jsonify({'success': True, 'message': f'技能 {skill_id} 程式碼已重新生成'})
+            return jsonify({
+                "success": True, 
+                "message": f"技能 {skill_id} 生成成功！"
+            })
         else:
-            return jsonify({'success': False, 'message': '生成失敗，請檢查日誌'}), 500
-            
-    except ImportError:
-        return jsonify({'success': False, 'message': 'skill_code_generator 模組不存在'}), 500
+            return jsonify({
+                "success": False, 
+                "message": f"生成失敗: {message}"
+            }), 500
+
     except Exception as e:
-        current_app.logger.error(f"Regenerate skill code error: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
+        current_app.logger.error(f"Regenerate Error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 
 # API: 檢查幽靈技能檔案
 @core_bp.route('/api/check_ghost_skills', methods=['GET'])

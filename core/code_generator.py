@@ -16,7 +16,7 @@ def fix_code_syntax(code_str, error_msg=""):
     """
     fixed_code = code_str
 
-    # 1. 修復 f-string 中的 LaTeX 單獨大括號 (f-string: single '}' is not allowed)
+    # 1. 修復 f-string 中的 LaTeX 單獨大括號 (f-string: single '}}' is not allowed)
     latex_patterns = [r'sqrt', r'frac', r'text', r'angle', r'overline', r'degree', r'mathbf', r'mathrm']
     
     for pat in latex_patterns:
@@ -73,7 +73,7 @@ def auto_generate_skill_code(skill_id, queue=None):
     input_type = skill.input_type if skill else "text"
 
     # 3. 構建 Prompt
-    prompt = f"""
+    prompt = """
     You are a Python expert specializing in educational software for math learning.
     Your task is to write a Python script for a specific math skill.
 
@@ -102,42 +102,94 @@ def auto_generate_skill_code(skill_id, queue=None):
        - Do NOT wrap in markdown code blocks (```python ... ```).
        - Do NOT include explanations outside the code.
 
-    [SYNTAX GUARDRAILS]
-    4. Template Markers:
-       - NEVER include template markers like ${{{{ or }}}} inside the final Python code.
-       - WRONG: "score": ${{"unit": "分"}}
-       - CORRECT: "score": {{"unit": "分"}}
 
-    5. CRITICAL LATEX COMMAND ESCAPING:
+    【CRITICAL PYTHON SYNTAX RULES (Strict Enforcement)】
+    1. **Function Signature - MANDATORY**: 
+       - The main entry function MUST be defined EXACTLY as: 
+         `def generate(level=1):`
+       - ❌ WRONG: `def generate():` (Will cause TypeError when called with level parameter)
+       - ✅ CORRECT: `def generate(level=1):`
+
+    2. **f-string Escaping - MANDATORY DOUBLE BRACES**: 
+       - When using f-strings (f"..."), you MUST use **DOUBLE CURLY BRACES** `{{{{}}}}` for any LaTeX syntax or literal braces.
+       - ❌ WRONG: f"Ans: $x^{{2}}$" (Causes SyntaxError)
+       - ✅ CORRECT: f"Ans: $x^{{{{2}}}}$" (Renders as $x^{{2}}$)
+
+    3. **Raw Strings for LaTeX**:
+       - For LaTeX commands, ALWAYS use raw strings (r"...") to avoid escape issues.
+       - ✅ CORRECT: r"\angle A", r"\frac{{{{1}}}}{{{{2}}}}"
+
+    4. **Clean Output**: 
+       - Output ONLY valid Python code starting with `import ...`. 
+       - Do NOT wrap in markdown fences (```python), no explanatory text.
+
+    5. **LaTeX in f-strings - DETAILED EXAMPLES**: 
+       - **CRITICAL**: When using f-strings (f"..."), you MUST use **DOUBLE CURLY BRACES** `{{{{}}}}` for ANY LaTeX syntax intended to be printed literally.
+       - **This is NOT optional** - Single braces in f-strings will cause: `SyntaxError: f-string: single '}}}}' is not allowed`
+       - ❌ WRONG: f"Area is $x^{{2}}$"  (Python raises SyntaxError: f-string: single '}}}}')
+       - ✅ CORRECT: f"Area is $x^{{{{2}}}}$"  (Double braces for exponent)
+       - ❌ WRONG: f"Solve $\frac{{a}}{{b}}$"  (Still wrong - needs 4 braces total)
+       - ✅ CORRECT: f"Solve $\frac{{{{{{{{a}}}}}}}}{{{{{{{{b}}}}}}}}$"  (6 braces for fraction with variables)
+       - **Common patterns**:
+         * Exponents: f"$x^{{{{2}}}}$" NOT f"$x^{{2}}$"
+         * Subscripts: f"$a_{{{{1}}}}$" NOT f"$a_{{1}}$"
+         * Fractions: f"$\frac{{{{1}}}}{{{{2}}}}$" NOT f"$\frac{{1}}{{2}}$"
+       - ✅ ALTERNATIVE: Use regular strings when no variables needed: "Area is $x^{{{{2}}}}$" (If not using f-string)
+
+
+    6. **Escape Sequences**:
+       - For LaTeX backslashes (e.g., \frac, \circ, \triangle), you MUST use **Python Raw Strings (r"...")** OR **Double Backslashes (\\)**.
+       - ❌ WRONG: "\frac{{1}}{{2}}", "\circ" (Python raises SyntaxWarning/Error)
+       - ✅ CORRECT: r"\frac{{{{1}}}}{{{{2}}}}", r"\circ"
+       - ✅ CORRECT: "\\frac{{{{1}}}}{{{{2}}}}", "\\circ"
+
+    7. **No Full-width Characters**:
+       - Do NOT use full-width symbols (？, ：, ，, ＋) in variable names, logic flow, or math calculations. They are ONLY allowed inside display strings (question_text).
+       - ❌ WRONG: if x ？ 0: (Python raises SyntaxError: invalid character)
+       - ✅ CORRECT: if x > 0:
+
+    [SYNTAX GUARDRAILS]
+    8. Template Markers:
+       - NEVER include template markers like ${{{{ or }}}} inside the final Python code.
+       - WRONG: "score": ${{{{"unit": "分"}}}}
+       - CORRECT: "score": {{{{"unit": "分"}}}}
+
+    8. CRITICAL LATEX COMMAND ESCAPING:
        - All LaTeX commands (e.g., \\angle, \\begin, \\frac, \\overline, \\circ) MUST be written with a double backslash (\\\\) inside Python strings and f-strings.
        - The final generated code MUST contain: "\\\\angle", "\\\\begin", "\\\\overline", "\\\\frac", and "\\\\circ".
-       - WRONG (Causes Math Input Error): $\\angle ABC$ 或 $\\overline{{AB}}$
-       - CORRECT (Required): $\\\\angle ABC$ 或 $\\\\overline{{AB}}$
+       - WRONG (Causes Math Input Error): $\\angle ABC$ 或 $\\overline{{{{AB}}}}$
+       - CORRECT (Required): $\\\\angle ABC$ 或 $\\\\overline{{{{AB}}}}$
 
-    6. F-STRING & LATEX INTERACTION (THE "NO DOUBLE $" RULE):
+    9. F-STRING & LATEX INTERACTION (THE "NO DOUBLE $" RULE):
        - When writing Python f-strings involving math, enclose the **entire mathematical expression** in `$` delimiters.
-       - **CRITICAL**: DO NOT put `$` signs directly inside the curly braces `{{}}` or immediately next to them if the variable is already within a `$...$` block.
-       - **CORRECT (Grouped)**: f"${{a}}：{{b}} = {{c}}：x$"   (Result: $3：4 = 9：x$ -> Valid)
-       - **WRONG (Isolated)**:   f"${{a}}：${{b}} = ${{c}}：x$"  (Result: $3：$4 = $9：x$ -> Syntax Error)
-       - **WRONG (Redundant)**:  f"${{a}}$" when intended to be part of a larger equation.
+       - **CRITICAL**: DO NOT put `$` signs directly inside the curly braces `{{{{}}}}` or immediately next to them if the variable is already within a `$...$` block.
+       - **CORRECT (Grouped)**: f"${{{{a}}}}：{{{{b}}}} = {{{{c}}}}：x$"   (Result: $3：4 = 9：x$ -> Valid)
+       - **WRONG (Isolated)**:   f"${{{{a}}}}：${{{{b}}}} = ${{{{c}}}}：x$"  (Result: $3：$4 = $9：x$ -> Syntax Error)
+       - **WRONG (Redundant)**:  f"${{{{a}}}}$" when intended to be part of a larger equation.
        
-    7. NO NEWLINES INSIDE LATEX (The "Red \\n" Rule):
+    10. NO NEWLINES INSIDE LATEX (The "Red \\n" Rule):
        - **NEVER** put a newline character `\\n` inside the LaTeX delimiters `$...$`.
        - If you need a line break, use `<br>` and place it **OUTSIDE** the math block.
        - **WRONG**: f"Solve: $\\n x^2 = 1$"  (Causes rendering error)
        - **CORRECT**: f"Solve:<br>$x^2 = 1$"
 
-    8. RANDOM RANGE SAFETY (CRITICAL for Stability):
+    11. RANDOM RANGE SAFETY (CRITICAL for Stability):
        - Check `start <= stop` before calling `random.randint(start, stop)`.
        - Avoid `ValueError: empty range for randrange()`.
 
-    9. NO EXTERNAL LIBRARIES (Standard Library Only):
+    12. NO EXTERNAL LIBRARIES (Standard Library Only):
        - **DO NOT** import `sympy`, `numpy`, `pandas`, or `scipy`.
        - Use ONLY Python standard libraries: `random`, `math`, `fractions`, `re`, `collections`.
        - If you need polynomial expansion or simplification, implement simple string formatting logic manually (e.g., for `(ax+b)(cx+d)`, calculate coefficients `ac`, `ad+bc`, `bd` yourself).
 
     Now, generate the Python code for '{skill_id}'.
-    """
+    """.format(
+        skill_id=skill_id,
+        topic_description=topic_description,
+        input_type=input_type,
+        examples_text=examples_text,
+        template_code=template_code
+    )
 
     # 4. 呼叫 AI 模型
     try:

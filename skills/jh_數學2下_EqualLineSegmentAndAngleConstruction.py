@@ -1,6 +1,5 @@
 import random
 from fractions import Fraction
-import uuid
 
 # 使用 raw string 定義 LaTeX 指令
 ANGLE_CMD = r"\angle"
@@ -50,7 +49,7 @@ def generate_compare_line_segments_overlap():
     
     chosen_scenario = random.choice(scenarios)
     
-    # [Fix] 使用 raw string 與 {{}} 轉義
+    # 使用 {{ }} 轉義 f-string 中的大括號
     question_text = (
         f"已知 ${OVERLINE_CMD}{{AB}}$、${OVERLINE_CMD}{{CD}}$，比較兩線段長短時，將 ${OVERLINE_CMD}{{AB}}$ 移到 ${OVERLINE_CMD}{{CD}}$ 上，"
         f"使 $A$ 點與 $C$ 點重合。{chosen_scenario['desc']}，則哪一個線段較長？(若相等請回答：AB 與 CD 相等)"
@@ -194,7 +193,7 @@ def normalize_text_for_comparison(text):
     text = text.strip().lower()
     normalized_chars = []
     for char in text:
-        if char.isalnum() or ('\u4e00' <= char <= '\u9fff'):  # 字母數字或中文字符
+        if char.isalnum() or ('\u4e00' <= char <= '\u9fff'):
             normalized_chars.append(char)
     return "".join(normalized_chars)
 
@@ -207,44 +206,21 @@ def check(user_answer, correct_answer):
     
     is_correct = False
 
-    # 1. 首先嘗試正規化後的精確匹配
     if user_norm == correct_norm:
         is_correct = True
     else:
-        # 2. 針對概念性答案，退回關鍵字匹配
-        if "ab與cd相等" == correct_norm and "ab" in user_norm and "cd" in user_norm and "相等" in user_norm:
+        # 關鍵字寬鬆匹配
+        keywords = ["ab", "cd", "la", "lb", "相等", "直尺", "圓規", "刻度", "測量", "複製"]
+        matched = 0
+        required = 0
+        for kw in keywords:
+            if kw in correct_norm:
+                required += 1
+                if kw in user_norm:
+                    matched += 1
+        
+        if required > 0 and matched >= required:
             is_correct = True
-        elif "la與lb相等" == correct_norm and "la" in user_norm and "lb" in user_norm and "相等" in user_norm:
-            is_correct = True
-        elif correct_norm == "ab" and "ab" in user_norm:
-            is_correct = True
-        elif correct_norm == "cd" and "cd" in user_norm:
-            is_correct = True
-        elif correct_norm == "la" and "la" in user_norm:
-            is_correct = True
-        elif correct_norm == "lb" and "lb" in user_norm:
-            is_correct = True
-
-        # 針對較長的概念性答案，進行關鍵字檢查
-        if not is_correct:
-            if "直尺" in correct_norm and "圓規" in correct_norm and "作圖" in correct_norm and "沒有刻度" in correct_norm:
-                if "直尺" in user_norm and "圓規" in user_norm and ("沒有刻度" in user_norm or "無刻度" in user_norm) and "作圖" in user_norm:
-                    is_correct = True
-            elif "直尺" in correct_norm and "圓規" in correct_norm and ("沒有刻度" in correct_norm or "無刻度" in correct_norm) and "作圖" not in correct_norm:
-                if "直尺" in user_norm and "圓規" in user_norm and ("沒有刻度" in user_norm or "無刻度" in user_norm):
-                    is_correct = True
-            elif "直尺不能用來測量長度" in correct_answer:
-                if "直尺" in user_norm and "不能" in user_norm and ("測量" in user_norm or "量" in user_norm) and "長度" in user_norm:
-                    is_correct = True
-            elif "圓規不能直接用來畫直線或移動刻度" in correct_answer:
-                if "圓規" in user_norm and "不能" in user_norm and ("畫直線" in user_norm or "移動刻度" in user_norm):
-                    is_correct = True
-            elif ("複製線段" in correct_norm or "等長線段" in correct_norm) or ("轉移線段" in correct_norm and "長度" in correct_norm):
-                if ("複製" in user_norm or "畫出" in user_norm or "轉移" in user_norm) and ("等長" in user_norm or "相等" in user_norm) and "線段" in user_norm:
-                    is_correct = True
-            elif ("複製角度" in correct_norm or "等大角" in correct_norm) or ("轉移角度" in correct_norm and "大小" in correct_norm):
-                if ("複製" in user_norm or "畫出" in user_norm or "轉移" in user_norm) and ("等大" in user_norm or "相等" in user_norm) and "角" in user_norm:
-                    is_correct = True
                 
     result_text = f"完全正確！答案是：{correct_answer}。" if is_correct else f"答案不正確。正確答案應為：{correct_answer}。"
     return {"correct": is_correct, "result": result_text, "next_question": True}

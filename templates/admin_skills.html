@@ -879,8 +879,11 @@
                         }
                     });
 
-                    // 3. 發送請求
-                    fetch(`/admin/skills/${skillId}/regenerate`, {
+                    // 3. 發送請求 (使用動態 URL 生成)
+                    // 先生成一個帶有佔位符的網址，再用 JS 替換掉佔位符
+                    const targetUrl = "{{ url_for('core.admin_regenerate_skill_code', skill_id='SKILL_ID_PLACEHOLDER') }}".replace('SKILL_ID_PLACEHOLDER', skillId);
+                    
+                    fetch(targetUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }
                     })
