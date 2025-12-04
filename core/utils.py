@@ -84,7 +84,12 @@ def get_chapters_by_curriculum_volume(curriculum, volume):
         return float('inf') # 如果找不到數字，排在最後
 
     # 使用自訂的排序鍵進行排序
-    chapters.sort(key=extract_chapter_number)
+    # [Fix] Natural Sorting
+    def natural_keys(text):
+        if not text: return []
+        return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(text))]
+
+    chapters.sort(key=natural_keys)
     
     return chapters
 

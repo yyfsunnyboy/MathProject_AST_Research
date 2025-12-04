@@ -1,5 +1,6 @@
 # app.py
 import pandas as pd
+import re
 from sqlalchemy.orm import aliased
 import os
 from dotenv import load_dotenv
@@ -195,7 +196,21 @@ def create_app():
                         sections_map[section_name] = {'section': section_name, 'skills': []}
                     sections_map[section_name]['skills'].append(skill)
                 
+                
                 grouped_sections = list(sections_map.values())
+                
+                # [Fix] 對 sections 進行自然排序
+                def natural_keys(text):
+                    """
+                    將字串拆解為數字與文字部分，以實現自然排序
+                    例如: "1-10" -> ['', 1, '-', 10, '']
+                    """
+                    if not text:
+                        return []
+                    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(text))]
+                
+                grouped_sections.sort(key=lambda x: natural_keys(x['section']))
+
 
                 return render_template('dashboard.html',
                                      view_mode='curriculum',

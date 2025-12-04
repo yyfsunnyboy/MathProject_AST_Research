@@ -345,7 +345,7 @@
                     <div class="form-group" style="flex: 1; min-width: 200px;">
                         <label for="f_section">節</label>
                         <select id="f_section" name="section" class="form-select" {% if not selected_filters.f_chapter
-                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
+                            %}disabled{% endif %} style="width: 100%; padding: 8px;" onchange="this.form.submit()">
                             <option value="">-- 請選擇 --</option>
                             {% if filters.sections %}
                             {% for s in filters.sections %}

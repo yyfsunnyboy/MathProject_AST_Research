@@ -1339,6 +1339,19 @@ def admin_curriculum():
     
     items = query.order_by(SkillCurriculum.id.desc()).limit(200).all()
 
+    # [Fix] Python-side Natural Sorting
+    def natural_keys(text):
+        if not text: return []
+        return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(text))]
+
+    items.sort(key=lambda x: (
+        x.grade if x.grade is not None else 999,
+        x.volume or '',
+        x.display_order if x.display_order and x.display_order > 0 else 999999,
+        natural_keys(x.chapter),
+        natural_keys(x.section)
+    ))
+
     # 準備下拉選單資料
     curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
     
