@@ -450,8 +450,7 @@ def draw_diagram():
             return jsonify({"success": False, "message": "沒有收到題目文字。"}), 400
 
         # 1. Call Gemini API to get equations
-        # IMPORTANT: The user provided a hardcoded key.
-        api_key = "AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY"
+        api_key = current_app.config['GEMINI_API_KEY']
         genai.configure(api_key=api_key)
         
         # Use the model from app config for consistency
