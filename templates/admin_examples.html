@@ -389,8 +389,19 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <a href="#" class="btn btn-edit"><i class="bi bi-pencil-fill"></i></a>
-                                <a href="#" class="btn btn-delete"><i class="bi bi-trash-fill"></i></a>
+                                <a href="#" class="btn btn-edit" onclick='openEditModal({
+                                    "id": {{ example.id }},
+                                    "skill_id": "{{ example.skill_id }}",
+                                    "problem_text": {{ example.problem_text | tojson }},
+                                    "correct_answer": {{ example.correct_answer | tojson }},
+                                    "detailed_solution": {{ example.detailed_solution | tojson }},
+                                    "source_description": {{ example.source_description | tojson }}
+                                })'><i class="bi bi-pencil-fill"></i> 編輯</a>
+                                <form action="{{ url_for('core.admin_delete_example', example_id=example.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('確定要刪除這個例題嗎？');">
+                                    <button type="submit" class="btn btn-delete">
+                                        <i class="bi bi-trash-fill"></i> 刪除
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -441,10 +452,14 @@
 
         function openEditModal(example) {
             const form = document.getElementById('editExampleForm');
+            // 【修復】確保路徑正確，包含 /admin 前綴與正確的斜線
             form.action = `/admin/examples/edit/${example.id}`;
             document.getElementById('edit_example_id').value = example.id;
             document.getElementById('edit_skill_id').value = example.skill_id;
-            document.getElementById('edit_content').value = example.problem_text;
+            document.getElementById('edit_problem_text').value = example.problem_text;
+            document.getElementById('edit_correct_answer').value = example.correct_answer;
+            document.getElementById('edit_detailed_solution').value = example.detailed_solution;
+            document.getElementById('edit_source_description').value = example.source_description;
             openModal('editExampleModal');
         }
     </script>
@@ -464,108 +479,162 @@
             });
         });
     </script>
-    <div id="addExampleModal" class="modal"
-        style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
-        <div class="modal-content"
-            style="background-color:#fefefe; margin:5% auto; padding:20px; border:1px solid #888; width:70%; max-width:800px; border-radius:8px; max-height:90vh; overflow-y:auto;">
-            <span class="close" onclick="closeModal('addExampleModal')"
-                style="color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer;">&times;</span>
-            <h2 style="margin-bottom: 20px; color:#2c3e50;">📝 新增例題</h2>
 
-            <form id="addExampleForm" method="POST" action="{{ url_for('core.admin_add_example') }}">
-                <div class="form-group">
-                    <label>所屬技能 *</label>
-                    <select name="skill_id" class="form-select" required
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
-                        <option value="">-- 請選擇技能 --</option>
-                        {% for s in skills %}
-                        <option value="{{ s.skill_id }}">{{ s.skill_id }} - {{ s.skill_ch_name }}</option>
+    <!-- Modal CSS (Basic) -->
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 25px 30px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 700px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .close {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .modal-form-group {
+            margin-bottom: 15px;
+        }
+
+        .modal-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .modal-form-group input,
+        .modal-form-group select,
+        .modal-form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .modal-form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            text-align: right;
+            margin-top: 25px;
+        }
+    </style>
+
+    <!-- Add Example Modal -->
+    <div id="addExampleModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addExampleModal')">&times;</span>
+            <h2>新增例題</h2>
+            <form action="{{ url_for('core.admin_add_example') }}" method="POST">
+                <div class="modal-form-group">
+                    <label for="add_skill_id">關聯技能</label>
+                    <select id="add_skill_id" name="skill_id" required>
+                        <option value="">請選擇技能</option>
+                        {% for skill in skills %}
+                        <option value="{{ skill.skill_id }}">{{ skill.skill_ch_name }} ({{ skill.skill_id }})</option>
                         {% endfor %}
                     </select>
                 </div>
-
-                <div class="form-group">
-                    <label>題目內容 * <small style="color:#7f8c8d;">(支援 LaTeX: 使用 $...$ 或 $$...$$)</small></label>
-                    <textarea name="problem_text" class="form-control" rows="4" required
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:monospace;"></textarea>
+                <div class="modal-form-group">
+                    <label for="add_problem_text">題目內容</label>
+                    <textarea id="add_problem_text" name="problem_text" required></textarea>
                 </div>
-                <div class="form-group">
-                    <label>正確答案 *</label>
-                    <input type="text" name="correct_answer" class="form-control" required
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                <div class="modal-form-group">
+                    <label for="add_correct_answer">正確答案</label>
+                    <input type="text" id="add_correct_answer" name="correct_answer">
                 </div>
-                <div class="form-group">
-                    <label>詳細解法 <small style="color:#7f8c8d;">(選填)</small></label>
-                    <textarea name="detailed_solution" class="form-control" rows="5"
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:monospace;"></textarea>
+                <div class="modal-form-group">
+                    <label for="add_detailed_solution">詳解</label>
+                    <textarea id="add_detailed_solution" name="detailed_solution"></textarea>
                 </div>
-                <div class="form-group">
-                    <label>來源描述 <small style="color:#7f8c8d;">(例如：數學1上 3-1)</small></label>
-                    <input type="text" name="source_description" class="form-control"
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                <div class="modal-form-group">
+                    <label for="add_source_description">來源描述</label>
+                    <input type="text" id="add_source_description" name="source_description">
                 </div>
-                <div style="text-align: right; margin-top: 25px; padding-top:15px; border-top:1px solid #eee;">
-                    <button type="button" class="btn" onclick="closeModal('addExampleModal')"
-                        style="background:#95a5a6; color:white; padding:10px 20px; border:none; border-radius:4px; cursor:pointer; margin-right:10px;">取消</button>
-                    <button type="submit" class="btn"
-                        style="background:#27ae60; color:white; padding:10px 20px; border:none; border-radius:4px; cursor:pointer;">✓
-                        新增</button>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-add">確認新增</button>
                 </div>
             </form>
         </div>
     </div>
+
     <!-- Edit Example Modal -->
-    <div id="editExampleModal" class="modal"
-        style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
-        <div class="modal-content"
-            style="background-color:#fefefe; margin:5% auto; padding:20px; border:1px solid #888; width:70%; max-width:800px; border-radius:8px; max-height:90vh; overflow-y:auto;">
-            <span class="close" onclick="closeModal('editExampleModal')"
-                style="color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer;">&times;</span>
-            <h2 style="margin-bottom: 20px; color:#2c3e50;">✏️ 編輯例題</h2>
-
-            <form id="editExampleForm" method="POST" action="">
+    <div id="editExampleModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('editExampleModal')">&times;</span>
+            <h2>編輯例題</h2>
+            <!-- 【修復】在這裡加上 id="editExampleForm" 並設定 method="POST" -->
+            <form id="editExampleForm" method="POST">
                 <input type="hidden" id="edit_example_id" name="example_id">
-
-                <div class="form-group">
-                    <label>所屬技能 *</label>
-                    <select id="edit_skill_id" name="skill_id" class="form-select" required
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
-                        {% for s in skills %}
-                        <option value="{{ s.skill_id }}">{{ s.skill_id }} - {{ s.skill_ch_name }}</option>
+                <div class="modal-form-group">
+                    <label for="edit_skill_id">關聯技能</label>
+                    <select id="edit_skill_id" name="skill_id" required>
+                        {% for skill in skills %}
+                        <option value="{{ skill.skill_id }}">{{ skill.skill_ch_name }} ({{ skill.skill_id }})</option>
                         {% endfor %}
                     </select>
                 </div>
-
-                <div class="form-group">
-                    <label>題目內容 * <small style="color:#7f8c8d;">(支援 LaTeX)</small></label>
-                    <textarea id="edit_content" name="problem_text" class="form-control" rows="4" required
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:monospace;"></textarea>
+                <div class="modal-form-group">
+                    <label for="edit_problem_text">題目內容</label>
+                    <textarea id="edit_problem_text" name="problem_text" required></textarea>
                 </div>
-                <div class="form-group">
-                    <label>正確答案 *</label>
-                    <input type="text" id="edit_answer" name="correct_answer" class="form-control" required
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                <div class="modal-form-group">
+                    <label for="edit_correct_answer">正確答案</label>
+                    <input type="text" id="edit_correct_answer" name="correct_answer">
                 </div>
-                <div class="form-group">
-                    <label>詳細解法</label>
-                    <textarea id="edit_solution" name="detailed_solution" class="form-control" rows="5"
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-family:monospace;"></textarea>
+                <div class="modal-form-group">
+                    <label for="edit_detailed_solution">詳解</label>
+                    <textarea id="edit_detailed_solution" name="detailed_solution"></textarea>
                 </div>
-                <div class="form-group">
-                    <label>來源描述</label>
-                    <input type="text" id="edit_source_description" name="source_description" class="form-control"
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                <div class="modal-form-group">
+                    <label for="edit_source_description">來源描述</label>
+                    <input type="text" id="edit_source_description" name="source_description">
                 </div>
-                <div style="text-align: right; margin-top: 25px; padding-top:15px; border-top:1px solid #eee;">
-                    <button type="button" class="btn" onclick="closeModal('editExampleModal')"
-                        style="background:#95a5a6; color:white; padding:10px 20px; border:none; border-radius:4px; cursor:pointer; margin-right:10px;">取消</button>
-                    <button type="submit" class="btn"
-                        style="background:#3498db; color:white; padding:10px 20px; border:none; border-radius:4px; cursor:pointer;">💾
-                        儲存變更</button>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-edit">儲存變更</button>
                 </div>
             </form>
         </div>
     </div>
+
 </body>
 
 </html>
