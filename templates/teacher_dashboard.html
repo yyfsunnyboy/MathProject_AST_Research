@@ -90,7 +90,8 @@
     <div class="navbar">
         <h1>功文數學 - 教師端</h1>
         <div>
-            <a href="{{ url_for('dashboard') }}" style="background-color: #3498db; padding: 5px 10px; border-radius: 4px; margin-right: 10px;">
+            <a href="{{ url_for('dashboard') }}"
+                style="background-color: #3498db; padding: 5px 10px; border-radius: 4px; margin-right: 10px;">
                 👀 切換至學生模式
             </a>
             <span>歡迎, {{ username }} 老師</span>
@@ -171,7 +172,7 @@
                 <a href="{{ url_for('core.admin_textbook_importer') }}" style="text-decoration: none;">
                     <div class="stat-box"
                         style="cursor: pointer; background: linear-gradient(135deg, #e67e22, #d35400); color: white;">
-                        <div style="font-size: 2em;">📖</div>
+                        <div style="font-size: 2em;">🤖</div>
                         <div style="margin-top: 10px; font-weight: bold;">AI 教材匯入</div>
                     </div>
                 </a>
