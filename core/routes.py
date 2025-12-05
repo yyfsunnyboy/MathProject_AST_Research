@@ -1497,7 +1497,6 @@ def admin_delete_curriculum(id): # 函式名稱必須是 admin_delete_curriculum
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @core_bp.route('/skills')
-@core_bp.route('/admin/skills')  # Add alias for navbar compatibility
 @login_required
 def admin_skills():
     # 權限檢查
@@ -1624,7 +1623,6 @@ def admin_add_skill():
     return redirect(url_for('core.admin_skills'))
 
 @core_bp.route('/skills/edit/<skill_id>', methods=['POST'])
-@core_bp.route('/admin/skills/edit/<skill_id>', methods=['POST'])  # Add alias
 @login_required
 def admin_edit_skill(skill_id):
     if not (current_user.is_admin or current_user.role == 'teacher'):
@@ -1679,7 +1677,6 @@ def admin_delete_skill(skill_id):
     return redirect(url_for('core.admin_skills'))
 
 @core_bp.route('/skills/toggle/<skill_id>', methods=['POST'])
-@core_bp.route('/admin/skills/toggle/<skill_id>', methods=['POST'])  # Add alias
 @login_required
 def admin_toggle_skill(skill_id):
     if not (current_user.is_admin or current_user.role == 'teacher'):
@@ -1698,28 +1695,35 @@ def admin_toggle_skill(skill_id):
     return redirect(url_for('core.admin_skills'))
 
 # API: 取得技能詳細資料 (for AJAX edit modal)
-@core_bp.route('/admin/skills/<skill_id>/details', methods=['GET'])
+@core_bp.route('/skills/<skill_id>/details', methods=['GET'])
 @login_required
-def api_get_skill_details(skill_id):
-    if not (current_user.is_admin or current_user.role == 'teacher'):
-        return jsonify({'error': 'Permission denied'}), 403
+def admin_get_skill_details(skill_id):
+    """
+    API: 回傳單一技能的 JSON 資料,供前端編輯視窗使用
+    """
+    try:
+        skill = SkillInfo.query.get(skill_id)
+        if not skill:
+            return jsonify({'success': False, 'message': '找不到該技能'}), 404
         
-    skill = db.get_or_404(SkillInfo, skill_id)
-    return jsonify({
-        'skill_id': skill.skill_id,
-        'skill_en_name': skill.skill_en_name,
-        'skill_ch_name': skill.skill_ch_name,
-        'category': skill.category,
-        'description': skill.description,
-        'input_type': skill.input_type,
-        'gemini_prompt': skill.gemini_prompt,
-        'consecutive_correct_required': skill.consecutive_correct_required,
-        'is_active': skill.is_active,
-        'order_index': skill.order_index,
-        'suggested_prompt_1': skill.suggested_prompt_1 or '',
-        'suggested_prompt_2': skill.suggested_prompt_2 or '',
-        'suggested_prompt_3': skill.suggested_prompt_3 or ''
-    })
+        return jsonify({
+            'success': True,
+            'data': {
+                'skill_id': skill.skill_id,
+                'skill_ch_name': skill.skill_ch_name,
+                'skill_en_name': skill.skill_en_name,
+                'category': skill.category,
+                'description': skill.description,
+                'input_type': skill.input_type,
+                'consecutive_correct_required': skill.consecutive_correct_required,
+                'order_index': skill.order_index,
+                # 優先回傳 suggested_prompt_2,若無則回傳 gemini_prompt
+                'gemini_prompt': skill.suggested_prompt_2 or skill.gemini_prompt or ""
+            }
+        })
+    except Exception as e:
+        current_app.logger.error(f"Get Skill Details Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # API: 重新生成技能程式碼
 @core_bp.route('/skills/<skill_id>/regenerate', methods=['POST'])

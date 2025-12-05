@@ -753,7 +753,7 @@
         }
 
         function openEditModal(skillId) {
-            // 顯示 Loading
+            // 1. 顯示 Loading
             Swal.fire({
                 title: '載入中...',
                 allowOutsideClick: false,
@@ -762,34 +762,55 @@
                 }
             });
 
-            fetch(`/admin/skills/${skillId}/details`)
+            // 2. 發送請求
+            // 使用 url_for 動態生成網址，確保路徑正確
+            const url = "{{ url_for('core.admin_get_skill_details', skill_id='SKILL_ID_PLACEHOLDER') }}".replace('SKILL_ID_PLACEHOLDER', skillId);
+
+            fetch(url)
                 .then(response => response.json())
-                .then(skill => {
-                    Swal.close();
+                .then(data => {
+                    Swal.close(); // 關閉 Loading
 
-                    document.getElementById('edit_skill_id').value = skill.skill_id;
-                    document.getElementById('edit_skill_en_name').value = skill.skill_en_name;
-                    document.getElementById('edit_skill_ch_name').value = skill.skill_ch_name;
-                    document.getElementById('edit_category').value = skill.category;
-                    document.getElementById('edit_input_type').value = skill.input_type;
-                    document.getElementById('edit_description').value = skill.description;
-                    document.getElementById('edit_gemini_prompt').value = skill.gemini_prompt;
-                    document.getElementById('edit_consecutive_correct_required').value = skill.consecutive_correct_required;
-                    document.getElementById('edit_order_index').value = skill.order_index;
-                    document.getElementById('edit_is_active').checked = skill.is_active;
+                    if (data.success) {
+                        // [Fix] 定義 skill 變數，從回應資料中取出
+                        const skill = data.data;
 
-                    // Populate suggested prompts
-                    document.getElementById('edit_suggested_prompt_1').value = skill.suggested_prompt_1 || '';
-                    document.getElementById('edit_suggested_prompt_2').value = skill.suggested_prompt_2 || '';
-                    document.getElementById('edit_suggested_prompt_3').value = skill.suggested_prompt_3 || '';
+                        // 3. 填入資料
+                        document.getElementById('edit_skill_id').value = skill.skill_id || '';
+                        document.getElementById('edit_skill_en_name').value = skill.skill_en_name || '';
+                        document.getElementById('edit_skill_ch_name').value = skill.skill_ch_name || '';
+                        document.getElementById('edit_category').value = skill.category || '';
+                        document.getElementById('edit_input_type').value = skill.input_type || 'text';
+                        document.getElementById('edit_description').value = skill.description || '';
+                        // 優先使用新的 prompt 欄位
+                        document.getElementById('edit_gemini_prompt').value = skill.gemini_prompt || '';
+                        document.getElementById('edit_consecutive_correct_required').value = skill.consecutive_correct_required || 10;
+                        document.getElementById('edit_order_index').value = skill.order_index || 999;
 
-                    const form = document.getElementById('editForm');
-                    form.action = "/admin/skills/edit/" + skill.skill_id;
+                        // 處理 Checkbox
+                        const isActiveBox = document.getElementById('edit_is_active');
+                        if (isActiveBox) isActiveBox.checked = skill.is_active;
 
-                    document.getElementById('editModal').style.display = 'block';
+                        // 填充 AI 推薦提問 (如果有這幾個欄位)
+                        if (document.getElementById('edit_suggested_prompt_1'))
+                            document.getElementById('edit_suggested_prompt_1').value = skill.suggested_prompt_1 || '';
+                        if (document.getElementById('edit_suggested_prompt_2'))
+                            document.getElementById('edit_suggested_prompt_2').value = skill.suggested_prompt_2 || '';
+                        if (document.getElementById('edit_suggested_prompt_3'))
+                            document.getElementById('edit_suggested_prompt_3').value = skill.suggested_prompt_3 || '';
+
+                        // 更新 Form Action
+                        const form = document.getElementById('editForm');
+                        form.action = "{{ url_for('core.admin_edit_skill', skill_id='PLACEHOLDER') }}".replace('PLACEHOLDER', skill.skill_id);
+
+                        // 4. 顯示 Modal
+                        document.getElementById('editModal').style.display = 'block';
+                    } else {
+                        throw new Error(data.message || 'API 回傳失敗');
+                    }
                 })
                 .catch(error => {
-                    Swal.fire('錯誤', '無法載入技能資料', 'error');
+                    Swal.fire('錯誤', '無法載入技能資料: ' + error.message, 'error');
                     console.error('Error:', error);
                 });
         }
@@ -882,7 +903,7 @@
                     // 3. 發送請求 (使用動態 URL 生成)
                     // 先生成一個帶有佔位符的網址，再用 JS 替換掉佔位符
                     const targetUrl = "{{ url_for('core.admin_regenerate_skill_code', skill_id='SKILL_ID_PLACEHOLDER') }}".replace('SKILL_ID_PLACEHOLDER', skillId);
-                    
+
                     fetch(targetUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }

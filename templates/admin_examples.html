@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>課本例題管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* 樣式從 admin_skills.html 複製過來以求統一 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        /* Navbar - 參考自 dashboard.html */
+        .navbar {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar .logo {
+            font-weight: bold;
+            font-size: 1.3em;
+        }
+
+        .navbar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            margin-left: 10px;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+        }
+
+        .btn-add {
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: background 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-add:hover {
+            background: #229954;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+
+        /* 篩選器樣式 */
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #34495e;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .card-body {
+            padding-top: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        }
+
+        .card-header .bi {
+            margin-right: 8px;
+            color: #e67e22;
+            /* Icon color for examples */
+        }
+
+        /* Skills Table -> Data Table */
+        .data-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #34495e;
+            color: white;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        th {
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Action Buttons */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-edit {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: #2980b9;
+        }
+
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #c0392b;
+        }
+
+        /* Pagination */
+        .pagination {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .pagination a {
+            margin: 0 5px;
+            text-decoration: none;
+            color: #3498db;
+        }
+
+        .pagination .current {
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+    {% include '_admin_navbar.html' %}
+
+    <div class="container">
+        <div class="header">
+            <h1><i class="bi bi-book-half" style="color: #e67e22;"></i> 例題管理中心</h1>
+            <button class="btn-add" onclick="openAddModal()">
+                <i class="bi bi-plus-lg"></i> 新增例題</button>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-filter"></i> 內容篩選器
+            </div>
+            <div class="card-body">
+                <form id="filter-form" method="get" action="{{ url_for('core.admin_examples') }}"
+                    style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <!-- 課綱 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_curriculum">課綱</label>
+                        <select id="f_curriculum" name="f_curriculum" class="form-select"
+                            style="width: 100%; padding: 8px;">
+                            <option value="all">全部課綱</option>
+                            {% for c in filters.curriculums %}
+                            <option value="{{ c }}" {% if c==selected_filters.f_curriculum %}selected{% endif %}>{{
+                                curriculum_map.get(c, c) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!-- 年級 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_grade">年級</label>
+                        <select id="f_grade" name="f_grade" class="form-select" {% if not selected_filters.f_curriculum
+                            or selected_filters.f_curriculum=='all' %}disabled{% endif %}
+                            style="width: 100%; padding: 8px;">
+                            <option value="all">全部年級</option>
+                            {% if filters.grades %}
+                            {% for g in filters.grades %}
+                            <option value="{{ g }}" {% if g|string==selected_filters.f_grade %}selected{% endif %}>{{
+                                grade_map.get(g, g) }}</option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 冊別 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_volume">冊別</label>
+                        <select id="f_volume" name="f_volume" class="form-select" {% if not selected_filters.f_grade or
+                            selected_filters.f_grade=='all' %}disabled{% endif %} style="width: 100%; padding: 8px;">
+                            <option value="all">全部冊別</option>
+                            {% if filters.volumes %}
+                            {% for v in filters.volumes %}
+                            <option value="{{ v }}" {% if v==selected_filters.f_volume %}selected{% endif %}>{{ v }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 章 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_chapter">章</label>
+                        <select id="f_chapter" name="f_chapter" class="form-select" {% if not selected_filters.f_volume
+                            or selected_filters.f_volume=='all' %}disabled{% endif %}
+                            style="width: 100%; padding: 8px;">
+                            <option value="all">全部章</option>
+                            {% if filters.chapters %}
+                            {% for c in filters.chapters %}
+                            <option value="{{ c }}" {% if c==selected_filters.f_chapter %}selected{% endif %}>{{ c }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 節 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_section">節</label>
+                        <select id="f_section" name="f_section" class="form-select" {% if not selected_filters.f_chapter
+                            or selected_filters.f_chapter=='all' %}disabled{% endif %}
+                            style="width: 100%; padding: 8px;">
+                            <option value="all">全部節</option>
+                            {% if filters.sections %}
+                            {% for s in filters.sections %}
+                            <option value="{{ s }}" {% if s==selected_filters.f_section %}selected{% endif %}>{{ s }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <!-- 段 -->
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label for="f_paragraph">技能</label>
+                        <select id="f_paragraph" name="f_paragraph" class="form-select" {% if not
+                            selected_filters.f_section or selected_filters.f_section=='all' %}disabled{% endif %}
+                            style="width: 100%; padding: 8px;">
+                            <option value="all">全部段</option>
+                            {% if filters.paragraphs %}
+                            {% for p in filters.paragraphs %}
+                            <option value="{{ p }}" {% if p==selected_filters.f_paragraph %}selected{% endif %}>{{ p }}
+                            </option>
+                            {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 0 0 auto;">
+                        <!-- 清除按鈕 -->
+                        <a href="{{ url_for('core.admin_examples') }}" class="btn"
+                            style="padding: 8px 20px; background: #7f8c8d; color: white;">
+                            <i class="bi bi-x-circle"></i> 清除
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th style="width: 25%;">技能</th>
+                        <th>內容</th>
+                        <th>來源</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for example in pagination.items %}
+                    <tr>
+                        <td>{{ example.id }}</td>
+                        <td>
+                            <strong>{{ example.skill_info.skill_ch_name if example.skill_info else 'N/A' }}</strong>
+                            <br><small style="color: #6c757d;">{{ example.skill_id }}</small>
+                        </td>
+                        <td>
+                            <div style="max-height: 100px; overflow-y: auto;">{{ example.problem_text }}</div>
+                        </td>
+                        <td>
+                            <small>{{ example.source_description }}</small>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="#" class="btn btn-edit"><i class="bi bi-pencil-fill"></i></a>
+                                <a href="#" class="btn btn-delete"><i class="bi bi-trash-fill"></i></a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center;">沒有找到符合條件的例題。</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if pagination and pagination.pages > 1 %}
+        <div class="pagination">
+            <a href="{{ url_for('core.admin_examples', page=1, **request.args) }}">&laquo;</a>
+            {% for page_num in pagination.iter_pages() %}
+            {% if page_num %}
+            {% if page_num != pagination.page %}
+            <a href="{{ url_for('core.admin_examples', page=page_num, **request.args) }}">{{ page_num }}</a>
+            {% else %}
+            <strong class="current">{{ page_num }}</strong>
+            {% endif %}
+            {% else %}
+            <span class="ellipsis">…</span>
+            {% endif %}
+            {% endfor %}
+            <a href="{{ url_for('core.admin_examples', page=pagination.pages, **request.args) }}">&raquo;</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Modal handling
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+            if (window.MathJax) {
+                MathJax.typeset();
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openAddModal() {
+            openModal('addExampleModal');
+        }
+
+        function openEditModal(example) {
+            const form = document.getElementById('editExampleForm');
+            form.action = `/admin/examples/edit/${example.id}`;
+            document.getElementById('edit_example_id').value = example.id;
+            document.getElementById('edit_skill_id').value = example.skill_id;
+            document.getElementById('edit_content').value = example.problem_text;
+            openModal('editExampleModal');
+        }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('filter-form');
+            const filterIds = ['f_curriculum', 'f_grade', 'f_volume', 'f_chapter', 'f_section', 'f_paragraph', 'f_skill_id'];
+
+            filterIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    // 直接在事件監聽器中提交表單，更簡潔
+                    element.addEventListener('change', function () {
+                        form.submit();
+                    });
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>
