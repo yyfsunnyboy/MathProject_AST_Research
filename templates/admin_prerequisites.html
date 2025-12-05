@@ -1,394 +1,575 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>前置技能管理 - 功文數學</title>
+    <title>前置技能關聯管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* --- 繼承 admin_skills.html 的風格 --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             background: #f5f7fa;
             min-height: 100vh;
+            padding-bottom: 50px;
         }
-        .navbar { background: #2c3e50; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .navbar .logo { font-weight: bold; font-size: 1.3em; }
-        .navbar a { color: #ecf0f1; text-decoration: none; padding: 8px 15px; border-radius: 4px; transition: background 0.2s; margin-left: 10px; }
-        .navbar a:hover { background: #34495e; }
-        .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .header h1 { color: #2c3e50; }
-        .alert { padding: 15px 20px; margin-bottom: 20px; border-radius: 6px; border: 1px solid transparent; }
-        .alert-success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
-        .alert-warning { background: #fff3cd; color: #856404; border-color: #ffeeba; }
-        .alert-danger { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
-        .card { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        .card h2 { margin-top: 0; margin-bottom: 10px; color: #34495e; }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr 150px; gap: 20px; align-items: flex-end; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; }
-        .form-group select { width: 100%; }
-        .btn { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; transition: background 0.2s; color: white; }
-        .btn-submit { background: #27ae60; }
-        .btn-submit:hover { background: #229954; }
-        .btn-delete { background: #e74c3c; padding: 6px 12px; font-size: 0.9em; }
-        .btn-delete:hover { background: #c0392b; }
-        .data-table { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        thead { background: #34495e; color: white; }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #e9ecef; }
-        tbody tr:hover { background: #f8f9fa; }
-        .arrow { font-size: 1.5em; color: #3498db; font-weight: bold; text-align: center; }
-        .empty-state { text-align: center; padding: 40px; color: #999; }
-        /* Select2 樣式覆蓋 */
-        .select2-container .select2-selection--single { height: 40px; }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 40px; }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 38px; }
 
-        /* Modal 樣式 */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            overflow: auto;
-        }
-        .modal-content {
-            background: white;
-            margin: 10% auto;
-            padding: 30px;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        }
-        .modal-header {
+        /* Navbar */
+        .navbar {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e9ecef;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
-        .close { font-size: 28px; font-weight: bold; color: #aaa; cursor: pointer; }
-        .close:hover { color: #000; }
-        .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+
+        .navbar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 8px 15px;
+            margin-left: 10px;
+            transition: 0.2s;
+        }
+
+        .navbar a:hover {
+            color: #3498db;
+        }
+
+        /* Container & Layout */
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        /* Split Layout for Prerequisite Manager */
+        .manager-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .left-panel {
+            flex: 4;
+        }
+
+        /* 目標技能列表 */
+        .right-panel {
+            flex: 3;
+            position: sticky;
+            top: 20px;
+        }
+
+        /* 編輯區 */
+
+        /* Card Styles */
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            background: #fff;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+            color: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Filter Section */
+        .filter-form {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85em;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+
+        /* List Styles (Left Panel) */
+        .skill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .skill-item:hover {
+            background: #f8f9fa;
+        }
+
+        .skill-item.active {
+            background: #e8f4fc;
+            border-left: 4px solid #3498db;
+        }
+
+        .skill-info h4 {
+            font-size: 1em;
+            margin-bottom: 4px;
+            color: #2c3e50;
+        }
+
+        .skill-meta {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            display: flex;
+            gap: 10px;
+        }
+
+        .badge-count {
+            background: #95a5a6;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+        }
+
+        .badge-count.has-data {
+            background: #27ae60;
+        }
+
+        /* Editor Styles (Right Panel) */
+        .editor-placeholder {
+            text-align: center;
+            color: #bdc3c7;
+            padding: 40px 0;
+        }
+
+        .editor-content {
+            display: none;
+        }
+
+        .current-skill-title {
+            font-size: 1.2em;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        /* Prerequisite List */
+        .prereq-list {
+            list-style: none;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .prereq-item {
+            background: #f8f9fa;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .prereq-item:hover {
+            border-color: #bdc3c7;
+        }
+
+        .btn-remove {
+            color: #e74c3c;
+            cursor: pointer;
+            padding: 5px;
+            transition: 0.2s;
+        }
+
+        .btn-remove:hover {
+            color: #c0392b;
+            background: #fadbd8;
+            border-radius: 4px;
+        }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Select2 Customization */
+        .select2-container .select2-selection--single {
+            height: 38px;
+            border: 1px solid #ddd;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 36px;
+        }
     </style>
 </head>
+
 <body>
-    <!-- Navbar -->
-    <div class="navbar">
-        <div class="logo">🎓 功文數學 - 前置技能管理</div>
-        <div>
-            <a href="{{ url_for('dashboard') }}">返回儀表板</a>
-            <a href="{{ url_for('logout') }}">登出</a>
-        </div>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div style="color: #555; font-weight: 500;">處理中...</div>
     </div>
 
-    <!-- Container -->
+    {% include '_admin_navbar.html' %}
+
     <div class="container">
-        <div class="header">
-            <h1>前置技能關聯管理</h1>
+        <div style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+            <h1 style="color: #2c3e50; font-size: 1.8rem;">
+                <i class="bi bi-diagram-3" style="color: #e67e22;"></i> 前置技能關聯管理
+            </h1>
         </div>
 
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-
-        <!-- 新增關聯 -->
         <div class="card">
-            <h2>查詢前置技能</h2>
-            <p style="margin-bottom: 20px; color: #555;">請從下方選單選擇一個「目前技能」，系統將自動列出其所有需要的「基礎技能」。您也可以在此頁面新增或刪除關聯。</p>
-            <div class="form-grid" style="grid-template-columns: 1fr 2fr auto; gap: 15px;">
-                <div class="form-group">
-                    <label for="category_filter">1. 篩選技能類別</label>
-                    <select id="category_filter" name="category" class="skill-select">
-                        <option value="">所有類別</option>
-                        {% for category in all_categories %}
-                        <option value="{{ category }}">{{ category }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="skill_id_filter">2. 選擇目前技能</label>
-                    <select id="skill_id_filter" name="skill_id" class="skill-select" required></select>
-                </div>
-                <button type="button" class="btn btn-submit" onclick="openAddModal()">新增基礎技能</button>
+            <div class="card-header">
+                <span><i class="bi bi-funnel"></i> 篩選目標技能</span>
+            </div>
+            <div class="card-body">
+                <form id="filter-form" method="get" action="{{ url_for('core.admin_prerequisites') }}"
+                    class="filter-form">
+                    <div class="form-group">
+                        <label>課綱</label>
+                        <select id="f_curriculum" name="f_curriculum" class="form-select" onchange="this.form.submit()">
+                            <option value="all">全部</option>
+                            {% for c in filters.curriculums %}
+                            <option value="{{ c }}" {% if c==selected.f_curriculum %}selected{% endif %}>{{ c }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>年級</label>
+                        <select name="f_grade" class="form-select" onchange="this.form.submit()">
+                            <option value="all">全部</option>
+                            {% for g in filters.grades %}
+                            <option value="{{ g }}" {% if g|string==selected.f_grade %}selected{% endif %}>{{ g }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>冊別</label>
+                        <select name="f_volume" class="form-select" onchange="this.form.submit()">
+                            <option value="all">全部</option>
+                            {% for v in filters.volumes %}
+                            <option value="{{ v }}" {% if v==selected.f_volume %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>章節</label>
+                        <select name="f_chapter" class="form-select" onchange="this.form.submit()">
+                            <option value="all">全部</option>
+                            {% for ch in filters.chapters %}
+                            <option value="{{ ch }}" {% if ch==selected.f_chapter %}selected{% endif %}>{{ ch }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="flex: 0 0 auto; padding-bottom: 2px;">
+                        <a href="{{ url_for('core.admin_prerequisites') }}" class="btn"
+                            style="background:#95a5a6; color:white; padding:8px 15px; border-radius:4px; text-decoration:none;">重置</a>
+                    </div>
+                </form>
             </div>
         </div>
 
-        <!-- 現有關聯列表 -->
-        <div class="data-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>目前技能 ID</th>
-                        <th>目前技能名稱</th>
-                        <th>基礎技能 ID</th>
-                        <th>基礎技能名稱</th>
-                        <th style="width: 100px;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="prerequisites-tbody">
-                    <!-- JavaScript 將會動態填充這裡 -->
-                    <tr>
-                        <td colspan="5" class="empty-state">
-                            請從上方選擇一個「目前技能」來查詢其前置技能。
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
+        <div class="manager-layout">
 
-    <!-- 新增關聯 Modal -->
-    <div id="addModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>新增基礎技能</h2>
-                <span class="close" onclick="closeModal('addModal')">&times;</span>
+            <div class="left-panel card">
+                <div class="card-header">
+                    <span>目標技能列表 ({{ skills|length }})</span>
+                    <small style="color:#7f8c8d;">點擊以編輯關聯</small>
+                </div>
+                <div style="max-height: 700px; overflow-y: auto;">
+                    {% if skills %}
+                    {% for skill in skills %}
+                    <div class="skill-item"
+                        onclick="loadPrerequisites('{{ skill.skill_id }}', '{{ skill.skill_ch_name }}', this)">
+                        <div class="skill-info">
+                            <h4>{{ skill.skill_ch_name }}</h4>
+                            <div class="skill-meta">
+                                <span>{{ skill.skill_id }}</span>
+                                <span>• {{ skill.grade }}年級</span>
+                                <span>• {{ skill.chapter }}</span>
+                            </div>
+                        </div>
+                        <span class="badge-count {{ 'has-data' if skill.prereq_count > 0 else '' }}">
+                            {{ skill.prereq_count }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div style="padding: 30px; text-align: center; color: #999;">沒有符合條件的技能</div>
+                    {% endif %}
+                </div>
             </div>
-            <form id="addPrereqForm" method="POST" action="{{ url_for('core.admin_add_prerequisite') }}">
-                <!-- 隱藏欄位，用於提交目前技能的 ID -->
-                <input type="hidden" id="modal_skill_id" name="skill_id">
 
-                <div class="form-group" style="margin-bottom: 30px;">
-                    <label>目前技能</label>
-                    <p id="modal_skill_ch_name" style="font-size: 1.33em; font-weight: 600; color: #2c3e50; padding-top: 5px;"></p>
+            <div class="right-panel card">
+                <div class="card-header">
+                    <span><i class="bi bi-diagram-2"></i> 關聯編輯區</span>
                 </div>
+                <div class="card-body">
+                    <div id="editor-placeholder" class="editor-placeholder">
+                        <i class="bi bi-arrow-left-circle" style="font-size: 3rem;"></i>
+                        <p style="margin-top: 10px;">請從左側選擇一個技能開始編輯</p>
+                    </div>
 
-                <div class="form-group">
-                    <label for="modal_category_filter">篩選基礎技能類別</label>
-                    <select id="modal_category_filter" class="skill-select">
-                        <option value="">所有類別</option>
-                        {% for category in all_categories %}
-                        <option value="{{ category }}">{{ category }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                    <div id="editor-content" class="editor-content">
+                        <div id="current-skill-title" class="current-skill-title"></div>
+                        <input type="hidden" id="current-skill-id">
 
-                <div class="form-group">
-                    <label for="modal_prerequisite_id">選擇基礎技能</label>
-                    <select id="modal_prerequisite_id" name="prerequisite_id" class="skill-select" required>
-                        <option></option>
-                        {% for skill in all_skills %}
-                        <option value="{{ skill.skill_id }}">{{ skill.skill_ch_name }} ({{ skill.skill_id }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                        <div style="background: #e8f4fc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                            <label
+                                style="display:block; margin-bottom:8px; font-weight:600; font-size:0.9em; color:#2980b9;">新增前置技能
+                                (搜尋)：</label>
+                            <div style="display: flex; gap: 8px;">
+                                <select id="search-skill-select" style="width: 100%;"></select>
+                                <button onclick="addPrerequisite()"
+                                    style="background:#2980b9; color:white; border:none; padding:0 15px; border-radius:4px; cursor:pointer; white-space:nowrap;">
+                                    <i class="bi bi-plus-lg"></i> 加入
+                                </button>
+                            </div>
+                        </div>
 
-                <div class="form-actions">
-                    <button type="button" class="btn" style="background: #95a5a6;" onclick="closeModal('addModal')">取消</button>
-                    <button type="submit" class="btn btn-submit">確定</button>
+                        <h5 style="color:#7f8c8d; font-size:0.95em;">目前的前置技能：</h5>
+                        <ul id="prereq-list" class="prereq-list">
+                        </ul>
+                    </div>
                 </div>
-            </form>
+            </div>
+
         </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <script>
-        $(document).ready(function() {
-            // 用於記住 Modal 中的類別選擇
-            let lastSelectedModalCategory = '';
+        // Loading Control
+        function showLoading() { $('#loading-overlay').css('display', 'flex'); }
+        function hideLoading() { $('#loading-overlay').hide(); }
 
-            // 初始化 Select2
-            $('#category_filter').select2({
-                placeholder: "請選擇一個類別",
-                allowClear: true
+        // Initialize Select2 for searching ALL skills
+        $(document).ready(function () {
+            $('#search-skill-select').select2({
+                placeholder: '輸入關鍵字搜尋技能...',
+                allowClear: true,
+                ajax: {
+                    url: '/api/skills/search',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { term: params.term };
+                    },
+                    processResults: function (data) {
+                        return { results: data.results };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 1
             });
-            $('#skill_id_filter').select2({
-                placeholder: "請搜尋或選擇一個技能",
-                allowClear: true
+        });
+
+        // Load Prerequisites for a selected skill
+        function loadPrerequisites(skillId, skillName, element) {
+            // UI Update
+            $('.skill-item').removeClass('active');
+            $(element).addClass('active');
+
+            $('#editor-placeholder').hide();
+            $('#editor-content').show();
+            $('#current-skill-title').text(skillName + " (" + skillId + ")");
+            $('#current-skill-id').val(skillId);
+
+            // Clear previous list
+            $('#prereq-list').html('<div style="text-align:center; padding:20px; color:#aaa;"><div class="spinner" style="width:20px;height:20px;margin:0 auto;"></div></div>');
+
+            // API Call
+            fetch(`/api/skills/${skillId}/prerequisites`)
+                .then(res => res.json())
+                .then(data => {
+                    renderPrereqList(data.data);
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('錯誤', '無法載入關聯資料', 'error');
+                });
+        }
+
+        // Render List Logic
+        function renderPrereqList(list) {
+            const container = $('#prereq-list');
+            container.empty();
+
+            if (list.length === 0) {
+                container.html('<li style="text-align:center; padding:20px; color:#aaa;">此技能目前沒有前置設定</li>');
+                return;
+            }
+
+            list.forEach(item => {
+                const li = `
+                    <li class="prereq-item">
+                        <div>
+                            <div style="font-weight:600; color:#34495e;">${item.skill_ch_name}</div>
+                            <div style="font-size:0.8em; color:#95a5a6;">${item.skill_id}</div>
+                        </div>
+                        <i class="bi bi-trash btn-remove" onclick="removePrerequisite('${item.skill_id}')" title="移除關聯"></i>
+                    </li>
+                `;
+                container.append(li);
             });
+        }
 
-            // *** 修正：在頁面載入時就初始化 Modal 的 Select2 ***
-            $('#modal_category_filter').select2({ dropdownParent: $('#addModal'), placeholder: "請選擇一個類別", allowClear: true });
-            $('#modal_prerequisite_id').select2({ dropdownParent: $('#addModal'), placeholder: "請搜尋或選擇一個技能", allowClear: true });
+        // Add Prerequisite
+        function addPrerequisite() {
+            const targetId = $('#current-skill-id').val();
+            const prereqId = $('#search-skill-select').val();
 
-            // *** 修正：將 Modal 內的 change 事件綁定移到外部，只執行一次 ***
-            $('#modal_category_filter').on('change', function() {
-                const category = $(this).val();
-                lastSelectedModalCategory = category; // 記住選擇的類別
-                const prereqSelect = $('#modal_prerequisite_id');
-                
-                // 清空技能選單
-                prereqSelect.empty().trigger('change');
+            if (!prereqId) {
+                Swal.fire('提示', '請先搜尋並選擇一個前置技能', 'warning');
+                return;
+            }
 
-                if (category) {
-                    fetch(`/admin/api/skills_by_category?category=${category}`)
-                        .then(response => response.json())
+            showLoading();
+            fetch(`/api/skills/${targetId}/prerequisites`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prereq_id: prereqId })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        // Reload list
+                        // Trigger click on active item to refresh
+                        $('.skill-item.active').click();
+                        $('#search-skill-select').val(null).trigger('change');
+
+                        // Update badge count visually (optional optimization)
+                        const badge = $('.skill-item.active .badge-count');
+                        badge.text(parseInt(badge.text()) + 1).addClass('has-data');
+
+                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                        Toast.fire({ icon: 'success', title: '已新增關聯' });
+                    } else {
+                        Swal.fire('新增失敗', data.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    hideLoading();
+                    Swal.fire('錯誤', '系統錯誤', 'error');
+                });
+        }
+
+        // Remove Prerequisite
+        function removePrerequisite(prereqId) {
+            const targetId = $('#current-skill-id').val();
+
+            Swal.fire({
+                title: '確定移除?',
+                text: "移除後將解除兩個技能間的關聯",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e74c3c',
+                cancelButtonColor: '#95a5a6',
+                confirmButtonText: '移除'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showLoading();
+                    fetch(`/api/skills/${targetId}/prerequisites/${prereqId}`, {
+                        method: 'DELETE'
+                    })
+                        .then(res => res.json())
                         .then(data => {
-                            // 使用新的 data 更新選項
-                            prereqSelect.select2({ data: data, placeholder: "請搜尋或選擇一個技能", allowClear: true });
+                            hideLoading();
+                            if (data.success) {
+                                $('.skill-item.active').click(); // Refresh list
+
+                                // Update badge
+                                const badge = $('.skill-item.active .badge-count');
+                                let count = parseInt(badge.text()) - 1;
+                                badge.text(count);
+                                if (count === 0) badge.removeClass('has-data');
+
+                                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                                Toast.fire({ icon: 'success', title: '已移除' });
+                            } else {
+                                Swal.fire('錯誤', data.message, 'error');
+                            }
                         });
                 }
             });
-
-
-            // 當類別改變時，更新技能下拉選單
-            $('#category_filter').on('change', function() {
-                const category = $(this).val();
-                const skillSelect = $('#skill_id_filter');
-
-                // 清空技能選單和結果表格
-                skillSelect.empty().trigger('change');
-                $('#prerequisites-tbody').html('<tr><td colspan="5" class="empty-state">請從上方選擇一個「目前技能」來查詢其前置技能。</td></tr>');
-
-                fetch(`/admin/api/skills_by_category?category=${category}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        // 預設加入一個空的 placeholder 選項
-                        if (data.length > 0 && data[0].id !== '') {
-                            data.unshift({ id: '', text: '' });
-                        }
-                        // 重新填充選項
-                        skillSelect.select2({ data: data, placeholder: "請搜尋或選擇一個技能", allowClear: true });
-                    });
-            });
-
-            $('#skill_id_filter').on('change', function() {
-                const skillId = $(this).val();
-                const tbody = $('#prerequisites-tbody');
-
-                if (!skillId) {
-                    tbody.html(`
-                        <tr>
-                            <td colspan="5" class="empty-state">
-                                請從上方選擇一個「目前技能」來查詢其前置技能。
-                            </td>
-                        </tr>
-                    `);
-                    return;
-                }
-
-                tbody.html(`
-                    <tr>
-                        <td colspan="5" class="empty-state">
-                            正在查詢中...
-                        </td>
-                    </tr>
-                `);
-
-                fetch(`/admin/api/prerequisites/${skillId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        tbody.empty(); // 清空表格內容
-                        if (data.length > 0) {
-                            data.forEach(prereq => {
-                                const row = `
-                                    <tr>
-                                        <td><code>${prereq.skill_id}</code></td>
-                                        <td><strong>${prereq.skill_ch_name}</strong></td>
-                                        <td><code>${prereq.prerequisite_id}</code></td>
-                                        <td>${prereq.prerequisite_ch_name}</td>
-                                        <td>
-                                            <form method="POST" action="/admin/prerequisites/delete/${prereq.prerequisite_record_id}" onsubmit="return confirm('確定要刪除這個關聯嗎？');">
-                                                <button type="submit" class="btn btn-delete">刪除</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                `;
-                                tbody.append(row);
-                            });
-                        } else {
-                            tbody.html('<tr><td colspan="5" class="empty-state">此技能沒有設定任何前置技能。</td></tr>');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching prerequisites:', error);
-                        tbody.html('<tr><td colspan="5" class="empty-state" style="color: red;">查詢失敗，請檢查伺服器日誌。</td></tr>');
-                    });
-            });
-
-            // --- Modal 相關函式 ---
-            // 將函數綁定到 window 物件，使其在 HTML onclick 中可見
-            window.openAddModal = function() {
-                const currentSkillId = $('#skill_id_filter').val();
-                const currentSkillText = $('#skill_id_filter').select2('data')[0].text;
-
-                if (!currentSkillId) {
-                    alert('請先在主頁面選擇一個「目前技能」！');
-                    return;
-                }
-
-                // 將目前技能資訊填入 Modal
-                $('#modal_skill_id').val(currentSkillId);
-                $('#modal_skill_ch_name').text(currentSkillText);
-
-                // *** 修正：不再重新初始化，只設定值並觸發 change 事件來載入選項 ***
-                $('#modal_category_filter').val(lastSelectedModalCategory).trigger('change'); // 恢復上次選擇的類別
-
-                // 顯示 Modal
-                document.getElementById('addModal').style.display = 'block';
-            }
-
-            window.closeModal = function(modalId) {
-                document.getElementById(modalId).style.display = 'none';
-            }
-
-            // 點擊 Modal 外部可關閉
-            window.onclick = function(event) {
-                const modal = document.getElementById('addModal');
-                if (event.target == modal) {
-                    closeModal('addModal');
-                }
-            }
-
-            // 頁面載入時，觸發一次類別篩選器的 change 事件來載入所有技能
-            $('#category_filter').trigger('change');
-
-            // 新增：頁面載入後，檢查是否有從後端傳來的 selected_skill_id
-            const urlParams = new URLSearchParams(window.location.search);
-            const selectedCategoryOnLoad = urlParams.get('category');
-            const selectedSkillIdOnLoad = {{ selected_skill_id | tojson | safe }};
-
-            if (selectedCategoryOnLoad) {
-                // 1. 設定並觸發類別篩選器
-                $('#category_filter').val(selectedCategoryOnLoad).trigger('change');
-
-                // 2. 由於 fetch 是非同步的，我們需要等待技能列表載入後再設定 skill_id
-                // 我們可以監聽 select2 的 'select2:data:loaded' 事件，但更簡單的方式是使用 setTimeout
-                setTimeout(function() {
-                    if (selectedSkillIdOnLoad) {
-                        const skillSelect = $('#skill_id_filter');
-                        // 檢查選項是否已載入
-                        if (skillSelect.find("option[value='" + selectedSkillIdOnLoad + "']").length) {
-                            skillSelect.val(selectedSkillIdOnLoad).trigger('change');
-                        } else {
-                            // 如果選項還沒載入，手動添加它
-                            // 這是一個備用方案，正常情況下 fetch 應該能載入它
-                            const newOption = new Option(selectedSkillIdOnLoad, selectedSkillIdOnLoad, true, true);
-                            skillSelect.append(newOption).trigger('change');
-                        }
-                    }
-                }, 500); // 延遲 500ms 等待 AJAX 完成
-            } else if (selectedSkillIdOnLoad) {
-                // 如果只有 skill_id，則按原方式處理
-                $('#skill_id_filter').val(selectedSkillIdOnLoad).trigger('change');
-            }
-        });
-    </script>
-</body>
-</html>
-            }
         }
     </script>
 </body>
+
 </html>
-</html>
-
-
-
-<!--
-[PROMPT_SUGGESTION]請為「自動化前置技能關係建立機制」設計一個後端 API 和前端按鈕。[/PROT_SUGGESTION]
-[PROMPT_SUGGESTION]請為「回溯與回歸」機制繪製一個詳細的流程圖 (Flowchart)。[/PROT_SUGGESTION]

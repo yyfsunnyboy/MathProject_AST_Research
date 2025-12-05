@@ -677,138 +677,287 @@ def check_ghost_skills():
         current_app.logger.error(f"檢查幽靈技能時發生錯誤: {e}\n{traceback.format_exc()}")
         return jsonify({"success": False, "message": f"檢查時發生錯誤: {str(e)}"}), 500
 
-# === 技能前置依賴管理 ===
+# ==========================================
+# 技能前置依賴管理 (Prerequisites Management)
+# ==========================================
+
 @core_bp.route('/prerequisites')
-@core_bp.route('/admin/prerequisites')  # Add alias for navbar compatibility
+@core_bp.route('/admin/prerequisites')
 def admin_prerequisites():
+    """
+    前置技能管理主頁面 - 支援階層式篩選
+    """
     if not (current_user.is_admin or current_user.role == "teacher"):
         flash('您沒有權限存取此頁面。', 'danger')
         return redirect(url_for('dashboard'))
     
-    selected_skill_id = request.args.get('skill_id')  # 獲取選擇的 skill_id 參數
     try:
-        # 為了能同時顯示「目前技能」和「基礎技能」的中文名稱，需要進行 join 操作
-        # 建立 SkillInfo 的兩個別名
-        CurrentSkill = aliased(SkillInfo)
-        PrereqSkill = aliased(SkillInfo)
-
-        # 查詢所有依賴關係，並 join 兩次 SkillInfo 以取得名稱
-        prerequisites = db.session.query(
-            SkillPrerequisites.id,
-            CurrentSkill.skill_ch_name.label('current_skill_name'),
-            PrereqSkill.skill_ch_name.label('prereq_skill_name')
-        ).join(
-            CurrentSkill, SkillPrerequisites.skill_id == CurrentSkill.skill_id
-        ).join(
-            PrereqSkill, SkillPrerequisites.prerequisite_id == PrereqSkill.skill_id
-        ).order_by(CurrentSkill.skill_ch_name, PrereqSkill.skill_ch_name).all()
-
-        # 獲取所有技能列表，用於新增表單的下拉選單
-        all_skills = db.session.query(SkillInfo).filter_by(is_active=True).order_by(SkillInfo.skill_ch_name).all()
-
-        # 新增：獲取所有唯一的技能類別，用於篩選器
-        all_categories = sorted([c[0] for c in db.session.query(SkillInfo.category).distinct().all() if c[0]])
-
+        # 1. 讀取篩選參數
+        f_curriculum = request.args.get('f_curriculum', 'all')
+        f_grade = request.args.get('f_grade', 'all')
+        f_volume = request.args.get('f_volume', 'all')
+        f_chapter = request.args.get('f_chapter', 'all')
+        
+        # 2. 建構查詢 - Join SkillInfo 與 SkillCurriculum
+        query = db.session.query(SkillInfo, SkillCurriculum).join(
+            SkillCurriculum, SkillInfo.skill_id == SkillCurriculum.skill_id
+        ).filter(SkillInfo.is_active == True)
+        
+        # 3. 應用篩選條件
+        if f_curriculum != 'all':
+            query = query.filter(SkillCurriculum.curriculum == f_curriculum)
+        if f_grade != 'all':
+            query = query.filter(SkillCurriculum.grade == int(f_grade))
+        if f_volume != 'all':
+            query = query.filter(SkillCurriculum.volume == f_volume)
+        if f_chapter != 'all':
+            query = query.filter(SkillCurriculum.chapter == f_chapter)
+        
+        # 4. 執行查詢並處理結果
+        results = query.order_by(SkillCurriculum.display_order).all()
+        
+        # 5. 準備技能列表 (關鍵：附加 grade, volume, chapter, prereq_count)
+        skills_list = []
+        seen_skill_ids = set()
+        
+        for skill_info, skill_curriculum in results:
+            # 避免重複 (同一技能可能出現在多個課綱中)
+            if skill_info.skill_id in seen_skill_ids:
+                continue
+            seen_skill_ids.add(skill_info.skill_id)
+            
+            # 附加課綱資訊到 skill_info 物件
+            skill_info.grade = skill_curriculum.grade
+            skill_info.volume = skill_curriculum.volume
+            skill_info.chapter = skill_curriculum.chapter
+            
+            # 計算前置技能數量 (關鍵！前端需要此資料)
+            skill_info.prereq_count = len(skill_info.prerequisites)
+            
+            skills_list.append(skill_info)
+        
+        # 6. 準備篩選器選項 (動態查詢)
+        # 基礎查詢
+        base_query = db.session.query(SkillCurriculum).filter(
+            SkillCurriculum.skill_id.in_(
+                db.session.query(SkillInfo.skill_id).filter(SkillInfo.is_active == True)
+            )
+        )
+        
+        # Curriculum 選項
+        curriculums = [r[0] for r in base_query.with_entities(
+            distinct(SkillCurriculum.curriculum)
+        ).order_by(SkillCurriculum.curriculum).all()]
+        
+        # Grade 選項 (基於已選 curriculum)
+        grade_query = base_query
+        if f_curriculum != 'all':
+            grade_query = grade_query.filter(SkillCurriculum.curriculum == f_curriculum)
+        grades = [r[0] for r in grade_query.with_entities(
+            distinct(SkillCurriculum.grade)
+        ).order_by(SkillCurriculum.grade).all()]
+        
+        # Volume 選項 (基於已選 curriculum + grade)
+        volume_query = grade_query
+        if f_grade != 'all':
+            volume_query = volume_query.filter(SkillCurriculum.grade == int(f_grade))
+        volumes = [r[0] for r in volume_query.with_entities(
+            distinct(SkillCurriculum.volume)
+        ).order_by(SkillCurriculum.volume).all()]
+        
+        # Chapter 選項 (基於已選 curriculum + grade + volume)
+        chapter_query = volume_query
+        if f_volume != 'all':
+            chapter_query = chapter_query.filter(SkillCurriculum.volume == f_volume)
+        chapters = [r[0] for r in chapter_query.with_entities(
+            distinct(SkillCurriculum.chapter)
+        ).order_by(SkillCurriculum.chapter).all()]
+        
+        # 7. 準備模板資料
+        filters = {
+            'curriculums': curriculums,
+            'grades': grades,
+            'volumes': volumes,
+            'chapters': chapters
+        }
+        
+        selected = {
+            'f_curriculum': f_curriculum,
+            'f_grade': f_grade,
+            'f_volume': f_volume,
+            'f_chapter': f_chapter
+        }
+        
         return render_template('admin_prerequisites.html',
-                               prerequisites=prerequisites,
-                               all_skills=all_skills,
-                               all_categories=all_categories,
-                               selected_skill_id=selected_skill_id, # 將選擇的 skill_id 傳給模板
-                               username=current_user.username
-                               )
+                               skills=skills_list,
+                               filters=filters,
+                               selected=selected,
+                               username=current_user.username)
+    
     except Exception as e:
         current_app.logger.error(f"Error in admin_prerequisites: {e}\n{traceback.format_exc()}")
-        flash(f'載入技能關聯頁面時發生錯誤，請檢查伺服器日誌。錯誤：{e}', 'danger')
+        flash(f'載入技能關聯頁面時發生錯誤：{e}', 'danger')
         return redirect(url_for('dashboard'))
 
-@core_bp.route('/api/prerequisites/<string:skill_id>')
+
+# ==========================================
+# API: 取得前置技能列表
+# ==========================================
+@core_bp.route('/api/skills/<string:skill_id>/prerequisites', methods=['GET'])
 @login_required
-def api_get_prerequisites_for_skill(skill_id):
-    """根據指定的 skill_id，回傳其所有前置技能的詳細資訊"""
-    if not current_user.is_admin:
-        return jsonify({"error": "權限不足"}), 403
+def api_get_prerequisites(skill_id):
+    """
+    取得指定技能的所有前置技能
+    """
+    if not (current_user.is_admin or current_user.role == "teacher"):
+        return jsonify({"success": False, "message": "權限不足"}), 403
+    
+    try:
+        skill = db.session.get(SkillInfo, skill_id)
+        if not skill:
+            return jsonify({"success": False, "message": "技能不存在"}), 404
+        
+        # 使用 relationship 取得前置技能
+        prerequisites_data = [
+            {
+                'skill_id': prereq.skill_id,
+                'skill_ch_name': prereq.skill_ch_name
+            }
+            for prereq in skill.prerequisites
+        ]
+        
+        return jsonify({"success": True, "data": prerequisites_data})
+    
+    except Exception as e:
+        current_app.logger.error(f"Error fetching prerequisites for {skill_id}: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
-    # 使用 SQLAlchemy 的 relationship 來查詢
-    skill = db.session.get(SkillInfo, skill_id)
 
-    if not skill:
-        return jsonify([]) # 如果技能不存在，回傳空列表
-
-    # 為了獲取關聯本身的 ID，我們需要查詢關聯表
-    prerequisite_records = db.session.query(SkillPrerequisites).filter_by(skill_id=skill_id).all()
-
-    prerequisites_data = []
-    for record in prerequisite_records:
-        # 透過 record.prerequisite_id 找到對應的 SkillInfo
-        prereq_skill = db.session.get(SkillInfo, record.prerequisite_id)
-        if not prereq_skill: continue
-        prerequisites_data.append({
-            'prerequisite_record_id': record.id, # 加入關聯記錄的 ID
-            'skill_id': skill.skill_id,
-            'skill_ch_name': skill.skill_ch_name,
-            'prerequisite_id': prereq_skill.skill_id,
-            'prerequisite_ch_name': prereq_skill.skill_ch_name
-        })
-    return jsonify(prerequisites_data)
-
-@core_bp.route('/api/skills_by_category')
+# ==========================================
+# API: 新增前置技能
+# ==========================================
+@core_bp.route('/api/skills/<string:skill_id>/prerequisites', methods=['POST'])
 @login_required
-def api_get_skills_by_category():
-    """根據指定的 category，回傳對應的技能列表"""
-    category = request.args.get('category')
-    query = db.session.query(SkillInfo).filter_by(is_active=True)
-
-    if category:
-        query = query.filter_by(category=category)
+def api_add_prerequisite(skill_id):
+    """
+    為指定技能新增前置技能
+    """
+    if not (current_user.is_admin or current_user.role == "teacher"):
+        return jsonify({"success": False, "message": "權限不足"}), 403
     
-    skills = query.order_by(SkillInfo.skill_ch_name).all()
-    
-    return jsonify([{'id': s.skill_id, 'text': f"{s.skill_ch_name} ({s.skill_id})"} for s in skills])
-
-@core_bp.route('/prerequisites/add', methods=['POST'])
-def admin_add_prerequisite():
-    skill_id = request.form.get('skill_id')
-    prerequisite_id = request.form.get('prerequisite_id')
-
-    if not skill_id or not prerequisite_id:
-        flash('必須同時選擇「目前技能」和「基礎技能」。', 'warning')
-    elif skill_id == prerequisite_id:
-        flash('技能不能將自己設為前置技能。', 'warning')
-    else:
-        new_prereq = SkillPrerequisites(skill_id=skill_id, prerequisite_id=prerequisite_id)
-        db.session.add(new_prereq)
+    try:
+        data = request.get_json()
+        prereq_id = data.get('prereq_id')
+        
+        if not prereq_id:
+            return jsonify({"success": False, "message": "缺少 prereq_id 參數"}), 400
+        
+        # 檢查技能是否存在
+        target_skill = db.session.get(SkillInfo, skill_id)
+        prereq_skill = db.session.get(SkillInfo, prereq_id)
+        
+        if not target_skill:
+            return jsonify({"success": False, "message": f"目標技能 {skill_id} 不存在"}), 404
+        if not prereq_skill:
+            return jsonify({"success": False, "message": f"前置技能 {prereq_id} 不存在"}), 404
+        
+        # 檢查自我依賴
+        if skill_id == prereq_id:
+            return jsonify({"success": False, "message": "技能不能將自己設為前置技能"}), 400
+        
+        # 檢查是否已存在
+        if prereq_skill in target_skill.prerequisites:
+            return jsonify({"success": False, "message": "此前置技能已存在"}), 400
+        
+        # 新增關聯
+        target_skill.prerequisites.append(prereq_skill)
         db.session.commit()
-        flash('前置技能關聯新增成功！', 'success')
+        
+        return jsonify({"success": True, "message": "前置技能新增成功"})
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error adding prerequisite: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
-    # 為了在重新導向後能恢復篩選器狀態，我們需要找到 skill_id 對應的 category
-    selected_category = None
-    if skill_id:
-        skill_info = db.session.get(SkillInfo, skill_id)
-        if skill_info:
-            selected_category = skill_info.category
 
-    # 修改：重新導向時，同時帶上 skill_id 和 category 參數以保持狀態
-    return redirect(url_for('core.admin_prerequisites', skill_id=skill_id, category=selected_category))
+# ==========================================
+# API: 移除前置技能
+# ==========================================
+@core_bp.route('/api/skills/<string:skill_id>/prerequisites/<string:prereq_id>', methods=['DELETE'])
+@login_required
+def api_remove_prerequisite(skill_id, prereq_id):
+    """
+    移除指定技能的前置技能
+    """
+    if not (current_user.is_admin or current_user.role == "teacher"):
+        return jsonify({"success": False, "message": "權限不足"}), 403
+    
+    try:
+        target_skill = db.session.get(SkillInfo, skill_id)
+        prereq_skill = db.session.get(SkillInfo, prereq_id)
+        
+        if not target_skill:
+            return jsonify({"success": False, "message": f"目標技能 {skill_id} 不存在"}), 404
+        if not prereq_skill:
+            return jsonify({"success": False, "message": f"前置技能 {prereq_id} 不存在"}), 404
+        
+        # 檢查關聯是否存在
+        if prereq_skill not in target_skill.prerequisites:
+            return jsonify({"success": False, "message": "此前置技能不存在於關聯中"}), 400
+        
+        # 移除關聯
+        target_skill.prerequisites.remove(prereq_skill)
+        db.session.commit()
+        
+        return jsonify({"success": True, "message": "前置技能移除成功"})
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error removing prerequisite: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@core_bp.route('/prerequisites/delete/<int:prereq_id>', methods=['POST'])
-def admin_delete_prerequisite(prereq_id):
-    prereq = db.get_or_404(SkillPrerequisites, prereq_id)
-    # 在刪除前，先記下我們要返回的 skill_id
-    skill_id_to_redirect = prereq.skill_id
 
-    db.session.delete(prereq)
-    db.session.commit()
-    flash('前置技能關聯已刪除。', 'success')
-
-    # 為了在重新導向後能恢復篩選器狀態，我們需要找到 skill_id 對應的 category
-    selected_category = None
-    if skill_id_to_redirect:
-        skill_info = db.session.get(SkillInfo, skill_id_to_redirect)
-        if skill_info:
-            selected_category = skill_info.category
-
-    # 修改：重新導向時，同時帶上 skill_id 和 category 參數以保持狀態
-    return redirect(url_for('core.admin_prerequisites', skill_id=skill_id_to_redirect, category=selected_category))
+# ==========================================
+# API: 搜尋技能 (for Select2)
+# ==========================================
+@core_bp.route('/api/skills/search', methods=['GET'])
+@login_required
+def api_search_skills():
+    """
+    搜尋技能 - 供 Select2 下拉選單使用
+    """
+    if not (current_user.is_admin or current_user.role == "teacher"):
+        return jsonify({"results": []}), 403
+    
+    try:
+        term = request.args.get('term', '').strip()
+        
+        if not term:
+            return jsonify({"results": []})
+        
+        # 模糊搜尋 skill_id 或 skill_ch_name
+        query = db.session.query(SkillInfo).filter(
+            SkillInfo.is_active == True,
+            db.or_(
+                SkillInfo.skill_id.like(f'%{term}%'),
+                SkillInfo.skill_ch_name.like(f'%{term}%')
+            )
+        ).order_by(SkillInfo.skill_ch_name).limit(20)
+        
+        results = [
+            {
+                'id': skill.skill_id,
+                'text': f"{skill.skill_ch_name} ({skill.skill_id})"
+            }
+            for skill in query.all()
+        ]
+        
+        return jsonify({"results": results})
+    
+    except Exception as e:
+        current_app.logger.error(f"Error searching skills: {e}")
+        return jsonify({"results": []})
 
 @core_bp.route('/examples', methods=['GET'])
 @login_required
