@@ -165,6 +165,20 @@ def init_db(engine):
         )
     ''')
 
+    # 新增：建立 learning_diagnosis 表格 (學生學習診斷)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS learning_diagnosis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            radar_chart_data TEXT NOT NULL,
+            ai_comment TEXT,
+            recommended_unit TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES users (id)
+        )
+    ''')
+
+
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
         c.execute(f"PRAGMA table_info({table})")
@@ -451,4 +465,30 @@ class TextbookExample(db.Model):
             'correct_answer': self.correct_answer,
             'detailed_solution': self.detailed_solution,
             'difficulty_level': self.difficulty_level
+        }
+
+# 新增 LearningDiagnosis ORM 模型 (學生學習診斷)
+class LearningDiagnosis(db.Model):
+    __tablename__ = 'learning_diagnosis'
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    radar_chart_data = db.Column(db.Text, nullable=False)  # JSON 格式字串
+    ai_comment = db.Column(db.Text)
+    recommended_unit = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 關聯到學生
+    student = db.relationship('User', backref=db.backref('learning_diagnoses', lazy=True))
+
+    def to_dict(self):
+        """將物件轉換為可序列化的字典。"""
+        import json
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'radar_chart_data': json.loads(self.radar_chart_data) if self.radar_chart_data else {},
+            'ai_comment': self.ai_comment,
+            'recommended_unit': self.recommended_unit,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         }
