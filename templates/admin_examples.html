@@ -397,11 +397,9 @@
                                     "detailed_solution": {{ example.detailed_solution | tojson }},
                                     "source_description": {{ example.source_description | tojson }}
                                 })'><i class="bi bi-pencil-fill"></i> 編輯</a>
-                                <form action="{{ url_for('core.admin_delete_example', example_id=example.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('確定要刪除這個例題嗎？');">
-                                    <button type="submit" class="btn btn-delete">
-                                        <i class="bi bi-trash-fill"></i> 刪除
-                                    </button>
-                                </form>
+                                <button type="button" class="btn btn-delete" onclick="deleteExample({{ example.id }})">
+                                    <i class="bi bi-trash-fill"></i> 刪除
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -462,9 +460,55 @@
             document.getElementById('edit_source_description').value = example.source_description;
             openModal('editExampleModal');
         }
+
+        function deleteExample(exampleId) {
+            if (confirm('確定要刪除這個例題嗎？')) {
+                const url = `/admin/examples/delete/${exampleId}`;
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        // 如果您的後端需要 CSRF token，可以在這裡加入
+                        'X-CSRF-TOKEN': '{{ csrf_token() if csrf_token else "" }}'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        alert('刪除失敗，請稍後再試。');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('刪除過程中發生錯誤。');
+                });
+            }
+        }
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // 處理編輯表單的 AJAX 提交
+            const editForm = document.getElementById('editExampleForm');
+            editForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(editForm);
+                fetch(editForm.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        alert('編輯失敗，請檢查您的輸入。');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('編輯過程中發生錯誤。');
+                });
+            });
+
             const form = document.getElementById('filter-form');
             const filterIds = ['f_curriculum', 'f_grade', 'f_volume', 'f_chapter', 'f_section', 'f_paragraph', 'f_skill_id'];
 
