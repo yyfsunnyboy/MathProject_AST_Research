@@ -810,10 +810,286 @@ def admin_delete_prerequisite(prereq_id):
     # 修改：重新導向時，同時帶上 skill_id 和 category 參數以保持狀態
     return redirect(url_for('core.admin_prerequisites', skill_id=skill_id_to_redirect, category=selected_category))
 
-@core_bp.route('/admin/examples')
+@core_bp.route('/examples', methods=['GET'])
 @login_required
 def admin_examples():
-    return "課本例題管理頁面 (開發中...)" # 暫時的佔位符
+    """
+    課本例題管理頁面 - 支援多層篩選與分頁
+    """
+    # 權限檢查
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+
+    # 讀取篩選參數
+    f_curriculum = request.args.get('f_curriculum')
+    f_grade = request.args.get('f_grade')
+    f_volume = request.args.get('f_volume')
+    f_chapter = request.args.get('f_chapter')
+    f_section = request.args.get('f_section')
+    f_paragraph = request.args.get('f_paragraph')
+    f_skill_id = request.args.get('f_skill_id')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+
+    # 建構查詢 - Join SkillInfo (必要) 和 SkillCurriculum (用於篩選)
+    from models import TextbookExample
+    query = db.session.query(TextbookExample).join(
+        SkillInfo, TextbookExample.skill_id == SkillInfo.skill_id
+    )
+
+    # 如果有課綱篩選條件,才 join SkillCurriculum
+    if any([f_curriculum, f_grade, f_volume, f_chapter, f_section, f_paragraph]):
+        query = query.outerjoin(
+            SkillCurriculum, SkillInfo.skill_id == SkillCurriculum.skill_id
+        )
+        
+        # 應用篩選條件
+        if f_curriculum:
+            query = query.filter(SkillCurriculum.curriculum == f_curriculum)
+        if f_grade:
+            query = query.filter(SkillCurriculum.grade == int(f_grade))
+        if f_volume:
+            query = query.filter(SkillCurriculum.volume == f_volume)
+        if f_chapter:
+            query = query.filter(SkillCurriculum.chapter == f_chapter)
+        if f_section:
+            query = query.filter(SkillCurriculum.section == f_section)
+        if f_paragraph:
+            query = query.filter(SkillCurriculum.paragraph == f_paragraph)
+
+    # 技能 ID 篩選 (直接在 TextbookExample 上)
+    if f_skill_id:
+        query = query.filter(TextbookExample.skill_id == f_skill_id)
+
+    # 排序並分頁
+    query = query.distinct().order_by(TextbookExample.id.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # 準備篩選器下拉選單資料
+    curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
+    
+    q_grades = db.session.query(distinct(SkillCurriculum.grade))
+    if f_curriculum: q_grades = q_grades.filter_by(curriculum=f_curriculum)
+    grades = sorted([r[0] for r in q_grades.filter(SkillCurriculum.grade != None).all()])
+
+    q_vols = db.session.query(distinct(SkillCurriculum.volume))
+    if f_curriculum: q_vols = q_vols.filter_by(curriculum=f_curriculum)
+    if f_grade: q_vols = q_vols.filter_by(grade=int(f_grade))
+    volumes = [r[0] for r in q_vols.all()]
+
+    q_chaps = db.session.query(distinct(SkillCurriculum.chapter))
+    if f_curriculum: q_chaps = q_chaps.filter_by(curriculum=f_curriculum)
+    if f_grade: q_chaps = q_chaps.filter_by(grade=int(f_grade))
+    if f_volume: q_chaps = q_chaps.filter_by(volume=f_volume)
+    chapters = [r[0] for r in q_chaps.all()]
+
+    q_secs = db.session.query(distinct(SkillCurriculum.section))
+    if f_curriculum: q_secs = q_secs.filter_by(curriculum=f_curriculum)
+    if f_grade: q_secs = q_secs.filter_by(grade=int(f_grade))
+    if f_volume: q_secs = q_secs.filter_by(volume=f_volume)
+    if f_chapter: q_secs = q_secs.filter_by(chapter=f_chapter)
+    sections = [r[0] for r in q_secs.all()]
+
+    q_paras = db.session.query(distinct(SkillCurriculum.paragraph))
+    if f_curriculum: q_paras = q_paras.filter_by(curriculum=f_curriculum)
+    if f_grade: q_paras = q_paras.filter_by(grade=int(f_grade))
+    if f_volume: q_paras = q_paras.filter_by(volume=f_volume)
+    if f_chapter: q_paras = q_paras.filter_by(chapter=f_chapter)
+    if f_section: q_paras = q_paras.filter_by(section=f_section)
+    paragraphs = [r[0] for r in q_paras.filter(SkillCurriculum.paragraph != None).all()]
+
+    # 準備課綱對照表
+    curriculum_map = {
+        'junior_high': '國中',
+        'general': '普高',
+        'technical': '技高',
+        'elementary': '國小',
+        'sh': '普高 (舊碼)',
+        'jh': '國中 (舊碼)',
+        'vhs': '技高 (舊碼)',
+        'elem': '國小 (舊碼)'
+    }
+
+    all_grades = db.session.query(distinct(SkillCurriculum.grade)).all()
+    grade_map = {str(g[0]): str(g[0]) for g in all_grades if g[0] is not None}
+
+    # 準備技能列表 (供新增/編輯 Modal 使用)
+    skills = db.session.query(SkillInfo).filter_by(is_active=True).order_by(SkillInfo.skill_ch_name).all()
+
+    # 包裝變數
+    filters = {
+        'curriculums': curriculums,
+        'grades': grades,
+        'volumes': volumes,
+        'chapters': chapters,
+        'sections': sections,
+        'paragraphs': paragraphs
+    }
+
+    selected_filters = {
+        'f_curriculum': f_curriculum,
+        'f_grade': f_grade,
+        'f_volume': f_volume,
+        'f_chapter': f_chapter,
+        'f_section': f_section,
+        'f_paragraph': f_paragraph,
+        'f_skill_id': f_skill_id
+    }
+
+    return render_template('admin_examples.html',
+                           pagination=pagination,
+                           filters=filters,
+                           selected_filters=selected_filters,
+                           curriculum_map=curriculum_map,
+                           grade_map=grade_map,
+                           skills=skills,
+                           username=current_user.username)
+
+@core_bp.route('/examples/add', methods=['POST'])
+@login_required
+def admin_add_example():
+    """
+    新增課本例題
+    """
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('core.admin_examples'))
+    
+    try:
+        from models import TextbookExample
+        
+        new_example = TextbookExample(
+            skill_id=request.form.get('skill_id'),
+            problem_text=request.form.get('problem_text'),
+            correct_answer=request.form.get('correct_answer', ''),
+            detailed_solution=request.form.get('detailed_solution', ''),
+            source_curriculum=request.form.get('source_curriculum', ''),
+            source_volume=request.form.get('source_volume', ''),
+            source_chapter=request.form.get('source_chapter', ''),
+            source_section=request.form.get('source_section', ''),
+            source_description=request.form.get('source_description', ''),
+            source_paragraph=request.form.get('source_paragraph'),
+            problem_type=request.form.get('problem_type'),
+            difficulty_level=int(request.form.get('difficulty_level', 1))
+        )
+        
+        db.session.add(new_example)
+        db.session.commit()
+        flash('例題新增成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'新增失敗：{str(e)}', 'danger')
+        current_app.logger.error(f"Add example error: {e}")
+    
+    return redirect(url_for('core.admin_examples'))
+
+@core_bp.route('/examples/edit/<int:example_id>', methods=['POST'])
+@login_required
+def admin_edit_example(example_id):
+    """
+    編輯課本例題
+    """
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('core.admin_examples'))
+    
+    try:
+        from models import TextbookExample
+        example = db.session.get(TextbookExample, example_id)
+        
+        if not example:
+            flash('找不到該例題', 'warning')
+            return redirect(url_for('core.admin_examples'))
+        
+        # 更新欄位
+        example.skill_id = request.form.get('skill_id')
+        example.problem_text = request.form.get('problem_text')
+        example.correct_answer = request.form.get('correct_answer', '')
+        example.detailed_solution = request.form.get('detailed_solution', '')
+        example.source_curriculum = request.form.get('source_curriculum', '')
+        example.source_volume = request.form.get('source_volume', '')
+        example.source_chapter = request.form.get('source_chapter', '')
+        example.source_section = request.form.get('source_section', '')
+        example.source_description = request.form.get('source_description', '')
+        example.source_paragraph = request.form.get('source_paragraph')
+        example.problem_type = request.form.get('problem_type')
+        example.difficulty_level = int(request.form.get('difficulty_level', 1))
+        
+        db.session.commit()
+        flash('例題更新成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'更新失敗：{str(e)}', 'danger')
+        current_app.logger.error(f"Edit example error: {e}")
+    
+    return redirect(url_for('core.admin_examples'))
+
+@core_bp.route('/examples/delete/<int:example_id>', methods=['POST'])
+@login_required
+def admin_delete_example(example_id):
+    """
+    刪除課本例題
+    """
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('core.admin_examples'))
+    
+    try:
+        from models import TextbookExample
+        example = db.session.get(TextbookExample, example_id)
+        
+        if not example:
+            flash('找不到該例題', 'warning')
+            return redirect(url_for('core.admin_examples'))
+        
+        db.session.delete(example)
+        db.session.commit()
+        flash('例題刪除成功！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'刪除失敗：{str(e)}', 'danger')
+        current_app.logger.error(f"Delete example error: {e}")
+    
+    return redirect(url_for('core.admin_examples'))
+
+@core_bp.route('/examples/<int:example_id>/details', methods=['GET'])
+@login_required
+def admin_get_example_details(example_id):
+    """
+    API: 獲取單一例題的詳細資料 (供編輯 Modal 使用)
+    """
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    
+    try:
+        from models import TextbookExample
+        ex = db.session.get(TextbookExample, example_id)
+        
+        if not ex:
+            return jsonify({'success': False, 'message': '找不到該例題'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': ex.id,
+                'skill_id': ex.skill_id,
+                'problem_text': ex.problem_text or '',
+                'correct_answer': ex.correct_answer or '',
+                'detailed_solution': ex.detailed_solution or '',
+                'source_curriculum': ex.source_curriculum or '',
+                'source_volume': ex.source_volume or '',
+                'source_chapter': ex.source_chapter or '',
+                'source_section': ex.source_section or '',
+                'source_description': ex.source_description or '',
+                'source_paragraph': ex.source_paragraph or '',
+                'problem_type': ex.problem_type or '',
+                'difficulty_level': ex.difficulty_level or 1
+            }
+        })
+    except Exception as e:
+        current_app.logger.error(f"Get Example Details Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @core_bp.route('/textbook_importer', methods=['GET', 'POST'])
 @login_required
