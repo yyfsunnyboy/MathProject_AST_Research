@@ -16,6 +16,15 @@ def fix_code_syntax(code_str, error_msg=""):
     """
     fixed_code = code_str
 
+    # --- [新增 0] 優先修復致命的 Escape Sequence 錯誤 ---
+    # 修復 \ (空白) -> \\ (空白)，解決 SyntaxWarning: invalid escape sequence '\ '
+    # 這必須在其他處理之前做，避免破壞結構
+    fixed_code = re.sub(r'(?<!\\)\\ ', r'\\\\ ', fixed_code)
+    
+    # 修復 \u 開頭但非 Unicode 的情況 (如向量 u)，解決 SyntaxError: truncated \uXXXX escape
+    # 如果 \u 後面接的不是 4 個 16 進位數字，就把它變成 \\u
+    fixed_code = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', fixed_code)
+
     # 1. 修復 f-string 中的 LaTeX 單獨大括號 (f-string: single '}' is not allowed)
     # [擴充] 加入 sum (級數), prod (乘積), binom (組合), sigma (統計), lim (極限)
     latex_patterns = [
@@ -26,6 +35,7 @@ def fix_code_syntax(code_str, error_msg=""):
         r'sin', r'cos', r'tan', r'cot', r'sec', r'csc',
         r'log', r'ln', r'lim', 
         r'sum', r'prod', r'binom', r'sigma', # 新增針對 \s 錯誤的修復
+        r'perp', r'phi', r'pi', r'theta', # [新增] 解決 \p 相關錯誤
         r'%' 
     ]
     
@@ -37,7 +47,8 @@ def fix_code_syntax(code_str, error_msg=""):
              fixed_code = re.sub(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
 
     # 簡單暴力修法：針對特定錯誤直接全域替換常見 LaTeX 結構
-    if "single '}'" in error_msg or "single '{'" in error_msg:
+    # [調整] 這裡的觸發條件放寬，因為有時候 ast 不一定會精準報出 single '}'
+    if "single '}'" in error_msg or "single '{'" in error_msg or "invalid escape sequence" in error_msg:
         # 修復分數
         fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)
         fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
@@ -51,8 +62,17 @@ def fix_code_syntax(code_str, error_msg=""):
         fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code)
         fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\^\{', r'\\\1^{{', fixed_code)
 
-        # 修復一般結尾括號
-        fixed_code = re.sub(r'(\d|\w)\}(?=\"|\')', r'\1}}', fixed_code)
+        # [加強版] 修復一般結尾括號
+        # 原始邏輯: 只修復接引號的: fixed_code = re.sub(r'(\d|\w)\}(?=\"|\')', r'\1}}', fixed_code)
+        # 新增邏輯 1: 修復接 $ 符號的 (例如 $x^{2}$)
+        fixed_code = re.sub(r'(\d|\w|\))\}(?=\$)', r'\1}}', fixed_code)
+        # 新增邏輯 2: 修復接空格或逗號的 (例如 sin(x), )
+        fixed_code = re.sub(r'(\d|\w|\))\}(?=\s|\,|\.)', r'\1}}', fixed_code)
+        # 保留原有邏輯 (接引號)
+        fixed_code = re.sub(r'(\d|\w|\))\}(?=\"|\')', r'\1}}', fixed_code)
+        
+        # [新增] 針對括號結尾的特別修復 (如 \sin(x) -> \sin(x}) -> \sin(x}}) )
+        fixed_code = re.sub(r'\\(sin|cos|tan|cot|sec|csc)\((.*?)\)', r'\\\1(\2)', fixed_code) 
 
     # 2. 修復缺漏的括號 (Python 2 style print)
     if "expected '('" in error_msg:
@@ -214,6 +234,7 @@ def auto_generate_skill_code(skill_id, queue=None):
 
         # 6. Regex LaTeX 預防性修復
         # [擴充] 針對您遇到的 \s, \m 錯誤，加入 sum, sigma, mathbb 等指令
+        # [重要] 新增 'u' 和 'v' 以避免向量運算 (u+v) 時出現 \u+v (unicode error)
         latex_commands = [
             'angle', 'frac', 'sqrt', 'pi', 'times', 'div', 'pm', 'circ', 'triangle', 'overline', 'degree',
             'alpha', 'beta', 'gamma', 'delta', 'theta', 'phi', 'rho', 'sigma', 'omega', 'Delta', 'lambda',
@@ -221,9 +242,14 @@ def auto_generate_skill_code(skill_id, queue=None):
             'in', 'notin', 'subset', 'subseteq', 'cup', 'cap', 'neq', 'approx', 'le', 'ge', 'cdot',
             'left', 'right', 'sum', 'prod', 'int', 'lim', 'binom',
             'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'log', 'ln',
+            'perp', # 解決 \p 錯誤
             '%' # 特殊符號
         ]
         
+        # [新增] 全域修復：針對 "\ " (反斜線空格) 的問題
+        # 這是造成 invalid escape sequence '\ ' 的主因
+        generated_code = re.sub(r'(?<!\\)\\ ', r'\\\\ ', generated_code)
+
         for cmd in latex_commands:
             # 確保反斜線 (raw string 修正)
             generated_code = re.sub(rf'(?<!\\)\\{cmd}', rf'\\\\{cmd}', generated_code)
