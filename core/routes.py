@@ -2745,6 +2745,157 @@ def init_db_route():
 
 
 # ==========================================
+# AI Prompt 參數設定 API
+# ==========================================
+
+@core_bp.route('/admin/ai_prompt_settings')
+@login_required
+def ai_prompt_settings_page():
+    """顯示 AI Prompt 設定頁面"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+    
+    return render_template('ai_prompt_settings.html', username=current_user.username)
+
+@core_bp.route('/admin/ai_prompt_settings/get')
+@login_required
+def get_ai_prompt_setting():
+    """取得當前的 AI Prompt 設定"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    
+    try:
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        
+        if setting:
+            return jsonify({
+                'success': True,
+                'prompt': setting.value,
+                'updated_at': setting.updated_at.strftime('%Y-%m-%d %H:%M:%S') if setting.updated_at else None
+            })
+        else:
+            # 如果資料庫中沒有，觸發一次 get_ai_prompt 來建立預設值
+            from core.ai_analyzer import get_ai_prompt
+            default_prompt = get_ai_prompt()
+            
+            # 重新查詢（應該已經被 get_ai_prompt 寫入）
+            setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+            
+            return jsonify({
+                'success': True,
+                'prompt': setting.value if setting else default_prompt,
+                'updated_at': setting.updated_at.strftime('%Y-%m-%d %H:%M:%S') if setting and setting.updated_at else None
+            })
+    except Exception as e:
+        current_app.logger.error(f"Get AI Prompt Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@core_bp.route('/admin/ai_prompt_settings/update', methods=['POST'])
+@login_required
+def update_ai_prompt_setting():
+    """更新 AI Prompt 設定"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    
+    try:
+        data = request.get_json()
+        new_prompt = data.get('prompt', '').strip()
+        
+        if not new_prompt:
+            return jsonify({'success': False, 'message': 'Prompt 不能為空'}), 400
+        
+        # 驗證必要變數
+        if '{context}' not in new_prompt or '{prereq_text}' not in new_prompt:
+            return jsonify({
+                'success': False, 
+                'message': 'Prompt 必須包含 {context} 和 {prereq_text} 變數'
+            }), 400
+        
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        
+        if setting:
+            setting.value = new_prompt
+            setting.updated_at = datetime.utcnow()
+        else:
+            setting = SystemSetting(
+                key='ai_analyzer_prompt',
+                value=new_prompt,
+                description='AI 分析學生手寫答案時使用的 Prompt 模板。必須保留 {context} 和 {prereq_text} 變數。'
+            )
+            db.session.add(setting)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '儲存成功',
+            'updated_at': setting.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Update AI Prompt Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@core_bp.route('/admin/ai_prompt_settings/reset', methods=['POST'])
+@login_required
+def reset_ai_prompt_setting():
+    """恢復 AI Prompt 為預設值"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    
+    try:
+        # 預設 Prompt（與 ai_analyzer.py 中的一致）
+        DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
+題目：{context}
+此單元的前置基礎技能有：{prereq_text}
+
+請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
+如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
+
+{
+  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
+  "is_process_correct": true 或 false,
+  "correct": true 或 false,
+  "next_question": true 或 false,
+  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
+  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
+  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null"
+}
+
+直接輸出 JSON 內容，不要包在 ```json 標記內。"""
+        
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        
+        if setting:
+            setting.value = DEFAULT_PROMPT
+            setting.updated_at = datetime.utcnow()
+        else:
+            setting = SystemSetting(
+                key='ai_analyzer_prompt',
+                value=DEFAULT_PROMPT,
+                description='AI 分析學生手寫答案時使用的 Prompt 模板。必須保留 {context} 和 {prereq_text} 變數。'
+            )
+            db.session.add(setting)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '已恢復為預設值',
+            'updated_at': setting.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Reset AI Prompt Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+
+# ==========================================
 # 學生學習診斷 API
 # ==========================================
 
