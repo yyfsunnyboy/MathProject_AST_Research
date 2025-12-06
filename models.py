@@ -178,6 +178,18 @@ def init_db(engine):
         )
     ''')
 
+    # 新增：建立 system_settings 表格 (系統設定)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS system_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT UNIQUE NOT NULL,
+            value TEXT NOT NULL,
+            description TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+
 
     # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
     def add_column_if_not_exists(table, column, definition):
@@ -491,4 +503,24 @@ class LearningDiagnosis(db.Model):
             'ai_comment': self.ai_comment,
             'recommended_unit': self.recommended_unit,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+        }
+
+# 新增 SystemSetting ORM 模型 (系統設定)
+class SystemSetting(db.Model):
+    __tablename__ = 'system_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=False)
+    description = db.Column(db.String(500))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """將物件轉換為可序列化的字典。"""
+        return {
+            'id': self.id,
+            'key': self.key,
+            'value': self.value,
+            'description': self.description,
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None
         }

@@ -24,6 +24,53 @@ def get_model():
         raise RuntimeError("Gemini 尚未初始化！")
     return gemini_model
 
+def get_ai_prompt():
+    """
+    從資料庫讀取 AI Prompt，若不存在則使用預設值並寫入資料庫
+    """
+    from models import SystemSetting, db
+    
+    # 預設 Prompt（保留原始內容）
+    DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
+題目：{context}
+此單元的前置基礎技能有：{prereq_text}
+
+請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
+如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
+
+{
+  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
+  "is_process_correct": true 或 false,
+  "correct": true 或 false,
+  "next_question": true 或 false,
+  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
+  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
+  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null"
+}
+
+直接輸出 JSON 內容，不要包在 ```json 標記內。"""
+    
+    try:
+        # 嘗試從資料庫讀取
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        
+        if setting:
+            return setting.value
+        else:
+            # 資料庫中沒有，寫入預設值
+            new_setting = SystemSetting(
+                key='ai_analyzer_prompt',
+                value=DEFAULT_PROMPT,
+                description='AI 分析學生手寫答案時使用的 Prompt 模板。必須保留 {context} 和 {prereq_text} 變數。'
+            )
+            db.session.add(new_setting)
+            db.session.commit()
+            return DEFAULT_PROMPT
+    except Exception as e:
+        # 如果資料庫操作失敗，使用預設值
+        print(f"Warning: Failed to read AI prompt from database: {e}")
+        return DEFAULT_PROMPT
+
 def analyze(image_data_url, context, api_key, prerequisite_skills=None):
     """
     強制 Gemini 回傳純 JSON，失敗時自動重試一次
@@ -45,25 +92,11 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
             # 上傳到 Gemini
             file = genai.upload_file(path=temp_path)
 
-            # 強制 JSON 輸出 Prompt
-            prompt = f"""你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
-題目：{context}
-此單元的前置基礎技能有：{prereq_text}
-
-請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
-如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
-
-{{
-  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
-  "is_process_correct": true 或 false,
-  "correct": true 或 false,
-  "next_question": true 或 false,
-  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
-  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
-  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null"
-}}
-
-直接輸出 JSON 內容，不要包在 ```json 標記內。"""
+            # 從資料庫讀取 Prompt 模板
+            prompt_template = get_ai_prompt()
+            
+            # 使用 str.replace() 替換變數（避免 JSON 大括號衝突）
+            prompt = prompt_template.replace("{context}", context).replace("{prereq_text}", prereq_text)
 
             model = genai.GenerativeModel("gemini-2.5-flash")
             resp = model.generate_content([prompt, file])
