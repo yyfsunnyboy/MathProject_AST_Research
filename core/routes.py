@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, current_app, redirect, url_for, r
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 import io
+import json
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') # Use non-interactive backend
@@ -21,7 +22,7 @@ from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress,
 from sqlalchemy.exc import IntegrityError
 from core.utils import get_skill_info
 from core.session import get_current, set_current
-from core.ai_analyzer import get_model, analyze
+from core.ai_analyzer import get_model, analyze, build_chat_prompt, get_chat_response
 from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
 from core.data_importer import import_textbook_examples_from_file
 from . import textbook_processor
@@ -399,51 +400,19 @@ def chat_ai():
         else:
             skill_id = 'remainder'
 
-    # 從 DB 讀取 prompt 模板
-    skill_info = get_skill_info(skill_id)
-    if not skill_info:
-        return jsonify({"reply": "技能未找到"}), 404
-
-    # 動態替換 prompt，加入完整題目資訊
-    prompt_template = skill_info['gemini_prompt']
-    try:
-        # 構建包含完整題目的提示
-        enhanced_context = f"當前題目：{full_question_context}"
-        if context and context != full_question_context:
-            enhanced_context += f"\n詳細資訊：{context}"
-
-        # 新增：將前置技能資訊加入 prompt
-        prereq_text = ", ".join([f"{p['name']} ({p['id']})" for p in prereq_skills]) if prereq_skills else "無"
-        enhanced_context += f"\n\n此單元的前置基礎技能有：{prereq_text}。"
-
-        full_prompt = prompt_template.format(
-            user_answer=user_question,
-            correct_answer="（待批改）",
-            context=enhanced_context
-        )
-        
-        # 在提示開頭明確加入題目資訊，讓 AI 知道學生正在問哪一題
-        full_prompt = f"【學生當前正在練習的題目】\n{full_question_context}\n\n" + full_prompt
-        
-    except KeyError as e:
-        full_prompt = f"【學生當前正在練習的題目】\n{full_question_context}\n\n學生問：{user_question}\n（提示模板有誤：{e}）"
-
-    try:
-        model = get_model()
-        resp = model.generate_content(full_prompt)
-        reply = resp.text.strip()
-
-        # 新增：移除 AI 回覆中用於標記 LaTeX 數學式子的 '$' 符號
-        reply = reply.replace('$', '')
-        
-        # 強制加鼓勵話（避免 AI 太冷）
-        if not any(word in reply for word in ['加油', '試試', '可以的', '棒']):
-            reply += "\n\n試試看，你一定可以的！加油～"
-            
-        return jsonify({"reply": reply})
-    except Exception as e:
-        print(f"[CHAT_AI ERROR] {e}")
-        return jsonify({"reply": "AI 暫時無法回應，請稍後再試！"}), 500
+    # Remove direct DB prompt reading and logic from here
+    
+    # Call AI Analyzer to build prompt and get response
+    full_prompt = build_chat_prompt(
+        skill_id=skill_id,
+        user_question=user_question,
+        full_question_context=full_question_context,
+        context=context,
+        prereq_skills=prereq_skills
+    )
+    
+    result = get_chat_response(full_prompt)
+    return jsonify(result)
 
 @practice_bp.route('/draw_diagram', methods=['POST'])
 @login_required
@@ -2854,27 +2823,9 @@ def reset_ai_prompt_setting():
         return jsonify({'success': False, 'message': '權限不足'}), 403
     
     try:
-        # 預設 Prompt（與 ai_analyzer.py 中的一致）
-        DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
-題目：{context}
-此單元的前置基礎技能有：{prereq_text}
-
-請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
-如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
-
-{
-  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
-  "is_process_correct": true 或 false,
-  "correct": true 或 false,
-  "next_question": true 或 false,
-  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
-  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
-  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null"
-}
-
-直接輸出 JSON 內容，不要包在 ```json 標記內。"""
-        
         from models import SystemSetting
+        from core.ai_analyzer import DEFAULT_PROMPT
+        
         setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
         
         if setting:
@@ -2917,6 +2868,7 @@ def analyze_weakness():
     """
     from models import MistakeLog, ExamAnalysis, LearningDiagnosis, SkillInfo
     from datetime import datetime, timedelta
+    from core.ai_analyzer import analyze_student_weakness
     import json
     
     try:
@@ -3016,46 +2968,8 @@ def analyze_weakness():
                 'error': '尚無足夠的學習記錄進行分析'
             }), 400
         
-        # 呼叫 Gemini API
-        prompt_header = "你是一位專業的數學教學診斷專家。請根據以下學生的錯題記錄，使用「質性分析」方式推估各單元的熟練度。"
-        
-        prompt_rules = """
-**分析規則**：
-1. **概念錯誤**：代表學生對該單元的核心概念不熟練，應大幅降低熟練度分數 (建議扣 30-50 分)
-2. **計算錯誤/粗心**：代表學生概念理解但執行細節有誤，應輕微扣分 (建議扣 5-15 分)
-3. **信心度與評語**：若 AI 評語包含正向詞彙 (如「掌握良好」、「理解正確」)，可適度提高熟練度
-4. **基準分數**：假設學生初始熟練度為 80 分，根據錯誤情況進行調整
-
-請以 JSON 格式回傳分析結果：
-{
-  "mastery_scores": {
-    "單元名稱1": 85,
-    "單元名稱2": 60
-  },
-  "overall_comment": "整體學習評語 (100 字以內)",
-  "recommended_unit": "建議優先加強的單元名稱"
-}
-
-注意：
-- 熟練度分數範圍 0-100，分數越高代表越熟練
-- 請務必回傳有效的 JSON 格式
-- mastery_scores 的 key 必須是上述提供的單元名稱"""
-
-        gemini_prompt = prompt_header + "\n\n" + prompt_data + "\n" + prompt_rules
-
-        # 設定 Gemini API
-        genai.configure(api_key=current_app.config.get('GEMINI_API_KEY'))
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
-        
-        response = model.generate_content(gemini_prompt)
-        ai_response_text = response.text.strip()
-        
-        # 解析 JSON 回應
-        # 移除可能的 markdown 程式碼區塊標記
-        ai_response_text = re.sub(r'^```json\s*', '', ai_response_text)
-        ai_response_text = re.sub(r'\s*```$', '', ai_response_text)
-        
-        ai_result = json.loads(ai_response_text)
+        # 呼叫 AI Analyzer
+        ai_result = analyze_student_weakness(prompt_data)
         
         # 儲存分析結果到資料庫
         new_diagnosis = LearningDiagnosis(

@@ -14,6 +14,41 @@ import io
 # 初始化 gemini_model 為 None，避免 NameError
 gemini_model = None
 
+# 預設批改 Prompt
+DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
+題目：{context}
+此單元的前置基礎技能有：{prereq_text}
+
+請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
+如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
+
+{
+  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
+  "is_process_correct": true 或 false,
+  "correct": true 或 false,
+  "next_question": true 或 false,
+  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
+  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
+  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null",
+  "follow_up_prompts": [
+      "Prompt 1 (觀察/發現)",
+      "Prompt 2 (修正/行動)",
+      "Prompt 3 (延伸/驗證)"
+  ]
+}
+
+直接輸出 JSON 內容，不要包在 ```json 標記內。"""
+
+# 預設聊天 Prompt
+DEFAULT_CHAT_PROMPT = """你是一位親切的數學家教。
+【學生當前正在練習的題目】：
+{context}
+
+學生問：{user_answer}
+
+請參考上述題目資訊與前置技能：{prereq_text} 來回答。
+"""
+
 def configure_gemini(api_key, model_name):
     global gemini_model
     genai.configure(api_key=api_key)
@@ -30,25 +65,12 @@ def get_ai_prompt():
     """
     from models import SystemSetting, db
     
-    # 預設 Prompt（保留原始內容）
-    DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
-題目：{context}
-此單元的前置基礎技能有：{prereq_text}
-
-請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
-如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
-
-{
-  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
-  "is_process_correct": true 或 false,
-  "correct": true 或 false,
-  "next_question": true 或 false,
-  "error_type": "如果答錯,請從以下選擇一個:'計算錯誤'、'觀念錯誤'、'粗心'、'其他'。如果答對則為 null",
-  "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
-  "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null"
-}
-
-直接輸出 JSON 內容，不要包在 ```json 標記內。"""
+    """
+    從資料庫讀取 AI Prompt，若不存在則使用預設值並寫入資料庫
+    """
+    from models import SystemSetting, db
+    
+    # DEFAULT_PROMPT 已定義在全域
     
     try:
         # 嘗試從資料庫讀取
@@ -61,7 +83,7 @@ def get_ai_prompt():
             new_setting = SystemSetting(
                 key='ai_analyzer_prompt',
                 value=DEFAULT_PROMPT,
-                description='AI 分析學生手寫答案時使用的 Prompt 模板。必須保留 {context} 和 {prereq_text} 變數。'
+                description='AI 分析學生手寫答案時使用的 Prompt 模板。必須保留 {context} 和 {prereq_text} 變數。回傳 JSON 須包含 follow_up_prompts。'
             )
             db.session.add(new_setting)
             db.session.commit()
@@ -120,7 +142,8 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
                     "reply": f"AI 回應格式錯誤（第 {attempt+1} 次）：{str(e)}",
                     "is_process_correct": False,
                     "correct": False,
-                    "next_question": False
+                    "next_question": False,
+                    "follow_up_prompts": []
                 }
             import time; time.sleep(1)  # 重試前延遲
         except Exception as e:
@@ -129,7 +152,8 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
                     "reply": f"AI 分析失敗：{str(e)}",
                     "is_process_correct": False,
                     "correct": False,
-                    "next_question": False
+                    "next_question": False,
+                    "follow_up_prompts": []
                 }
             import time; time.sleep(1)
 
@@ -137,7 +161,8 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
         "reply": "AI 分析失敗，請稍後再試",
         "is_process_correct": False,
         "correct": False,
-        "next_question": False
+        "next_question": False,
+        "follow_up_prompts": []
     }
     
 def identify_skills_from_problem(problem_text):
@@ -315,4 +340,185 @@ def generate_quiz_from_image(image_file, description):
         current_app.logger.error(f"An error occurred in generate_quiz_from_image: {e}")
         return []
 
+
+def build_chat_prompt(skill_id, user_question, full_question_context, context, prereq_skills):
+    """
+    Constructs the full system prompt for the chat AI.
+    1. Tries to load specific prompt from SkillInfo.
+    2. Falls back to SystemSetting or DEFAULT_CHAT_PROMPT.
+    3. Handles variable replacement and strict JSON instruction appending.
+    """
+    from models import SkillInfo, SystemSetting
     
+    from models import SkillInfo, SystemSetting
+    
+    # DEFAULT_CHAT_PROMPT 已定義在全域
+
+    prompt_template = None
+
+    # 1. Try to get skill-specific specific prompt
+    if skill_id:
+        try:
+            skill = SkillInfo.query.get(skill_id)
+            if skill and skill.gemini_prompt:
+                prompt_template = skill.gemini_prompt
+        except Exception as e:
+            print(f"Error fetching skill info: {e}")
+
+    # 2. If no skill prompt, try SystemSetting
+    if not prompt_template:
+        try:
+            setting = SystemSetting.query.filter_by(key='chat_ai_prompt').first()
+            if setting:
+                prompt_template = setting.value
+        except Exception:
+            pass
+
+    # 3. Use Default if still None
+    if not prompt_template:
+        prompt_template = DEFAULT_CHAT_PROMPT
+
+    # 4. Construct Context Strings
+    prereq_text = ", ".join([f"{p['name']} ({p['id']})" for p in prereq_skills]) if prereq_skills else "無"
+    
+    enhanced_context = f"當前題目：{full_question_context}"
+    if context and context != full_question_context:
+        enhanced_context += f"\n詳細資訊：{context}"
+    enhanced_context += f"\n\n此單元的前置基礎技能有：{prereq_text}。"
+
+    # 5. Format the template
+    try:
+        # Check if template expects 'context' or strict format
+        # For safety, we try to inject values if placeholders exist, 
+        # or just append if it's a simple string.
+        # But assuming our templates use {context} and {user_answer}
+        full_prompt = prompt_template.format(
+            user_answer=user_question,
+            correct_answer="（待批改）",
+            context=enhanced_context,
+            prereq_text=prereq_text
+        )
+    except Exception:
+        # Fallback formatting if template keys mismatch
+        full_prompt = f"{prompt_template}\n\n[系統補完]\n題目：{enhanced_context}\n學生問題：{user_question}"
+
+    # 6. Prepend Title (Optional, specific to requirement)
+    if "【學生當前正在練習的題目】" not in full_prompt:
+        full_prompt = f"【學生當前正在練習的題目】\n{full_question_context}\n\n" + full_prompt
+
+    # 7. Append Rigid JSON Instructions
+    full_prompt += """
+    
+    # We need to guide the student further.
+    請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字。
+    
+    {
+      "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。步驟用 1. 2. 3. 表示。多項式用 x^3 格式。結尾加一句鼓勵的話。注意：這裡**只要**包含回答內容，**絕對不要**包含建議的追問選項。",
+      "follow_up_prompts": [
+          "選項1 (觀察：針對具體錯誤點，引導觀察，15字內)",
+          "選項2 (行動：提示具體修正動作，15字內)",
+          "選項3 (思考：如果答對則出類似題或反問概念；如果答錯則引導驗算，15字內)"
+      ]
+    }
+    
+    直接輸出 JSON，不要 Markdown。
+    請確保 `reply` 欄位只包含對學生的直接回應，而 `follow_up_prompts` 欄位包含下一步的建議選項。
+    """
+    
+    return full_prompt
+
+def get_chat_response(prompt):
+    """
+    Calls the AI model with the given prompt and parses the JSON response.
+    Returns a dictionary with 'reply' and 'follow_up_prompts'.
+    """
+    try:
+        model = get_model()
+        resp = model.generate_content(prompt)
+        raw_text = resp.text.strip()
+        
+        # Clean JSON
+        cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
+        data = json.loads(cleaned)
+        
+        reply = data.get("reply", "AI 回應格式錯誤")
+        follow_up_prompts = data.get("follow_up_prompts", [])
+        
+        # Remove '$' from reply
+        reply = reply.replace('$', '')
+        
+        # Ensure reply is warm
+        if not any(word in reply for word in ['加油', '試試', '可以的', '棒']):
+            reply += "\n\n試試看，你一定可以的！加油～"
+            
+        return {
+            "reply": reply,
+            "follow_up_prompts": follow_up_prompts
+        }
+        
+    except json.JSONDecodeError:
+         # Fallback to text if JSON fails
+        clean_text = raw_text.replace('$', '')
+        clean_text = re.sub(r'```json.*?```', '', clean_text, flags=re.DOTALL)
+        return {
+            "reply": clean_text,
+            "follow_up_prompts": []
+        }
+    except Exception as e:
+        print(f"[AI_ANALYZER ERROR] {e}")
+        return {
+            "reply": "AI 暫時無法回應，請稍後再試！",
+            "follow_up_prompts": []
+        }
+
+# 預設弱點分析 Prompt
+DEFAULT_WEAKNESS_ANALYSIS_PROMPT = """
+你是一位專業的數學教學診斷專家。請根據以下學生的錯題記錄，使用「質性分析」方式推估各單元的熟練度。
+
+{prompt_data}
+
+**分析規則**：
+1. **概念錯誤**：代表學生對該單元的核心概念不熟練，應大幅降低熟練度分數 (建議扣 30-50 分)
+2. **計算錯誤/粗心**：代表學生概念理解但執行細節有誤，應輕微扣分 (建議扣 5-15 分)
+3. **信心度與評語**：若 AI 評語包含正向詞彙 (如「掌握良好」、「理解正確」)，可適度提高熟練度
+4. **基準分數**：假設學生初始熟練度為 80 分，根據錯誤情況進行調整
+
+請以 JSON 格式回傳分析結果：
+{
+  "mastery_scores": {
+    "單元名稱1": 85,
+    "單元名稱2": 60
+  },
+  "overall_comment": "整體學習評語 (100 字以內)",
+  "recommended_unit": "建議優先加強的單元名稱"
+}
+
+注意：
+- 熟練度分數範圍 0-100，分數越高代表越熟練
+- 請務必回傳有效的 JSON 格式
+- mastery_scores 的 key 必須是上述提供的單元名稱
+"""
+
+def analyze_student_weakness(prompt_data):
+    """
+    Calls Gemini to analyze student weakness based on mistake logs.
+    """
+    try:
+        model = get_model() # Use shared model instance
+        
+        prompt = DEFAULT_WEAKNESS_ANALYSIS_PROMPT.format(prompt_data=prompt_data)
+        
+        response = model.generate_content(prompt)
+        ai_response_text = response.text.strip()
+        
+        # Clean JSON
+        cleaned = re.sub(r'^```json\s*|\s*```$', '', ai_response_text, flags=re.MULTILINE)
+        return json.loads(cleaned)
+        
+    except Exception as e:
+        print(f"Weakness Analysis Error: {e}")
+        return {
+            "mastery_scores": {},
+            "overall_comment": "分析失敗",
+            "recommended_unit": ""
+        }

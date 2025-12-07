@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>功文數學練習網站</title>
     <!-- 新增：載入 MathJax 函式庫 -->
     <script>
-    {% raw %}
+        {% raw %}
         window.MathJax = {
             tex: {
                 inlineMath: [['$', '$'], ['\\(', '\\)']], // 設定行內公式的標識符
@@ -19,14 +20,19 @@
                 fontCache: 'global'
             }
         };
-    {% endraw %}
+        {% endraw %}
     </script>
     <script type="text/javascript" id="MathJax-script" async
         src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
-    </script>
+        </script>
     <style>
         /* === 全局樣式 === */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: #f5f7fa;
@@ -43,12 +49,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
+
         .navbar .logo {
             font-weight: bold;
             font-size: 1.3em;
         }
+
         .navbar a {
             color: #ecf0f1;
             text-decoration: none;
@@ -56,7 +64,10 @@
             border-radius: 4px;
             transition: background 0.2s;
         }
-        .navbar a:hover { background: #34495e; }
+
+        .navbar a:hover {
+            background: #34495e;
+        }
 
         /* 新增：難度選擇按鈕樣式 */
         .level-selector {
@@ -65,12 +76,21 @@
             align-items: center;
             gap: 8px;
         }
+
         .level-button {
-            padding: 6px 12px; background: #ecf0f1; border: 1px solid #bdc3c7;
-            border-radius: 6px; cursor: pointer; transition: all 0.2s;
+            padding: 6px 12px;
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
+
         .level-button.active {
-            background: #1abc9c; color: white; border-color: #16a085; font-weight: bold;
+            background: #1abc9c;
+            color: white;
+            border-color: #16a085;
+            font-weight: bold;
         }
 
         /* === 容器 === */
@@ -82,28 +102,38 @@
 
         /* === 練習區 === */
         .practice-area {
-            flex: 3;  /* 左邊佔 3/5 */
+            flex: 3;
+            /* 左邊佔 3/5 */
             background: white;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
         }
+
         .practice-top {
-            padding: 12px 20px;  /* 縮小內距 */
+            padding: 12px 20px;
+            /* 縮小內距 */
             border-bottom: 1px solid #e9ecef;
             position: relative;
-            flex: 2;  /* 題目和輸入框區域佔 2/5 */
+            flex: 2;
+            /* 題目和輸入框區域佔 2/5 */
             display: flex;
             flex-direction: column;
-            overflow: hidden;  /* 隱藏溢出內容，不出現卷軸 */
-            min-height: 0;  /* 允許縮小 */
+            overflow: hidden;
+            /* 隱藏溢出內容，不出現卷軸 */
+            min-height: 0;
+            /* 允許縮小 */
         }
+
         .practice-top h1 {
             color: #2c3e50;
-            font-size: 1.1em;  /* 縮小字體 */
+            font-size: 1.1em;
+            /* 縮小字體 */
             margin-bottom: 8px;
-            flex-shrink: 0;  /* 標題不縮小 */
+            flex-shrink: 0;
+            /* 標題不縮小 */
         }
+
         #streak-counter {
             position: absolute;
             top: 20px;
@@ -114,14 +144,16 @@
             border-radius: 20px;
             font-size: 0.9em;
             font-weight: bold;
-            box-shadow: 0 2px 5px rgba(231,76,60,0.3);
+            box-shadow: 0 2px 5px rgba(231, 76, 60, 0.3);
         }
+
         #question-text {
             background: #f8f9fa;
             padding: 8px 10px;
             border-radius: 8px;
             border: 1px solid #dee2e6;
-            font-size: 1em;  /* 初始字體大小，會被 JavaScript 動態調整 */
+            font-size: 1em;
+            /* 初始字體大小，會被 JavaScript 動態調整 */
             line-height: 1.3;
             color: #2c3e50;
             margin: 6px 0;
@@ -131,11 +163,13 @@
             min-height: 0;
             word-wrap: break-word;
         }
+
         .input-group {
             display: flex;
             gap: 8px;
             margin-top: 8px;
         }
+
         #answer-input {
             flex: 1;
             padding: 8px 12px;
@@ -144,11 +178,13 @@
             border-radius: 6px;
             transition: all 0.2s;
         }
+
         #answer-input:focus {
             border-color: #3498db;
-            box-shadow: 0 0 0 3px rgba(52,152,219,0.2);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
             outline: none;
         }
+
         #submit-button {
             padding: 8px 20px;
             background: #3498db;
@@ -159,8 +195,15 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        #submit-button:hover:not(:disabled) { background: #2980b9; }
-        #submit-button:disabled { background: #95a5a6; cursor: not-allowed; }
+
+        #submit-button:hover:not(:disabled) {
+            background: #2980b9;
+        }
+
+        #submit-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
 
         #result-display {
             margin-top: 8px;
@@ -170,11 +213,13 @@
             min-height: 20px;
             font-size: 0.9em;
         }
+
         #result-display.correct {
             background: #d5efdb;
             color: #27ae60;
             border: 1px solid #a8e6c1;
         }
+
         #result-display.incorrect {
             background: #fadbd8;
             color: #c0392b;
@@ -183,13 +228,16 @@
 
         /* === 畫布區 === */
         .practice-bottom {
-            flex: 3;  /* 計算紙手寫區佔 3/5 */
+            flex: 3;
+            /* 計算紙手寫區佔 3/5 */
             padding: 15px;
             background: #f8f9fa;
             display: flex;
             flex-direction: column;
-            min-height: 0;  /* 允許縮小 */
+            min-height: 0;
+            /* 允許縮小 */
         }
+
         .canvas-toolbar {
             display: flex;
             align-items: center;
@@ -199,11 +247,13 @@
             margin-bottom: 12px;
             flex-wrap: wrap;
         }
+
         .canvas-toolbar strong {
             margin-right: 10px;
             color: #2c3e50;
             font-weight: 600;
         }
+
         .tool-button {
             padding: 6px 10px;
             background: #ecf0f1;
@@ -212,11 +262,13 @@
             cursor: pointer;
             transition: all 0.2s;
         }
+
         .tool-button.active {
             background: #3498db;
             color: white;
             border-color: #2980b9;
         }
+
         .color-button {
             width: 28px;
             height: 28px;
@@ -225,26 +277,37 @@
             border: 2px solid #ddd;
             transition: transform 0.2s;
         }
+
         .color-button.active {
             transform: scale(1.2);
             border-color: #3498db;
         }
-        .color-button.black { background: #2c3e50; }
-        .color-button.red { background: #e74c3c; }
+
+        .color-button.black {
+            background: #2c3e50;
+        }
+
+        .color-button.red {
+            background: #e74c3c;
+        }
+
         input[type="range"] {
             width: 80px;
             cursor: pointer;
         }
+
         #pen-width-label {
             min-width: 20px;
             text-align: center;
             color: #2c3e50;
         }
+
         .canvas-actions {
             margin-left: auto;
             display: flex;
             gap: 8px;
         }
+
         .canvas-actions button {
             padding: 6px 12px;
             background: #95a5a6;
@@ -254,20 +317,35 @@
             cursor: pointer;
             font-size: 0.9em;
         }
+
         .canvas-actions button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+
         #upload-image-button {
             background: #f39c12;
         }
-        #upload-image-button:hover { background: #e67e22; }
+
+        #upload-image-button:hover {
+            background: #e67e22;
+        }
+
         #analyze-handwriting-button {
             background: #9b59b6 !important;
         }
-        #analyze-handwriting-button:hover { background: #8e44ad !important; }
-        #clear-canvas-button { background: #e74c3c; }
-        #clear-canvas-button:hover { background: #c0392b; }
+
+        #analyze-handwriting-button:hover {
+            background: #8e44ad !important;
+        }
+
+        #clear-canvas-button {
+            background: #e74c3c;
+        }
+
+        #clear-canvas-button:hover {
+            background: #c0392b;
+        }
 
         #handwriting-canvas {
             flex: 1;
@@ -279,19 +357,22 @@
 
         /* === 聊天區 === */
         .chat-area {
-            flex: 2;  /* 右邊佔 2/5 */
+            flex: 2;
+            /* 右邊佔 2/5 */
             background: #f8f9fa;
             padding: 20px;
             display: flex;
             flex-direction: column;
             border-left: 1px solid #dee2e6;
         }
+
         .chat-area h3 {
             color: #9b59b6;
             text-align: center;
             margin-bottom: 15px;
             font-weight: 600;
         }
+
         #chat-history {
             flex: 1;
             background: white;
@@ -301,6 +382,7 @@
             overflow-y: auto;
             margin-bottom: 15px;
         }
+
         .chat-message {
             margin-bottom: 12px;
             padding: 10px 14px;
@@ -309,39 +391,49 @@
             word-wrap: break-word;
             line-height: 1.5;
         }
+
         .user-message {
             background: #3498db;
             color: white;
             margin-left: auto;
             border-bottom-right-radius: 4px;
         }
+
         .bot-message {
             background: #ecf0f1;
             color: #2c3e50;
             margin-right: auto;
             border-bottom-left-radius: 4px;
-            transition: background 0.3s ease;  /* 平滑過渡 */
+            transition: background 0.3s ease;
+            /* 平滑過渡 */
         }
+
         .bot-message.latest {
-            background: #ffeaea;  /* 淺紅色背景 */
+            background: #ffeaea;
+            /* 淺紅色背景 */
             color: #2c3e50;
         }
+
         .bot-message pre {
             margin: 0;
             white-space: pre-wrap;
             font-family: inherit;
         }
+
         .chat-input-area {
             display: flex;
-            flex-direction: column; /* 改為垂直排列 */
+            flex-direction: column;
+            /* 改為垂直排列 */
             gap: 10px;
         }
+
         .symbol-buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 5px;
             justify-content: center;
         }
+
         .symbol-button {
             padding: 5px 10px;
             background: #ecf0f1;
@@ -351,13 +443,16 @@
             font-size: 1.1em;
             transition: background 0.2s;
         }
+
         .symbol-button:hover {
             background: #dfe6e9;
         }
+
         .chat-input-group {
             display: flex;
             gap: 10px;
         }
+
         #chat-input {
             flex: 1;
             padding: 12px 15px;
@@ -365,11 +460,13 @@
             border-radius: 6px;
             font-size: 1em;
         }
+
         #chat-input:focus {
             border-color: #9b59b6;
-            box-shadow: 0 0 0 3px rgba(155,89,182,0.2);
+            box-shadow: 0 0 0 3px rgba(155, 89, 182, 0.2);
             outline: none;
         }
+
         #chat-send-button {
             padding: 12px 20px;
             background: #9b59b6;
@@ -378,23 +475,29 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        #chat-send-button:hover { background: #8e44ad; }
+
+        #chat-send-button:hover {
+            background: #8e44ad;
+        }
 
         /* === Suggested Prompts === */
         #suggested-prompts-container {
             margin-bottom: 15px;
         }
+
         #suggested-prompts-container h4 {
             color: #9b59b6;
             font-size: 0.9em;
             margin-bottom: 8px;
             font-weight: 600;
         }
+
         #suggested-prompts {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
+
         .prompt-button {
             width: 100%;
             padding: 8px 12px;
@@ -407,6 +510,7 @@
             color: #2c3e50;
             transition: all 0.2s;
         }
+
         .prompt-button:hover {
             background: #ecf0f1;
             border-color: #9b59b6;
@@ -417,9 +521,12 @@
             display: flex;
             flex-direction: row;
             gap: 15px;
-            flex: 1; /* 讓此容器填滿剩餘空間 */
-            min-height: 0; /* 確保在 flex 容器中可以正確縮放 */
-            overflow: hidden; /* 隱藏內部溢出 */
+            flex: 1;
+            /* 讓此容器填滿剩餘空間 */
+            min-height: 0;
+            /* 確保在 flex 容器中可以正確縮放 */
+            overflow: hidden;
+            /* 隱藏內部溢出 */
         }
 
         .diagram-container {
@@ -427,17 +534,22 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            flex-basis: 220px; /* 給示意圖一個固定的基礎寬度 */
-            flex-shrink: 0; /* 防止示意圖容器被壓縮 */
+            flex-basis: 220px;
+            /* 給示意圖一個固定的基礎寬度 */
+            flex-shrink: 0;
+            /* 防止示意圖容器被壓縮 */
         }
 
         #diagram-image {
             max-width: 200px;
-            max-height: 200px; /* 增加最大高度以獲得更好的可視性 */
-            margin-top: 0 !important; /* 覆蓋內聯樣式 */
+            max-height: 200px;
+            /* 增加最大高度以獲得更好的可視性 */
+            margin-top: 0 !important;
+            /* 覆蓋內聯樣式 */
         }
     </style>
 </head>
+
 <body>
 
     <!-- Navbar -->
@@ -453,7 +565,8 @@
             <div class="practice-top">
                 <h1 id="skill-title">
                     {{ skill_ch_name }} ({{ skill_id|replace('_', ' ')|title }})
-                    <span id="level-indicator" style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span>
+                    <span id="level-indicator"
+                        style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span>
                     <span id="streak-counter">連續答對：0</span>
                 </h1>
                 <!-- 新增：難度選擇器 -->
@@ -463,13 +576,15 @@
                     <button class="level-button" data-level="2">等級 2</button>
                     {% if prereq_skills %}
                     <div class="input-group" style="margin-left: 20px; margin-top: 0;">
-                        <select id="prereq-skill-select" class="form-select" style="padding: 5px; border-radius: 6px; border: 1px solid #bdc3c7;">
+                        <select id="prereq-skill-select" class="form-select"
+                            style="padding: 5px; border-radius: 6px; border: 1px solid #bdc3c7;">
                             <option value="" selected disabled>練習基礎技能...</option>
                             {% for prereq in prereq_skills %}
-                                <option value="{{ prereq.skill_id }}">{{ prereq.skill_ch_name }}</option>
+                            <option value="{{ prereq.skill_id }}">{{ prereq.skill_ch_name }}</option>
                             {% endfor %}
                         </select>
-                        <button class="level-button" type="button" id="practice-prereq-btn" style="background-color: #f39c12; color: white;">練習</button>
+                        <button class="level-button" type="button" id="practice-prereq-btn"
+                            style="background-color: #f39c12; color: white;">練習</button>
                     </div>
                     {% endif %}
                 </div>
@@ -479,10 +594,10 @@
                     <div id="question-text"></div>
                     <div class="diagram-container">
                         <div id="diagram-loading" style="display: none; color: #2c3e50;">正在繪製圖形...</div>
-                        <img id="diagram-image" src="" alt="Diagram" style="display: none;"/>
+                        <img id="diagram-image" src="" alt="Diagram" style="display: none;" />
                     </div>
                 </div>
-                
+
                 <div class="input-group">
                     <input type="text" id="answer-input" placeholder="輸入答案...">
                     <button id="submit-button">提交</button>
@@ -500,10 +615,11 @@
                     <input type="range" id="pen-width" min="1" max="10" value="2">
                     <span id="pen-width-label">2</span>
                     <div class="canvas-actions">
-                        <button id="draw-diagram-button" class="tool-button" style="background-color: #27ae60; color: white;">繪製示意圖</button>
+                        <button id="draw-diagram-button" class="tool-button"
+                            style="background-color: #27ae60; color: white;">繪製示意圖</button>
                         <button id="undo-button">上一步</button>
                         <button id="redo-button">下一步</button>
-                <button id="upload-image-button">上傳圖片</button>
+                        <button id="upload-image-button">上傳圖片</button>
                         <button id="clear-canvas-button">清除</button>
                         <button id="analyze-handwriting-button">AI檢查</button>
                     </div>
@@ -516,7 +632,9 @@
         <div class="chat-area">
             <h3>AI 助教</h3>
             <div id="chat-history">
-                <div class="bot-message"><pre>你好！有問題問我～</pre></div>
+                <div class="bot-message">
+                    <pre>你好！有問題問我～</pre>
+                </div>
             </div>
             <div id="suggested-prompts-container" style="display: none;">
                 <h4>試試這樣問：</h4>
@@ -581,7 +699,8 @@
             <h3 style="color: #e67e22; margin-top: 0; margin-bottom: 15px;">遇到困難了嗎？</h3>
             <p id="prereqSuggestionMessage" style="margin-bottom: 20px;">看起來這個單元有點挑戰性，要不要先回去練習一下相關的基礎技能呢？</p>
             <!-- 基礎技能按鈕將會被動態插入到這裡 -->
-            <div id="prereqSuggestionList" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px;">
+            <div id="prereqSuggestionList"
+                style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px;">
             </div>
             <div class="modal-button-group" style="justify-content: center;">
                 <button id="prereqSuggestionCancelButton" class="modal-button cancel">繼續練習</button>
@@ -592,18 +711,27 @@
     <style>
         /* Custom Alert Modal Styles */
         .modal-overlay {
-            display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 10000; /* Sit on top */
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 10000;
+            /* Sit on top */
             left: 0;
             top: 0;
-            width: 100%; /* Full width */
-            height: 100%; /* Full height */
-            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
             /* Use flexbox for centering when displayed */
-            align-items: flex-start; /* 改為從頂部對齊 */
-            justify-content: center; /* Center horizontally */
-            padding-top: 25vh; /* 從視窗頂部向下推 25% 的高度 */
+            align-items: flex-start;
+            /* 改為從頂部對齊 */
+            justify-content: center;
+            /* Center horizontally */
+            padding-top: 25vh;
+            /* 從視窗頂部向下推 25% 的高度 */
         }
 
         .modal-content {
@@ -613,17 +741,25 @@
             width: 80%;
             max-width: 400px;
             border-radius: 8px;
-            box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
             text-align: center;
-            position: relative; /* Needed for animation */
+            position: relative;
+            /* Needed for animation */
             animation-name: animatetop;
             animation-duration: 0.4s;
         }
 
         /* Add Animation */
         @keyframes animatetop {
-            from {transform: translateY(-50px); opacity:0}
-            to {transform: translateY(0); opacity:1}
+            from {
+                transform: translateY(-50px);
+                opacity: 0
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1
+            }
         }
 
         .modal-button {
@@ -647,9 +783,11 @@
             gap: 15px;
             margin-top: 20px;
         }
+
         .modal-button.cancel {
             background-color: #95a5a6;
         }
+
         .modal-button.cancel:hover {
             background-color: #7f8c8d;
         }
@@ -677,7 +815,7 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0,0,0,0.9);
+            background-color: rgba(0, 0, 0, 0.9);
         }
 
         .image-modal-content {
@@ -698,14 +836,20 @@
             height: 150px;
         }
 
-        .image-modal-content, #caption {
+        .image-modal-content,
+        #caption {
             animation-name: zoom;
             animation-duration: 0.6s;
         }
 
         @keyframes zoom {
-            from {transform:scale(0)}
-            to {transform:scale(1)}
+            from {
+                transform: scale(0)
+            }
+
+            to {
+                transform: scale(1)
+            }
         }
 
         .image-modal .close {
@@ -724,7 +868,6 @@
             text-decoration: none;
             cursor: pointer;
         }
-
     </style>
 
     <script>
@@ -741,7 +884,7 @@
         let redoStack = [];
         let blankCanvas = null;
         let currentContext = "";  // 儲存題目 context，用於 AI 助教
-        
+
         // DOM 元素
         let canvas, ctx, analyzeBtn, submitBtn, answerInput, resultDisplay;
         let questionText, chatHistory, streakCounter;
@@ -751,7 +894,7 @@
 
         // 將後端資料傳給 JS
         const PREREQ_SKILLS = {{ prereq_skills | tojson | safe }};
-    
+
         // === DOM 載入完成 ===
         window.addEventListener('DOMContentLoaded', () => {
             // 取得元素
@@ -765,13 +908,13 @@
             canvas = document.getElementById('handwriting-canvas');
             ctx = canvas.getContext('2d');
             analyzeBtn = document.getElementById('analyze-handwriting-button');
-    
+
             // 檢查必要元素
             if (!canvas || !ctx || !submitBtn || !answerInput || !resultDisplay || !questionText) {
                 console.error('缺少必要 DOM 元素');
                 return;
             }
-    
+
             // 初始化順序
             initCanvas();
             setupTools();
@@ -805,16 +948,63 @@
             }
         }
 
+        // === 新增：渲染 Follow-up Prompts ===
+        function renderFollowUpPrompts(prompts) {
+            const containerWrapper = document.getElementById('suggested-prompts-container');
+            const listContainer = document.getElementById('suggested-prompts');
+
+            // 安全檢查
+            if (!containerWrapper || !listContainer) return;
+
+            // 移除舊的 dynamic container (如果意外殘留)
+            const oldDynamicContainer = document.getElementById('dynamic-follow-up-container');
+            if (oldDynamicContainer) {
+                oldDynamicContainer.remove();
+            }
+
+            // 清空目前的提示詞
+            listContainer.innerHTML = '';
+
+            // 如果沒有提示詞，隱藏容器並返回
+            if (!prompts || prompts.length === 0) {
+                containerWrapper.style.display = 'none';
+                return;
+            }
+
+            // 生成新按鈕
+            prompts.forEach(promptText => {
+                const btn = document.createElement('button');
+                btn.className = 'prompt-button';
+                btn.textContent = promptText;
+                btn.onclick = () => {
+                    // 點擊後自動填入並送出
+                    const chatInput = document.getElementById('chat-input');
+                    const chatSendBtn = document.getElementById('chat-send-button');
+                    chatInput.value = promptText;
+                    chatSendBtn.click();
+                    // 注意：這裡不主動隱藏，等待 AI 下次回覆更新
+                };
+                listContainer.appendChild(btn);
+            });
+
+            // 顯示容器
+            containerWrapper.style.display = 'block';
+
+            // 確保聊天區域捲動到底部，避免被新出現的區塊遮擋 (視情況)
+            const chatHistory = document.getElementById('chat-history');
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
         // === 新增：圖片放大 Modal ===
         function setupImageModal() {
             var modal = document.getElementById("imageModal");
             var img = document.getElementById("diagram-image");
             var modalImg = document.getElementById("modalImg");
             var captionText = document.getElementById("caption");
-            
-            if(img) {
-                img.onclick = function(){
-                    if(this.src && this.style.display !== 'none') {
+
+            if (img) {
+                img.onclick = function () {
+                    if (this.src && this.style.display !== 'none') {
                         modal.style.display = "block";
                         modalImg.src = this.src;
                         captionText.innerHTML = this.alt;
@@ -824,54 +1014,54 @@
 
             var span = document.querySelector(".image-modal .close");
 
-            if(span) {
-                span.onclick = function() {
+            if (span) {
+                span.onclick = function () {
                     modal.style.display = "none";
                 }
             }
-            
-            if(modal) {
-                modal.onclick = function(e) {
+
+            if (modal) {
+                modal.onclick = function (e) {
                     if (e.target === modal || e.target === modalImg) {
                         modal.style.display = "none";
                     }
                 }
             }
         }
-    
+
         // === 初始化畫布 ===
         function initCanvas() {
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
-        
+
             canvas.addEventListener('mousedown', startDraw);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDraw);
             canvas.addEventListener('mouseout', stopDraw);
-        
+
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             blankCanvas = canvas.toDataURL();
             saveState();
             updateUndoRedoButtons();
-        
+
             if (analyzeBtn) {
                 analyzeBtn.style.display = 'inline-block';
             }
         }
-    
+
         function resizeCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
             canvas.width = rect.width;
             canvas.height = rect.height;
-    
+
             if (undoStack.length > 0) {
                 const img = new Image();
                 img.onload = () => ctx.drawImage(img, 0, 0);
                 img.src = undoStack[undoStack.length - 1];
             }
         }
-    
+
         // === 繪圖核心 ===
         function saveState() {
             const current = canvas.toDataURL();
@@ -881,7 +1071,7 @@
             if (undoStack.length > 50) undoStack.shift();
             updateUndoRedoButtons();
         }
-    
+
         function startDraw(e) {
             if (isProcessing) return;
             isDrawing = true;
@@ -890,46 +1080,46 @@
             setPenStyle();
             saveState();
         }
-    
+
         function draw(e) {
             if (!isDrawing || isProcessing) return;
             ctx.lineTo(e.offsetX, e.offsetY);
             ctx.stroke();
         }
-    
+
         function stopDraw() {
             if (isDrawing) {
                 isDrawing = false;
                 saveState();
             }
         }
-    
+
         function setPenStyle() {
             ctx.lineWidth = isErasing ? 20 : currentWidth;
             ctx.strokeStyle = isErasing ? 'white' : currentColor;
             ctx.lineCap = 'round';
         }
-    
+
         // === 工具 ===
         function setupTools() {
             document.getElementById('pen-button').onclick = () => { isErasing = false; setPenStyle(); updateTools(); };
             document.getElementById('eraser-button').onclick = () => { isErasing = true; setPenStyle(); updateTools(); };
-    
+
             document.querySelectorAll('.color-button').forEach(btn => {
                 btn.onclick = () => { currentColor = btn.dataset.color; setPenStyle(); updateTools(); };
             });
-    
+
             document.getElementById('pen-width').oninput = (e) => {
                 currentWidth = e.target.value;
                 document.getElementById('pen-width-label').textContent = currentWidth;
                 setPenStyle();
             };
-    
+
             document.getElementById('undo-button').onclick = undo;
             document.getElementById('redo-button').onclick = redo;
             document.getElementById('clear-canvas-button').onclick = clearCanvas;
         }
-    
+
         function undo() {
             if (undoStack.length <= 1) return;
             redoStack.push(undoStack.pop());
@@ -937,7 +1127,7 @@
             img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); updateUndoRedoButtons(); };
             img.src = undoStack[undoStack.length - 1];
         }
-    
+
         function redo() {
             if (redoStack.length === 0) return;
             const img = new Image();
@@ -950,7 +1140,7 @@
             };
             img.src = redoStack[redoStack.length - 1];
         }
-    
+
         function clearCanvas() {
             showCustomConfirm('確定要清除所有計算步驟？', () => {
                 ctx.fillStyle = 'white';
@@ -960,21 +1150,21 @@
                 saveState();
             });
         }
-    
+
         function updateUndoRedoButtons() {
             const undoBtn = document.getElementById('undo-button');
             const redoBtn = document.getElementById('redo-button');
             undoBtn.disabled = undoStack.length <= 1;
             redoBtn.disabled = redoStack.length === 0;
         }
-    
+
         function updateTools() {
             document.querySelectorAll('.tool-button').forEach(b => b.classList.remove('active'));
             document.querySelector(`#${isErasing ? 'eraser' : 'pen'}-button`).classList.add('active');
             document.querySelectorAll('.color-button').forEach(b => b.classList.remove('active'));
             document.querySelector(`.color-button[data-color="${currentColor}"]`).classList.add('active');
         }
-    
+
         // === 新增：圖片上傳功能 ===
         function setupImageUpload() {
             const uploadButton = document.getElementById('upload-image-button');
@@ -1030,7 +1220,7 @@
             // === 新增：基礎技能跳轉功能 ===
             const practicePrereqBtn = document.getElementById('practice-prereq-btn');
             if (practicePrereqBtn) {
-                practicePrereqBtn.addEventListener('click', function() {
+                practicePrereqBtn.addEventListener('click', function () {
                     const select = document.getElementById('prereq-skill-select');
                     const selectedSkillId = select.value;
                     if (selectedSkillId) {
@@ -1049,7 +1239,7 @@
             currentStreak = correct ? currentStreak + 1 : 0;
             streakCounter.textContent = `連續答對：${currentStreak}`;
         }
-    
+
         // === 出題 ===
         function getSkillId() {
             // 從 URL 路徑 /practice/skill_id 中提取 skill_id
@@ -1057,7 +1247,7 @@
             const skillIdFromPath = pathParts[pathParts.length - 1];
             return skillIdFromPath || '{{ skill_id }}' || 'remainder'; // 優先從路徑獲取
         }
-    
+
         // === 動態調整題目字型大小 ===
         function autoResizeQuestionFont() {
             if (!questionText) return;
@@ -1081,7 +1271,7 @@
                 container.style.fontSize = fontSize + 'em';
             }
         }
-    
+
         // === 自定義提示框 ===
         function showCustomAlert(message, callback) {
             const modal = document.getElementById('customAlertModal');
@@ -1165,11 +1355,11 @@
                         questionText.textContent = `錯誤：${data.error}`;
                         return;
                     }
-                
+
                     // 顯示題目
                     questionText.innerHTML = data.new_question_text;
                     isInitialQuestionLoaded = true; // 標記為已載入
-                    
+
                     // 修正：將排版任務推入 MathJax 佇列，並在完成後調整字體大小
                     const typesetPromise = () => {
                         return new Promise((resolve) => {
@@ -1199,7 +1389,7 @@
                     typesetPromise().then(() => {
                         autoResizeQuestionFont();
                     });
-                
+
                     // ⭐ 從後端同步連續答對數
                     if (data.consecutive_correct !== undefined && selectedLevel === 1) { // 只在等級1時顯示連續答對
                         currentStreak = data.consecutive_correct;
@@ -1210,7 +1400,7 @@
                     }
 
                     levelIndicator.textContent = `等級：${data.current_level}`;
-                
+
                     // 統一儲存 context
                     currentContext = data.context_string || data.inequality_string || "";
 
@@ -1224,7 +1414,7 @@
                         answerInput.placeholder = '請在此輸入答案';
                         submitBtn.disabled = false;
                     }
-                
+
                     // 清除畫布、輸入框等
                     answerInput.value = '';
                     resultDisplay.textContent = '';
@@ -1240,14 +1430,14 @@
                     questionText.textContent = '出題失敗，請重新整理';
                 });
         }
-    
+
         // === 提交答案 ===
         function setupSubmit() {
             if (!submitBtn) {
                 console.error('submitBtn 未定義');
                 return;
             }
-            
+
             // 動態載入訊息效果（三個點動畫）
             let loadingInterval = null;
             function showLoadingMessage() {
@@ -1256,79 +1446,79 @@
                 resultDisplay.style.background = '#fff3cd';
                 resultDisplay.style.color = '#856404';
                 resultDisplay.style.border = '1px solid #ffeaa7';
-                
+
                 loadingInterval = setInterval(() => {
                     dots = (dots + 1) % 4;
                     const dotString = '.'.repeat(dots);
                     resultDisplay.textContent = `正在檢查答案${dotString}`;
                 }, 300);
             }
-            
+
             function stopLoadingMessage() {
                 if (loadingInterval) {
                     clearInterval(loadingInterval);
                     loadingInterval = null;
                 }
             }
-            
+
             submitBtn.onclick = () => {
                 if (isProcessing) return;
                 isProcessing = true;
                 submitBtn.disabled = true;
-                
+
                 // 顯示動態載入訊息
                 showLoadingMessage();
-        
+
                 fetch('/check_answer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ answer: answerInput.value })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    // 停止載入訊息
-                    stopLoadingMessage();
-                    
-                    resultDisplay.textContent = data.result || (data.correct ? '正確！' : '錯誤');
-                    resultDisplay.className = data.correct ? 'correct' : 'incorrect';
-                    updateStreak(data.correct);
-                    if (data.correct) {
-                        // 功文式鼓勵：強調持續練習，而非單次答對
-                        const messages = [
-                            '🎉 答對了！很棒！讓我們繼續下一題吧！',
-                            '正確！保持這個節奏！',
-                            '做得好！你離目標又近了一步！'
-                        ];
-                        showCustomAlert(messages[Math.floor(Math.random() * messages.length)], () => {
-                            setTimeout(loadQuestion, 500);
-                        });
-                    } else {
-                        // 如果答錯
-                        consecutiveWrongs++;
-                        // 檢查是否觸發建議
-                        if (consecutiveWrongs >= 3 && PREREQ_SKILLS && PREREQ_SKILLS.length > 0) {
-                            showPrereqSuggestionModal();
-                            consecutiveWrongs = 0; // 重置計數器
-                        }
-                    }
+                    .then(r => r.json())
+                    .then(data => {
+                        // 停止載入訊息
+                        stopLoadingMessage();
 
-                    // 如果答對，重置連續答錯計數器
-                    if (data.correct) {
-                        consecutiveWrongs = 0;
-                    }
-                })
-                .catch(err => {
-                    // 停止載入訊息
-                    stopLoadingMessage();
-                    
-                    console.error('提交失敗:', err);
-                    resultDisplay.textContent = '提交失敗';
-                    resultDisplay.className = 'incorrect';
-                })
-                .finally(() => {
-                    isProcessing = false;
-                    submitBtn.disabled = false;
-                });
+                        resultDisplay.textContent = data.result || (data.correct ? '正確！' : '錯誤');
+                        resultDisplay.className = data.correct ? 'correct' : 'incorrect';
+                        updateStreak(data.correct);
+                        if (data.correct) {
+                            // 功文式鼓勵：強調持續練習，而非單次答對
+                            const messages = [
+                                '🎉 答對了！很棒！讓我們繼續下一題吧！',
+                                '正確！保持這個節奏！',
+                                '做得好！你離目標又近了一步！'
+                            ];
+                            showCustomAlert(messages[Math.floor(Math.random() * messages.length)], () => {
+                                setTimeout(loadQuestion, 500);
+                            });
+                        } else {
+                            // 如果答錯
+                            consecutiveWrongs++;
+                            // 檢查是否觸發建議
+                            if (consecutiveWrongs >= 3 && PREREQ_SKILLS && PREREQ_SKILLS.length > 0) {
+                                showPrereqSuggestionModal();
+                                consecutiveWrongs = 0; // 重置計數器
+                            }
+                        }
+
+                        // 如果答對，重置連續答錯計數器
+                        if (data.correct) {
+                            consecutiveWrongs = 0;
+                        }
+                    })
+                    .catch(err => {
+                        // 停止載入訊息
+                        stopLoadingMessage();
+
+                        console.error('提交失敗:', err);
+                        resultDisplay.textContent = '提交失敗';
+                        resultDisplay.className = 'incorrect';
+                    })
+                    .finally(() => {
+                        isProcessing = false;
+                        submitBtn.disabled = false;
+                    });
             };
         }
 
@@ -1353,31 +1543,31 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question_text: question })
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('繪圖失敗，請查看伺服器日誌。');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        // 使用時間戳記來避免圖片快取問題
-                        diagramImg.src = data.image_path + '?t=' + new Date().getTime();
-                        diagramImg.style.display = 'block';
-                    } else {
-                        showCustomAlert(data.message || '繪圖時發生未知錯誤。');
-                    }
-                })
-                .catch(error => {
-                    console.error('繪圖請求失敗:', error);
-                    showCustomAlert(error.message);
-                })
-                .finally(() => {
-                    loadingIndicator.style.display = 'none';
-                });
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('繪圖失敗，請查看伺服器日誌。');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            // 使用時間戳記來避免圖片快取問題
+                            diagramImg.src = data.image_path + '?t=' + new Date().getTime();
+                            diagramImg.style.display = 'block';
+                        } else {
+                            showCustomAlert(data.message || '繪圖時發生未知錯誤。');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('繪圖請求失敗:', error);
+                        showCustomAlert(error.message);
+                    })
+                    .finally(() => {
+                        loadingIndicator.style.display = 'none';
+                    });
             });
         }
-    
+
         // === 新增：顯示基礎技能建議 Modal ===
         function showPrereqSuggestionModal() {
             const modal = document.getElementById('prereqSuggestionModal');
@@ -1412,7 +1602,7 @@
         // === AI 分析 ===
         function setupAIButton() {
             if (!analyzeBtn) return;
-            
+
             // 動態載入訊息效果（三個點動畫）
             let loadingInterval = null;
             function showLoadingMessage() {
@@ -1421,99 +1611,104 @@
                 resultDisplay.style.background = '#fff3cd';
                 resultDisplay.style.color = '#856404';
                 resultDisplay.style.border = '1px solid #ffeaa7';
-                
+
                 loadingInterval = setInterval(() => {
                     dots = (dots + 1) % 4;
                     const dotString = '.'.repeat(dots);
                     resultDisplay.textContent = `AI 正在分析中${dotString}`;
                 }, 300);
             }
-            
+
             function stopLoadingMessage() {
                 if (loadingInterval) {
                     clearInterval(loadingInterval);
                     loadingInterval = null;
                 }
             }
-            
+
             analyzeBtn.onclick = () => {
                 if (isProcessing) return;
                 isProcessing = true;
                 analyzeBtn.textContent = '分析中...';
                 analyzeBtn.disabled = true;
-                
+
                 // 顯示動態載入訊息
                 showLoadingMessage();
-    
+
                 const img = canvas.toDataURL('image/png');
                 fetch('/analyze_handwriting', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image_data_url: img })
                 })
-                .then(r => r.json())
-                .then(data => {
-                    // 停止載入訊息
-                    stopLoadingMessage();
-                    
-                    // 移除所有舊的高亮
-                    document.querySelectorAll('.bot-message.latest').forEach(msg => {
-                        msg.classList.remove('latest');
-                    });
-                    
-                    const msg = document.createElement('div');
-                    msg.className = 'bot-message latest';  // 標記為最新
-                    msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${data.reply || '無回應'}</pre>`;
-                    chatHistory.appendChild(msg);
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                    .then(r => r.json())
+                    .then(data => {
+                        // 停止載入訊息
+                        stopLoadingMessage();
 
-                    if (data.correct && data.next_question) {
-                        // 在題目下方顯示"正確"
-                        resultDisplay.textContent = '正確';
-                        resultDisplay.className = 'correct';
-                        
-                        updateStreak(true);
-                        
-                        // 顯示答對訊息框，然後載入下一題
-                        showCustomAlert('🎉 答對了！圖形畫得很正確！繼續加油！', () => {
-                            setTimeout(loadQuestion, 500);
+                        // 移除所有舊的高亮
+                        document.querySelectorAll('.bot-message.latest').forEach(msg => {
+                            msg.classList.remove('latest');
                         });
-                    } else if (data.correct === false) {
-                        // 如果錯誤，清空 resultDisplay（AI 的建議會在聊天區顯示）
-                        resultDisplay.textContent = '';
-                        resultDisplay.className = '';
-                        updateStreak(false);
-                    }
-                })
-                .catch(err => {
-                    // 停止載入訊息
-                    stopLoadingMessage();
-                    
-                    console.error('AI 分析失敗:', err);
-                    
-                    // 移除所有舊的高亮
-                    document.querySelectorAll('.bot-message.latest').forEach(msg => {
-                        msg.classList.remove('latest');
+
+                        const msg = document.createElement('div');
+                        msg.className = 'bot-message latest';  // 標記為最新
+                        msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${data.reply || '無回應'}</pre>`;
+                        chatHistory.appendChild(msg);
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                        // 新增：渲染 Follow-up Prompts
+                        if (data.follow_up_prompts && data.follow_up_prompts.length > 0) {
+                            renderFollowUpPrompts(data.follow_up_prompts);
+                        }
+
+                        if (data.correct && data.next_question) {
+                            // 在題目下方顯示"正確"
+                            resultDisplay.textContent = '正確';
+                            resultDisplay.className = 'correct';
+
+                            updateStreak(true);
+
+                            // 顯示答對訊息框，然後載入下一題
+                            showCustomAlert('🎉 答對了！圖形畫得很正確！繼續加油！', () => {
+                                setTimeout(loadQuestion, 500);
+                            });
+                        } else if (data.correct === false) {
+                            // 如果錯誤，清空 resultDisplay（AI 的建議會在聊天區顯示）
+                            resultDisplay.textContent = '';
+                            resultDisplay.className = '';
+                            updateStreak(false);
+                        }
+                    })
+                    .catch(err => {
+                        // 停止載入訊息
+                        stopLoadingMessage();
+
+                        console.error('AI 分析失敗:', err);
+
+                        // 移除所有舊的高亮
+                        document.querySelectorAll('.bot-message.latest').forEach(msg => {
+                            msg.classList.remove('latest');
+                        });
+
+                        const msg = document.createElement('div');
+                        msg.className = 'bot-message latest';
+                        msg.innerHTML = `<pre>AI 連線失敗，請稍後再試</pre>`;
+                        chatHistory.appendChild(msg);
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                        // 顯示錯誤訊息
+                        resultDisplay.textContent = 'AI 分析失敗，請稍後再試';
+                        resultDisplay.className = 'incorrect';
+                    })
+                    .finally(() => {
+                        isProcessing = false;
+                        analyzeBtn.textContent = 'AI檢查';
+                        analyzeBtn.disabled = false;
                     });
-                    
-                    const msg = document.createElement('div');
-                    msg.className = 'bot-message latest';
-                    msg.innerHTML = `<pre>AI 連線失敗，請稍後再試</pre>`;
-                    chatHistory.appendChild(msg);
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
-                    
-                    // 顯示錯誤訊息
-                    resultDisplay.textContent = 'AI 分析失敗，請稍後再試';
-                    resultDisplay.className = 'incorrect';
-                })
-                .finally(() => {
-                    isProcessing = false;
-                    analyzeBtn.textContent = 'AI檢查';
-                    analyzeBtn.disabled = false;
-                });
             };
         }
-    
+
         // === 聊天 ===
         function setupChat() {
             const chatSendBtn = document.getElementById('chat-send-button');
@@ -1532,7 +1727,7 @@
                     chatInput.selectionStart = chatInput.selectionEnd = start + symbol.length;
                 });
             });
-        
+
             function addUserMessage(text) {
                 const msg = document.createElement('div');
                 msg.className = 'user-message';
@@ -1540,7 +1735,7 @@
                 chatHistory.appendChild(msg);
                 chatHistory.scrollTop = chatHistory.scrollHeight;
             }
-        
+
             function addBotMessage(html) {
                 const msg = document.createElement('div');
                 msg.className = 'bot-message';
@@ -1549,16 +1744,16 @@
                 chatHistory.scrollTop = chatHistory.scrollHeight;
                 return msg;
             }
-        
+
             chatSendBtn.onclick = async () => {
                 const question = chatInput.value.trim();
                 if (!question) return;
-        
+
                 addUserMessage(question);
                 chatInput.value = '';
-        
+
                 const thinking = addBotMessage('AI 助教正在思考...');
-        
+
                 try {
                     const response = await fetch('/chat_ai', {
                         method: 'POST',
@@ -1568,21 +1763,26 @@
                             context: currentContext
                         })
                     });
-        
+
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
                     const data = await response.json();
-        
+
                     chatHistory.removeChild(thinking);
                     addBotMessage(data.reply || '無回應');
-        
+
+                    // 新增：渲染 Follow-up Prompts
+                    if (data.follow_up_prompts && data.follow_up_prompts.length > 0) {
+                        renderFollowUpPrompts(data.follow_up_prompts);
+                    }
+
                 } catch (err) {
                     console.error('聊天 AI 失敗:', err);
                     chatHistory.removeChild(thinking);
                     addBotMessage('AI 連線失敗，請稍後再試！');
                 }
             };
-        
+
             // Enter 送出
             chatInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1593,4 +1793,5 @@
         }
     </script>
 </body>
+
 </html>
