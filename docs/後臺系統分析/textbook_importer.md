@@ -1,9 +1,10 @@
 # 系統分析文件：AI 輔助教材分析與匯入系統
-**版本**：前端 textbook_importer.html 後端 textbook_processor.py
-**版本**：1.0  
-**日期**：2025-12-06  
+
+**版本**：1.2 (修正格式與 UI 圖示)  
+**日期**：2025-12-07  
 **文件狀態**：正式版  
-**負責人**：System Architect
+**負責人**：System Architect  
+**相關檔案**：前端 `textbook_importer.html` / 後端 `textbook_processor.py`
 
 ---
 
@@ -55,8 +56,10 @@ graph TD
         
         %% Word 分支
         CheckExt -- ".docx" --> Pypandoc["Pypandoc: 轉為 Markdown<br/>(保留 LaTeX)"]
-        Pypandoc --> WandConvert["Wand: 向量圖 .wmf/.emf 轉 .png"]
-        WandConvert --> ImgOCR["針對圖片執行 OCR"]
+        Pypandoc --> CheckMedia{"檢查 Media 資源"}
+        CheckMedia -- ".wmf / .emf" --> WandConvert["Wand: 向量圖轉 .png"]
+        CheckMedia -- "一般圖片" --> ImgOCR["針對圖片執行 OCR"]
+        WandConvert --> ImgOCR
         ImgOCR --> CleanPandoc["clean_pandoc_output:<br/>清洗雙重上標/雜訊"]
         
         %% 匯流
@@ -84,7 +87,7 @@ graph TD
 
     %% --- 套用樣式 (Apply Styles) ---
     class Start,SetMeta,ChooseMode,InputFile,InputFolder,SkipCode,SubmitAction userAction;
-    class FlaskRoute,FilterName,CheckExt,PyMuPDF,PyTesseract,Pypandoc,WandConvert,ImgOCR,CleanPandoc,MergeData,SelectPrompt,SanitizeJSON,FixLaTeX systemProcess;
+    class FlaskRoute,FilterName,CheckExt,PyMuPDF,PyTesseract,Pypandoc,WandConvert,ImgOCR,CleanPandoc,MergeData,SelectPrompt,SanitizeJSON,FixLaTeX,CheckMedia systemProcess;
     class WriteDB,Tbl_Skill,Tbl_Curriculum,Tbl_Example dbData;
     class GeminiAPI extAPI;
 ```
@@ -93,26 +96,39 @@ graph TD
 
 ## 3. 前端設計說明 (Frontend Design)
 
-前端頁面 `textbook_importer.html` 採用 **Bootstrap 5** 進行響應式佈局，並透過 **Vanilla JavaScript** 控制互動邏輯。
+前端頁面 `textbook_importer.html` 採用 **Bootstrap 5** 進行響應式佈局，並透過 **Vanilla JavaScript** 控制互動邏輯，確保使用者能直觀地配置匯入參數。
 
-### 3.1 使用者輸入介面
-* **Metadata 設定**：
-    * **Curriculum** (Select)：選擇課綱（如：108課綱-普高、國中、技高）。
-    * **Publisher** (Select)：選擇出版社（如：康軒、龍騰、翰林）。
-    * **Grade** (Input)：輸入年級數字。
-    * **Volume** (Input)：輸入冊次名稱（如：第一冊、數學3A）。
-* **功能選項**：
-    * **Skip Code Gen** (Checkbox)：允許使用者選擇是否跳過後續的 Python 題目產生程式碼生成步驟 (`auto_generate_skill_code`)，以加速匯入流程。
+### 3.1 使用者介面設計 (UI Layout)
+下圖為系統實際操作畫面，包含課綱設定、匯入模式切換與進階選項：
+
+![前端操作介面圖](textbook_importer.png)
+
+**介面元件詳細說明**：
+
+1.  **教材 Metadata 設定 (Metadata Configuration)**：
+    * **課綱 (Curriculum)**：下拉選單，支援「普通高中 (general)」、「國中」、「技高」等選項，這將決定後端 AI 分析時使用的 System Prompt 版本。
+    * **出版社 (Publisher)**：下拉選單（如：康軒、龍騰、翰林），用於標記資料來源。
+    * **年級 (Grade)**：文字輸入框，支援數字格式（Placeholder 提示：例如 10）。
+    * **冊次 (Volume)**：文字輸入框，支援英數混合（Placeholder 提示：例如 數學3A）。
+
+2.  **匯入模式 (Import Mode)**：
+    * **單一檔案 (Single File)**：預設模式，適用於上傳個別 `.pdf` 或 `.docx` 檔案。
+    * **批次資料夾 (Batch Folder)**：切換後支援 `webkitdirectory` 屬性，允許使用者選取整層資料夾，適合大量教材的一次性遷移。
+
+3.  **進階控制 (Advanced Controls)**：
+    * **跳過自動生成 Python 出題程式**：Checkbox 選項。
+        * **功能**：若勾選此項，後端僅將內容寫入 `SkillInfo` 與 `TextbookExample` 資料庫，**不觸發**耗時的 `auto_generate_skill_code` 函式。
+        * **用途**：當進行大量歷史資料匯入，且暫時不需要立即生成對應的出題腳本時，勾選此項可顯著加快匯入速度。
+
+4.  **操作回饋 (Feedback)**：
+    * 介面包含提示圖標 (ⓘ)，明確告知使用者此為耗時操作。
+    * 點擊綠色 **「開始分析與匯入」** 按鈕後，系統將鎖定介面並顯示讀取狀態，使用者可至後端日誌 (Logs) 查看即時進度。
 
 ### 3.2 模式切換邏輯 (Mode Switching)
-系統透過 JavaScript 監聽 Radio Button 事件，動態切換顯示區塊與驗證規則：
-* **模式 A (Single File)**：
-    * 顯示標準 `<input type="file" accept=".pdf,.docx">`。
-    * 設定該欄位為 `required`，並隱藏資料夾輸入框。
-* **模式 B (Batch Folder)**：
-    * 顯示帶有 `webkitdirectory` 屬性的輸入框，允許選取整層資料夾。
-    * 設定該欄位為 `required`，並隱藏單檔輸入框。
-    * *技術細節*：利用 `style.display` 控制 DOM 元素的可視性，並即時清空非當前模式的 `value` 以避免送出多餘資料。
+系統透過 JavaScript 監聽 Radio Button (`Import Mode`) 事件，動態切換 DOM 顯示與驗證規則：
+* **選擇「單一檔案」時**：顯示標準 `<input type="file" accept=".pdf,.docx,.doc">`，隱藏資料夾輸入框，設定單檔欄位為 `required`。
+* **選擇「批次資料夾」時**：顯示 `<input type="file" webkitdirectory>`，隱藏單檔輸入框，設定資料夾欄位為 `required`。
+* **資料清洗**：切換模式時自動清空非當前模式的 `value`，防止送出錯誤的空值或多餘檔案。
 
 ---
 
