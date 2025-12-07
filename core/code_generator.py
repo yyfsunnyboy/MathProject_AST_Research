@@ -25,6 +25,60 @@ def fix_code_syntax(code_str, error_msg=""):
     # 如果 \u 後面接的不是 4 個 16 進位數字，就把它變成 \\u
     fixed_code = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', fixed_code)
 
+    # =========================================================================
+    # [新增修復] 針對本次 Log 回報的特定錯誤進行修補
+    # =========================================================================
+    
+    # 1. 修復 SyntaxWarning: invalid escape sequence '\e' (常見於 \eta, \epsilon)
+    fixed_code = re.sub(r'(?<!\\)\\e', r'\\\\e', fixed_code)
+
+    # 2. 修復 SyntaxWarning: invalid escape sequence '\q' (常見於 \quad, \qrt)
+    fixed_code = re.sub(r'(?<!\\)\\q', r'\\\\q', fixed_code)
+
+    # 3. 修復 f-string: single '}' is not allowed (常見於 LaTeX \right})
+    #    AI 常在 f-string 中生成如 f"...\right}..."，導致 Python 誤判 } 為 f-string 結尾
+    #    此正則表達式會抓取 f"..." 或 f'...' 結構中，緊接在 \right 後面的單獨 }，並將其轉義為 }}
+    fixed_code = re.sub(r'(f"[^"]*?\\right)\}([^"]*")', r'\1}}\2', fixed_code)
+    fixed_code = re.sub(r"(f'[^']*?\\right)\}([^']*')", r'\1}}\2', fixed_code)
+    # --- [補強] 針對 f-string 中的 cases 環境進行雙括號轉義 ---
+    # 這是解決 "Unknown environment" 與 f-string 崩潰的關鍵
+    # 將 f"...\begin{cases}..." 轉換為 f"...\begin{{cases}}..."
+    fixed_code = re.sub(r'(f"[^"]*?\\begin)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
+    fixed_code = re.sub(r"(f'[^']*?\\begin)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
+    
+    # 同理處理 \end{cases}
+    fixed_code = re.sub(r'(f"[^"]*?\\end)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
+    fixed_code = re.sub(r"(f'[^']*?\\end)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
+    # 4. [新增] 修復 "Unknown environment '{cases}'" 錯誤
+    #    原因：AI 有時會漏掉 \begin 或 \end，只寫 {cases}，或者在 f-string 中 \b 被轉義
+    #    修復動作：
+    #    (A) 補全漏掉的 \begin
+    #        將 " {cases}" (前面有空白或特定符號) 替換為 " \\begin{cases}"
+    #        注意：這裡使用 \\\\begin 是為了在 Python 字串中輸出 \begin
+    fixed_code = re.sub(r'(?<!\\begin)\{cases\}', r'\\\\begin{cases}', fixed_code)
+    
+    #    (B) 確保 cases 環境有正確的結尾 (簡易檢查)
+    #        如果字串中有 \begin{cases} 但沒有 \end{cases}，嘗試在該字串結尾前補上
+    #        (這部分比較複雜，先做最常見的替換：將未閉合的 cases 區塊修復)
+    #        這裡主要處理 AI 寫成 Unknown environment '{cases}' 的狀況，通常是因為 \begin 不見了。
+    
+    #    (C) 修復三元一次聯立方程式中常見的換行錯誤
+    #        在 cases 環境中，換行應為 \\，但在 Python f-string 中需要寫成 \\\\
+    #        此規則尋找 cases 環境中的單一 \，並嘗試修正為雙反斜線 (視情況而定，保守起見先不強制全改，僅針對明顯錯誤)
+
+    # =========================================================================
+    # --- [第三道防線] 補全遺漏的 LaTeX 語法 ---
+    
+    # 5. 修復漏寫 \begin 的 {cases}
+    #    注意：只在「非 f-string」的情況下補全，以免造成 f-string 再次報錯
+    #    (簡單判斷：如果該行沒有 f" 或 f' 開頭，才執行此替換)
+    lines = fixed_code.split('\n')
+    new_lines = []
+    for line in lines:
+        if not re.search(r'f["\']', line): # 只有在不是 f-string 的行才補全 \begin
+            line = re.sub(r'(?<!\\begin)\{cases\}', r'\\\\begin{cases}', line)
+        new_lines.append(line)
+    fixed_code = '\n'.join(new_lines)
     # 1. 修復 f-string 中的 LaTeX 單獨大括號 (f-string: single '}' is not allowed)
     # [擴充] 加入 sum (級數), prod (乘積), binom (組合), sigma (統計), lim (極限)
     latex_patterns = [
