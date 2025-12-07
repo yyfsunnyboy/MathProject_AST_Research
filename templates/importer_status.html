@@ -114,7 +114,9 @@
         const logContainer = document.getElementById('log-container');
         const statusIndicator = document.getElementById('status-indicator');
         const task_id = "{{ task_id }}";
-        const eventSource = new EventSource(`/admin/importer/stream/${task_id}`);
+        // 使用 Jinja2 動態生成正確的後端路徑，無論是否有 /admin 前綴都能對應
+        const streamUrl = "{{ url_for('core.importer_stream', task_id=task_id) }}";
+        const eventSource = new EventSource(streamUrl);
 
         eventSource.onmessage = function (event) {
             const message = event.data;

@@ -72,6 +72,12 @@ def background_processing(file_paths, task_queue, app_context, curriculum_info, 
 
             for idx, file_path in enumerate(file_paths, 1):
                 filename = os.path.basename(file_path)
+                
+                # [新增] 暫存檔/隱藏檔過濾機制
+                if filename.startswith('~$') or filename.startswith('.'):
+                    task_queue.put(f"INFO: 跳過暫存/隱藏檔案: {filename}")
+                    continue
+
                 task_queue.put(f"INFO: [{idx}/{total_files}] 正在分析: {filename} ...")
                 
                 try:
@@ -1291,8 +1297,8 @@ def admin_textbook_importer():
             
             saved_count = 0
             for f in batch_files:
-                # 過濾掉空檔名或非 PDF 檔 (可選)
-                if f.filename == '' or not f.filename.lower().endswith('.pdf'):
+                # 過濾掉空檔名或非 PDF/Word 檔
+                if f.filename == '' or not (f.filename.lower().endswith('.pdf') or f.filename.lower().endswith('.docx') or f.filename.lower().endswith('.doc')):
                     continue
                 
                 try:
@@ -1309,7 +1315,7 @@ def admin_textbook_importer():
                     print(f"DEBUG: Skipped file {f.filename} due to error: {e}")
 
             if saved_count == 0:
-                flash('上傳的資料夾中沒有有效的 PDF 檔案。', 'warning')
+                flash('上傳的資料夾中沒有有效的 PDF 或 Word 檔案。', 'warning')
                 return redirect(request.url)
 
         # Case C: 無有效輸入
@@ -1321,10 +1327,11 @@ def admin_textbook_importer():
         # --- 啟動背景任務 ---
         if target_files:
             try:
+                # TASK_QUEUES 已於全域定義，直接使用
                 task_id = str(uuid.uuid4())
                 q = queue.Queue()
                 
-                # 存入全域字典
+                # 存入全域字典 - 務必在 Thread Start 前完成
                 TASK_QUEUES[task_id] = q
 
                 app = current_app._get_current_object()

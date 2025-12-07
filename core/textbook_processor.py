@@ -13,11 +13,11 @@
 import json
 import re
 import os
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF -> Moved to inside function
 import time
 import io
-import pypandoc
-from pypandoc.pandoc_download import download_pandoc
+# import pypandoc -> Moved to inside function
+# from pypandoc.pandoc_download import download_pandoc
 from google.api_core.exceptions import ResourceExhausted
 from models import db, SkillInfo, SkillCurriculum, TextbookExample
 from core.ai_analyzer import get_model
@@ -25,16 +25,7 @@ from flask import current_app
 import traceback
 from core.code_generator import auto_generate_skill_code
 
-# --- 初始化檢查：確保 Pandoc 執行檔存在 ---
-try:
-    pypandoc.get_pandoc_version()
-except OSError:
-    print("系統未偵測到 Pandoc 執行檔，正在自動下載 (這可能需要幾分鐘)...")
-    try:
-        download_pandoc()
-        print("Pandoc 下載並安裝完成！")
-    except Exception as e:
-        print(f"Pandoc 自動下載失敗，請手動安裝或檢查網路: {e}")
+# (初始化檢查已移除)
 
 # ==============================================================================
 # [保留] 您原本的 LaTeX 通用修復函式
@@ -211,15 +202,29 @@ process_textbook_pdf = process_textbook_file
 def extract_content_from_file(file_path, queue):
     """
     從檔案中提取內容，支援 PDF (OCR) 和 Word (Pandoc) 格式。
+    (包含防崩潰處理：將所有 Import 與邏輯包覆在 try-except 中)
     """
     message = f"正在從 {file_path} 提取內容..."
     current_app.logger.info(message)
     queue.put(f"INFO: {message}")
 
     content_by_page = {}
-    file_extension = os.path.splitext(file_path)[1].lower()
-
+    
     try:
+        # 將可能的危險 Import 移至函式內部，避免 Module Level 崩潰
+        import fitz  # PyMuPDF
+        import pypandoc
+        from PIL import Image
+        import pytesseract
+        
+        # Wand 是一個常見的缺失套件，特別處理
+        try:
+            from wand.image import Image as WandImage
+        except ImportError:
+            WandImage = None
+
+        file_extension = os.path.splitext(file_path)[1].lower()
+
         if file_extension == '.pdf':
             # --- PDF 處理邏輯 (維持原樣) ---
             ocr_import_error_logged = False
@@ -247,8 +252,6 @@ def extract_content_from_file(file_path, queue):
 
                 # OCR 處理
                 try:
-                    from PIL import Image
-                    import pytesseract
                     from pytesseract import TesseractNotFoundError
 
                     tesseract_path = current_app.config.get('TESSERACT_CMD')
@@ -277,7 +280,7 @@ def extract_content_from_file(file_path, queue):
                 content_by_page[i + 1] = page_text
             doc.close()
 
-        elif file_extension == '.docx':
+        elif file_extension in ['.docx', '.doc']:
             # --- Word (.docx) 處理邏輯 (使用 Pandoc) ---
             message = "偵測到 Word (.docx) 檔案，使用 Pandoc 轉換以保留數學公式..."
             current_app.logger.info(message)
@@ -297,17 +300,11 @@ def extract_content_from_file(file_path, queue):
                 # 執行轉換
                 markdown_output = pypandoc.convert_file(file_path, 'markdown', extra_args=extra_args)
 
-                # ========= [關鍵修改] 呼叫專用清洗函式 =========
-                # 這一步只會影響 Word 檔，PDF 流程完全不會經過這裡
+                # 呼叫專用清洗函式
                 markdown_output = clean_pandoc_output(markdown_output)
-                # ============================================
 
                 # --- 圖片 OCR 邏輯 ---
-                from PIL import Image
-                import pytesseract
-                from wand.image import Image as WandImage # 需安裝 Wand
-                from pytesseract import TesseractNotFoundError
-
+                # (局部函式：需要使用外層的 WandImage)
                 def ocr_image_and_replace(match):
                     image_path_in_md = match.group(1)
                     from urllib.parse import unquote
@@ -320,6 +317,10 @@ def extract_content_from_file(file_path, queue):
                             image_to_ocr_path = full_image_path
                             # 在 OCR 前先轉換 WMF/EMF 檔案
                             if full_image_path.lower().endswith(('.wmf', '.emf')):
+                                if WandImage is None:
+                                    queue.put(f"WARN: 略過 WMF/EMF 圖片轉換 ({image_path_in_md})，因為系統未安裝 Wand/ImageMagick。")
+                                    return match.group(0) # 保持原樣
+
                                 png_path = os.path.splitext(full_image_path)[0] + '.png'
                                 try:
                                     with WandImage(filename=full_image_path) as img:
@@ -346,8 +347,16 @@ def extract_content_from_file(file_path, queue):
                 final_output = re.sub(r'!\[.*?\]\((.*?)\)', ocr_image_and_replace, markdown_output)
                 content_by_page[1] = final_output
 
-            except OSError:
-                error_msg = "錯誤：Pandoc 執行失敗。請確認 Pandoc 已安裝，且若需轉換圖片格式，可能需要安裝 ImageMagick。"
+            except (OSError, RuntimeError) as e:
+                error_str = str(e)
+                # 針對損壞檔案或鎖定暫存檔的特定錯誤處理 (Exit Code 63)
+                if 'exitcode "63"' in error_str or 'Did not find end of central directory' in error_str:
+                    warn_msg = f"WARN: 檔案似乎已損壞或非有效的 Word 檔 (Pandoc Exit 63)，已略過處理。"
+                    current_app.logger.warning(warn_msg)
+                    queue.put(warn_msg)
+                    return {}
+                
+                error_msg = f"錯誤：Pandoc 執行失敗 ({e})。請確認 Pandoc 已安裝，且若需轉換圖片格式，可能需要安裝 ImageMagick。"
                 current_app.logger.error(error_msg)
                 queue.put(f"ERROR: {error_msg}")
 
@@ -363,7 +372,7 @@ def extract_content_from_file(file_path, queue):
         return content_by_page
 
     except Exception as e:
-        message = f"提取檔案內容時發生錯誤: {e}"
+        message = f"提取檔案內容時發生嚴重錯誤 (Exception): {e}"
         current_app.logger.error(message)
         import traceback
         traceback.print_exc()

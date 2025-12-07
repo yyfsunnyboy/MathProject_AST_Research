@@ -179,8 +179,10 @@ graph TD
 管理者可透過直觀的 Web 介面，選擇課綱並上傳整本 PDF 教科書。系統提供課綱、年級、冊次等 Metadata 設定，並支援批次資料夾上傳。
 
 **[Web UI 操作示意圖]**
-*(註：此處顯示上傳進度條與 AI 分析狀態)*
-![Textbook Importer UI](image_ff6272.png)
+
+![前端操作介面圖](textbook_importer.png)
+
+![Textbook Importer UI](textbook_importer2.png)
 
 ### 6.2 知識圖譜建構 (Knowledge Graph)
 CLI 介面展示 AI 正在自動分析 `auto_build_prerequisites.py` 的執行過程，AI 成功識別出跨學制的依賴關係。

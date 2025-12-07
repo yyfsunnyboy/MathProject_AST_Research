@@ -343,4 +343,5 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # 加入 use_reloader=False 以防止寫入檔案時伺服器自動重啟
+    app.run(debug=True, port=5000, use_reloader=False)
