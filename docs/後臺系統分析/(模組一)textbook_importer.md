@@ -174,3 +174,79 @@ graph TD
 2.  寫入 `SkillCurriculum` 建立章節對應。
 3.  批次寫入 `TextbookExample`。
 4.  若任一步驟失敗，則執行 `rollback` 回滾操作，確保資料庫不會殘留髒資料。
+
+
+## 6. 系統操作實證 (Proof of Concept)
+
+本節展示實際透過 Web UI 進行教材匯入的完整流程，包含參數配置、後端即時日誌反饋以及最終的資料庫寫入驗證。
+
+### 6.1 介面配置與檔案上傳
+使用者透過前端介面設定教材的中繼資料（Metadata），並上傳原始文件。系統依據選擇的課綱類型動態調整後端處理邏輯。
+
+* **參數設定**：
+    * **課綱 (Curriculum)**：普高 (general)
+    * **年級 (Grade)**：11 年級
+    * **來源版本 (Source)**：龍騰 (lungteng)
+    * **冊次 (Volume)**：第 3 冊
+* **檔案上傳**：
+    * **檔案名稱**：`11年級_選修數學甲_第一章_三角函數.docx`
+    * **檔案類型**：Word 文件 (系統後端將自動呼叫 Pandoc 進行轉檔)
+
+### 6.2 執行流程日誌 (Execution Logs)
+點擊「開始分析與匯入」後，系統後端 (`textbook_processor.py`) 依序執行轉檔、AI 分析與資料寫入。以下為實際執行時的 Log 輸出摘要，展示了系統如何處理非結構化文件：
+
+![Textbook Importer UI](textbook_importer2.png)
+
+**[階段一：檔案前處理與轉檔]**
+系統首先偵測檔案類型，呼叫 `pypandoc` 將二進位 DOCX 格式轉換為純文本 Markdown，並透過 Regex 進行初步清洗。
+
+```text
+[INFO] 開始處理檔案...
+[INFO] 檔案已儲存至: uploads/11年級_選修數學甲_第一章_三角函數.docx
+[INFO] 正在轉換 DOCX (Pandoc)...
+[INFO] DOCX 轉換 Markdown 成功
+[INFO] Markdown 內容預覽 (前 100 字): # 第一章 三角函數 ## 1-1 弧度量 ...
+```
+
+**[階段二：AI 結構化分析]**
+系統將清洗後的文本發送至 Google Gemini API。模型依據 System Prompt 進行結構拆解，識別章節標題、核心觀念與例題，並回傳標準 JSON 格式。
+
+```text
+[INFO] 正在呼叫 Google Gemini API 進行結構化分析 (Attempt 1)...
+[INFO] Gemini API 回應成功 (耗時: 15.23s)
+[INFO] AI 分析結果 (JSON Preview): 
+{
+    "chapter_title": "第一章 三角函數",
+    "section_title": "1-1 弧度量",
+    "concepts": [
+        {"name": "弧度量", "explanation": "定義圓心角所對的弧長等於半徑時...", "skill_code_suffix": "1"},
+        {"name": "廣義角", "explanation": "將角的定義由 0~360 度推廣至...", "skill_code_suffix": "2"}
+    ],
+    "examples": [
+        {"source_description": "例題1", "problem_text": "試求下列各角的弧度...", "difficulty_level": 1}
+    ]
+}
+```
+
+**[階段三：資料庫寫入與關聯建立]**
+後端程式解析 JSON，自動建立 `SkillInfo` (技能)、`SkillCurriculum` (課綱對應) 與 `TextbookExample` (例題) 的關聯，並寫入資料庫。
+
+```text
+[INFO] 開始寫入資料庫...
+[INFO] 成功寫入資料庫: SkillInfo(skill_code='G-11-3-1-1', name='弧度量', ...)
+[INFO] 成功寫入資料庫: SkillCurriculum(curriculum='general', grade=11, volume='3', ...)
+[INFO] 成功寫入資料庫: SkillInfo(skill_code='G-11-3-1-2', name='廣義角', ...)
+[INFO] 成功寫入資料庫: TextbookExample(source_chapter='第一章 三角函數', source_section='1-1 弧度量', ...)
+```
+
+### 6.3 執行結果統計
+流程結束後，系統前端接收後端回傳的統計摘要字典，確認無錯誤發生且資料已持久化。
+
+```text
+✅ 所有步驟完成！
+--------------------------------------------------
+處理統計 (Statistics):
+- 技能處理 (Skills Processed): 4
+- 課綱對應新增 (Curriculums Added): 4
+- 例題新增 (Examples Added): 39
+```
