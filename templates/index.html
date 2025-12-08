@@ -158,7 +158,7 @@
             color: #2c3e50;
             margin: 6px 0;
             white-space: pre-wrap;
-            overflow: hidden;
+            overflow-y: auto;
             flex: 1;
             min-height: 0;
             word-wrap: break-word;
@@ -1359,6 +1359,21 @@
                     // 顯示題目
                     questionText.innerHTML = data.new_question_text;
                     isInitialQuestionLoaded = true; // 標記為已載入
+
+                    // 新增：為題目中的圖片添加點擊放大功能
+                    questionText.querySelectorAll('img').forEach(img => {
+                        img.style.cursor = 'pointer';
+                        img.onclick = function() {
+                            const modal = document.getElementById("imageModal");
+                            const modalImg = document.getElementById("modalImg");
+                            const captionText = document.getElementById("caption");
+                            if (modal && modalImg) {
+                                modal.style.display = "block";
+                                modalImg.src = this.src;
+                                captionText.innerHTML = this.alt || '';
+                            }
+                        };
+                    });
 
                     // 修正：將排版任務推入 MathJax 佇列，並在完成後調整字體大小
                     const typesetPromise = () => {
