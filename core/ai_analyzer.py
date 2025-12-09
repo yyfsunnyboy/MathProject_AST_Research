@@ -40,13 +40,29 @@ DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手
 直接輸出 JSON 內容，不要包在 ```json 標記內。"""
 
 # 預設聊天 Prompt
-DEFAULT_CHAT_PROMPT = """你是一位親切的數學家教。
+DEFAULT_CHAT_PROMPT = """你是功文數學 AI 助教，請用繁體中文親切回答學生的問題。
+
 【學生當前正在練習的題目】：
 {context}
 
-學生問：{user_answer}
+【學生問題】：
+{user_answer}
 
-請參考上述題目資訊與前置技能：{prereq_text} 來回答。
+【前置基礎技能】：
+{prereq_text}
+
+請嚴格按照以下 JSON 格式回覆，不要加入任何過多文字。
+{
+  "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。步驟用 1. 2. 3. 表示。多項式用 x^3 格式。結尾加一句鼓勵的話。注意：這裡**只要**包含回答內容，**絕對不要**包含建議的追問選項。",
+  "follow_up_prompts": [
+      "選項1 (觀察：針對具體錯誤點，引導觀察，15字內)",
+      "選項2 (行動：提示具體修正動作，15字內)",
+      "選項3 (思考：如果答對則出類似題或反問概念；如果答錯則引導驗算，15字內)"
+  ]
+}
+
+直接輸出 JSON，不要 Markdown。
+請確保 `reply` 欄位只包含對學生的直接回應，而 `follow_up_prompts` 欄位包含下一步的建議選項。
 """
 
 def configure_gemini(api_key, model_name):
@@ -226,54 +242,7 @@ def identify_skills_from_problem(problem_text):
         print(f"An error occurred in identify_skills_from_problem: {e}")
         return []
 
-def ask_ai_text(user_question):
-    try:
-        model = get_model()
-        prompt = f"""
-        你是功文數學 AI 助教，用繁體中文親切回答。
-        要求：
-        1. 多項式用這種格式：f(x) = x³ - 8x² + 9x + 5
-        2. 不要用 $...$ 或 LaTeX
-        3. 例題用「範例：」開頭
-        4. 步驟用數字 1. 2. 3.
-        5. 結尾加鼓勵話，如「加油～」
-        
-        學生問題：{user_question}
-        """
-        resp = model.generate_content(prompt)
-        return resp.text.strip()
-    except Exception as e:
-        return f"AI 錯誤：{str(e)}"
-    
-# core/ai_analyzer.py
-def ask_ai_text_with_context(user_question, context=""):
-    """
-    聊天專用 AI：帶入當前題目 context
-    """
-    model = get_model()
-    
-    system_prompt = f"""
-    你是功文數學 AI 助教，用繁體中文親切回答。
-    
-    【當前題目】：
-    {context or "（無題目資訊）"}
-    
-    【學生問題】：
-    {user_question}
-    
-    要求：
-    1. 如果有題目，必須參考題目內容
-    2. 多項式用 x^3 格式（如 x^3 - 2x^2 + 1）
-    3. 例題用「範例：」開頭
-    4. 步驟用 1. 2. 3.
-    5. 結尾加鼓勵話，如「加油～」
-    """
-    
-    try:
-        resp = model.generate_content(system_prompt)
-        return resp.text.strip()
-    except Exception as e:
-        return f"AI 內部錯誤：{str(e)}"
+
 
 
 def generate_quiz_from_image(image_file, description):
@@ -346,10 +315,8 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
     Constructs the full system prompt for the chat AI.
     1. Tries to load specific prompt from SkillInfo.
     2. Falls back to SystemSetting or DEFAULT_CHAT_PROMPT.
-    3. Handles variable replacement and strict JSON instruction appending.
+    3. Handles variable replacement.
     """
-    from models import SkillInfo, SystemSetting
-    
     from models import SkillInfo, SystemSetting
     
     # DEFAULT_CHAT_PROMPT 已定義在全域
@@ -381,49 +348,20 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
     # 4. Construct Context Strings
     prereq_text = ", ".join([f"{p['name']} ({p['id']})" for p in prereq_skills]) if prereq_skills else "無"
     
-    enhanced_context = f"當前題目：{full_question_context}"
+    final_context = full_question_context
     if context and context != full_question_context:
-        enhanced_context += f"\n詳細資訊：{context}"
-    enhanced_context += f"\n\n此單元的前置基礎技能有：{prereq_text}。"
+        final_context += f"\n詳細資訊：{context}"
 
     # 5. Format the template
     try:
         # Check if template expects 'context' or strict format
-        # For safety, we try to inject values if placeholders exist, 
-        # or just append if it's a simple string.
-        # But assuming our templates use {context} and {user_answer}
-        full_prompt = prompt_template.format(
-            user_answer=user_question,
-            correct_answer="（待批改）",
-            context=enhanced_context,
-            prereq_text=prereq_text
-        )
+        # For safety, we try to inject values if placeholders exist.
+        full_prompt = prompt_template.replace("{user_answer}", user_question) \
+                                     .replace("{context}", final_context) \
+                                     .replace("{prereq_text}", prereq_text)
     except Exception:
-        # Fallback formatting if template keys mismatch
-        full_prompt = f"{prompt_template}\n\n[系統補完]\n題目：{enhanced_context}\n學生問題：{user_question}"
-
-    # 6. Prepend Title (Optional, specific to requirement)
-    if "【學生當前正在練習的題目】" not in full_prompt:
-        full_prompt = f"【學生當前正在練習的題目】\n{full_question_context}\n\n" + full_prompt
-
-    # 7. Append Rigid JSON Instructions
-    full_prompt += """
-    
-    # We need to guide the student further.
-    請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字。
-    
-    {
-      "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。步驟用 1. 2. 3. 表示。多項式用 x^3 格式。結尾加一句鼓勵的話。注意：這裡**只要**包含回答內容，**絕對不要**包含建議的追問選項。",
-      "follow_up_prompts": [
-          "選項1 (觀察：針對具體錯誤點，引導觀察，15字內)",
-          "選項2 (行動：提示具體修正動作，15字內)",
-          "選項3 (思考：如果答對則出類似題或反問概念；如果答錯則引導驗算，15字內)"
-      ]
-    }
-    
-    直接輸出 JSON，不要 Markdown。
-    請確保 `reply` 欄位只包含對學生的直接回應，而 `follow_up_prompts` 欄位包含下一步的建議選項。
-    """
+        # Fallback formatting if something goes wrong
+        full_prompt = f"{prompt_template}\n\n[系統補完]\n題目：{final_context}\n學生問題：{user_question}"
     
     return full_prompt
 
