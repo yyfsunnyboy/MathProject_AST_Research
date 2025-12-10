@@ -1,4 +1,4 @@
-# 系統分析文件：課程結構維護與校正系統 (Curriculum Maintenance)
+# 智學 Copilot 系統分析：課程結構維護與校正系統 (Curriculum Maintenance)
 
 **文件資訊**
 * **版本**：1.0

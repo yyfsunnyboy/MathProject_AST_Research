@@ -1,4 +1,4 @@
-# 系統分析文件：前置技能自動建構系統 (Auto-Build Prerequisites)
+# 智學 Copilot 系統分析：前置技能自動建構系統 (Auto-Build Prerequisites)
 
 **文件資訊**
 * **版本**：1.1 (新增操作驗證章節)

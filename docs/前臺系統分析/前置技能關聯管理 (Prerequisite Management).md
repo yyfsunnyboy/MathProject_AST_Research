@@ -1,4 +1,4 @@
-# 系統分析文件：知識圖譜與前置技能維護系統 (Knowledge Graph Maintenance)
+# 智學 Copilot 系統分析：知識圖譜與前置技能維護系統 (Knowledge Graph Maintenance)
 
 **文件資訊**
 * **版本**：1.0
