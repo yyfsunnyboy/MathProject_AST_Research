@@ -11,6 +11,7 @@ import os
 import json
 import google.generativeai as genai
 from flask import current_app
+from core.ai_analyzer import get_model
 from models import db, SkillInfo, SkillCurriculum, ExamAnalysis
 from datetime import datetime
 
@@ -212,17 +213,7 @@ def analyze_exam_image(image_path, grade, curriculum='general'):
                 'error': f'圖片檔案不存在: {image_path}'
             }
         
-        # 4. 呼叫 Gemini API
-        api_key = current_app.config.get('GEMINI_API_KEY')
-        if not api_key:
-            return {
-                'success': False,
-                'error': 'GEMINI_API_KEY 未設定'
-            }
-        
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
+        model = get_model()
         # 上傳圖片
         with open(image_path, 'rb') as f:
             image_data = f.read()

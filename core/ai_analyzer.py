@@ -120,7 +120,7 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
             # 使用 str.replace() 替換變數（避免 JSON 大括號衝突）
             prompt = prompt_template.replace("{context}", context).replace("{prereq_text}", prereq_text)
 
-            model = genai.GenerativeModel("gemini-2.5-flash")
+            model = get_model()
             resp = model.generate_content([prompt, file])
             raw_text = resp.text.strip()
 
@@ -480,18 +480,19 @@ DEFAULT_WEAKNESS_ANALYSIS_PROMPT = """
 **分析規則**：
 1. **概念錯誤**：代表學生對該單元的核心概念不熟練，應大幅降低熟練度分數 (建議扣 30-50 分)
 2. **計算錯誤/粗心**：代表學生概念理解但執行細節有誤，應輕微扣分 (建議扣 5-15 分)
-3. **信心度與評語**：若 AI 評語包含正向詞彙 (如「掌握良好」、「理解正確」)，可適度提高熟練度
-4. **基準分數**：假設學生初始熟練度為 80 分，根據錯誤情況進行調整
+3. **考卷資料權重**：請特別重視「考卷診斷」的結果，若考卷答錯，代表真實考試情境下的弱點，權重應高於平時練習。
+4. **信心度與評語**：若 AI 評語包含正向詞彙 (如「掌握良好」、「理解正確」)，或是考卷信心度高且正確，可適度提高熟練度
+5. **基準分數**：假設學生初始熟練度為 80 分，根據錯誤情況與考卷表現進行調整
 
 請以 JSON 格式回傳分析結果：
-{
-  "mastery_scores": {
+{{
+  "mastery_scores": {{
     "單元名稱1": 85,
     "單元名稱2": 60
-  },
+  }},
   "overall_comment": "整體學習評語 (100 字以內)",
   "recommended_unit": "建議優先加強的單元名稱"
-}
+}}
 
 注意：
 - 熟練度分數範圍 0-100，分數越高代表越熟練
