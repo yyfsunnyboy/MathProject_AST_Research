@@ -2866,10 +2866,7 @@ def analyze_weakness():
     - 使用質性分析方式推估各單元熟練度 (0-100)
     - 實作 24 小時快取機制
     """
-    from models import MistakeLog, ExamAnalysis, LearningDiagnosis, SkillInfo
-    from datetime import datetime, timedelta
-    from core.ai_analyzer import analyze_student_weakness
-    import json
+    from core.diagnosis_analyzer import perform_weakness_analysis
     
     try:
         # 安全性：使用 current_user.id，不從前端接收 student_id
@@ -2878,125 +2875,18 @@ def analyze_weakness():
         # 檢查是否需要強制刷新
         force_refresh = request.json.get('force_refresh', False) if request.json else False
         
-        # 快取檢查：24 小時內有記錄且未要求強制刷新
-        if not force_refresh:
-            cached_diagnosis = LearningDiagnosis.query.filter_by(student_id=student_id).order_by(
-                LearningDiagnosis.created_at.desc()
-            ).first()
+        result = perform_weakness_analysis(student_id, force_refresh)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
             
-            if cached_diagnosis:
-                time_diff = datetime.utcnow() - cached_diagnosis.created_at
-                if time_diff < timedelta(hours=24):
-                    return jsonify({
-                        'success': True,
-                        'cached': True,
-                        'data': cached_diagnosis.to_dict()
-                    })
-        
-        # 收集錯題記錄
-        mistake_logs = MistakeLog.query.filter_by(user_id=student_id).all()
-        
-        # 收集考卷診斷記錄
-        exam_analyses = ExamAnalysis.query.filter_by(user_id=student_id).all()
-        
-        # 統計各技能的錯誤情況
-        skill_error_stats = {}
-        
-        # 分析 MistakeLog
-        for log in mistake_logs:
-            skill_id = log.skill_id
-            if skill_id not in skill_error_stats:
-                skill_info = SkillInfo.query.get(skill_id)
-                skill_error_stats[skill_id] = {
-                    'skill_name': skill_info.skill_ch_name if skill_info else skill_id,
-                    'concept_errors': 0,
-                    'calculation_errors': 0,
-                    'other_errors': 0,
-                    'total_errors': 0
-                }
             
-            skill_error_stats[skill_id]['total_errors'] += 1
-            
-            # 分類錯誤類型
-            error_type = log.error_type or 'other'
-            if 'concept' in error_type.lower() or '概念' in error_type:
-                skill_error_stats[skill_id]['concept_errors'] += 1
-            elif 'calculation' in error_type.lower() or '計算' in error_type:
-                skill_error_stats[skill_id]['calculation_errors'] += 1
-            else:
-                skill_error_stats[skill_id]['other_errors'] += 1
-        
-        # 分析 ExamAnalysis (補充信心度和評語資訊)
-        exam_feedback = {}
-        for exam in exam_analyses:
-            skill_id = exam.skill_id
-            if skill_id not in exam_feedback:
-                exam_feedback[skill_id] = {
-                    'confidence_scores': [],
-                    'feedbacks': []
-                }
-            
-            if exam.confidence is not None:
-                exam_feedback[skill_id]['confidence_scores'].append(exam.confidence)
-            if exam.feedback:
-                exam_feedback[skill_id]['feedbacks'].append(exam.feedback)
-        
-        # 建立 AI Prompt
-        prompt_data = "以下是學生的錯題統計資料：\n\n"
-        
-        for skill_id, stats in skill_error_stats.items():
-            skill_name = stats['skill_name']
-            prompt_data += f"【{skill_name}】\n"
-            prompt_data += f"  - 總錯誤次數: {stats['total_errors']}\n"
-            prompt_data += f"  - 概念錯誤: {stats['concept_errors']} 次\n"
-            prompt_data += f"  - 計算錯誤: {stats['calculation_errors']} 次\n"
-            prompt_data += f"  - 其他錯誤: {stats['other_errors']} 次\n"
-            
-            # 補充考卷診斷資訊
-            if skill_id in exam_feedback:
-                avg_confidence = sum(exam_feedback[skill_id]['confidence_scores']) / len(exam_feedback[skill_id]['confidence_scores']) if exam_feedback[skill_id]['confidence_scores'] else None
-                if avg_confidence:
-                    prompt_data += f"  - 平均信心度: {avg_confidence:.2f}\n"
-                if exam_feedback[skill_id]['feedbacks']:
-                    prompt_data += f"  - AI 評語摘要: {'; '.join(exam_feedback[skill_id]['feedbacks'][:2])}\n"
-            
-            prompt_data += "\n"
-        
-        if not skill_error_stats:
-            return jsonify({
-                'success': False,
-                'error': '尚無足夠的學習記錄進行分析'
-            }), 400
-        
-        # 呼叫 AI Analyzer
-        ai_result = analyze_student_weakness(prompt_data)
-        
-        # 儲存分析結果到資料庫
-        new_diagnosis = LearningDiagnosis(
-            student_id=student_id,
-            radar_chart_data=json.dumps(ai_result.get('mastery_scores', {}), ensure_ascii=False),
-            ai_comment=ai_result.get('overall_comment', ''),
-            recommended_unit=ai_result.get('recommended_unit', '')
-        )
-        
-        db.session.add(new_diagnosis)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'cached': False,
-            'data': new_diagnosis.to_dict()
-        })
-        
-    except json.JSONDecodeError as e:
-        return jsonify({
-            'success': False,
-            'error': f'AI 回應格式錯誤: {str(e)}'
-        }), 500
     except Exception as e:
-        db.session.rollback()
+        current_app.logger.error(f"分析弱點時發生未預期錯誤: {e}")
         return jsonify({
             'success': False,
-            'error': f'分析失敗: {str(e)}'
+            'error': f'系統發生錯誤: {str(e)}'
         }), 500
 

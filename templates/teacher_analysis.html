@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>學生學習分析報告 - 功文數學</title>
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f6f9;
+        }
+
+        .navbar {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h1 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+            font-size: 0.9em;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
+        }
+
+        h2, h3 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        table, th, td {
+            border: 1px solid #e0e0e0;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+        }
+
+        td {
+            padding: 12px;
+            color: #333;
+        }
+
+        tr:nth-child(even) {
+            background-color: #fcfcfc;
+        }
+
+        tr:hover {
+            background-color: #f1f2f6;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .back-btn:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <h1>功文數學 - 學生學習分析報告</h1>
+        <div>
+            <span>歡迎, {{ username }} 老師</span>
+            <a href="{{ url_for('teacher_dashboard') }}">回儀表板</a>
+            <a href="{{ url_for('logout') }}">登出</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="{{ url_for('teacher_dashboard') }}" class="back-btn">← 返回管理中心</a>
+
+        <!-- 錯題分析圖表 -->
+        <div class="card">
+            <h3>📉 學生常錯題目分析 (Top 10)</h3>
+            <p style="color: #666; font-size: 0.9em;">統計所有學生在練習過程中錯誤次數最多的題目。</p>
+            <div class="chart-container">
+                <canvas id="mistakeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 學習診斷列表 -->
+        <div class="card">
+            <h3>📋 學生個別學習診斷報告</h3>
+            <p style="color: #666; font-size: 0.9em;">條列所有學生的 AI 學習診斷紀錄。</p>
+            
+            {% if diagnoses|length == 0 %}
+                <p style="text-align: center; color: #999; padding: 20px;">目前尚無診斷資料。</p>
+            {% else %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">日期</th>
+                            <th style="width: 15%;">學生姓名</th>
+                            <th style="width: 25%;">系統推薦單元</th>
+                            <th style="width: 45%;">AI 診斷評語</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for diag, student_name in diagnoses %}
+                        <tr>
+                            <td>{{ diag.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td><strong>{{ student_name }}</strong></td>
+                            <td>
+                                {% if diag.recommended_unit %}
+                                    <span class="tag">{{ diag.recommended_unit }}</span>
+                                {% else %}
+                                    <span style="color: #999;">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div style="max-height: 80px; overflow-y: auto; font-size: 0.95em; line-height: 1.5;">
+                                    {{ diag.ai_comment }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // 準備從後端傳來的資料
+        const labels = {{ mistake_labels | tojson }};
+        const dataValues = {{ mistake_data | tojson }};
+
+        const ctx = document.getElementById('mistakeChart').getContext('2d');
+        const mistakeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '錯誤人次/次數',
+                    data: dataValues,
+                    backgroundColor: 'rgba(231, 76, 60, 0.6)',
+                    borderColor: 'rgba(231, 76, 60, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '錯誤次數'
+                        },
+                        ticks: {
+                            stepSize: 1
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '題目 (簡略)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                // 顯示完整題目 (如果有的話，這裡目前只拿到截斷的，但可以優化)
+                                return tooltipItems[0].label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

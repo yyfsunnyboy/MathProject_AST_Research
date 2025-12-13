@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session
-from sqlalchemy import inspect, Table, MetaData, text
+from sqlalchemy import inspect, Table, MetaData, text, func
 from sqlalchemy.exc import IntegrityError
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, AnonymousUserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -152,6 +152,46 @@ def create_app():
             flash('權限不足，無法存取教師頁面', 'warning')
             return redirect(url_for('dashboard'))
         return render_template('teacher_dashboard.html', username=current_user.username)
+
+    @app.route('/teacher/analysis')
+    @login_required
+    def teacher_analysis():
+        if current_user.role != 'teacher':
+            flash('權限不足，無法存取教師頁面', 'warning')
+            return redirect(url_for('dashboard'))
+
+        # 1. 取得錯題排行榜 (最多人做錯的題目)
+        # 統計 MistakeLog 中，相同的 question_content 出現的次數
+        from models import MistakeLog, LearningDiagnosis, User  # 確保導入模型
+        
+        top_mistakes = db.session.query(
+            MistakeLog.question_content,
+            func.count(MistakeLog.id).label('count')
+        ).group_by(MistakeLog.question_content)\
+        .order_by(text('count DESC'))\
+        .limit(10).all()
+
+        # 整理成 Chart.js 需要的格式
+        mistake_labels = []
+        mistake_data = []
+        for q_content, count in top_mistakes:
+            # 截斷過長的題目文字以利顯示
+            display_text = q_content[:20] + "..." if len(q_content) > 20 else q_content
+            mistake_labels.append(display_text)
+            mistake_data.append(count)
+
+        # 2. 取得學生學習診斷分析結果
+        # 關聯 User 表以獲取學生姓名
+        diagnoses = db.session.query(LearningDiagnosis, User.username)\
+            .join(User, LearningDiagnosis.student_id == User.id)\
+            .order_by(LearningDiagnosis.created_at.desc())\
+            .all()
+
+        return render_template('teacher_analysis.html', 
+                               username=current_user.username,
+                               mistake_labels=mistake_labels,
+                               mistake_data=mistake_data,
+                               diagnoses=diagnoses)
 
     @app.route('/dashboard')
     @login_required
