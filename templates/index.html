@@ -353,6 +353,8 @@
             border: 1px solid #ced4da;
             border-radius: 8px;
             cursor: crosshair;
+            touch-action: none;
+            /* 重要：防止觸控時滾動頁面 */
         }
 
         /* === 聊天區 === */
@@ -1034,10 +1036,10 @@
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
 
-            canvas.addEventListener('mousedown', startDraw);
-            canvas.addEventListener('mousemove', draw);
-            canvas.addEventListener('mouseup', stopDraw);
-            canvas.addEventListener('mouseout', stopDraw);
+            canvas.addEventListener('pointerdown', startDraw);
+            canvas.addEventListener('pointermove', draw);
+            canvas.addEventListener('pointerup', stopDraw);
+            canvas.addEventListener('pointerout', stopDraw);
 
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
