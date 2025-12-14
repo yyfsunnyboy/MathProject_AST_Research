@@ -1,4 +1,4 @@
-# 智學 Copilot 系統分析：智慧適性化練習介面 (Intelligent Adaptive Practice Interface)
+# 智學AIGC賦能平台 系統分析：智慧適性化練習介面 (Intelligent Adaptive Practice Interface)
 
 **文件資訊**
 * **版本**：2.0 (前端互動與 AI 整合深度分析)

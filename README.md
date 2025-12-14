@@ -1,4 +1,4 @@
-# 智學 Copilot (Smart-Edu Copilot)
+# 智學AIGC賦能平台 (Smart-Edu AIGC Platform)
 ## 🚀 AI 賦能的自適應內容生成引擎 (AI-Enabled Adaptive Content Generation Engine)
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -13,7 +13,7 @@
 
 ## 📖 專案執行摘要 (Executive Summary)
 
-**智學 Copilot** 是一個專為「智慧校園」打造的教育科技解決方案，致力於解決數位教材匱乏與學習落差兩大痛點。我們運用最先進的 **Generative AI (Google Gemini)** 技術，打造了一條全自動化的內容生成流水線 (Content Pipeline)，能夠將傳統的 PDF/Word 教科書瞬間轉化為結構化的數位資產與 Python 演算法題庫。
+**智學AIGC賦能平台** 是一個專為「智慧校園」打造的教育科技解決方案，致力於解決數位教材匱乏與學習落差兩大痛點。我們運用最先進的 **Generative AI (Google Gemini)** 技術，打造了一條全自動化的內容生成流水線 (Content Pipeline)，能夠將傳統的 PDF/Word 教科書瞬間轉化為結構化的數位資產與 Python 演算法題庫。
 
 針對高中職數學學習弱勢群體，本系統提供了一個**多模態、具備感知能力的 AI 數位家教**。它不僅能透過手寫辨識 (OCR) 看懂學生的計算過程，更能進行「蘇格拉底式引導」，幫助學生跨越及格門檻，重拾學習信心。
 
