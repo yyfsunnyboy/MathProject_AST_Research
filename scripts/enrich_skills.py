@@ -4,7 +4,7 @@ import json
 import time
 from tqdm import tqdm  # 如果沒安裝 tqdm，請執行 pip install tqdm
 import re
-from sqlalchemy import distinct
+from sqlalchemy import distinct, text
 
 # 1. 設定路徑以匯入專案模組 (指回專案根目錄)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,71 +41,93 @@ def get_user_selection(options, prompt_text):
         except ValueError:
             print("❌ 請輸入數字。")
 
-def generate_prompts(model, skill, examples):
+def generate_prompts(model, skill: SkillInfo, examples: list[TextbookExample]) -> dict:
     """
-    針對技能生成符合「功文數學 (Kumon)」理念的引導提問。
+    呼叫 Gemini 生成 3 個學生視角的點擊式問句。
+    [強化功能] 
+    1. 啟用 SQLite WAL 防止壞檔 (由 main 函式控制)。
+    2. 內建針對 LaTeX 的 JSON 容錯解析機制 (自動修復反斜線)。
     """
     
-    example_text = ""
-    if examples:
-        example_text = "\n\n【參考例題】:\n"
-        for i, ex in enumerate(examples, 1):
-            example_text += f"例題 {i}:\n{ex.problem_text}\n詳解: {ex.detailed_solution}\n\n"
-            
-    # [Prompt 優化] Kumon 風格 + LaTeX/JSON 防護
-    prompt = f"""
-    # Role
-    你是一位資深的「功文數學 (Kumon)」輔導員。你的學生是正在進行自學自習的學生。
-    技能單元: {skill.skill_ch_name} ({skill.skill_en_name})
-    單元描述: {skill.description}
-    {example_text}
+    # 準備例題上下文
+    examples_context = "\n---\n".join([
+        f"例題 {i+1}:\n題目：{ex.problem_text}\n詳解：{ex.detailed_solution}"
+        for i, ex in enumerate(examples)
+    ])
 
-    # Task
-    請設計 3 個「精簡短促」的引導式提問 (Suggested Prompts)，協助學生自學。
-    學生看到的例題跟你看到的不同，請綜合所有狀況，設計通用的引導提問。
-    每個提問請聚焦在「引導學生思考下一步該做什麼」，而非直接給出解答。
-    
-    # Guidelines (功文式哲學)
-    1. **極度精簡**: 每個提問盡量控制在 **30 個字以內**。
-    2. **例題導向**: 遇到不懂，先叫學生「觀察例題」找規律。
-    3. **專注運算**: 少講大道理，多提示「下一步要做什麼動作」。
-    4. **不直接給答案**: 只提示路徑，讓學生自己完成最後一步。
-    5. **繁體中文**: 使用台灣用語。
-    
-    # Constraints (技術限制)
-    1. **LaTeX 格式**: 所有數學符號必須用 $ 包覆 (例如: $x^2$)。
-    2. **JSON 轉義**: 輸出 JSON 字串時，若包含 LaTeX 反斜線 (\\)，必須使用雙反斜線 (\\\\) 轉義。
-    3. **純淨輸出**: 只回傳 JSON，不要有 Markdown 標記或其他廢話。
+    JSON_SCHEMA = 'prompt_1, prompt_2, prompt_3' 
 
-    # Levels
-    - **prompt_1 (觀察例題)**: 引導學生觀察例題的特徵或規律。(例如：「請觀察例題，指數的位置發生了什麼變化？」)
-    - **prompt_2 (關鍵步驟)**: 提示解題的「第一個小動作」。(例如：「先將分母通分，再進行加減。」)
-    - **prompt_3 (自我檢查)**: 引導學生檢查計算細節。(例如：「檢查一下，正負號有沒有變對？」)
+    # 設定 System Prompt (包含 LaTeX 強制 $ 包覆要求與學生問句風格)
+    SYSTEM_PROMPT = f"""
+你是一位精通數學教育的 AI 內容生成引擎，模擬**資深功文數學輔導員**的角色。
+你的任務是根據「目標技能描述」和「實際例題 (Examples)」，為學生生成 3 個最精準、最具引導性的**點擊式問句 (Quick-Click Questions)**。
 
-    # Output Format (JSON Only)
-    {{
-        "prompt_1": "...",
-        "prompt_2": "...",
-        "prompt_3": "..."
-    }}
-    """
+---
+【強制輸出要求】
+1. 輸出格式：必須為純 JSON 物件，包含三個鍵：{JSON_SCHEMA}。
+2. 語氣：所有問題必須使用**學生語氣**，以「我」作為主詞開頭。
+3. 長度限制：每個問句必須嚴格控制在**25 個字以內**。
+4. **LaTeX 格式強制要求**：任何數學符號、變數、公式（如: \\frac, \\sqrt, x^2）**必須**使用單個美元符號 `$` 包覆，例如：`$x^2$`。
+5. **絕對精準原則**：嚴禁使用例題中沒有出現的變數或符號 (例如：若沒出現 x，則不可提到 x 係數)。
+
+---
+目標技能描述: {skill.description}
+
+[關鍵參考例題]
+{examples_context}
+
+---
+請根據以下三個階段，生成學生最想點擊的問題：
+
+1. **prompt_1 (概念與觀察)**: 詢問關鍵概念或與例題的關聯。
+   【問句框架】: **「我該怎麼觀察例題，才能知道這題要用『[技能關鍵概念/公式]』？」**
+
+2. **prompt_2 (實際操作與步驟)**: 詢問計算第一步或關鍵轉折點。
+   【問句框架】: **「我第一步要先處理『[例題中具體計算對象/符號]』嗎？要怎麼做？」**
+
+3. **prompt_3 (驗算與檢查)**: 詢問快速驗算或檢查細節的方法。
+   【問句框架】: **「請問這題的答案『[例題中數值範圍/符號意義]』，我要如何檢查才合理？」**
+"""
 
     try:
-        response = model.generate_content(prompt)
-        text = response.text.replace('```json', '').replace('```', '').strip()
+        # 呼叫 AI
+        response = model.generate_content(SYSTEM_PROMPT)
+        text = response.text.strip()
         
-        # [修復] 使用 Regex 修復常見的 LaTeX JSON 轉義錯誤
-        # 保護標準 JSON 轉義符 (u, ", \, /, b, f, n, r, t)，其餘單反斜線轉為雙反斜線
-        text = re.sub(r'\\(?![u"\\/bfnrt])', r'\\\\', text)
-
-        return json.loads(text)
+        # 1. 清理 Markdown 標記
+        if text.startswith("```"):
+            text = re.sub(r"^```json\s*|^```\s*", "", text, flags=re.MULTILINE)
+            text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
+        
+        # 2. [策略 A] 嘗試直接解析
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            # 3. [策略 B] 啟動 Regex 修復 (智慧容錯)
+            # 說明：將所有「不是」標準 JSON 轉義符 (\n, \t, \u, \", \\) 的反斜線，強制轉為雙反斜線。
+            # 這能救回 \int, \frac, \alpha 等所有 LaTeX 指令，防止 JSON Parse Error。
+            fixed_text = re.sub(r'(?<!\\)\\(?![u"\\/bfnrt])', r'\\\\', text)
+            
+            try:
+                return json.loads(fixed_text)
+            except json.JSONDecodeError:
+                print(f"   ⚠️ 生成失敗 (JSON Parse Error). Raw snippet: {text[:50]}...")
+                return None
+                
     except Exception as e:
-        print(f"   ⚠️ 生成失敗 (JSON Parse Error). Raw snippet: {text[:50]}...")
+        print(f"   ⚠️ API 呼叫錯誤: {e}")
         return None
 
 if __name__ == "__main__":
     app = create_app()
     with app.app_context():
+        # [CRITICAL FIX] 啟用 WAL 模式以支援高併發寫入，防止資料庫壞檔
+        try:
+            with db.engine.connect() as connection:
+                connection.execute(text("PRAGMA journal_mode=WAL"))
+            print("✅ SQLite WAL 模式已啟用 (防止資料庫鎖死與損壞)")
+        except Exception as e:
+            print(f"⚠️ 無法啟用 WAL 模式: {e}")
         print("🚀 開始為技能補充 AI 提示詞 (Enrich Skills - Interactive Mode)...")
         
         try:
