@@ -1,5 +1,5 @@
-# models.py
 import sqlite3
+import json
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
@@ -8,35 +8,44 @@ from datetime import datetime
 db = SQLAlchemy()
 
 def init_db(engine):
+    """
+    初始化資料庫結構。
+    使用 raw SQL 確保所有表格建立，並包含簡單的遷移邏輯以支援現有資料庫升級。
+    """
     # 使用傳入的 SQLAlchemy engine 來建立連線
     conn = engine.raw_connection()
     c = conn.cursor()
 
-    # 1. 建立所有基礎表格
+    # 1. 建立所有基礎表格 (包含新版 Schema 的所有表格)
+    
+    # Users 表格 (包含 role 欄位)
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             email TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            role TEXT DEFAULT 'student' 
         )
     ''')
 
+    # Progress 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS progress (
             user_id INTEGER,
             skill_id TEXT,
             consecutive_correct INTEGER DEFAULT 0,
-            consecutive_wrong INTEGER DEFAULT 0, -- 修正：補上此欄位以支援降級邏輯
+            consecutive_wrong INTEGER DEFAULT 0,
             current_level INTEGER DEFAULT 1, 
             questions_solved INTEGER DEFAULT 0,
-            last_practiced DATETIME DEFAULT CURRENT_TIMESTAMP, -- 新增：記錄最後練習時間
+            last_practiced DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (user_id, skill_id),
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
 
+    # Skills Info 表格 (已修正：加入 suggested_prompt 1-3 欄位)
     c.execute('''
         CREATE TABLE IF NOT EXISTS skills_info (
             skill_id TEXT PRIMARY KEY,
@@ -48,27 +57,32 @@ def init_db(engine):
             gemini_prompt TEXT NOT NULL,
             consecutive_correct_required INTEGER DEFAULT 10,
             is_active BOOLEAN DEFAULT TRUE,
-            order_index INTEGER DEFAULT 0
+            order_index INTEGER DEFAULT 0,
+            suggested_prompt_1 TEXT, -- 新增欄位
+            suggested_prompt_2 TEXT, -- 新增欄位
+            suggested_prompt_3 TEXT  -- 新增欄位
         )
     ''')
 
+    # Skill Curriculum 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS skill_curriculum (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             skill_id TEXT NOT NULL,
-            curriculum TEXT NOT NULL, -- 'general' (普高) 或 'vocational' (技高)
-            grade INTEGER NOT NULL, -- 10, 11, 12 代表高一、二、三
-            volume TEXT NOT NULL, -- '冊一', '數A', '數B', '數C' 等
-            chapter TEXT NOT NULL, -- '第一章 多項式'
-            section TEXT NOT NULL, -- '1-2 餘式定理'
-            paragraph TEXT, -- 可選的段落
+            curriculum TEXT NOT NULL,
+            grade INTEGER NOT NULL,
+            volume TEXT NOT NULL,
+            chapter TEXT NOT NULL,
+            section TEXT NOT NULL,
+            paragraph TEXT,
             display_order INTEGER DEFAULT 0,
-            difficulty_level INTEGER DEFAULT 1, -- 新增：難易度欄位
+            difficulty_level INTEGER DEFAULT 1,
             FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id) ON DELETE CASCADE,
             UNIQUE(curriculum, grade, volume, chapter, section, paragraph, skill_id, difficulty_level)
         )
     ''')
 
+    # Skill Prerequisites 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS skill_prerequisites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +94,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 classes 表格
+    # Classes 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS classes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +106,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 class_students 表格
+    # Class Students 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS class_students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +119,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 mistake_logs 表格
+    # Mistake Logs 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS mistake_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,7 +136,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 exam_analysis 表格 (考卷診斷分析結果)
+    # Exam Analysis 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS exam_analysis (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,7 +159,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 textbook_examples 表格 (課本例題)
+    # [新增] Textbook Examples 表格 (新版 Schema)
     c.execute('''
         CREATE TABLE IF NOT EXISTS textbook_examples (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -165,7 +179,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 learning_diagnosis 表格 (學生學習診斷)
+    # [新增] Learning Diagnosis 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS learning_diagnosis (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,7 +192,7 @@ def init_db(engine):
         )
     ''')
 
-    # 新增：建立 system_settings 表格 (系統設定)
+    # [新增] System Settings 表格 (新版 Schema)
     c.execute('''
         CREATE TABLE IF NOT EXISTS system_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -189,43 +203,51 @@ def init_db(engine):
         )
     ''')
 
-
-
-    # 2. 安全地為已存在的表格新增欄位（用於舊資料庫升級）
+    # 2. 自動升級邏輯：安全地為已存在的舊表格新增欄位
     def add_column_if_not_exists(table, column, definition):
-        c.execute(f"PRAGMA table_info({table})")
-        columns = [row[1] for row in c.fetchall()]
-        if column not in columns:
-            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        try:
+            # 檢查表格是否存在
+            c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+            if not c.fetchone():
+                return # 表格不存在則跳過
 
-    # 新增：為 users 表新增 role 欄位
+            c.execute(f"PRAGMA table_info({table})")
+            columns = [row[1] for row in c.fetchall()]
+            if column not in columns:
+                print(f"自動升級資料庫: 正在為 {table} 新增欄位 {column}")
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        except sqlite3.OperationalError as e:
+            print(f"檢查欄位時發生錯誤 ({table}.{column}): {e}")
+
+    # 為 users 表確保有 role 欄位 (舊版升級用)
     add_column_if_not_exists('users', 'role', 'TEXT DEFAULT "student"')
+
+    # 為 skills_info 表確保有新的 prompt 欄位 (舊版升級用)
+    add_column_if_not_exists('skills_info', 'suggested_prompt_1', 'TEXT')
+    add_column_if_not_exists('skills_info', 'suggested_prompt_2', 'TEXT')
+    add_column_if_not_exists('skills_info', 'suggested_prompt_3', 'TEXT')
 
     conn.commit()
     conn.close()
-    print("資料庫初始化成功！")
+    print("資料庫結構初始化與檢查完成！")
 
-# 它會自動對應到 init_db() 中建立的 'users' 表格
+# --- 以下為 ORM 模型定義 (對應上述所有表格) ---
+
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
-
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), nullable=True)
-    role = db.Column(db.String(20), default='student') # 新增身分欄位
+    role = db.Column(db.String(20), default='student')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
     def is_admin(self):
-        """簡單的管理員權限判斷"""
-        return self.username in ['admin', 'testuser'] # 將 'testuser' 替換成您的帳號
+        return self.role == 'admin' or self.username in ['admin', 'testuser']
 
-# 新增 Progress ORM 模型
-# 它會自動對應到 init_db() 中建立的 'progress' 表格
 class Progress(db.Model):
     __tablename__ = 'progress'
-
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     skill_id = db.Column(db.String, primary_key=True)
     consecutive_correct = db.Column(db.Integer, default=0)
@@ -233,13 +255,10 @@ class Progress(db.Model):
     current_level = db.Column(db.Integer, default=1)
     questions_solved = db.Column(db.Integer, default=0)
     last_practiced = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
     user = db.relationship('User', backref=db.backref('progress', lazy=True))
 
-# 新增 SkillInfo ORM 模型 (技能單元資訊)
 class SkillInfo(db.Model):
     __tablename__ = 'skills_info'
-
     skill_id = db.Column(db.String, primary_key=True)
     skill_en_name = db.Column(db.String, nullable=False)
     skill_ch_name = db.Column(db.String, nullable=False)
@@ -250,14 +269,11 @@ class SkillInfo(db.Model):
     consecutive_correct_required = db.Column(db.Integer, default=10)
     is_active = db.Column(db.Boolean, default=True)
     order_index = db.Column(db.Integer, default=0)
-
-    # 新增：對應 Excel 中的 K, L, M 欄位
+    # [新版對應] 新增三個提示詞欄位
     suggested_prompt_1 = db.Column(db.String, nullable=True)
     suggested_prompt_2 = db.Column(db.String, nullable=True)
     suggested_prompt_3 = db.Column(db.String, nullable=True)
 
-    # 定義技能之間的多對多自我參照關係
-    # 'prerequisites' 屬性將會得到此技能的所有前置技能
     prerequisites = db.relationship(
         'SkillInfo',
         secondary='skill_prerequisites',
@@ -265,8 +281,8 @@ class SkillInfo(db.Model):
         secondaryjoin='SkillInfo.skill_id == SkillPrerequisites.prerequisite_id',
         backref=db.backref('subsequent_skills', lazy='dynamic')
     )
+
     def to_dict(self):
-        """將物件轉換為可序列化的字典。"""
         return {
             'skill_id': self.skill_id,
             'skill_en_name': self.skill_en_name,
@@ -283,10 +299,8 @@ class SkillInfo(db.Model):
             'suggested_prompt_3': self.suggested_prompt_3
         }
 
-# 新增 SkillCurriculum ORM 模型 (課程綱要)
 class SkillCurriculum(db.Model):
     __tablename__ = 'skill_curriculum'
-
     id = db.Column(db.Integer, primary_key=True)
     skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
     curriculum = db.Column(db.String, nullable=False)
@@ -297,16 +311,10 @@ class SkillCurriculum(db.Model):
     paragraph = db.Column(db.String)
     display_order = db.Column(db.Integer, default=0)
     difficulty_level = db.Column(db.Integer, default=1)
-
-    # 建立與 SkillInfo 的關聯
-    # 讓我們可以透過 SkillCurriculum.skill_info 來取得對應的技能資訊
     skill_info = db.relationship('SkillInfo', backref=db.backref('curriculum_entries', lazy=True, cascade="all, delete-orphan"))
-
-    # 定義複合唯一約束
     __table_args__ = (db.UniqueConstraint('curriculum', 'grade', 'volume', 'chapter', 'section', 'paragraph', 'skill_id', 'difficulty_level', name='_curriculum_skill_uc'),)
 
     def to_dict(self):
-        """將物件轉換為可序列化的字典。"""
         return {
             'id': self.id,
             'skill_id': self.skill_id,
@@ -320,31 +328,21 @@ class SkillCurriculum(db.Model):
             'difficulty_level': self.difficulty_level
         }
 
-# 新增 SkillPrerequisites ORM 模型 (技能前置依賴關聯表)
 class SkillPrerequisites(db.Model):
     __tablename__ = 'skill_prerequisites'
-
     id = db.Column(db.Integer, primary_key=True)
     skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
     prerequisite_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
-
-    # 定義複合唯一約束
     __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)
 
-# 新增 Class ORM 模型 (班級)
 class Class(db.Model):
     __tablename__ = 'classes'
-
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     class_code = db.Column(db.String(10), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # 關聯到教師
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref=db.backref('teaching_classes', lazy=True))
-    
-    # 關聯到學生 (透過 ClassStudent)
     students = db.relationship('User', secondary='class_students', backref=db.backref('enrolled_classes', lazy=True))
 
     def to_dict(self):
@@ -356,68 +354,48 @@ class Class(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d')
         }
 
-# 新增 ClassStudent ORM 模型 (班級-學生關聯)
 class ClassStudent(db.Model):
     __tablename__ = 'class_students'
-
     id = db.Column(db.Integer, primary_key=True)
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# 新增 MistakeLog ORM 模型 (錯誤記錄)
 class MistakeLog(db.Model):
     __tablename__ = 'mistake_logs'
-
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     skill_id = db.Column(db.String, nullable=False)
     question_content = db.Column(db.Text, nullable=False)
     user_answer = db.Column(db.Text, nullable=False)
     correct_answer = db.Column(db.Text, nullable=False)
-    error_type = db.Column(db.String(50)) # e.g., 'calculation', 'concept', 'other'
+    error_type = db.Column(db.String(50))
     error_description = db.Column(db.Text)
     improvement_suggestion = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
     user = db.relationship('User', backref=db.backref('mistakes', lazy=True))
 
-# 新增 ExamAnalysis ORM 模型 (考卷診斷分析結果)
 class ExamAnalysis(db.Model):
     __tablename__ = 'exam_analysis'
-
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id'), nullable=False)
-    
-    # 課程資訊 (從 skill_curriculum 複製)
-    curriculum = db.Column(db.String)  # 'general', 'vocational', 'junior_high'
-    grade = db.Column(db.Integer)      # 7, 10, 11, 12
-    volume = db.Column(db.String)      # '數學1上', '數A', '數B' 等
-    chapter = db.Column(db.String)     # '第一章 多項式'
-    section = db.Column(db.String)     # '1-2 餘式定理'
-    
-    # 分析結果
+    curriculum = db.Column(db.String)
+    grade = db.Column(db.Integer)
+    volume = db.Column(db.String)
+    chapter = db.Column(db.String)
+    section = db.Column(db.String)
     is_correct = db.Column(db.Boolean, nullable=False)
-    error_type = db.Column(db.String)  # CALCULATION, CONCEPTUAL, LOGIC, COMPREHENSION, UNATTEMPTED
-    confidence = db.Column(db.Float)   # 0.0 - 1.0
-    
-    # 學生作答內容
+    error_type = db.Column(db.String)
+    confidence = db.Column(db.Float)
     student_answer_latex = db.Column(db.Text)
     feedback = db.Column(db.Text)
-    
-    # 圖片儲存路徑
     image_path = db.Column(db.String, nullable=False)
-    
-    # 時間戳記
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # 關聯
     user = db.relationship('User', backref=db.backref('exam_analyses', lazy=True))
     skill_info = db.relationship('SkillInfo', backref=db.backref('exam_analyses', lazy=True))
     
     def to_dict(self):
-        """將物件轉換為可序列化的字典。"""
         return {
             'id': self.id,
             'user_id': self.user_id,
@@ -436,33 +414,25 @@ class ExamAnalysis(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         }
 
-# 新增 TextbookExample ORM 模型 (課本例題)
+# [新版對應] TextbookExample 模型
 class TextbookExample(db.Model):
     __tablename__ = 'textbook_examples'
-
     id = db.Column(db.Integer, primary_key=True)
     skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
-    
-    # 來源資訊
-    source_curriculum = db.Column(db.String, nullable=False)  # 'general', 'vocational', 'junior_high'
-    source_volume = db.Column(db.String, nullable=False)      # '數學1上', '數A', '數B' 等
-    source_chapter = db.Column(db.String, nullable=False)     # '3 多項式的運算'
-    source_section = db.Column(db.String, nullable=False)     # '3-1 多項式的基本概念與四則運算'
-    source_description = db.Column(db.String, nullable=False) # '1-2 餘式定理'
-    source_paragraph = db.Column(db.String)                   # 更細的段落劃分 (可選)
-    
-    # 題目內容 (核心資產)
-    problem_text = db.Column(db.Text, nullable=False)         # 題目完整文字 (支援 LaTeX)
-    problem_type = db.Column(db.String)                       # 'calculation', 'word_problem', 'proof', 'true_false', 'multiple_choice'
-    correct_answer = db.Column(db.String)                     # 最終答案
-    detailed_solution = db.Column(db.Text)                    # 詳細解法 (供 AI 參考)
-    difficulty_level = db.Column(db.Integer, default=1)       # 難易度等級
-    
-    # 關聯到 SkillInfo
+    source_curriculum = db.Column(db.String, nullable=False)
+    source_volume = db.Column(db.String, nullable=False)
+    source_chapter = db.Column(db.String, nullable=False)
+    source_section = db.Column(db.String, nullable=False)
+    source_description = db.Column(db.String, nullable=False)
+    source_paragraph = db.Column(db.String)
+    problem_text = db.Column(db.Text, nullable=False)
+    problem_type = db.Column(db.String)
+    correct_answer = db.Column(db.String)
+    detailed_solution = db.Column(db.Text)
+    difficulty_level = db.Column(db.Integer, default=1)
     skill_info = db.relationship('SkillInfo', backref=db.backref('textbook_examples', lazy=True, cascade="all, delete-orphan"))
     
     def to_dict(self):
-        """將物件轉換為可序列化的字典。"""
         return {
             'id': self.id,
             'skill_id': self.skill_id,
@@ -479,23 +449,18 @@ class TextbookExample(db.Model):
             'difficulty_level': self.difficulty_level
         }
 
-# 新增 LearningDiagnosis ORM 模型 (學生學習診斷)
+# [新版對應] LearningDiagnosis 模型
 class LearningDiagnosis(db.Model):
     __tablename__ = 'learning_diagnosis'
-
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    radar_chart_data = db.Column(db.Text, nullable=False)  # JSON 格式字串
+    radar_chart_data = db.Column(db.Text, nullable=False)
     ai_comment = db.Column(db.Text)
     recommended_unit = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # 關聯到學生
     student = db.relationship('User', backref=db.backref('learning_diagnoses', lazy=True))
 
     def to_dict(self):
-        """將物件轉換為可序列化的字典。"""
-        import json
         return {
             'id': self.id,
             'student_id': self.student_id,
@@ -505,10 +470,9 @@ class LearningDiagnosis(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         }
 
-# 新增 SystemSetting ORM 模型 (系統設定)
+# [新版對應] SystemSetting 模型
 class SystemSetting(db.Model):
     __tablename__ = 'system_settings'
-
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
     value = db.Column(db.Text, nullable=False)
@@ -516,7 +480,6 @@ class SystemSetting(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
-        """將物件轉換為可序列化的字典。"""
         return {
             'id': self.id,
             'key': self.key,

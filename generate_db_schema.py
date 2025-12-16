@@ -193,7 +193,11 @@ for idx, table in enumerate(tables):
     create_sheet_for_table(wb, table, is_first=(idx == 0))
 
 # 儲存檔案
-output_file = r'C:\Mathproject\docs\Database_Schema.xlsx'
+output_dir = r'E:\Python\Mathproject\docs'
+import os
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+output_file = os.path.join(output_dir, 'Database_Schema.xlsx')
 wb.save(output_file)
 
 print(f"[SUCCESS] 資料庫 Schema 已生成!")
