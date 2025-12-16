@@ -9,6 +9,11 @@ uploads/
 # 忽略轉檔產生的暫存圖片資料夾
 media/
 
+# 忽略靜態資料夾中生成的圖表和圖片
+static/diagram_*.svg
+static/generated_plots/
+
+
 # 忽略環境變數設定檔 (包含 API Key 等敏感資訊)
 .env
 .flaskenv

@@ -1,4 +1,4 @@
-# 智學 Copilot 系統分析：AI 提示詞補充系統 (Skill Enrichment System)
+# 智學AIGC賦能平台 系統分析：AI 提示詞補充系統 (Skill Enrichment System)
 
 **文件資訊**
 * **版本**：1.1 (新增操作驗證章節)

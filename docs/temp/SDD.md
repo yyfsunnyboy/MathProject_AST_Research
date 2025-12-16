@@ -1,4 +1,4 @@
-# 智學 Copilot (Smart-Edu Copilot) - 軟體設計文件 (SDD)
+# 智學AIGC賦能平台 (Smart-Edu AIGC Platform) - 軟體設計文件 (SDD)
 
 ## 1. 系統架構
 

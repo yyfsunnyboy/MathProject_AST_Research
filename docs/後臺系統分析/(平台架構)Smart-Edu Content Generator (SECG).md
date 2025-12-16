@@ -1,6 +1,6 @@
-# 智學 Copilot 競賽提案技術文件：AI 賦能智慧校園——開放式全學科適性學習內容生成平台
+# 智學AIGC賦能平台 競賽提案技術文件：AI 賦能智慧校園——開放式全學科適性學習內容生成平台
 
-**專案名稱**：智學 Copilot (Smart-Edu Copilot)
+**專案名稱**：智學AIGC賦能平台 (Smart-Edu AIGC Platform)
 **參賽組別**：高中職 AI 應用類——AI 賦能永續未來
 **提案面向**：學習與教學優化、永續與環境關懷
 **文件版本**：2.0 (System Integration)

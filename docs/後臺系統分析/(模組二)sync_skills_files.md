@@ -1,4 +1,4 @@
-# 智學 Copilot 系統分析：技能代碼同步與生成系統 (Skill Code Sync & Gen)
+# 智學AIGC賦能平台 系統分析：技能代碼同步與生成系統 (Skill Code Sync & Gen)
 
 **文件資訊**
 * **版本**：1.2 (對應原始碼邏輯修正)
