@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 # 載入 .env 檔案中的環境變數
 load_dotenv()
 
+import matplotlib
+matplotlib.use('Agg') # Use non-interactive backend
+from matplotlib import font_manager
+import matplotlib.pyplot as plt
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from sqlalchemy import inspect, Table, MetaData, text, func
 from sqlalchemy.exc import IntegrityError
@@ -50,6 +55,21 @@ def load_user(user_id):
 
 def create_app():
     app = Flask(__name__, template_folder='templates', static_folder='static')
+
+    # --- Matplotlib Font Settings for Chinese Characters ---
+    # This is a common path for Windows. If deploying on another OS, this path might need to be changed.
+    try:
+        font_path = 'C:/Windows/Fonts/msjhl.ttc'
+        if os.path.exists(font_path):
+            font_manager.fontManager.addfont(font_path)
+            plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei Light', 'sans-serif']
+        else:
+            # Fallback for non-Windows or if font is not found
+            plt.rcParams['font.sans-serif'] = ['sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False  # Fix for displaying the minus sign
+    except Exception as e:
+        app.logger.warning(f"Could not set Chinese font: {e}")
+    # --- End Font Settings ---
 
     # 載入設定
     app.config.update(
@@ -292,7 +312,8 @@ def create_app():
                 if 12 in volumes:
                     desired_order = {
                         '數學甲(上)': 0, '數學甲(下)': 1,
-                        '數學乙(上)': 2, '數學乙(下)': 3
+                        '數學乙(上)': 2, '數學乙(下)': 3,
+                        '數學3A': 4, '數學3B': 5
                     }
                     volumes[12].sort(key=lambda vol: desired_order.get(vol, 99))
 

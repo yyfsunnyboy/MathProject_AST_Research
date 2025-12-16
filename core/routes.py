@@ -457,19 +457,52 @@ def draw_diagram():
         y = np.linspace(-10, 10, 400)
         x, y = np.meshgrid(x, y)
 
+        # Define a context for eval() to prevent NameError for common variables
+        eval_context = {
+            'np': np,
+            'x': x,
+            'y': y,
+            'a': 2,  # Default value for 'a'
+            'b': 3,  # Default value for 'b'
+            'c': 4   # Default value for 'c'
+        }
+
         has_plot = False
         for line in equations_text.splitlines():
             line = line.strip()
             if not line:
                 continue
 
+            # Strip '$' characters used for math formatting
+            line = line.strip('$')
+
+            # Pre-process function names to be numpy-compatible
+            # Order is important for log, log10, log2
+            line = line.replace('sqrt', 'np.sqrt')
+            line = line.replace('sin', 'np.sin')
+            line = line.replace('cos', 'np.cos')
+            line = line.replace('tan', 'np.tan')
+            line = line.replace('log10', 'np.log10')
+            line = line.replace('log2', 'np.log2')
+            line = line.replace('ln', 'np.log') # ln is natural log
+            line = line.replace('log', 'np.log')   # base e log (natural log)
+
             # Sanitize equation string for safer evaluation
-            # 1. Normalize operators like '+ -' to '-'
+            line = line.replace('^', '**')
             line = line.replace('+ -', '-')
-            # 2. Insert '*' for implicit multiplication, e.g., '2x' -> '2*x' or '-3y' -> '-3*y'
-            #    This regex finds a number (potentially with a sign) followed immediately by 'x' or 'y'
-            #    and inserts a '*' between them.
-            line = re.sub(r'(-?\d+(?:\.\d+)?)([xy])', r'\1*\2', line)
+            
+            # Add multiplication signs for implicit multiplication
+            # e.g., 2x -> 2*x, 3(x+1) -> 3*(x+1), (x+1)y -> (x+1)*y
+            # Use negative lookbehind to prevent changing 'log2(x)' to 'log2*(x)'
+            line = re.sub(r'(?<![a-zA-Z])(\d)([a-zA-Z(])', r'\1*\2', line)
+            line = re.sub(r'(\))([a-zA-Z\d(])', r'\1*\2', line)
+            line = re.sub(r'([xy])([xy])', r'\1*\2', line)
+            
+            # Handle cases like 'x' or '-x' becoming '1*x' or '-1*x'
+            # Look for x or y that is not preceded by a digit, letter, or '*' or '.'
+            line = re.sub(r'(?<![\d\w*.])([xy])', r'1*\1', line)
+            # Look for -x or -y that is not preceded by a digit, letter, or '*' or '.'
+            line = re.sub(r'(?<![\d\w*.])(-)([xy])', r'\g<1>1*\2', line)
             
             try:
                 # This is a simplified and somewhat unsafe way to plot.
@@ -479,11 +512,11 @@ def draw_diagram():
                     parts = line.split('=')
                     expr = f"({parts[0].strip()}) - ({parts[1].strip()})"
                     # Plot contour where expression is zero
-                    plt.contour(x, y, eval(expr, {'x': x, 'y': y, 'np': np}), levels=[0], colors='b')
+                    plt.contour(x, y, eval(expr, eval_context), levels=[0], colors='b')
                     has_plot = True
                 elif '>' in line or '<' in line:
                     # Likely an inequality like y > 2*x or x + y <= 5
-                    plt.contourf(x, y, eval(line, {'x': x, 'y': y, 'np': np}), levels=[0, np.inf], colors=['#3498db'], alpha=0.3)
+                    plt.contourf(x, y, eval(line, eval_context), levels=[0, np.inf], colors=['#3498db'], alpha=0.3)
                     has_plot = True
 
             except Exception as e:
@@ -502,20 +535,22 @@ def draw_diagram():
         plt.ylabel("y")
         plt.gca().set_aspect('equal', adjustable='box')
 
-        # 3. Save the image
+        # 3. Save the image as SVG for scalability
         # Ensure the static directory exists
         static_dir = os.path.join(current_app.static_folder)
         if not os.path.exists(static_dir):
             os.makedirs(static_dir)
             
-        image_path = os.path.join(static_dir, 'diagram.png')
-        plt.savefig(image_path)
+        # Use a unique filename to prevent browser caching issues
+        unique_filename = f"diagram_{uuid.uuid4().hex}.svg"
+        image_path = os.path.join(static_dir, unique_filename)
+        plt.savefig(image_path, format='svg')
         plt.close() # Close the figure to free up memory
 
         # 4. Return the path
         return jsonify({
             "success": True,
-            "image_path": url_for('static', filename='diagram.png')
+            "image_path": url_for('static', filename=unique_filename)
         })
 
     except Exception as e:
