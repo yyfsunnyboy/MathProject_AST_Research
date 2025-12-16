@@ -44,49 +44,89 @@ def get_user_selection(options, prompt_text):
 def generate_prompts(model, skill: SkillInfo, examples: list[TextbookExample]) -> dict:
     """
     呼叫 Gemini 生成 3 個學生視角的點擊式問句。
-    [強化功能] 
-    1. 啟用 SQLite WAL 防止壞檔 (由 main 函式控制)。
-    2. 內建針對 LaTeX 的 JSON 容錯解析機制 (自動修復反斜線)。
+    [終極強化版] 
+    1. 讀取 Python 代碼 (Genotype) 或 課本例題 (Phenotype)。
+    2. [Fix] 強制 LaTeX 符號內容完整 (防止 \\overline{} 亂碼)。
+    3. [Fix] 禁止是非題 (禁止問 Is this...?)。
+    4. [Fix] 變數語意化 (強制解釋 a,b 的數學角色)。
+    5. 內建 JSON 容錯解析。
     """
     
-    # 準備例題上下文
-    examples_context = "\n---\n".join([
-        f"例題 {i+1}:\n題目：{ex.problem_text}\n詳解：{ex.detailed_solution}"
-        for i, ex in enumerate(examples)
-    ])
+    # 1. 嘗試讀取技能對應的 Python 程式碼
+    skill_code_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'skills', f'{skill.skill_id}.py')
+    code_content = None
+    
+    if os.path.exists(skill_code_path):
+        try:
+            with open(skill_code_path, 'r', encoding='utf-8') as f:
+                code_content = f.read()
+        except Exception as e:
+            print(f"   ⚠️ 讀取程式碼失敗: {e}")
+
+    # 2. 決定 Context 來源
+    if code_content:
+        context_source = "Python 題目生成程式碼 (Source Code)"
+        context_content = f"```python\n{code_content}\n```"
+        strategy_instruction = """
+        【分析模式：程式碼邏輯分析】
+        1. **識別分支**：分析 `generate` 函式是否包含多種題型分支。
+        2. **角色解讀**：觀察程式碼中的變數（如 numer, denom, a, b），理解它們在數學上的意義，不要直接用英文變數名。
+        """
+    else:
+        context_source = "課本例題 (Textbook Examples)"
+        context_content = "\n---\n".join([
+            f"例題 {i+1}:\n題目：{ex.problem_text}\n詳解：{ex.detailed_solution}"
+            for i, ex in enumerate(examples)
+        ])
+        strategy_instruction = """
+        【分析模式：例題歸納】
+        請歸納例題的共通解法。將題目中的數字或符號轉化為通用的「數學角色」描述。
+        """
 
     JSON_SCHEMA = 'prompt_1, prompt_2, prompt_3' 
 
-    # 設定 System Prompt (包含 LaTeX 強制 $ 包覆要求與學生問句風格)
+    # 設定 System Prompt (包含 7 大黃金規則)
     SYSTEM_PROMPT = f"""
-你是一位精通數學教育的 AI 內容生成引擎，模擬**資深功文數學輔導員**的角色。
-你的任務是根據「目標技能描述」和「實際例題 (Examples)」，為學生生成 3 個最精準、最具引導性的**點擊式問句 (Quick-Click Questions)**。
+你是一位精通數學教育與程式邏輯的 AI 內容生成引擎。
+你的任務是根據「目標技能描述」和「{context_source}」，為學生生成 3 個最精準、最具引導性的**點擊式問句**。
+
+{strategy_instruction}
 
 ---
 【強制輸出要求】
-1. 輸出格式：必須為純 JSON 物件，包含三個鍵：{JSON_SCHEMA}。
-2. 語氣：所有問題必須使用**學生語氣**，以「我」作為主詞開頭。
-3. 長度限制：每個問句必須嚴格控制在**25 個字以內**。
-4. **LaTeX 格式強制要求**：任何數學符號、變數、公式（如: \\frac, \\sqrt, x^2）**必須**使用單個美元符號 `$` 包覆，例如：`$x^2$`。
-5. **絕對精準原則**：嚴禁使用例題中沒有出現的變數或符號 (例如：若沒出現 x，則不可提到 x 係數)。
+1. 輸出格式：純 JSON 物件 (keys: {JSON_SCHEMA})。
+2. 語氣：**學生語氣**（以「我」開頭）。
+3. 長度限制：25 字以內。
+4. **LaTeX 要求**：數學符號用單個 `$` 包覆，**嚴禁空指令** (如 `$\\overline{{}}$` 必錯，要有內容 `$0.\\overline{{x}}$`)。
+5. **❌ 禁止是非題**：嚴禁問「這題是不是要算...？」。
+6. **✅ 強制特徵引導**：Prompt 1 必須引導觀察「視覺特徵」。
+7. **✅ 強制角色定義 (關鍵)**：
+   - **嚴禁**直接使用無意義的變數名稱 (如 "解 $a, b$"、"求 $x$")，除非該變數是題目中的標準未知數。
+   - **必須**加上中文描述。
+   - ❌ 爛問句：「這題是要解 $a, b$ 嗎？」(學生看不懂)
+   - ✅ 好問句：「這題的 $a, b$ 是不是分別代表**『整數部分』**和**『根號前的係數』**？」
+   - ✅ 好問句：「我要找出的 $x$，是不是代表**『原本的分數』**？」
 
 ---
 目標技能描述: {skill.description}
 
-[關鍵參考例題]
-{examples_context}
+[分析對象: {context_source}]
+{context_content}
 
 ---
 請根據以下三個階段，生成學生最想點擊的問題：
 
-1. **prompt_1 (概念與觀察)**: 詢問關鍵概念或與例題的關聯。
-   【問句框架】: **「我該怎麼觀察例題，才能知道這題要用『[技能關鍵概念/公式]』？」**
+1. **prompt_1 (特徵與聯想)**: 
+   - 觀察題目的**視覺特徵**，並用**中文角色名稱**稱呼變數。
+   - 【框架】**「看到算式中有『[特徵]』，題目要求的『[中文角色/變數]』是指什麼？」**
 
-2. **prompt_2 (實際操作與步驟)**: 詢問計算第一步或關鍵轉折點。
-   【問句框架】: **「我第一步要先處理『[例題中具體計算對象/符號]』嗎？要怎麼做？」**
+2. **prompt_2 (策略與工具)**: 
+   - 引導選擇工具。
+   - 【框架】**「針對這種題型，我第一步該用『[方法A]』還是『[方法B]』？」**
 
-3. **prompt_3 (驗算與檢查)**: 詢問快速驗算或檢查細節的方法。
-   【問句框架】: **「請問這題的答案『[例題中數值範圍/符號意義]』，我要如何檢查才合理？」**
+3. **prompt_3 (驗算與反思)**: 
+   - 引導逆向檢查。
+   - 【框架】**「算出來的答案，如果『[逆向操作]』回去，會吻合嗎？」**
 """
 
     try:
@@ -103,9 +143,7 @@ def generate_prompts(model, skill: SkillInfo, examples: list[TextbookExample]) -
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # 3. [策略 B] 啟動 Regex 修復 (智慧容錯)
-            # 說明：將所有「不是」標準 JSON 轉義符 (\n, \t, \u, \", \\) 的反斜線，強制轉為雙反斜線。
-            # 這能救回 \int, \frac, \alpha 等所有 LaTeX 指令，防止 JSON Parse Error。
+            # 3. [策略 B] 啟動 Regex 修復
             fixed_text = re.sub(r'(?<!\\)\\(?![u"\\/bfnrt])', r'\\\\', text)
             
             try:

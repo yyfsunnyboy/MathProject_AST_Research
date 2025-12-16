@@ -887,6 +887,21 @@
         let blankCanvas = null;
         let currentContext = "";  // 儲存題目 context，用於 AI 助教
 
+        // === 通用函式：呼叫 MathJax 渲染指定元素 ===
+        function renderMathContent(element) {
+            if (!element) return;
+            // 檢查 MathJax 是否已載入並準備好
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                window.MathJax.typesetPromise([element])
+                    .catch((err) => console.error('MathJax typeset failed:', err));
+            } else if (window.MathJax && window.MathJax.startup) {
+                window.MathJax.startup.promise.then(() => {
+                    window.MathJax.typesetPromise([element])
+                        .catch((err) => console.error('MathJax typeset failed:', err));
+                });
+            }
+        }
+
         // DOM 元素
         let canvas, ctx, analyzeBtn, submitBtn, answerInput, resultDisplay;
         let questionText, chatHistory, streakCounter;
@@ -1337,6 +1352,9 @@
                             promptsContainer.appendChild(button);
                         });
                         container.style.display = 'block'; // Show the container
+
+                        // [FIX] 新增這行：渲染提示詞按鈕中的數學公式
+                        renderMathContent(promptsContainer);
                     } else {
                         container.style.display = 'none'; // Hide if no prompts
                     }
@@ -1744,6 +1762,10 @@
                 msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${html}</pre>`;
                 chatHistory.appendChild(msg);
                 chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                // [FIX] 新增這行：渲染聊天訊息中的數學公式
+                renderMathContent(msg);
+
                 return msg;
             }
 

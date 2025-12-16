@@ -2152,8 +2152,10 @@ def admin_get_skill_details(skill_id):
                 'input_type': skill.input_type,
                 'consecutive_correct_required': skill.consecutive_correct_required,
                 'order_index': skill.order_index,
-                # 優先回傳 suggested_prompt_2,若無則回傳 gemini_prompt
-                'gemini_prompt': skill.suggested_prompt_2 or skill.gemini_prompt or ""
+                'gemini_prompt': skill.gemini_prompt,
+                'suggested_prompt_1': skill.suggested_prompt_1,
+                'suggested_prompt_2': skill.suggested_prompt_2,
+                'suggested_prompt_3': skill.suggested_prompt_3
             }
         })
     except Exception as e:
