@@ -254,6 +254,17 @@
                 </div>
             </div>
 
+            <!-- 錯誤類型長條圖 [新增] -->
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="bi bi-bar-chart-fill"></i> 錯誤類型分析</span>
+                </div>
+                <div class="card-body" style="height: 300px;">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
+
             <!-- AI 評語 -->
             <div class="card">
                 <div class="card-header">
@@ -297,6 +308,8 @@
 
     <script>
         let radarChart = null;
+        let barChart = null;
+
 
         // 頁面載入時自動執行診斷
         window.addEventListener('DOMContentLoaded', function () {
@@ -356,9 +369,71 @@
             // 顯示分析時間
             document.getElementById('analysis-time').textContent = data.created_at || '-';
 
-            // 繪製雷達圖
-            drawRadarChart(data.radar_chart_data);
+            // 處理圖表資料 (相容舊版)
+            let radarData = data.radar_chart_data;
+            let barData = { '觀念錯誤': 0, '計算錯誤': 0, '其他錯誤': 0 };
+
+            if (data.radar_chart_data.radar) {
+                // 新版資料結構
+                radarData = data.radar_chart_data.radar;
+                barData = data.radar_chart_data.bar || barData;
+            }
+
+            // 繪製圖表
+            drawRadarChart(radarData);
+            drawBarChart(barData);
         }
+
+        // 繪製長條圖 [新增]
+        function drawBarChart(errorCounts) {
+            const labels = Object.keys(errorCounts);
+            const data = Object.values(errorCounts);
+
+            if (barChart) {
+                barChart.destroy();
+            }
+
+            const ctx = document.getElementById('barChart').getContext('2d');
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '錯誤次數',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(231, 76, 60, 0.6)', // 觀念 - 紅
+                            'rgba(241, 196, 15, 0.6)', // 計算 - 黃
+                            'rgba(149, 165, 166, 0.6)'  // 其他 - 灰
+                        ],
+                        borderColor: [
+                            'rgba(231, 76, 60, 1)',
+                            'rgba(241, 196, 15, 1)',
+                            'rgba(149, 165, 166, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
 
         // 繪製雷達圖
         function drawRadarChart(masteryScores) {

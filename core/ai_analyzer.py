@@ -597,7 +597,7 @@ def analyze_student_weakness(prompt_data):
         
         prompt = DEFAULT_WEAKNESS_ANALYSIS_PROMPT.format(prompt_data=prompt_data)
         
-        response = chat.send_message(
+        response = model.generate_content(
             prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
             generation_config={"max_output_tokens": 4096, "temperature": 0.5}
         )
@@ -609,8 +609,49 @@ def analyze_student_weakness(prompt_data):
         
     except Exception as e:
         print(f"Weakness Analysis Error: {e}")
+        # == Fallback: Heuristic Analysis when AI fails ==
+        # Parse prompt_data assuming the format: "【Skill】\n... 總錯誤次數: N ..."
+        fallback_scores = {}
+        fallback_recommendation = "所有單元"
+        max_errors = -1
+        
+        try:
+            # Simple regex to find skills and errors from the prompt text we just built
+            # Format: 【SkillName】... 總錯誤次數: N
+            skill_blocks = re.split(r'【(.*?)】', prompt_data)
+            
+            # loop through 1, 3, 5... which are skill names, and 2, 4, 6... which are contents
+            for i in range(1, len(skill_blocks), 2):
+                skill_name = skill_blocks[i]
+                content = skill_blocks[i+1]
+                
+                # Default score
+                score = 80 
+                
+                # Check errors
+                concept_match = re.search(r'概念錯誤: (\d+)', content)
+                calculation_match = re.search(r'計算錯誤: (\d+)', content)
+                total_match = re.search(r'總錯誤次數: (\d+)', content)
+                
+                c_err = int(concept_match.group(1)) if concept_match else 0
+                calc_err = int(calculation_match.group(1)) if calculation_match else 0
+                total_err = int(total_match.group(1)) if total_match else 0
+                
+                # Deduct points
+                score -= (c_err * 15) + (calc_err * 5)
+                score = max(0, min(100, score)) # Clamp 0-100
+                
+                fallback_scores[skill_name] = score
+                
+                if total_err > max_errors:
+                    max_errors = total_err
+                    fallback_recommendation = skill_name
+                    
+        except Exception as fallback_e:
+            print(f"Fallback logic failed: {fallback_e}")
+            
         return {
-            "mastery_scores": {},
-            "overall_comment": "分析失敗",
-            "recommended_unit": ""
+            "mastery_scores": fallback_scores,
+            "overall_comment": f"目前無法連線至 AI 伺服器 (錯誤: {str(e)})，系統已根據您的錯誤次數自動計算熟練度。建議您針對錯誤較多的單元進行複習。",
+            "recommended_unit": fallback_recommendation
         }
