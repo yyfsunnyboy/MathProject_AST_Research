@@ -13,6 +13,7 @@ import io
 
 # 初始化 gemini_model 為 None，避免 NameError
 gemini_model = None
+gemini_chat = None
 
 def clean_and_parse_json(text):
     """
@@ -120,9 +121,10 @@ DEFAULT_CHAT_PROMPT = """
 """
 
 def configure_gemini(api_key, model_name):
-    global gemini_model
+    global gemini_model, gemini_chat
     genai.configure(api_key=api_key)
-    gemini_model = genai.GenerativeModel(model_name)  # 動態設定！
+    gemini_model = genai.GenerativeModel(model_name)
+    gemini_chat = gemini_model.start_chat(history=[])  # 動態設定！
 
 def get_model():
     if gemini_model is None:
@@ -191,7 +193,10 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
             prompt = prompt_template.replace("{context}", context).replace("{prereq_text}", prereq_text)
 
             model = get_model()
-            resp = model.generate_content([prompt, file])
+            resp = model.generate_content(
+                [prompt, file],
+                generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+            )
             raw_text = resp.text.strip()
 
             # 清理可能的 ```json 標記
@@ -272,7 +277,10 @@ def identify_skills_from_problem(problem_text):
         Do not include any other text or explanations. Just the JSON object.
         """
         
-        resp = model.generate_content(prompt)
+        resp = chat.send_message(
+            prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
+            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+        )
         raw_text = resp.text.strip()
         
         # Clean up potential markdown formatting
@@ -310,7 +318,10 @@ def ask_ai_text(user_question):
         
         學生問題：{user_question}
         """
-        resp = model.generate_content(prompt)
+        resp = chat.send_message(
+            prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
+            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+        )
         return resp.text.strip()
     except Exception as e:
         return f"AI 錯誤：{str(e)}"
@@ -340,7 +351,10 @@ def ask_ai_text_with_context(user_question, context=""):
     """
     
     try:
-        resp = model.generate_content(system_prompt)
+        resp = model.generate_content(
+            system_prompt,
+            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+        )
         return resp.text.strip()
     except Exception as e:
         return f"AI 內部錯誤：{str(e)}"
@@ -498,6 +512,10 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
     return full_prompt
 
 def get_chat_response(prompt):
+    global gemini_chat
+    if gemini_chat is None and gemini_model is not None:
+        gemini_chat = gemini_model.start_chat(history=[])
+
     """
     取得 Gemini 的回應，並確保回傳格式為 JSON。
     """
@@ -509,12 +527,11 @@ def get_chat_response(prompt):
 
     try:
         # 呼叫 Gemini
-        response = gemini_model.generate_content(
-            prompt,
+        response = gemini_chat.send_message(prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
             generation_config=genai.types.GenerationConfig(
                 response_mime_type='application/json', # 強制 JSON
-                temperature=0.2,
-                max_output_tokens=300, # 稍微調高一點，避免 AI 加上"Here is JSON"後導致真正的 JSON 被截斷
+                temperature=0.5,
+                max_output_tokens=2048, # 稍微調高一點，避免 AI 加上"Here is JSON"後導致真正的 JSON 被截斷
             )
         )
         
@@ -580,7 +597,10 @@ def analyze_student_weakness(prompt_data):
         
         prompt = DEFAULT_WEAKNESS_ANALYSIS_PROMPT.format(prompt_data=prompt_data)
         
-        response = model.generate_content(prompt)
+        response = chat.send_message(
+            prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
+            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+        )
         ai_response_text = response.text.strip()
         
         # Clean JSON

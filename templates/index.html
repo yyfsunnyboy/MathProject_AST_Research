@@ -791,6 +791,32 @@
             width: 100% !important;
             box-sizing: border-box !important;
         }
+    
+        /* === AI 聊天室排版強制修正 === */
+        .chat-area h3 { 
+            margin-bottom: 0 !important; 
+            padding-bottom: 5px !important; 
+            margin-top: 0 !important; 
+        }
+        #chat-history { 
+            padding-top: 0 !important; 
+            margin-top: 0 !important; 
+        }
+        .bot-message { 
+            margin-top: 0 !important; 
+            padding-top: 0 !important; 
+        }
+        /* 針對頑固的 pre 標籤進行降伏 */
+        .bot-message pre {
+            margin: 0 !important;
+            padding: 0 !important;
+            font-family: inherit !important; /* 消除醜醜的程式碼字體 */
+            font-weight: bold !important;   /* 強制粗體 */
+            white-space: pre-wrap !important; /* 保留換行但允許自動折行 */
+            background-color: transparent !important;
+            border: none !important;
+        }
+
     </style>
 
 </head>
@@ -928,10 +954,10 @@
         </div>
         <!-- 聊天區 -->
         <div class="chat-area">
-            <h3>AI 助教</h3>
-            <div id="chat-history">
+            <h3 style="margin-bottom: 0; padding-bottom: 2px;">AI 助教</h3>
+            <div id="chat-history" style="padding-top: 5px;">
                 <div class="bot-message">
-                    <pre>你好！有問題問我～</pre>
+                    <div style="margin: 0; padding: 0; font-weight: bold; line-height: 1.2;">你好！有問題問我～</div>
                 </div>
             </div>
             <div id="suggested-prompts-container" style="display: none;">
@@ -1166,6 +1192,32 @@
             width: 100% !important;
             box-sizing: border-box !important;
         }
+    
+        /* === AI 聊天室排版強制修正 === */
+        .chat-area h3 { 
+            margin-bottom: 0 !important; 
+            padding-bottom: 5px !important; 
+            margin-top: 0 !important; 
+        }
+        #chat-history { 
+            padding-top: 0 !important; 
+            margin-top: 0 !important; 
+        }
+        .bot-message { 
+            margin-top: 0 !important; 
+            padding-top: 0 !important; 
+        }
+        /* 針對頑固的 pre 標籤進行降伏 */
+        .bot-message pre {
+            margin: 0 !important;
+            padding: 0 !important;
+            font-family: inherit !important; /* 消除醜醜的程式碼字體 */
+            font-weight: bold !important;   /* 強制粗體 */
+            white-space: pre-wrap !important; /* 保留換行但允許自動折行 */
+            background-color: transparent !important;
+            border: none !important;
+        }
+
     </style>
 
     <script>
