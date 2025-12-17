@@ -1,5 +1,6 @@
 # core/routes.py
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash, send_file
+from datetime import datetime
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 import io
@@ -1420,11 +1421,13 @@ def db_maintenance():
                 writer.close()
                 output.seek(0)
                 
+                filename = f"kumon_math_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+
                 return send_file(
                     output,
                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     as_attachment=True,
-                    download_name='backup.xlsx'
+                    download_name=filename
                 )
 
             elif action == 'import_db':

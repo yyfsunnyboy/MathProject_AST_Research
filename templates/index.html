@@ -263,6 +263,32 @@
             transition: all 0.2s;
         }
 
+        /* Clone style for tool-btn */
+        .tool-btn {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            color: #555;
+            /* Default color */
+        }
+
+        .tool-btn:hover {
+            background: #f5f5f5;
+            transform: translateY(-1px);
+        }
+
+        .tool-btn.active {
+            background: #eef2f7;
+            border-color: #3498db;
+            box-shadow: 0 2px 5px rgba(52, 152, 219, 0.2);
+        }
+
         .tool-button.active {
             background: #3498db;
             color: white;
@@ -389,7 +415,10 @@
             margin-bottom: 12px;
             padding: 10px 14px;
             border-radius: 18px;
-            max-width: 85%;
+            max-width: 100%;
+            /* 改成滿版 */
+            box-sizing: border-box;
+            /* 確保 padding 不會撐破版面 */
             word-wrap: break-word;
             line-height: 1.5;
         }
@@ -401,25 +430,48 @@
             border-bottom-right-radius: 4px;
         }
 
+
+        /* === 聊天訊息美化 === */
         .bot-message {
-            background: #ecf0f1;
+            background-color: #ffffff;
+            /* 改成白色背景比較乾淨 */
+            border: 1px solid #e0e0e0;
+            /* 加個淡淡的邊框 */
             color: #2c3e50;
-            margin-right: auto;
-            border-bottom-left-radius: 4px;
-            transition: background 0.3s ease;
-            /* 平滑過渡 */
-        }
+            /* 深灰藍色字體，比較有質感 */
+            padding: 15px 18px;
+            /* 增加內距，讓文字呼吸 */
+            border-radius: 18px;
+            /* 圓角大一點 */
+            border-top-left-radius: 4px;
+            /* 做出對話框的感覺 */
+            margin: 10px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            /* 微微的陰影 */
 
-        .bot-message.latest {
-            background: #ffeaea;
-            /* 淺紅色背景 */
-            color: #2c3e50;
-        }
-
-        .bot-message pre {
-            margin: 0;
+            /* 排版優化 */
+            font-size: 16px;
+            /* 字體大一點 */
+            line-height: 1.8;
+            /* 行高加高，閱讀數學式才不會擠 */
             white-space: pre-wrap;
-            font-family: inherit;
+            word-break: break-word;
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+        }
+
+        /* 針對 MathJax 公式的微調 */
+        mjx-container {
+            margin: 0 3px !important;
+            /* 公式左右留白 */
+        }
+
+        /* 萬一 AI 還是偷用了 code，我們強制把它變醜的樣式拿掉 */
+        .bot-message code {
+            background-color: transparent !important;
+            color: inherit !important;
+            padding: 0 !important;
+            font-family: inherit !important;
+            font-size: inherit !important;
         }
 
         .chat-input-area {
@@ -448,6 +500,31 @@
 
         .symbol-button:hover {
             background: #dfe6e9;
+        }
+
+        /* 建議按鈕樣式 */
+        .suggestion-btn {
+            background-color: #ffffff;
+            border: 1px solid #3498db;
+            color: #3498db;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            /* 讓 MathJax 公式在按鈕裡垂直置中 */
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .suggestion-btn:hover {
+            background-color: #3498db;
+            color: white;
+        }
+
+        /* 修正 MathJax 在按鈕內可能導致的跑版 */
+        .suggestion-btn mjx-container {
+            margin: 0 2px !important;
         }
 
         .chat-input-group {
@@ -549,87 +626,305 @@
             margin-top: 0 !important;
             /* 覆蓋內聯樣式 */
         }
+
+        /* 防止內容撐破版面 */
+        #question-text img,
+        pre {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* =========================================
+           捲軸與高度限制優化 (Scrollbar & Height)
+           ========================================= */
+
+        /* 1. 題目顯示框框：限制高度 + 捲軸 */
+        /* 1. 題目顯示框框：限制高度 + 捲軸 */
+        #question-container {
+            width: 100%;
+            max-width: 100% !important;
+            /* 確保滿版 */
+
+            /* [Layout] Flexbox for row layout */
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+
+            /* [新增] 高度限制與捲軸 */
+            max-height: 35vh;
+            overflow-y: auto;
+
+            /* [Card Style] 灰色背景卡片樣式 */
+            background-color: #f8f9fa;
+            /* 淡灰背景 */
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid #edf2f7;
+
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            line-height: 1.6;
+            color: #2d3748;
+        }
+
+        /* [新增] 題目文字區塊樣式 */
+        #question-text {
+            flex: 1;
+            /* 佔據剩餘空間 */
+            background: none !important;
+            border: none !important;
+            padding: 0 !important;
+        }
+
+        /* 2. 計算紙區域容器：限制高度 + 捲軸 */
+        #scratchpad-container {
+            width: 100%;
+            max-width: 68vw;
+
+            /* [新增] 高度限制與捲軸 */
+            height: 55vh;
+            /* 固定高度，讓它夠大 */
+            max-height: 600px;
+            /* 但也不要超過 600px */
+            overflow-y: auto;
+            /* 畫布太大時可捲動 */
+
+            display: flex;
+            flex-direction: column;
+
+            /* 讓容器本身也有卡片感，包住工具列與畫布 */
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 3. 工具列：凍結在頂部 (Sticky) */
+        #scratchpad-controls {
+            /* [新增] 凍結效果 */
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            /* 確保浮在畫布上面 */
+
+            background: #f8fafc;
+            /* 給個背景色，不然捲動時會透過去 */
+            padding: 10px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            /* 分隔線移到這裡 */
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* 4. 畫布本體：確保夠高 */
+        canvas {
+            background-color: #ffffff;
+            cursor: crosshair;
+            touch-action: none;
+            width: 100%;
+            /* 移除原本的 border 與 shadow，因為現在由 container 包辦了 */
+            border: none;
+            border-radius: 0 0 12px 12px;
+
+            /* [重要] 設定一個最小高度，確保就算沒寫字也能捲動一點點，或者填滿容器 */
+            min-height: 100%;
+            display: block;
+        }
+
+        /* 5. [加分項] 美化捲軸樣式 (Chrome/Safari/Edge) */
+        #question-container::-webkit-scrollbar,
+        #scratchpad-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #question-container::-webkit-scrollbar-track,
+        #scratchpad-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        #question-container::-webkit-scrollbar-thumb,
+        #scratchpad-container::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 4px;
+        }
+
+        #question-container::-webkit-scrollbar-thumb:hover,
+        #scratchpad-container::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+
+        /* === 橡皮擦專屬樣式 === */
+        .tool-btn.eraser-btn:hover,
+        .tool-btn.eraser-btn.active {
+            background-color: #ffeef0;
+            /* 淡粉色背景 */
+            border-color: #ffcdd2;
+            /* 淺紅邊框 */
+            color: #e74c3c !important;
+            /* 紅色圖示強制 */
+            box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+            /* 柔和光暈 */
+        }
+
+        /* 橡皮擦游標樣式 - 使用 inline SVG */
+        .eraser-cursor {
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="%232c3e50" stroke-width="2"><path d="M20 6L9 17l-5-5 11-11a2.828 2.828 0 1 1 4 4L19 6z" /><path d="M12 13l5 5" /></svg>') 0 20, auto !important;
+        }
+
+        /* === [自動套用] 樣式升級補丁 === */
+        /* 1. 容器滿版 */
+        #question-container,
+        #scratchpad-container {
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        /* 2. 對話氣泡滿版 */
+        .chat-message,
+        .chat-ai,
+        .chat-user {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
     </style>
+
 </head>
 
 <body>
-
     <!-- Navbar -->
     <div class="navbar">
-        <div class="logo">功文數學練習</div>
-        <a href="/dashboard">返回儀表板</a>
+        <div class="logo">功文數學練習</div><a href="/dashboard">返回儀表板</a>
     </div>
-
     <!-- 主容器 -->
     <div class="container">
         <!-- 練習區 -->
         <div class="practice-area">
             <div class="practice-top">
-                <h1 id="skill-title">
-                    {{ skill_ch_name }} ({{ skill_id|replace('_', ' ')|title }})
-                    <span id="level-indicator"
-                        style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span>
-                    <span id="streak-counter">連續答對：0</span>
-                </h1>
+                <h1 id="skill-title"> {{
+                    skill_ch_name
+                    }}
+
+                    ({{
+                    skill_id|replace('_', ' ')|title
+                    }}) <span id="level-indicator"
+                        style="background: #1abc9c; color: white; padding: 4px 10px; font-size: 0.7em; border-radius: 12px; vertical-align: middle;">等級：1</span><span
+                        id="streak-counter">連續答對：0</span></h1>
+                <!-- 新增：難度選擇器 -->
                 <!-- 新增：難度選擇器 -->
                 <div class="level-selector">
                     <strong>難度選擇：</strong>
                     <button class="level-button active" data-level="1">等級 1</button>
                     <button class="level-button" data-level="2">等級 2</button>
+
                     {% if prereq_skills %}
-                    <div class="input-group" style="margin-left: 20px; margin-top: 0;">
+                    <div class="input-group" style="margin-left: 20px; display:flex; gap:5px;">
                         <select id="prereq-skill-select" class="form-select"
                             style="padding: 5px; border-radius: 6px; border: 1px solid #bdc3c7;">
                             <option value="" selected disabled>練習基礎技能...</option>
+
                             {% for prereq in prereq_skills %}
                             <option value="{{ prereq.skill_id }}">{{ prereq.skill_ch_name }}</option>
                             {% endfor %}
+
                         </select>
                         <button class="level-button" type="button" id="practice-prereq-btn"
                             style="background-color: #f39c12; color: white;">練習</button>
                     </div>
                     {% endif %}
                 </div>
-
                 <!-- 修改後的版面：問題和示意圖並排 -->
-                <div class="question-content">
+                <!-- 修改後的版面：問題和示意圖並排 -->
+                <div class="question-content" id="question-container">
                     <div id="question-text"></div>
                     <div class="diagram-container">
-                        <div id="diagram-loading" style="display: none; color: #2c3e50;">正在繪製圖形...</div>
-                        <img id="diagram-image" src="" alt="Diagram" style="display: none;" />
+                        <div id="diagram-loading" style="display: none; color: #2c3e50;">
+                            正在繪製圖形...</div><img id="diagram-image" src="" alt="Diagram" style="display: none;" />
                     </div>
                 </div>
-
-                <div class="input-group">
-                    <input type="text" id="answer-input" placeholder="輸入答案...">
-                    <button id="submit-button">提交</button>
-                </div>
+                <div class="input-group"><input type="text" id="answer-input" placeholder="輸入答案..."><button
+                        id="submit-button">提交</button></div>
                 <div id="result-display"></div>
             </div>
+            <div class="practice-bottom" id="scratchpad-container">
+                <div id="scratchpad-controls">
+                    <button class="tool-btn active" onclick="setTool('pen', 'black')" title="黑筆" style="color: black;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                            <path d="M2 2l7.5 7.5"></path>
+                        </svg>
+                    </button>
 
-            <div class="practice-bottom">
-                <div class="canvas-toolbar">
-                    <strong>計算紙：</strong>
-                    <button class="tool-button active" id="pen-button">畫筆</button>
-                    <button class="tool-button" id="eraser-button">橡皮擦</button>
-                    <button class="color-button black active" data-color="#2c3e50"></button>
-                    <button class="color-button red" data-color="#e74c3c"></button>
-                    <input type="range" id="pen-width" min="1" max="10" value="2">
-                    <span id="pen-width-label">2</span>
+                    <button class="tool-btn" onclick="setTool('pen', '#e74c3c')" title="紅筆" style="color: #e74c3c;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                            <path d="M2 2l7.5 7.5"></path>
+                        </svg>
+                    </button>
+
+                    <button class="tool-btn" onclick="setTool('pen', '#0066cc')" title="藍筆" style="color: #0066cc;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                            <path d="M2 2l7.5 7.5"></path>
+                        </svg>
+                    </button>
+
+                    <button class="tool-btn" onclick="setTool('pen', '#009933')" title="綠筆" style="color: #009933;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                            <path d="M2 2l7.5 7.5"></path>
+                        </svg>
+                    </button>
+
+                    <div style="width: 1px; height: 20px; background: #ddd; margin: 0 5px;"></div>
+
+                    <button class="tool-btn eraser-btn" onclick="setTool('eraser')" title="橡皮擦" style="color: #666;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M15.14,3c-0.51,0-1.02,0.2-1.41,0.59L2.59,14.73C1.8,15.51,1.8,16.77,2.59,17.56l5.85,5.85c0.39,0.39,0.9,0.59,1.41,0.59 s1.02-0.2,1.41-0.59l11.14-11.14c0.78-0.78,0.78-2.05,0-2.83l-5.85-5.85C16.17,3.2,15.65,3,15.14,3z M14.44,5.11l4.45,4.45 l-2.13,2.13l-4.45-4.45L14.44,5.11z" />
+                        </svg>
+                    </button>
+
+                    <button class="tool-btn" onclick="clearCanvas()" title="清除全部" style="color: #666;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                            </path>
+                        </svg>
+                    </button>
+
+                    <!-- 筆畫粗細滑桿 -->
+                    <div style="margin-left: 10px; display: flex; align-items: center; gap: 5px;">
+                        <span style="font-size: 0.8em; color: #666;">粗細</span>
+                        <input type="range" id="pen-width" min="1" max="10" value="2" style="width: 60px;">
+                        <span id="pen-width-label" style="font-size: 0.8em; min-width: 15px;">2</span>
+                    </div>
+
                     <div class="canvas-actions">
                         <button id="draw-diagram-button" class="tool-button"
                             style="background-color: #27ae60; color: white;">繪製示意圖</button>
                         <button id="undo-button">上一步</button>
                         <button id="redo-button">下一步</button>
                         <button id="upload-image-button">上傳圖片</button>
-                        <button id="clear-canvas-button">清除</button>
+
                         <button id="analyze-handwriting-button">AI檢查</button>
                     </div>
-                </div>
-                <canvas id="handwriting-canvas"></canvas>
+                </div><canvas id="handwriting-canvas"></canvas>
             </div>
         </div>
-
         <!-- 聊天區 -->
         <div class="chat-area">
             <h3>AI 助教</h3>
@@ -643,73 +938,56 @@
                 <div id="suggested-prompts"></div>
             </div>
             <div class="chat-input-area">
-                <div class="symbol-buttons">
-                    <button class="symbol-button" data-symbol="π">π</button>
-                    <button class="symbol-button" data-symbol="√">√</button>
-                    <button class="symbol-button" data-symbol="²">²</button>
-                    <button class="symbol-button" data-symbol="³">³</button>
-                    <button class="symbol-button" data-symbol="°">°</button>
-                    <button class="symbol-button" data-symbol="θ">θ</button>
-                    <button class="symbol-button" data-symbol="∞">∞</button>
-                    <button class="symbol-button" data-symbol="±">±</button>
-                    <button class="symbol-button" data-symbol="≠">≠</button>
-                    <button class="symbol-button" data-symbol="≤">≤</button>
-                    <button class="symbol-button" data-symbol="≥">≥</button>
-                    <button class="symbol-button" data-symbol="≈">≈</button>
-                    <button class="symbol-button" data-symbol="∑">∑</button>
-                    <button class="symbol-button" data-symbol="∫">∫</button>
-                </div>
-                <div class="chat-input-group">
-                    <input type="text" id="chat-input" placeholder="問我觀念...">
-                    <button id="chat-send-button">送出</button>
-                </div>
-                <!-- 新增：隱藏的圖片上傳 input -->
-                <input type="file" id="image-uploader" accept="image/*" style="display: none;">
+                <div class="symbol-buttons"><button class="symbol-button" data-symbol="π">π</button><button
+                        class="symbol-button" data-symbol="√">√</button><button class="symbol-button"
+                        data-symbol="²">²</button><button class="symbol-button" data-symbol="³">³</button><button
+                        class="symbol-button" data-symbol="°">°</button><button class="symbol-button"
+                        data-symbol="θ">θ</button><button class="symbol-button" data-symbol="∞">∞</button><button
+                        class="symbol-button" data-symbol="±">±</button><button class="symbol-button"
+                        data-symbol="≠">≠</button><button class="symbol-button" data-symbol="≤">≤</button><button
+                        class="symbol-button" data-symbol="≥">≥</button><button class="symbol-button"
+                        data-symbol="≈">≈</button><button class="symbol-button" data-symbol="∑">∑</button><button
+                        class="symbol-button" data-symbol="∫">∫</button></div>
+                <div class="chat-input-group"><input type="text" id="chat-input" placeholder="問我觀念..."><button
+                        id="chat-send-button">送出</button></div>
+                <!-- 新增：隱藏的圖片上傳 input --><input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
         </div>
     </div>
-
     <!-- The Image Modal -->
-    <div id="imageModal" class="image-modal">
-        <span class="close">&times;</span>
-        <img class="image-modal-content" id="modalImg">
+    <div id="imageModal" class="image-modal"><span class="close">&times;
+        </span><img class="image-modal-content" id="modalImg">
         <div id="caption"></div>
     </div>
-
     <!-- Custom Alert Modal (Moved inside body) -->
     <div id="customAlertModal" class="modal-overlay">
         <div class="modal-content">
-            <p id="customAlertMessage"></p>
-            <button id="customAlertOkButton" class="modal-button">確定</button>
+            <p id="customAlertMessage"></p><button id="customAlertOkButton" class="modal-button">確定</button>
         </div>
     </div>
-
     <!-- Custom Confirm Modal -->
     <div id="customConfirmModal" class="modal-overlay">
         <div class="modal-content">
             <p id="customConfirmMessage"></p>
-            <div class="modal-button-group">
-                <button id="customConfirmCancelButton" class="modal-button cancel">取消</button>
-                <button id="customConfirmOkButton" class="modal-button">確定</button>
-            </div>
+            <div class="modal-button-group"><button id="customConfirmCancelButton"
+                    class="modal-button cancel">取消</button><button id="customConfirmOkButton"
+                    class="modal-button">確定</button></div>
         </div>
     </div>
-
     <!-- 新增：基礎技能建議 Modal -->
     <div id="prereqSuggestionModal" class="modal-overlay">
         <div class="modal-content">
             <h3 style="color: #e67e22; margin-top: 0; margin-bottom: 15px;">遇到困難了嗎？</h3>
-            <p id="prereqSuggestionMessage" style="margin-bottom: 20px;">看起來這個單元有點挑戰性，要不要先回去練習一下相關的基礎技能呢？</p>
+            <p id="prereqSuggestionMessage" style="margin-bottom: 20px;">
+                看起來這個單元有點挑戰性，要不要先回去練習一下相關的基礎技能呢？</p>
             <!-- 基礎技能按鈕將會被動態插入到這裡 -->
             <div id="prereqSuggestionList"
                 style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px;">
             </div>
-            <div class="modal-button-group" style="justify-content: center;">
-                <button id="prereqSuggestionCancelButton" class="modal-button cancel">繼續練習</button>
-            </div>
+            <div class="modal-button-group" style="justify-content: center;"><button id="prereqSuggestionCancelButton"
+                    class="modal-button cancel">繼續練習</button></div>
         </div>
     </div>
-
     <style>
         /* Custom Alert Modal Styles */
         .modal-overlay {
@@ -869,6 +1147,23 @@
             color: #bbb;
             text-decoration: none;
             cursor: pointer;
+        }
+
+        /* === [自動套用] 樣式升級補丁 === */
+        /* 1. 容器滿版 */
+        #question-container,
+        #scratchpad-container {
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        /* 2. 對話氣泡滿版 */
+        .chat-message,
+        .chat-ai,
+        .chat-user {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
         }
     </style>
 
@@ -1069,12 +1364,31 @@
 
         function resizeCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
+            // [新增] 支援 High DPI (Retina)
+            const dpr = window.devicePixelRatio || 1;
+
+            // 設定真實像素解析度
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+
+            // 強制 CSS 顯示尺寸符合父容器
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+
+            // 縮放座標系以符合 CSS 像素
+            ctx.scale(dpr, dpr);
+
+            // 重置畫筆樣式 (resize 會清除 context)
+            setPenStyle();
 
             if (undoStack.length > 0) {
                 const img = new Image();
-                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.onload = () => {
+                    // 根據 dpr 調整繪製尺寸，維持正確比例
+                    const w = img.width / dpr;
+                    const h = img.height / dpr;
+                    ctx.drawImage(img, 0, 0, w, h);
+                };
                 img.src = undoStack[undoStack.length - 1];
             }
         }
@@ -1115,33 +1429,101 @@
             ctx.lineWidth = isErasing ? 20 : currentWidth;
             ctx.strokeStyle = isErasing ? 'white' : currentColor;
             ctx.lineCap = 'round';
+
+            // [新增] 擦除時的筆跡漸隱效果
+            if (isErasing) {
+                ctx.globalAlpha = 0.2; // 多次疊加產生漸隱效果
+            } else {
+                ctx.globalAlpha = 1.0; // 恢復正常不透明
+            }
         }
 
         // === 工具 ===
-        function setupTools() {
-            document.getElementById('pen-button').onclick = () => { isErasing = false; setPenStyle(); updateTools(); };
-            document.getElementById('eraser-button').onclick = () => { isErasing = true; setPenStyle(); updateTools(); };
+        // === 工具 ===
+        function setTool(toolName, color) {
+            // [Auto-Fix] 強制切換游標樣式
+            const canvas = document.getElementById('handwriting-canvas') || document.querySelector('canvas');
+            if (canvas) {
+                if (toolName === 'eraser') {
+                    canvas.style.cursor = "url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iJTIzNDQ0NDQ0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0xNS4xNCwzYy0wLjUxLDAtMS4wMiwwLjItMS40MSwwLjU5TDIuNTksMTQuNzNDMS44LDE1LjUxLDEuOCwxNi43NywyLjU5LDE3LjU2bDUuODUsNS44NWMwLjM5LDAuMzksMC45LDAuNTksMS40MSwwLjU5IHMxLjAyLTAuMiwxLjQxLTAuNTlsMTEuMTQtMTEuMTRjMC43OC0wLjc4LDAuNzgtMi4wNSwwLTIuODNsLTUuODUtNS44NUMxNi4xNywzLjIsMTUuNjUsMywxNS4xNCwzeiBNMTQuNDQsNS4xMWw0LjQ1LDQuNDUgbC0yLjEzLDIuMTNsLTQuNDUtNC40NUwxNC40NCw1LjExeiIvPjwvc3ZnPg==') 2 22, auto";
+                } else {
+                    canvas.style.cursor = "crosshair"; // 畫筆模式維持十字或預設
+                }
+            }
 
-            document.querySelectorAll('.color-button').forEach(btn => {
-                btn.onclick = () => { currentColor = btn.dataset.color; setPenStyle(); updateTools(); };
-            });
+            // 重置所有工具按鈕狀態
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
 
-            document.getElementById('pen-width').oninput = (e) => {
-                currentWidth = e.target.value;
-                document.getElementById('pen-width-label').textContent = currentWidth;
+            // 標記 active 狀態 (支援 inline onclick)
+            const btns = document.querySelectorAll('.tool-btn');
+            for (let btn of btns) {
+                const clickAttr = btn.getAttribute('onclick');
+                if (toolName === 'eraser') {
+                    if (clickAttr && clickAttr.includes("'eraser'")) {
+                        btn.classList.add('active');
+                    }
+                } else {
+                    if (clickAttr && clickAttr.includes(`'${color}'`)) {
+                        btn.classList.add('active');
+                    }
+                }
+            }
+
+            // [新增] 游標切換邏輯
+            const eraserCursor = "url('data:image/svg+xml;utf8,<svg width='24' height='24' viewBox='0 0 24 24' fill='%23444444' xmlns='http://www.w3.org/2000/svg'><path d='M15.14,3c-0.51,0-1.02,0.2-1.41,0.59L2.59,14.73C1.8,15.51,1.8,16.77,2.59,17.56l5.85,5.85c0.39,0.39,0.9,0.59,1.41,0.59 s1.02-0.2,1.41-0.59l11.14-11.14c0.78-0.78,0.78-2.05,0-2.83l-5.85-5.85C16.17,3.2,15.65,3,15.14,3z M14.44,5.11l4.45,4.45 l-2.13,2.13l-4.45-4.45L14.44,5.11z'/></svg>') 2 22, auto";
+
+            if (toolName === 'eraser') {
+                isErasing = true;
+                // canvas.classList.add('eraser-cursor'); // (已棄用 class 方式)
+                canvas.style.cursor = eraserCursor; // 直接設定 style
                 setPenStyle();
-            };
+            } else {
+                isErasing = false;
+                // canvas.classList.remove('eraser-cursor'); // (已棄用)
+                canvas.style.cursor = 'crosshair'; // 恢復預設
+                if (color) {
+                    if (color === 'black') currentColor = '#2c3e50';
+                    else currentColor = color;
 
-            document.getElementById('undo-button').onclick = undo;
-            document.getElementById('redo-button').onclick = redo;
-            document.getElementById('clear-canvas-button').onclick = clearCanvas;
+                }
+                setPenStyle();
+            }
+        }
+
+        function setupTools() {
+            // 舊的按鈕監聽器已移除，因為 HTML 已更換
+            // 只保留其他工具
+
+            const penWidthInput = document.getElementById('pen-width');
+            if (penWidthInput) {
+                penWidthInput.oninput = (e) => {
+                    currentWidth = e.target.value;
+                    document.getElementById('pen-width-label').textContent = currentWidth;
+                    setPenStyle();
+                };
+            }
+
+            const undoBtn = document.getElementById('undo-button');
+            if (undoBtn) undoBtn.onclick = undo;
+
+            const redoBtn = document.getElementById('redo-button');
+            if (redoBtn) redoBtn.onclick = redo;
+
+            // clear-canvas-button ID 已經不存在於新的 HTML 中 (改用 onclick=clearCanvas)
+            // 但如果還有其他地方引用，保留無妨
         }
 
         function undo() {
             if (undoStack.length <= 1) return;
             redoStack.push(undoStack.pop());
             const img = new Image();
-            img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); updateUndoRedoButtons(); };
+            img.onload = () => {
+                const dpr = window.devicePixelRatio || 1; // 取得當前 DPR
+                ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr); // 使用邏輯單位清除
+                // 修正：繪製時考慮 dpr 縮放
+                ctx.drawImage(img, 0, 0, img.width / dpr, img.height / dpr);
+                updateUndoRedoButtons();
+            };
             img.src = undoStack[undoStack.length - 1];
         }
 
@@ -1149,8 +1531,10 @@
             if (redoStack.length === 0) return;
             const img = new Image();
             img.onload = () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
+                const dpr = window.devicePixelRatio || 1; // 取得當前 DPR
+                ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr); // 使用邏輯單位清除
+                // 修正：繪製時考慮 dpr 縮放
+                ctx.drawImage(img, 0, 0, img.width / dpr, img.height / dpr);
                 undoStack.push(canvas.toDataURL());
                 redoStack.pop();
                 updateUndoRedoButtons();
@@ -1547,6 +1931,54 @@
             const drawBtn = document.getElementById('draw-diagram-button');
             const diagramImg = document.getElementById('diagram-image');
             const loadingIndicator = document.getElementById('diagram-loading');
+            // 渲染追問按鈕的函式 (已修復 LaTeX 亂碼問題)
+            const renderFollowUpPrompts = (prompts) => {
+                // 1. 找到存放按鈕的容器
+                let suggestionsContainer = document.getElementById('suggestions');
+
+                // 如果找不到容器，動態建立一個放在對話紀錄下方 (防呆機制)
+                if (!suggestionsContainer) {
+                    suggestionsContainer = document.createElement('div');
+                    suggestionsContainer.id = 'suggestions';
+                    suggestionsContainer.style.padding = '10px';
+                    suggestionsContainer.style.display = 'flex';
+                    suggestionsContainer.style.gap = '10px';
+                    suggestionsContainer.style.flexWrap = 'wrap';
+                    const chatHistory = document.getElementById('chat-history');
+                    chatHistory.parentNode.insertBefore(suggestionsContainer, chatHistory.nextSibling);
+                }
+
+                suggestionsContainer.innerHTML = ''; // 清空舊的建議
+
+                prompts.forEach(promptText => {
+                    const btn = document.createElement('button');
+                    btn.className = 'suggestion-btn'; // 請確保 CSS 有設定這個 class 的樣式
+
+                    // --- 關鍵步驟 1: 使用剛剛寫好的 formatMathText 清洗文字 ---
+                    // 這會把 "如何計算 \sqrt{2}" 變成 "如何計算 $\sqrt{2}$"
+                    const safeText = formatMathText(promptText);
+
+                    btn.innerHTML = safeText;
+
+                    // 點擊按鈕後的動作 (自動發送訊息)
+                    btn.onclick = () => {
+                        const chatInput = document.getElementById('chat-input'); // 假設輸入框 ID
+                        chatInput.value = promptText; // 這裡可以用原始文字，因為傳給 AI 不需要 $
+                        // 觸發發送 (假設您的發送按鈕 ID 是 chat-send-btn)
+                        document.getElementById('chat-send-btn').click();
+                        suggestionsContainer.innerHTML = ''; // 點擊後清空建議
+                    };
+
+                    suggestionsContainer.appendChild(btn);
+                });
+
+                // --- 關鍵步驟 2: 告訴 MathJax 這裡有新東西要渲染 ---
+                if (window.MathJax) {
+                    window.MathJax.typesetPromise([suggestionsContainer]).then(() => {
+                        console.log('追問按鈕渲染完成');
+                    }).catch(err => console.error('按鈕渲染失敗:', err));
+                }
+            };
 
             drawBtn.addEventListener('click', () => {
                 const question = questionText.innerText;
@@ -1733,15 +2165,19 @@
         function setupChat() {
             const chatSendBtn = document.getElementById('chat-send-button');
             const chatInput = document.getElementById('chat-input');
+            const chatHistory = document.getElementById('chat-history');
 
+            // 防呆：如果找不到聊天元件就不執行
+            if (!chatSendBtn || !chatInput) return;
+
+            // 1. 符號按鈕事件
             document.querySelectorAll('.symbol-button').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    e.preventDefault(); // 防止按鈕觸發 form 提交
+                    e.preventDefault();
                     const symbol = button.dataset.symbol;
                     const start = chatInput.selectionStart;
                     const end = chatInput.selectionEnd;
                     const text = chatInput.value;
-
                     chatInput.value = text.substring(0, start) + symbol + text.substring(end);
                     chatInput.focus();
                     chatInput.selectionStart = chatInput.selectionEnd = start + symbol.length;
@@ -1751,69 +2187,166 @@
             function addUserMessage(text) {
                 const msg = document.createElement('div');
                 msg.className = 'user-message';
+
+                // 1. 設定文字 (使用 textContent 防止 XSS 攻擊，同時保留 $ 符號供渲染)
                 msg.textContent = text;
-                chatHistory.appendChild(msg);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                if (chatHistory) {
+                    chatHistory.appendChild(msg);
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }
+
+                // 2. [新增] 關鍵：告訴 MathJax 這裡有新訊息，請它幫忙畫出數學公式
+                if (window.MathJax) {
+                    try {
+                        window.MathJax.typesetPromise([msg]);
+                    } catch (err) {
+                        console.warn('User MathJax Render Error:', err);
+                    }
+                }
             }
 
-            function addBotMessage(html) {
-                const msg = document.createElement('div');
-                msg.className = 'bot-message';
-                msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${html}</pre>`;
-                chatHistory.appendChild(msg);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-
-                // [FIX] 新增這行：渲染聊天訊息中的數學公式
-                renderMathContent(msg);
-
-                return msg;
-            }
-
-            chatSendBtn.onclick = async () => {
+            // 2. 發送訊息邏輯
+            chatSendBtn.addEventListener('click', async () => {
                 const question = chatInput.value.trim();
                 if (!question) return;
 
                 addUserMessage(question);
                 chatInput.value = '';
 
-                const thinking = addBotMessage('AI 助教正在思考...');
+                // 顯示思考中
+                const thinkingDiv = addBotMessage('AI 助教正在思考...');
 
                 try {
+                    // 嘗試獲取上下文，避免變數未定義錯誤
+                    const contextPayload = (typeof currentContext !== 'undefined') ? currentContext : "";
+
                     const response = await fetch('/chat_ai', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             question: question,
-                            context: currentContext
+                            context: contextPayload
                         })
                     });
 
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
                     const data = await response.json();
 
-                    chatHistory.removeChild(thinking);
-                    addBotMessage(data.reply || '無回應');
+                    // 移除思考中訊息
+                    if (thinkingDiv && thinkingDiv.parentNode) {
+                        thinkingDiv.parentNode.removeChild(thinkingDiv);
+                    }
 
-                    // 新增：渲染 Follow-up Prompts
+                    // [新增] 安全檢查：防止 data 為 null 或 undefined
+                    if (!data || !data.reply) {
+                        addBotMessage("系統發生預期外的錯誤，請重試。");
+                        return;
+                    }
+
+                    // 顯示 AI 回覆
+                    addBotMessage(data.reply);
+
+                    // 顯示追問按鈕
                     if (data.follow_up_prompts && data.follow_up_prompts.length > 0) {
                         renderFollowUpPrompts(data.follow_up_prompts);
                     }
 
                 } catch (err) {
-                    console.error('聊天 AI 失敗:', err);
-                    chatHistory.removeChild(thinking);
-                    addBotMessage('AI 連線失敗，請稍後再試！');
+                    console.error('Chat Error:', err);
+                    if (thinkingDiv && thinkingDiv.parentNode) {
+                        thinkingDiv.parentNode.removeChild(thinkingDiv);
+                    }
+                    addBotMessage("連線發生錯誤，請檢查網路。");
                 }
-            };
+            });
 
-            // Enter 送出
+            // 3. Enter 鍵送出
             chatInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     chatSendBtn.click();
                 }
             });
+        }
+
+        // 初始化聊天功能 (確保在 DOM 載入後執行)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupChat);
+        } else {
+            setupChat();
+        }
+
+        // ============================================================
+        // 全域函式 (Global Functions) - 放在最外層確保括號平衡
+        // ============================================================
+
+        function addBotMessage(text) {
+            const chatHistory = document.getElementById('chat-history');
+            if (!chatHistory) return;
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'bot-message';
+            // 安全模式：直接使用 innerHTML
+            messageDiv.innerHTML = text;
+
+            // CSS 防護
+            messageDiv.style.whiteSpace = 'pre-wrap';
+            messageDiv.style.wordBreak = 'break-word';
+
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            // MathJax 渲染
+            if (window.MathJax) {
+                try {
+                    window.MathJax.typesetPromise([messageDiv]);
+                } catch (err) { }
+            }
+            return messageDiv;
+        }
+
+        function renderFollowUpPrompts(prompts) {
+            let suggestionsContainer = document.getElementById('suggestions');
+
+            // 容器檢查與建立
+            if (!suggestionsContainer) {
+                const inputArea = document.querySelector('.chat-input-area');
+                if (inputArea) {
+                    suggestionsContainer = document.createElement('div');
+                    suggestionsContainer.id = 'suggestions';
+                    suggestionsContainer.style.padding = '5px';
+                    inputArea.parentNode.insertBefore(suggestionsContainer, inputArea);
+                } else { return; }
+            }
+
+            suggestionsContainer.innerHTML = '';
+
+            if (Array.isArray(prompts)) {
+                prompts.forEach(function (promptText) {
+                    const btn = document.createElement('button');
+                    btn.className = 'suggestion-btn';
+                    btn.innerHTML = promptText;
+
+                    btn.onclick = function () {
+                        const chatInput = document.getElementById('chat-input');
+                        const sendBtn = document.getElementById('chat-send-button');
+                        if (chatInput) {
+                            chatInput.value = promptText;
+                            if (sendBtn) sendBtn.click();
+                        }
+                        suggestionsContainer.innerHTML = '';
+                    };
+                    suggestionsContainer.appendChild(btn);
+                });
+
+                // MathJax 渲染按鈕
+                if (window.MathJax) {
+                    try {
+                        window.MathJax.typesetPromise([suggestionsContainer]);
+                    } catch (e) { }
+                }
+            }
         }
     </script>
 </body>

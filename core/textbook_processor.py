@@ -80,7 +80,21 @@ def fix_common_latex_errors(text):
     # 7. 次方與下標 (Superscript & Subscript)
     text = re.sub(r'(?<!\$)\b((\w+|\([^)]+\))\^(\{[\w-]+\}|[\w-]+))\b(?!\$)', r'$\1$', text) # x^2 -> $x^2$
     text = re.sub(r'(?<!\$)\b([a-zA-Z])_(\{[\w-]+\}|[\w]+)\b(?!\$)', r'$\1_{\2}$', text)   # a_n -> $a_{n}$
-
+   
+    # 4. 修正常見 OCR/Pandoc 錯誤
+    replacements = {
+            '\\[': '$$', '\\]': '$$',  # 將 \[ \] 統一轉為 $$
+            '\\(': '$', '\\)': '$',    # 將 \( \) 統一轉為 $
+            '＊': '*',                 # 全形轉半形
+            '＋': '+',
+            '－': '-',
+            '＝': '=',
+            '／': '/', 
+            'div ': '\\div '           # 常見錯誤：div 沒加斜線
+        }
+    
+    for old, new in replacements.items():
+        text = text.replace(old, new)
     return text
 
 # ==============================================================================

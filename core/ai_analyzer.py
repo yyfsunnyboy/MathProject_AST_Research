@@ -14,6 +14,28 @@ import io
 # 初始化 gemini_model 為 None，避免 NameError
 gemini_model = None
 
+def clean_and_parse_json(text):
+    """
+    強力清洗並解析 Gemini 回傳的 JSON 字串。
+    能夠自動移除 Markdown (```json) 與多餘雜訊，只提取有效的 JSON 物件。
+    """
+    try:
+        # 1. 移除常見的 Markdown code block 標記
+        text = re.sub(r'```json\s*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'```\s*', '', text)
+        
+        # 2. 使用 Regex 尋找最外層的 { } 結構
+        # dotall 模式讓 . 可以匹配換行符號
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            text = match.group(0)
+            
+        # 3. 嘗試解析
+        return json.loads(text)
+    except Exception as e:
+        print(f"JSON 解析失敗: {e}, 原始文字: {text}")
+        return None
+
 # 預設批改 Prompt
 DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
 題目：{context}
@@ -22,6 +44,30 @@ DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手
 請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
 如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
 
+【⚠️ 絕對嚴格的數學輸出規範 ⚠️】：
+為了讓網頁能正確顯示數學公式，你必須遵守以下規則，否則學生會看到亂碼：
+
+1. **所有的數學符號與算式**，無論多短，都**必須**用單個錢字號 $ 包裹。
+   - ❌ 錯誤：x^3 + \\frac{1}{x^3}
+   - ✅ 正確：$x^3 + \\frac{1}{x^3}$
+   
+2. **變數與數字**：
+   - ❌ 錯誤：令 a = x
+   - ✅ 正確：令 $a = x$
+   - ❌ 錯誤：答案是 198
+   - ✅ 正確：答案是 $198$
+
+3. **禁止巢狀 $**：
+   - ❌ 錯誤：$\\sqrt{ $3$ \\times $5$ }$
+   - ✅ 正確：$\\sqrt{3 \\times 5}$  (整個算式用一組 $ 包起來即可)
+
+4. **常用符號對照表**：
+   - 分數：$\\frac{a}{b}$
+   - 次方：$x^2$
+   - 根號：$\\sqrt{x}$
+   - 乘號：\\times 或 \\cdot
+
+請檢查你的 JSON 輸出中的 "reply" 欄位，確保所有數學部分都已經加上了 $。
 {
   "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
   "is_process_correct": true 或 false,
@@ -40,13 +86,37 @@ DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手
 直接輸出 JSON 內容，不要包在 ```json 標記內。"""
 
 # 預設聊天 Prompt
-DEFAULT_CHAT_PROMPT = """你是一位親切的數學家教。
-【學生當前正在練習的題目】：
-{context}
+# 預設聊天 Prompt
+# ======================================================
+# 請將這段程式碼「完全覆蓋」原本的 DEFAULT_CHAT_PROMPT 設定
+# ======================================================
 
-學生問：{user_answer}
+DEFAULT_CHAT_PROMPT = """
+你是一個「蘇格拉底式引導機器人」。
+你的工作**絕對不是解題**，而是**指出下一個思考點**。
 
-請參考上述題目資訊與前置技能：{prereq_text} 來回答。
+【嚴格規則】：
+1. **只能回傳「一個問句」**：你的 reply 必須是一個引導學生思考下一步的問題。
+2. **禁止給答案**：嚴禁出現數字結果或完整算式。
+3. **禁止解釋**：不要解釋原理，直接問學生「這裡該怎麼做」。
+
+【思考邏輯】：
+- 看到 $2x+5=15$，不要解 $x=5$。
+- 而是問：「為了讓左邊只剩下 $2x$，那個 $+5$ 應該怎麼處理？」
+
+- 看到 $\\sqrt{12}$，不要說 $2\\sqrt{3}$。
+- 而是問：「$12$ 可以分解成哪兩個數相乘，其中一個是完全平方數？」
+
+【JSON 輸出格式】：
+你必須輸出符合此 JSON schema 的內容：
+{
+  "reply": "你的引導問句 (必須包含 LaTeX 格式的數學符號，如 $x$)",
+  "follow_up_prompts": [
+    "選項1 (例如：移項)",
+    "選項2 (例如：同除)",
+    "選項3 (例如：看不懂)"
+  ]
+}
 """
 
 def configure_gemini(api_key, model_name):
@@ -429,46 +499,47 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
 
 def get_chat_response(prompt):
     """
-    Calls the AI model with the given prompt and parses the JSON response.
-    Returns a dictionary with 'reply' and 'follow_up_prompts'.
+    取得 Gemini 的回應，並確保回傳格式為 JSON。
     """
+    if not gemini_model:
+        return {
+            "reply": "系統尚未初始化 (API Key 可能無效)。",
+            "follow_up_prompts": []
+        }
+
     try:
-        model = get_model()
-        resp = model.generate_content(prompt)
-        raw_text = resp.text.strip()
+        # 呼叫 Gemini
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type='application/json', # 強制 JSON
+                temperature=0.2,
+                max_output_tokens=300, # 稍微調高一點，避免 AI 加上"Here is JSON"後導致真正的 JSON 被截斷
+            )
+        )
         
-        # Clean JSON
-        cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
-        data = json.loads(cleaned)
+        raw_text = response.text
         
-        reply = data.get("reply", "AI 回應格式錯誤")
-        follow_up_prompts = data.get("follow_up_prompts", [])
-        
-        # Remove '$' from reply
-        reply = reply.replace('$', '')
-        
-        # Ensure reply is warm
-        if not any(word in reply for word in ['加油', '試試', '可以的', '棒']):
-            reply += "\n\n試試看，你一定可以的！加油～"
+        # 嘗試解析 (優先使用官方 JSON 模式，失敗則用強力清洗)
+        try:
+            return json.loads(raw_text)
+        except json.JSONDecodeError:
+            cleaned_data = clean_and_parse_json(raw_text)
             
-        return {
-            "reply": reply,
-            "follow_up_prompts": follow_up_prompts
-        }
-        
-    except json.JSONDecodeError:
-         # Fallback to text if JSON fails
-        clean_text = raw_text.replace('$', '')
-        clean_text = re.sub(r'```json.*?```', '', clean_text, flags=re.DOTALL)
-        return {
-            "reply": clean_text,
-            "follow_up_prompts": []
-        }
+            # [關鍵修復]：如果清洗後還是 None，回傳一個安全預設值，絕對不要回傳 None！
+            if cleaned_data is None:
+                print(f"解析失敗，原始回傳: {raw_text}")
+                return {
+                    "reply": "運算發生錯誤，請試著換個方式問問看。", 
+                    "follow_up_prompts": ["重試"]
+                }
+            return cleaned_data
+
     except Exception as e:
-        print(f"[AI_ANALYZER ERROR] {e}")
+        print(f"AI 生成錯誤: {e}")
         return {
-            "reply": "AI 暫時無法回應，請稍後再試！",
-            "follow_up_prompts": []
+            "reply": "連線忙碌中，請稍後再試。", 
+            "follow_up_prompts": ["重試"]
         }
 
 # 預設弱點分析 Prompt
