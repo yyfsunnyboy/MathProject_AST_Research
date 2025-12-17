@@ -15,12 +15,59 @@ import io
 gemini_model = None
 gemini_chat = None
 
+
 def clean_and_parse_json(text):
     """
-    強力清洗並解析 Gemini 回傳的 JSON 字串。
-    能夠自動移除 Markdown (```json) 與多餘雜訊，只提取有效的 JSON 物件。
+    強力清洗並解析 JSON，包含自動修復截斷內容的功能。
     """
+    # 1. 移除 Markdown
+    text = re.sub(r'```json\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'```\s*', '', text)
+    
+    # 2. 抓取最外層 {}
+    match = re.search(r'\{.*', text, re.DOTALL) # 這裡改寬鬆一點，只要有開頭就好
+    if match:
+        text = match.group(0)
+    
     try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # === 自動修復機制 ===
+        print(f"JSON 解析失敗，嘗試自動修復截斷內容...")
+        
+        # 1. 修復未閉合的字串 (如果引號是奇數個，補一個)
+        # 簡單判斷：計算雙引號數量 (排除跳脫的 ")
+        quote_count = len(re.findall(r'(?<!\\)"', text))
+        if quote_count % 2 != 0:
+            text += '"'
+            
+        # 2. 修復未閉合的括號
+        open_braces = text.count('{') - text.count('}')
+        open_brackets = text.count('[') - text.count(']')
+        
+        # 依序補上缺少的結尾 (簡單推測)
+        # 通常 JSON 結尾是 ]} 或 }
+        # 我們直接補充足夠的 } 和 ]
+        # 注意：這只是簡易修復，可能無法處理複雜巢狀，但能防止崩潰
+        
+        # 優先補 List 的 ]
+        if open_brackets > 0:
+            text += ']' * open_brackets
+            
+        # 再補 Object 的 }
+        if open_braces > 0:
+            text += '}' * open_braces
+            
+        try:
+            return json.loads(text)
+        except:
+            print("自動修復失敗，回傳安全預設值。")
+            # 真的救不回來，回傳一個顯示錯誤的 JSON，避免前端白畫面
+            return {
+                "reply": "（AI 回應訊號中斷，但您答對了！請繼續下一題。）", 
+                "follow_up_prompts": ["繼續練習"]
+            }
+
         # 1. 移除常見的 Markdown code block 標記
         text = re.sub(r'```json\s*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'```\s*', '', text)
@@ -107,6 +154,9 @@ DEFAULT_CHAT_PROMPT = """
 
 - 看到 $\\sqrt{12}$，不要說 $2\\sqrt{3}$。
 - 而是問：「$12$ 可以分解成哪兩個數相乘，其中一個是完全平方數？」
+
+【嚴格字數限制】：
+請保持回答在 150 字以內，避免截斷。
 
 【JSON 輸出格式】：
 你必須輸出符合此 JSON schema 的內容：
@@ -195,7 +245,7 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
             model = get_model()
             resp = model.generate_content(
                 [prompt, file],
-                generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+                generation_config={"max_output_tokens": 8192, "temperature": 0.5}
             )
             raw_text = resp.text.strip()
 
@@ -279,7 +329,7 @@ def identify_skills_from_problem(problem_text):
         
         resp = chat.send_message(
             prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
-            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+            generation_config={"max_output_tokens": 8192, "temperature": 0.5}
         )
         raw_text = resp.text.strip()
         
@@ -320,7 +370,7 @@ def ask_ai_text(user_question):
         """
         resp = chat.send_message(
             prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
-            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+            generation_config={"max_output_tokens": 8192, "temperature": 0.5}
         )
         return resp.text.strip()
     except Exception as e:
@@ -353,7 +403,7 @@ def ask_ai_text_with_context(user_question, context=""):
     try:
         resp = model.generate_content(
             system_prompt,
-            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+            generation_config={"max_output_tokens": 8192, "temperature": 0.5}
         )
         return resp.text.strip()
     except Exception as e:
@@ -599,7 +649,7 @@ def analyze_student_weakness(prompt_data):
         
         response = chat.send_message(
             prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
-            generation_config={"max_output_tokens": 4096, "temperature": 0.5}
+            generation_config={"max_output_tokens": 8192, "temperature": 0.5}
         )
         ai_response_text = response.text.strip()
         

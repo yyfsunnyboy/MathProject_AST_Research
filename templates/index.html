@@ -819,6 +819,59 @@
 
     </style>
 
+
+    <style>
+        :root {
+            --chat-font-size: 16px; /* 預設中字體 */
+        }
+
+        /* 字體大小控制按鈕樣式 */
+        .font-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .font-controls button {
+            background: transparent;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 6px;
+            color: #555;
+            transition: all 0.2s;
+        }
+        .font-controls button:hover {
+            background: #eee;
+            color: #000;
+            border-color: #999;
+        }
+
+        /* === 強制套用動態字體大小的區域 === */
+        
+        /* 1. 聊天室內的訊息 (包含使用者和 AI) */
+        .chat-message, .bot-message, .bot-message-content, .chat-user {
+            font-size: var(--chat-font-size) !important;
+            line-height: 1.5 !important;
+        }
+        
+        /* 2. 聊天記錄裡的 MathJax 公式 */
+        .chat-message .MathJax, .bot-message .MathJax {
+            font-size: 100% !important; /* 跟隨父元素 */
+        }
+
+        /* 3. 底部提示詞建議區 (suggestions) 的按鈕 */
+        #suggestions .suggestion-btn {
+            font-size: var(--chat-font-size) !important;
+        }
+
+        /* 4. 聊天記錄中可能出現的選項按鈕 (追問問題) */
+        #chat-history button, .suggestion-btn {
+            font-size: var(--chat-font-size) !important;
+        }
+        
+    </style>
+
 </head>
 
 <body>
@@ -954,11 +1007,20 @@
         </div>
         <!-- 聊天區 -->
         <div class="chat-area">
-            <h3 style="margin-bottom: 0; padding-bottom: 2px;">AI 助教</h3>
+            
+<div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 5px;">
+    <h3 style="margin-bottom: 0; padding-bottom: 2px;">AI 助教</h3>
+    <div class="font-controls">
+        <button onclick="changeFontSize('small')">小</button>
+        <button onclick="changeFontSize('medium')">中</button>
+        <button onclick="changeFontSize('large')">大</button>
+    </div>
+</div>
+
             <div id="chat-history" style="padding-top: 5px;">
-                <div class="bot-message">
-                    <div style="margin: 0; padding: 0; font-weight: bold; line-height: 1.2;">你好！有問題問我～</div>
-                </div>
+                <div class="bot-message initial-bot-message">
+    你好！有問題問我～
+</div>
             </div>
             <div id="suggested-prompts-container" style="display: none;">
                 <h4>試試這樣問：</h4>
@@ -2402,6 +2464,305 @@
             }
         }
     </script>
+
+    <script>
+        function changeFontSize(size) {
+            const root = document.documentElement;
+            let newSize = '16px';
+            
+            if (size === 'small') newSize = '14px';
+            if (size === 'medium') newSize = '16px';
+            if (size === 'large') newSize = '20px'; // 大字體顯著放大
+            
+            root.style.setProperty('--chat-font-size', newSize);
+            
+            // 視覺回饋：稍微改變按鈕狀態 (選用)
+            console.log("Font size changed to: " + size);
+        }
+    </script>
+
+
+    <!-- ========================================================================== -->
+    <!-- VISUAL UPGRADE: Professional, Natural, Reliable, Cute & Cultural           -->
+    <!-- ========================================================================== -->
+    <style>
+    :root {
+        /* --- 預設主題 (自然、可靠、穩重 - Natural & Reliable) --- */
+        /* 色票來源：北歐森林與大地色系 */
+        --primary-color: #2D6A4F;      /* 深翠綠 - 專業與信任 */
+        --secondary-color: #40916C;    /* 中綠色 - 自然 */
+        --accent-color: #D8F3DC;       /* 淺薄荷 - 柔和背景 */
+        --highlight-color: #95D5B2;    /* 亮綠色 - 強調 */
+        
+        --action-color: #1B4332;       /* 極深綠 - 按鈕/文字 */
+        --warn-color: #E07A5F;         /* 柔和紅 - 錯誤/警告 */
+        
+        --bg-color: #F8F9FA;           /* 雲朵白 - 整體背景 */
+        --card-bg: #FFFFFF;            /* 純白 - 卡片背景 */
+        
+        --text-main: #1F2937;          /* 炭灰 - 主要文字 */
+        --text-sub: #6B7280;           /* 灰 - 次要文字 */
+
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 20px;
+        --radius-xl: 30px;             /* 用於按鈕與聊天氣泡 */
+        
+        /* 陰影系統 (Neumorphism 輕量化) */
+        --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
+        --shadow-sm: 0 2px 4px rgba(45,106,79,0.08);
+        --shadow-md: 0 4px 12px rgba(45,106,79,0.12);
+        --shadow-lg: 0 10px 25px rgba(45,106,79,0.15);
+        
+        --font-main: "Nunito", "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
+    }
+
+    /* --- 文青可愛主題 (可透過 class="theme-cute" 切換) --- */
+    body.theme-cute {
+        --primary-color: #F4A261;      /* 溫暖橘 */
+        --secondary-color: #E9C46A;    /* 芥末黃 */
+        --accent-color: #FEFAE0;       /* 米白 */
+        --action-color: #264653;       /* 深藍綠 */
+        --bg-color: #FAF3DD;           /* 復古紙張色 */
+    }
+
+    /* === 全局基礎優化 === */
+    body {
+        background-color: var(--bg-color) !important;
+        color: var(--text-main) !important;
+        font-family: var(--font-main) !important;
+        letter-spacing: 0.02em; /* 增加一點點字距，閱讀更舒適 */
+    }
+
+    /* === Navbar 升級 === */
+    .navbar {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+        box-shadow: var(--shadow-md) !important;
+        border-bottom: none !important;
+    }
+    .navbar .logo {
+        color: white !important;
+        font-weight: 800 !important;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .navbar a {
+        background: rgba(255,255,255,0.1) !important;
+        border-radius: var(--radius-md) !important;
+        backdrop-filter: blur(5px);
+    }
+    .navbar a:hover {
+        background: rgba(255,255,255,0.25) !important;
+        transform: translateY(-1px);
+    }
+
+    /* === 卡片區塊 (練習區 & 聊天區) === */
+    .practice-area, .chat-area {
+        border: none !important;  /* 移除舊邊框 */
+        background: transparent !important; /* 讓容器透出背景，我們只對內部卡片上色 */
+    }
+
+    /* 真正的卡片實體 */
+    #question-container, #scratchpad-container, #chat-history {
+        background-color: var(--card-bg) !important;
+        border: 1px solid rgba(0,0,0,0.03) !important;
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-md) !important;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    #question-container:hover, #scratchpad-container:hover, #chat-history:hover {
+        box-shadow: var(--shadow-lg) !important;
+    }
+
+    /* === 按鈕全域升級 (Interactive Solid Style) === */
+    /* 1. 主要操作按鈕 */
+    #submit-button, #chat-send-button, #practice-prereq-btn {
+        background: var(--action-color) !important;
+        color: white !important;
+        border-radius: var(--radius-md) !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 0 rgba(0,0,0,0.2); /* 3D 按壓感 */
+        transform: translateY(0);
+        transition: all 0.15s ease !important;
+        border: none !important;
+    }
+    #submit-button:hover, #chat-send-button:hover, #practice-prereq-btn:hover {
+        background-color: var(--primary-color) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+    }
+    #submit-button:active, #chat-send-button:active, #practice-prereq-btn:active {
+        transform: translateY(2px);
+        box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+    }
+
+    /* 2. 工具按鈕 (Tool Buttons) */
+    .tool-btn, .level-button, .symbol-button {
+        background-color: white !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: var(--radius-md) !important;
+        color: var(--text-sub) !important;
+        box-shadow: var(--shadow-xs) !important;
+        font-weight: 600;
+    }
+    .tool-btn:hover, .level-button:hover, .symbol-button:hover {
+        border-color: var(--secondary-color) !important;
+        color: var(--primary-color) !important;
+        background-color: var(--accent-color) !important;
+        transform: translateY(-1px);
+    }
+    .tool-btn.active, .level-button.active {
+        background-color: var(--secondary-color) !important;
+        color: white !important;
+        border-color: var(--secondary-color) !important;
+        box-shadow: var(--shadow-sm) !important;
+    }
+
+    /* === 輸入框 (Soft Input) === */
+    input[type="text"], #answer-input, #chat-input {
+        background-color: #F3F4F6 !important;
+        border: 2px solid transparent !important;
+        border-radius: var(--radius-md) !important;
+        padding: 12px 16px !important;
+        font-size: 1rem !important;
+        color: var(--text-main) !important;
+        transition:all 0.3s ease;
+    }
+    input[type="text"]:focus, #answer-input:focus, #chat-input:focus {
+        background-color: white !important;
+        border-color: var(--secondary-color) !important;
+        box-shadow: 0 0 0 4px var(--accent-color) !important;
+        outline: none !important;
+    }
+
+    /* === 聊天室視覺 (Bubble Style) === */
+    /* AI 頭像/標題區 */
+    .chat-area h3 {
+        color: var(--primary-color) !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.5px;
+    }
+
+    /* AI 訊息氣泡 */
+    .bot-message, .initial-bot-message {
+        background: #FFFFFF !important;
+        border: 1px solid #F0F0F0 !important;
+        border-radius: 0 var(--radius-xl) var(--radius-xl) var(--radius-xl) !important; /* 左上角尖角 */
+        box-shadow: var(--shadow-sm) !important;
+        color: var(--text-main) !important;
+    }
+    /* 初始訊息特別加強 */
+    .initial-bot-message {
+        border: 2px solid var(--secondary-color) !important;
+        background-color: var(--accent-color) !important;
+        color: var(--action-color) !important;
+        font-weight: bold;
+    }
+
+    /* 使用者訊息氣泡 */
+    .user-message {
+        background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)) !important;
+        color: white !important;
+        border-radius: var(--radius-xl) 0 var(--radius-xl) var(--radius-xl) !important; /* 右上角尖角 */
+        box-shadow: var(--shadow-md) !important;
+    }
+
+    /* 提示詞按鈕 (Chips) */
+    .suggestion-btn, .prompt-button {
+        background-color: white !important;
+        border: 1px solid var(--secondary-color) !important;
+        color: var(--secondary-color) !important;
+        border-radius: 50px !important; /* Pill shape */
+        padding: 5px 15px !important;
+        font-size: 0.9em !important;
+        box-shadow: var(--shadow-xs) !important;
+    }
+    .suggestion-btn:hover, .prompt-button:hover {
+        background-color: var(--secondary-color) !important;
+        color: white !important;
+        transform: scale(1.05);
+        box-shadow: var(--shadow-md) !important;
+    }
+
+    /* 字體大小控制按鈕 */
+    .font-controls button {
+        border-color: var(--secondary-color) !important;
+        color: var(--secondary-color) !important;
+    }
+    .font-controls button:hover {
+        background: var(--secondary-color) !important;
+        color: white !important;
+    }
+
+    /* === 捲軸美化 (Natural Scroll) === */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #F1F1F1;
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #C1C1C1;
+        border-radius: 4px;
+        border: 2px solid #F1F1F1; /* 創造懸浮感 */
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--secondary-color);
+    }
+    </style>
+
+
+    <style>
+    /* === FIX: Restore Pen Colors === */
+    /* Target buttons by their onclick content to avoid changing HTML */
+    
+    /* Black Pen */
+    button.tool-btn[onclick*="'black'"] {
+        color: black !important;
+        border-color: #2c3e50 !important;
+    }
+    button.tool-btn[onclick*="'black'"]:hover,
+    button.tool-btn[onclick*="'black'"].active {
+        background-color: #2c3e50 !important;
+        color: white !important;
+    }
+
+    /* Red Pen */
+    button.tool-btn[onclick*="'#e74c3c'"] {
+        color: #e74c3c !important;
+        border-color: #e74c3c !important;
+    }
+    button.tool-btn[onclick*="'#e74c3c'"]:hover,
+    button.tool-btn[onclick*="'#e74c3c'"].active {
+        background-color: #e74c3c !important;
+        color: white !important;
+    }
+
+    /* Blue Pen */
+    button.tool-btn[onclick*="'#0066cc'"] {
+        color: #0066cc !important;
+        border-color: #0066cc !important;
+    }
+    button.tool-btn[onclick*="'#0066cc'"]:hover,
+    button.tool-btn[onclick*="'#0066cc'"].active {
+        background-color: #0066cc !important;
+        color: white !important;
+    }
+
+    /* Green Pen */
+    button.tool-btn[onclick*="'#009933'"] {
+        color: #009933 !important;
+        border-color: #009933 !important;
+    }
+    button.tool-btn[onclick*="'#009933'"]:hover,
+    button.tool-btn[onclick*="'#009933'"].active {
+        background-color: #009933 !important;
+        color: white !important;
+    }
+    </style>
+
 </body>
 
 </html>
