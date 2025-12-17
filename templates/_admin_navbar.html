@@ -1,6 +1,6 @@
 <div class="navbar">
     <a href="{{ url_for('teacher_dashboard') }}" class="logo" style="font-size: 1.3rem;">
-        Math-Master 後台 ( <strong>{{ username or current_user.username }}</strong> )
+        自適應性教學系統 後台 ( <strong>{{ username or current_user.username }}</strong> )
     </a>
     <div style="display: flex; align-items: center; gap: 5px; flex-wrap: nowrap;">
         {% if current_user.is_admin %}

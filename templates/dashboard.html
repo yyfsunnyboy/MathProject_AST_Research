@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>學習儀表板 - 功文數學</title>
+    <title>學習儀表板 - 自適應性教學系統</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -314,7 +314,7 @@
 <body>
     <div class="navbar">
         <a href="{{ url_for('dashboard') }}" class="logo">
-            功文數學 ( <strong>{{ username }}</strong>！ )
+            自適應性教學系統 ( <strong>{{ username }}</strong>！ )
         </a>
         <div>
             {% if current_user.role == 'teacher' or current_user.is_admin %}
