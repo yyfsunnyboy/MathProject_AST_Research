@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新增錯題記錄 - 自適應性教學系統</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .navbar {
+            background: #2c3e50;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .navbar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .navbar a:hover {
+            background: #34495e;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 15px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        .form-group input[type="file"],
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+        }
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        .image-preview-container {
+            margin-top: 15px;
+            text-align: center;
+            border: 1px dashed #ced4da;
+            padding: 15px;
+            border-radius: 5px;
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #6c757d;
+        }
+        .image-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 5px;
+            display: none; /* Hidden by default */
+            margin-top: 10px;
+            object-fit: contain;
+        }
+        .submit-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            width: 100%;
+            transition: background-color 0.2s;
+        }
+        .submit-btn:hover {
+            background-color: #218838;
+        }
+        .submit-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border-left-color: #28a745;
+            animation: spin 1s ease infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+            display: none; /* Hidden by default */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="{{ url_for('dashboard') }}" class="logo">自適應性教學系統</a>
+        <div>
+            <a href="{{ url_for('core.mistake_notebook_page') }}">返回錯題本</a>
+            <a href="{{ url_for('dashboard') }}">返回儀表板</a>
+            <a href="{{ url_for('logout') }}">登出</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>新增錯題記錄</h2>
+        <div id="alert-messages"></div>
+        <form id="add-mistake-form">
+            <div class="form-group">
+                <label for="image_file">上傳考卷圖片</label>
+                <input type="file" id="image_file" name="image_file" accept="image/*" required>
+                <div class="image-preview-container">
+                    <span id="preview-text">點擊或拖曳圖片到此處上傳</span>
+                    <img id="image_preview" class="image-preview" src="#" alt="圖片預覽">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="skill_id">關聯知識點 (選填)</label>
+                <select id="skill_id" name="skill_id">
+                    <option value="">-- 請選擇知識點 --</option>
+                    <!-- Skills will be loaded here dynamically -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="notes">筆記或心得</label>
+                <textarea id="notes" name="notes" placeholder="記錄這題的錯誤原因、解題思路或重要觀念..."></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submit-button">
+                儲存錯題記錄 <span class="spinner" id="submit-spinner"></span>
+            </button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const imageFile = document.getElementById('image_file');
+            const imagePreview = document.getElementById('image_preview');
+            const previewText = document.getElementById('preview-text');
+            const skillSelect = document.getElementById('skill_id');
+            const addMistakeForm = document.getElementById('add-mistake-form');
+            const submitButton = document.getElementById('submit-button');
+            const submitSpinner = document.getElementById('submit-spinner');
+            const alertMessages = document.getElementById('alert-messages');
+
+            let uploadedImagePath = null; // Store the relative path of the uploaded image
+
+            // --- Helper function to show alerts ---
+            function showAlert(message, type = 'danger') {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.textContent = message;
+                alertMessages.innerHTML = ''; // Clear previous alerts
+                alertMessages.appendChild(alertDiv);
+                alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => alertDiv.remove(), 5000); // Remove after 5 seconds
+            }
+
+            // --- Image Preview ---
+            imageFile.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreview.style.display = 'block';
+                        previewText.style.display = 'none';
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    imagePreview.src = '#';
+                    imagePreview.style.display = 'none';
+                    previewText.style.display = 'block';
+                }
+            });
+
+            // --- Fetch Skills for Dropdown ---
+            async function fetchSkills() {
+                try {
+                    // Assuming there's an API endpoint to get all active skills
+                    // You might need to create a new one like '/api/skills/all'
+                    // For now, I'll use '/api/skills/search' with an empty term which usually returns all or top N
+                    const response = await fetch('/api/skills/search?term='); 
+                    const data = await response.json();
+                    
+                    if (data.results) { // Assuming 'results' is the key from api_search_skills
+                        data.results.forEach(skill => {
+                            const option = document.createElement('option');
+                            option.value = skill.id;
+                            option.textContent = skill.text;
+                            skillSelect.appendChild(option);
+                        });
+                    } else {
+                        showAlert('無法載入知識點', 'danger');
+                    }
+                } catch (error) {
+                    console.error('Error fetching skills:', error);
+                    showAlert('載入知識點時發生錯誤', 'danger');
+                }
+            }
+            fetchSkills();
+
+            // --- Form Submission ---
+            addMistakeForm.addEventListener('submit', async function(event) {
+                event.preventDefault(); // Prevent default form submission
+
+                submitButton.disabled = true;
+                submitSpinner.style.display = 'inline-block';
+                alertMessages.innerHTML = ''; // Clear previous alerts
+
+                const file = imageFile.files[0];
+                if (!file) {
+                    showAlert('請選擇要上傳的圖片！');
+                    submitButton.disabled = false;
+                    submitSpinner.style.display = 'none';
+                    return;
+                }
+
+                // 1. Upload Image
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const uploadResponse = await fetch('/mistake-notebook/upload-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const uploadData = await uploadResponse.json();
+
+                    if (!uploadData.success) {
+                        showAlert(`圖片上傳失敗: ${uploadData.message}`);
+                        submitButton.disabled = false;
+                        submitSpinner.style.display = 'none';
+                        return;
+                    }
+                    uploadedImagePath = uploadData.image_path; // Get the relative path from the backend
+
+                } catch (error) {
+                    console.error('圖片上傳錯誤:', error);
+                    showAlert('圖片上傳時發生網路錯誤或伺服器錯誤', 'danger');
+                    submitButton.disabled = false;
+                    submitSpinner.style.display = 'none';
+                    return;
+                }
+
+                // 2. Submit Mistake Record
+                const mistakeData = {
+                    image_path: uploadedImagePath,
+                    skill_id: skillSelect.value || null, // Can be null if not selected
+                    notes: document.getElementById('notes').value
+                    // question_data: {} // Can add cropping coordinates later if implemented
+                };
+
+                try {
+                    const recordResponse = await fetch('/mistake-notebook/add', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(mistakeData)
+                    });
+                    const recordData = await recordResponse.json();
+
+                    if (recordData.success) {
+                        showAlert('錯題記錄儲存成功！', 'success');
+                        addMistakeForm.reset(); // Clear the form
+                        imagePreview.src = '#';
+                        imagePreview.style.display = 'none';
+                        previewText.style.display = 'block';
+                        uploadedImagePath = null; // Reset path
+                        // Optionally redirect to mistake notebook page
+                        setTimeout(() => {
+                            window.location.href = "{{ url_for('core.mistake_notebook_page') }}";
+                        }, 1500);
+                    } else {
+                        showAlert(`儲存錯題記錄失敗: ${recordData.message}`);
+                    }
+                } catch (error) {
+                    console.error('儲存錯題記錄錯誤:', error);
+                    showAlert('儲存錯題記錄時發生網路錯誤或伺服器錯誤', 'danger');
+                } finally {
+                    submitButton.disabled = false;
+                    submitSpinner.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

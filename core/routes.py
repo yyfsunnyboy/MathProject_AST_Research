@@ -19,7 +19,7 @@ import random
 import string
 from sqlalchemy.orm import aliased
 from flask import session, jsonify
-from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User, ExamAnalysis, init_db
+from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User, ExamAnalysis, init_db, MistakeNotebookEntry
 from sqlalchemy.exc import IntegrityError
 from core.utils import get_skill_info
 from core.session import get_current, set_current
@@ -2756,7 +2756,211 @@ def exam_history():
             'success': False,
             'message': f'查詢失敗: {str(e)}'
         }), 500
+        
+        
+        
+        # === 錯題本功能 API ===
+        
+        
+        
+        # 允許的圖片格式
+        
+        ALLOWED_MISTAKE_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+        
+        
+        
+        def allowed_mistake_image_file(filename):
+        
+            return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_MISTAKE_IMAGE_EXTENSIONS
+        
+        
+        
+        @core_bp.route('/mistake-notebook/upload-image', methods=['POST'])
+        
+        @login_required
+        
+        def upload_mistake_image():
+        
+            """
+        
+            上傳錯題圖片
+        
+            """
+        
+            try:
+        
+                # 1. 驗證檔案
+        
+                if 'file' not in request.files:
+        
+                    return jsonify({'success': False, 'message': '沒有上傳檔案'}), 400
+        
+                
+        
+                file = request.files['file']
+        
+                if file.filename == '':
+        
+                    return jsonify({'success': False, 'message': '沒有選擇檔案'}), 400
+        
+                
+        
+                if not allowed_mistake_image_file(file.filename):
+        
+                    return jsonify({'success': False, 'message': '不支援的檔案格式,請上傳 jpg, png 或 gif'}), 400
+        
+                
+        
+                # 2. 儲存圖片到專用資料夾
+        
+                upload_dir = os.path.join(current_app.static_folder, 'mistake_uploads', str(current_user.id))
+        
+                os.makedirs(upload_dir, exist_ok=True)
+        
+                
+        
+                file_ext = file.filename.rsplit('.', 1)[1].lower()
+        
+                unique_filename = f"{uuid.uuid4().hex}.{file_ext}"
+        
+                file_path = os.path.join(upload_dir, unique_filename)
+        
+                
+        
+                file.save(file_path)
+        
+                
+        
+                # 3. 回傳圖片的相對路徑
+        
+                relative_path = f"mistake_uploads/{current_user.id}/{unique_filename}"
+        
+                
+        
+                return jsonify({
+        
+                    'success': True,
+        
+                    'message': '圖片上傳成功',
+        
+                    'image_url': url_for('static', filename=relative_path),
+        
+                    'image_path': relative_path # 回傳相對路徑，方便後續儲存到 DB
+        
+                })
+        
+                
+        
+            except Exception as e:
+        
+                current_app.logger.error(f"上傳錯題圖片時發生錯誤: {e}\n{traceback.format_exc()}")
+        
+                return jsonify({
+        
+                    'success': False,
+        
+                    'message': f'伺服器錯誤: {str(e)}'
+        
+                }), 500
+        
+        
+        
+                return jsonify({
+            'success': False,
+            'message': f'伺服器錯誤: {str(e)}'
+        }), 500
 
+@core_bp.route('/mistake-notebook/add', methods=['POST'])
+@login_required
+def add_mistake_notebook_entry():
+    """
+    新增錯題本記錄
+    """
+    try:
+        data = request.get_json()
+        
+        # 驗證必要參數
+        image_path = data.get('image_path')
+        skill_id = data.get('skill_id')
+        notes = data.get('notes', '')
+        question_data = data.get('question_data') # 可能是裁切座標等 JSON 數據
+        
+        if not image_path:
+            return jsonify({'success': False, 'message': '缺少圖片路徑'}), 400
+        # skill_id 可以為空，如果使用者暫時不想關聯技能
+        
+        new_entry = MistakeNotebookEntry(
+            student_id=current_user.id,
+            exam_image_path=image_path,
+            question_data=question_data,
+            notes=notes,
+            skill_id=skill_id
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '錯題記錄新增成功！',
+            'entry': new_entry.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"新增錯題記錄時發生錯誤: {e}\n{traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'伺服器錯誤: {str(e)}'
+        }), 500
+
+@core_bp.route('/api/mistake-notebook', methods=['GET'])
+@login_required
+def get_mistake_notebook_api():
+    """
+    獲取當前使用者的所有錯題記錄 (API 模式)
+    """
+    try:
+        # 查詢所有錯題記錄，並依照建立時間倒序排列
+        entries = db.session.query(MistakeNotebookEntry).filter_by(
+            student_id=current_user.id
+        ).order_by(MistakeNotebookEntry.created_at.desc()).all()
+        
+        # 將記錄轉換為字典列表，並加入圖片的完整 URL
+        result = []
+        for entry in entries:
+            entry_dict = entry.to_dict()
+            if entry.exam_image_path:
+                entry_dict['full_image_url'] = url_for('static', filename=entry.exam_image_path)
+            result.append(entry_dict)
+            
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"獲取錯題記錄時發生錯誤: {e}\n{traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'伺服器錯誤: {str(e)}'
+        }), 500
+
+@core_bp.route('/mistake-notebook')
+@login_required
+def mistake_notebook_page():
+    """
+    顯示錯題本頁面
+    """
+    return render_template('mistake_notebook.html', username=current_user.username)
+
+@core_bp.route('/add_mistake_page')
+@login_required
+def add_mistake_page():
+    """
+    顯示新增錯題頁面
+    """
+    return render_template('add_mistake.html', username=current_user.username)
 
 @core_bp.route('/exam_upload_page')
 @login_required
