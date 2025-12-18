@@ -25,6 +25,8 @@
     <script type="text/javascript" id="MathJax-script" async
         src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
         </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* === 全局樣式 === */
         * {
@@ -571,23 +573,112 @@
             font-weight: 600;
         }
 
-        #suggested-prompts {
+        /* 統一氣泡樣式 CSS (確保橫向排列) */
+        .suggestions-container {
             display: flex;
-            flex-direction: column;
+            flex-wrap: nowrap;
+            /* 不換行 */
+            overflow-x: auto;
+            /* 橫向捲動 */
             gap: 8px;
+            padding: 4px 0;
+            /* 加點 padding 避免陰影被切到 */
+            scrollbar-width: none;
+            /* Firefox 隱藏捲軸 */
         }
 
-        .prompt-button {
-            width: 100%;
-            padding: 8px 12px;
-            background: #fdfefe;
-            border: 1px solid #dfe6e9;
-            border-radius: 6px;
-            text-align: left;
+        .suggestions-container::-webkit-scrollbar {
+            display: none;
+            /* Chrome 隱藏捲軸 */
+        }
+
+        /* === 新增：動態建議專屬樣式 (淺紅色) === */
+        .dynamic-prompt-btn {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.95em;
             cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            /* 不換行 */
+            flex-shrink: 0;
+            /* 防止被壓縮 */
+            box-shadow: 0 2px 4px rgba(198, 40, 40, 0.1);
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .dynamic-prompt-btn:hover {
+            background-color: #c62828;
+            /* 深紅背景 */
+            color: #ffffff;
+            /* 白字 */
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(198, 40, 40, 0.2);
+            border-color: #c62828;
+        }
+
+        /* 統一的 Suggestion Button 樣式 (覆蓋舊的) */
+        .suggestion-btn,
+        .prompt-button {
+            white-space: nowrap !important;
+            /* 強制文字不換行 */
+            background-color: #e8f4ff !important;
+            /* 水藍色背景 */
+            color: #1890ff !important;
+            /* 深藍色文字 */
+            border: 1px solid #91d5ff !important;
+            /* 淡藍邊框 */
+            border-radius: 20px !important;
+            /* 圓角氣泡感 */
+            padding: 6px 16px !important;
             font-size: 0.9em;
-            color: #2c3e50;
-            transition: all 0.2s;
+            cursor: pointer;
+            flex-shrink: 0;
+            /* 防止被壓縮 */
+            transition: all 0.3s;
+            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            /* 自動寬度 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* === 新增：用來修復佈局的 CSS === */
+        #main-chat-container {
+            max-width: 1200px;
+            /* 增加寬度限制 */
+            margin: 0 auto;
+            /* 水平置中 */
+        }
+
+        .card-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 1.5rem !important;
+        }
+
+        #static-prompts,
+        #dynamic-prompts {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            /* 允許換行 */
+            gap: 8px;
+            /* 讓泡泡整齊排列 */
+        }
+
+        .suggestion-btn:hover,
+        .prompt-button:hover {
+            background-color: #1890ff !important;
+            color: white !important;
+            border-color: #1890ff !important;
         }
 
         .prompt-button:hover {
@@ -791,32 +882,37 @@
             width: 100% !important;
             box-sizing: border-box !important;
         }
-    
+
         /* === AI 聊天室排版強制修正 === */
-        .chat-area h3 { 
-            margin-bottom: 0 !important; 
-            padding-bottom: 5px !important; 
-            margin-top: 0 !important; 
+        .chat-area h3 {
+            margin-bottom: 0 !important;
+            padding-bottom: 5px !important;
+            margin-top: 0 !important;
         }
-        #chat-history { 
-            padding-top: 0 !important; 
-            margin-top: 0 !important; 
+
+        #chat-history {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
         }
-        .bot-message { 
-            margin-top: 0 !important; 
-            padding-top: 0 !important; 
+
+        .bot-message {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
         }
+
         /* 針對頑固的 pre 標籤進行降伏 */
         .bot-message pre {
             margin: 0 !important;
             padding: 0 !important;
-            font-family: inherit !important; /* 消除醜醜的程式碼字體 */
-            font-weight: bold !important;   /* 強制粗體 */
-            white-space: pre-wrap !important; /* 保留換行但允許自動折行 */
+            font-family: inherit !important;
+            /* 消除醜醜的程式碼字體 */
+            font-weight: bold !important;
+            /* 強制粗體 */
+            white-space: pre-wrap !important;
+            /* 保留換行但允許自動折行 */
             background-color: transparent !important;
             border: none !important;
         }
-
     </style>
 
 </head>
@@ -960,10 +1056,11 @@
                     <div style="margin: 0; padding: 0; font-weight: bold; line-height: 1.2;">你好！有問題問我～</div>
                 </div>
             </div>
-            <div id="suggested-prompts-container" style="display: none;">
-                <h4>試試這樣問：</h4>
-                <div id="suggested-prompts"></div>
-            </div>
+            <!-- 1. 固定建議提示區 (來自資料庫) -->
+            <div id="static-prompts" class="suggestions-container"></div>
+
+            <!-- 2. AI 動態建議提示區 (隨著對話生成) -->
+            <div id="dynamic-prompts" class="suggestions-container" style="display: none;"></div>
             <div class="chat-input-area">
                 <div class="symbol-buttons"><button class="symbol-button" data-symbol="π">π</button><button
                         class="symbol-button" data-symbol="√">√</button><button class="symbol-button"
@@ -1192,32 +1289,37 @@
             width: 100% !important;
             box-sizing: border-box !important;
         }
-    
+
         /* === AI 聊天室排版強制修正 === */
-        .chat-area h3 { 
-            margin-bottom: 0 !important; 
-            padding-bottom: 5px !important; 
-            margin-top: 0 !important; 
+        .chat-area h3 {
+            margin-bottom: 0 !important;
+            padding-bottom: 5px !important;
+            margin-top: 0 !important;
         }
-        #chat-history { 
-            padding-top: 0 !important; 
-            margin-top: 0 !important; 
+
+        #chat-history {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
         }
-        .bot-message { 
-            margin-top: 0 !important; 
-            padding-top: 0 !important; 
+
+        .bot-message {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
         }
+
         /* 針對頑固的 pre 標籤進行降伏 */
         .bot-message pre {
             margin: 0 !important;
             padding: 0 !important;
-            font-family: inherit !important; /* 消除醜醜的程式碼字體 */
-            font-weight: bold !important;   /* 強制粗體 */
-            white-space: pre-wrap !important; /* 保留換行但允許自動折行 */
+            font-family: inherit !important;
+            /* 消除醜醜的程式碼字體 */
+            font-weight: bold !important;
+            /* 強制粗體 */
+            white-space: pre-wrap !important;
+            /* 保留換行但允許自動折行 */
             background-color: transparent !important;
             border: none !important;
         }
-
     </style>
 
     <script>
@@ -1313,49 +1415,62 @@
             }
         }
 
-        // === 新增：渲染 Follow-up Prompts ===
-        function renderFollowUpPrompts(prompts) {
-            const containerWrapper = document.getElementById('suggested-prompts-container');
-            const listContainer = document.getElementById('suggested-prompts');
+        // === 新增：渲染 Follow-up Prompts (動態建議 - 蘇格拉底式) ===
+        function showDynamicSuggestions(prompts) {
+            console.log("showDynamicSuggestions called with:", prompts);
+            const container = document.getElementById('dynamic-prompts'); // RENAMED
 
-            // 安全檢查
-            if (!containerWrapper || !listContainer) return;
-
-            // 移除舊的 dynamic container (如果意外殘留)
-            const oldDynamicContainer = document.getElementById('dynamic-follow-up-container');
-            if (oldDynamicContainer) {
-                oldDynamicContainer.remove();
-            }
-
-            // 清空目前的提示詞
-            listContainer.innerHTML = '';
-
-            // 如果沒有提示詞，隱藏容器並返回
-            if (!prompts || prompts.length === 0) {
-                containerWrapper.style.display = 'none';
+            // 如果沒有動態建議容器，嘗試建立一個(容錯)
+            if (!container) {
+                console.error("Dynamic suggestions container not found!");
                 return;
             }
 
-            // 生成新按鈕
+            // 清空目前的動態提示
+            container.innerHTML = '';
+
+            // 如果沒有提示詞，隱藏容器
+            if (!prompts || prompts.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'flex'; // 顯示容器
+
+            // 生成新按鈕 (使用圓潤泡泡樣式)
             prompts.forEach(promptText => {
                 const btn = document.createElement('button');
-                btn.className = 'prompt-button';
-                btn.textContent = promptText;
+                // 使用 Bootstrap-like 樣式 + 自定義樣式
+                btn.className = 'dynamic-prompt-btn';
+                btn.style.borderRadius = '50rem'; // Pill shape
+                btn.style.color = '#c62828'; // Deep red text
+                btn.style.backgroundColor = '#ffebee'; // Light red background
+                btn.style.border = '1px solid #ffcdd2'; // Light red border
+                btn.style.padding = '0.375rem 1rem';
+                btn.style.boxShadow = '0 .125rem .25rem rgba(0,0,0,.075)';
+                btn.style.fontSize = '0.875rem';
+
+                // 蘇格拉底式圖示
+                btn.innerHTML = `<i class="far fa-comment-dots" style="color: #e67e22; margin-right: 5px;"></i> ${promptText}`;
+
                 btn.onclick = () => {
                     // 點擊後自動填入並送出
                     const chatInput = document.getElementById('chat-input');
                     const chatSendBtn = document.getElementById('chat-send-button');
                     chatInput.value = promptText;
+
+                    // 點擊後隱藏動態建議
+                    container.style.display = 'none';
+
                     chatSendBtn.click();
-                    // 注意：這裡不主動隱藏，等待 AI 下次回覆更新
                 };
-                listContainer.appendChild(btn);
+                container.appendChild(btn);
             });
 
-            // 顯示容器
-            containerWrapper.style.display = 'block';
+            // 渲染數學公式
+            renderMathContent(container);
 
-            // 確保聊天區域捲動到底部，避免被新出現的區塊遮擋 (視情況)
+            // 確保聊天區域捲動到底部
             const chatHistory = document.getElementById('chat-history');
             chatHistory.scrollTop = chatHistory.scrollHeight;
         }
@@ -1766,15 +1881,15 @@
             };
         }
 
+        // === 載入固定建議 (Initial Suggestions) ===
         function updateSuggestedPrompts(skillId) {
-            const promptsContainer = document.getElementById('suggested-prompts');
-            const container = document.getElementById('suggested-prompts-container');
-            if (!promptsContainer || !container) return;
+            const container = document.getElementById('static-prompts'); // RENAMED
+            if (!container) return;
 
             fetch(`/get_suggested_prompts/${skillId}`)
                 .then(response => response.json())
                 .then(prompts => {
-                    promptsContainer.innerHTML = ''; // Clear old prompts
+                    container.innerHTML = ''; // Clear old prompts
                     if (prompts && prompts.length > 0) {
                         prompts.forEach(promptText => {
                             const button = document.createElement('button');
@@ -1786,12 +1901,12 @@
                                 chatInput.value = promptText;
                                 chatSendBtn.click();
                             };
-                            promptsContainer.appendChild(button);
+                            container.appendChild(button);
                         });
-                        container.style.display = 'block'; // Show the container
+                        container.style.display = 'flex'; // Show the container
 
-                        // [FIX] 新增這行：渲染提示詞按鈕中的數學公式
-                        renderMathContent(promptsContainer);
+                        // 渲染提示詞按鈕中的數學公式
+                        renderMathContent(container);
                     } else {
                         container.style.display = 'none'; // Hide if no prompts
                     }
@@ -2162,9 +2277,8 @@
                         chatHistory.appendChild(msg);
                         chatHistory.scrollTop = chatHistory.scrollHeight;
 
-                        // 新增：渲染 Follow-up Prompts
                         if (data.follow_up_prompts && data.follow_up_prompts.length > 0) {
-                            renderFollowUpPrompts(data.follow_up_prompts);
+                            showDynamicSuggestions(data.follow_up_prompts);
                         }
 
                         if (data.correct && data.next_question) {
@@ -2283,27 +2397,57 @@
                         })
                     });
 
+                    // [Modified] Robust Error Handling Logic
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const data = await response.json();
+
+                    const rawText = await response.text();
+                    // [Modified] Level 3: Surgical Parser (外科手術級解析)
+                    // .then(response => response.text()) 在上方已經執行
+                    const text = rawText; // rawText is already fetched
+                    let finalData = { reply: "", follow_up_prompts: [] };
+
+                    try {
+                        // 嘗試正常解析 (包含 LaTeX 反斜線修復)
+                        const sanitized = text.replace(/\\(?![u"\\/bfnrt])/g, "\\\\");
+                        finalData = JSON.parse(sanitized);
+                    } catch (e) {
+                        console.warn("JSON 斷裂，啟動外科手術救援...");
+
+                        // 【救援邏輯】如果 JSON 斷了，用正規表達式強行抓取 reply 內容
+                        const match = text.match(/"reply"\s*:\s*"([\s\S]*?)"/);
+                        if (match) {
+                            // 簡易修復：將 \n 轉為 html br，並處理轉義引號
+                            finalData.reply = match[1].replace(/\\n/g, "<br>").replace(/\\"/g, '"');
+                        } else {
+                            finalData.reply = "老師正在思考中，請再問一次看看！";
+                        }
+
+                        // 嘗試救回 prompts (盡力而為)
+                        // 排除 key 名稱，只抓 value (簡易版)
+                        const pMatches = text.match(/"([^"]{5,50})"/g);
+                        if (pMatches) {
+                            const safeMatches = pMatches.filter(s => !s.includes("reply") && !s.includes("follow_up_prompts"));
+                            finalData.follow_up_prompts = safeMatches.slice(-3).map(s => s.replace(/"/g, ''));
+                        }
+                    }
+
+                    // 1. 顯示老師的對話 (移除制式標題)
+                    const cleanedReply = (finalData.reply || "").replace(/(思考|選項|建議|回覆|解析|步驟|回答)[：:\d\s]*/g, "");
 
                     // 移除思考中訊息
                     if (thinkingDiv && thinkingDiv.parentNode) {
                         thinkingDiv.parentNode.removeChild(thinkingDiv);
                     }
 
-                    // [新增] 安全檢查：防止 data 為 null 或 undefined
-                    if (!data || !data.reply) {
-                        addBotMessage("系統發生預期外的錯誤，請重試。");
-                        return;
-                    }
-
                     // 顯示 AI 回覆
-                    addBotMessage(data.reply);
+                    addBotMessage(cleanedReply);
 
-                    // 顯示追問按鈕
-                    if (data.follow_up_prompts && data.follow_up_prompts.length > 0) {
-                        renderFollowUpPrompts(data.follow_up_prompts);
-                    }
+                    // 2. 更新動態思考泡泡 (若 JSON 斷了就隱藏，不報錯)
+                    console.log("Updating dynamic prompts with:", finalData.follow_up_prompts);
+                    showDynamicSuggestions(finalData.follow_up_prompts || []);
+
+                    // 如果有需要處理 correct/incorrect 邏輯，這裡可以繼續 (但目前 finalData 可能缺這些欄位)
+                    // 若需要維持原有邏輯，需確保 backend 回傳正確結構或在此補上預設值
 
                 } catch (err) {
                     console.error('Chat Error:', err);
@@ -2359,24 +2503,19 @@
             return messageDiv;
         }
 
-        function renderFollowUpPrompts(prompts) {
-            let suggestionsContainer = document.getElementById('suggestions');
 
-            // 容器檢查與建立
-            if (!suggestionsContainer) {
-                const inputArea = document.querySelector('.chat-input-area');
-                if (inputArea) {
-                    suggestionsContainer = document.createElement('div');
-                    suggestionsContainer.id = 'suggestions';
-                    suggestionsContainer.style.padding = '5px';
-                    inputArea.parentNode.insertBefore(suggestionsContainer, inputArea);
-                } else { return; }
-            }
+        function showSuggestions(prompts) {
+            const suggestionsContainer = document.getElementById('suggestions');
+            if (!suggestionsContainer) return;
 
+            // 1. Clear content and hide
             suggestionsContainer.innerHTML = '';
+            suggestionsContainer.style.display = 'none';
 
-            if (Array.isArray(prompts)) {
+            if (Array.isArray(prompts) && prompts.length > 0) {
                 prompts.forEach(function (promptText) {
+                    if (!promptText || promptText === 'None' || promptText.trim() === '') return;
+
                     const btn = document.createElement('button');
                     btn.className = 'suggestion-btn';
                     btn.innerHTML = promptText;
@@ -2386,22 +2525,51 @@
                         const sendBtn = document.getElementById('chat-send-button');
                         if (chatInput) {
                             chatInput.value = promptText;
+                            // 2. Clear content and hide immediately on click
+                            suggestionsContainer.innerHTML = '';
+                            suggestionsContainer.style.display = 'none';
                             if (sendBtn) sendBtn.click();
                         }
-                        suggestionsContainer.innerHTML = '';
                     };
                     suggestionsContainer.appendChild(btn);
                 });
 
-                // MathJax 渲染按鈕
+                // 3. Show if content exists
+                if (suggestionsContainer.childElementCount > 0) {
+                    suggestionsContainer.style.display = 'flex';
+                }
+
                 if (window.MathJax) {
-                    try {
-                        window.MathJax.typesetPromise([suggestionsContainer]);
-                    } catch (e) { }
+                    try { window.MathJax.typesetPromise([suggestionsContainer]); } catch (e) { }
                 }
             }
         }
+
+        // 初始載入時顯示氣泡
+        document.addEventListener('DOMContentLoaded', function () {
+            const initialPrompts = [];
+            {% if skill %}
+            const p1 = "{{ skill.suggested_prompt_1 if skill.suggested_prompt_1 else '' }}";
+            const p2 = "{{ skill.suggested_prompt_2 if skill.suggested_prompt_2 else '' }}";
+            const p3 = "{{ skill.suggested_prompt_3 if skill.suggested_prompt_3 else '' }}";
+
+            // 簡單過濾無效值
+            if (p1 && p1 !== 'None' && p1.trim() !== '') initialPrompts.push(p1);
+            if (p2 && p2 !== 'None' && p2.trim() !== '') initialPrompts.push(p2);
+            if (p3 && p3 !== 'None' && p3.trim() !== '') initialPrompts.push(p3);
+            {% endif %}
+
+            if (initialPrompts.length > 0) {
+                // 延遲一點點確保容器已就緒
+                setTimeout(() => {
+                    if (typeof showSuggestions === 'function') {
+                        showSuggestions(initialPrompts);
+                    }
+                }, 100);
+            }
+        });
     </script>
+    <script>(function () { function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'9afcd8958a218457',t:'MTc2NjA0MTg4NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } } if (document.body) { var a = document.createElement('iframe'); a.height = 1; a.width = 1; a.style.position = 'absolute'; a.style.top = 0; a.style.left = 0; a.style.border = 'none'; a.style.visibility = 'hidden'; document.body.appendChild(a); if ('loading' !== document.readyState) c(); else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } } } })();</script>
 </body>
 
 </html>

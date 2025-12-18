@@ -33,6 +33,17 @@ def clean_and_parse_json(text):
             
         # 3. 嘗試解析
         return json.loads(text)
+    except json.JSONDecodeError:
+        # 嘗試修復截斷的 JSON (簡單補全)
+        try:
+            if text.strip().endswith(','):
+                text = text.strip()[:-1] 
+            if not text.strip().endswith('}'):
+                text += '}'
+            return json.loads(text)
+        except:
+            print(f"JSON 解析失敗 (即使嘗試補全後): {text}")
+            return None
     except Exception as e:
         print(f"JSON 解析失敗: {e}, 原始文字: {text}")
         return None
@@ -93,29 +104,22 @@ DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手
 # ======================================================
 
 DEFAULT_CHAT_PROMPT = """
-你是一個「蘇格拉底式引導機器人」。
-你的工作**絕對不是解題**，而是**指出下一個思考點**。
+你是一個「蘇格拉底式引導機器人」，一位專業且親切的數學老師。
+你的工作**絕對不是解題**，而是**指出下一個思考點**，協助學生自己找到答案。
 
-【嚴格規則】：
-1. **只能回傳「一個問句」**：你的 reply 必須是一個引導學生思考下一步的問題。
-2. **禁止給答案**：嚴禁出現數字結果或完整算式。
-3. **禁止解釋**：不要解釋原理，直接問學生「這裡該怎麼做」。
+【教學導向要求】
+1. **去標題化**：嚴禁使用「思考：」、「選項：」、「建議問句」或「1. 2. 3.」等制式標題。直接以親切老師的口吻對話。
+2. **思維引導**：回答時應先**肯定學生的發現**，再拋出一個問題。例如：「你發現了關鍵喔！那接下來如果我們...會變怎樣？」。
+3. **禁止直接給答案**：嚴禁出現數字結果或完整算式。不要解釋原理，而是問學生「這裡該怎麼做」。
 
-【思考邏輯】：
-- 看到 $2x+5=15$，不要解 $x=5$。
-- 而是問：「為了讓左邊只剩下 $2x$，那個 $+5$ 應該怎麼處理？」
-
-- 看到 $\\sqrt{12}$，不要說 $2\\sqrt{3}$。
-- 而是問：「$12$ 可以分解成哪兩個數相乘，其中一個是完全平方數？」
-
-【JSON 輸出格式】：
+【JSON 輸出格式與安全守則】：
 你必須輸出符合此 JSON schema 的內容：
 {
-  "reply": "你的引導問句 (必須包含 LaTeX 格式的數學符號，如 $x$)",
+  "reply": "老師的對話內容 (口語化，100字內，不含標題，必須包含 LaTeX 格式的數學符號，如 \\sqrt{7})",
   "follow_up_prompts": [
-    "選項1 (例如：移項)",
-    "選項2 (例如：同除)",
-    "選項3 (例如：看不懂)"
+    "思考型問題1 (觀察層：針對具體錯誤點，引導觀察)",
+    "思考型問題2 (策略層：提示具體修正動作或替代方法)",
+    "思考型問題3 (反思層：引導驗算或思考觀念陷阱)"
   ]
 }
 """
@@ -493,20 +497,22 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
     # 7. Append Rigid JSON Instructions
     full_prompt += """
     
-    # We need to guide the student further.
+    # We need to guide the student further using Socratic method.
     請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字。
     
     {
-      "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。步驟用 1. 2. 3. 表示。多項式用 x^3 格式。結尾加一句鼓勵的話。注意：這裡**只要**包含回答內容，**絕對不要**包含建議的追問選項。",
+      "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。**請完全口語化，不要使用「思考：」、「步驟：」等標題**。結尾加一句鼓勵的話。注意：這裡**只要**包含回答內容，**絕對不要**包含建議的追問選項。",
       "follow_up_prompts": [
-          "選項1 (觀察：針對具體錯誤點，引導觀察，15字內)",
-          "選項2 (行動：提示具體修正動作，15字內)",
-          "選項3 (思考：如果答對則出類似題或反問概念；如果答錯則引導驗算，15字內)"
+          "問題1 (觀察層：老師，這裡的...為什麼...？)",
+          "問題2 (策略層：如果我不...，還有別的方法嗎？)",
+          "問題3 (反思層：這題的陷阱是不是在...？)"
       ]
     }
+    direct output JSON. No Markdown.
+    請確保 `reply` 欄位只包含對學生的直接回應。
     
-    直接輸出 JSON，不要 Markdown。
-    請確保 `reply` 欄位只包含對學生的直接回應，而 `follow_up_prompts` 欄位包含下一步的建議選項。
+    【重要】：若內容過長，請優先保證 JSON 結構的完整性 (結尾必須有 } )，可適度縮減 reply 內容。
+    【重要】：所有數學符號的反斜線必須跳脫，例如 \\sqrt{}, \\frac{}。
     """
     
     return full_prompt
@@ -550,7 +556,12 @@ def get_chat_response(prompt):
                     "reply": "運算發生錯誤，請試著換個方式問問看。", 
                     "follow_up_prompts": ["重試"]
                 }
-            return cleaned_data
+            
+            # 強制確保回傳格式包含 follow_up_prompts
+            return {
+                "reply": cleaned_data.get('reply', 'AI 無法回應'),
+                "follow_up_prompts": cleaned_data.get('follow_up_prompts', [])
+            }
 
     except Exception as e:
         print(f"AI 生成錯誤: {e}")
