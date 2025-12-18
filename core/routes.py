@@ -317,6 +317,34 @@ def check_answer():
     if not isinstance(is_correct, bool):
         is_correct = False
 
+    # 如果答錯，自動新增錯題記錄
+    if not is_correct:
+        try:
+            question_text = current.get('question', 'N/A')
+            # 檢查是否已存在相同的錯題記錄 (避免重複)
+            # 使用 text() 來處理 JSON 欄位的查詢
+            from sqlalchemy import text
+            
+            existing_entry = db.session.query(MistakeNotebookEntry).filter(
+                MistakeNotebookEntry.student_id == current_user.id,
+                MistakeNotebookEntry.skill_id == skill,
+                text("json_extract(question_data, '$.text') = :q_text")
+            ).params(q_text=question_text).first()
+            
+            if not existing_entry:
+                new_entry = MistakeNotebookEntry(
+                    student_id=current_user.id,
+                    skill_id=skill,
+                    notes="系統練習題自動記錄",
+                    question_data={'type': 'system_question', 'text': question_text},
+                    exam_image_path=None
+                )
+                db.session.add(new_entry)
+        except Exception as e:
+            current_app.logger.error(f"自動新增錯題記錄失敗: {e}")
+            # 不應影響正常流程，所以只記錄錯誤
+            pass
+
     # 更新進度
     update_progress(current_user.id, skill, is_correct)
     

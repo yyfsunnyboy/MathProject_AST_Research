@@ -12,7 +12,7 @@ import json
 import google.generativeai as genai
 from flask import current_app
 from core.ai_analyzer import get_model
-from models import db, SkillInfo, SkillCurriculum, ExamAnalysis
+from models import db, SkillInfo, SkillCurriculum, ExamAnalysis, MistakeNotebookEntry
 from datetime import datetime
 
 
@@ -263,7 +263,7 @@ def analyze_exam_image(image_path, grade, curriculum='general'):
 
 def save_analysis_result(user_id, analysis_result, image_path):
     """
-    將分析結果存入資料庫
+    將分析結果存入資料庫,並在答錯時自動新增到錯題本
     
     Args:
         user_id: 使用者 ID
@@ -309,6 +309,30 @@ def save_analysis_result(user_id, analysis_result, image_path):
         )
         
         db.session.add(exam_analysis)
+
+        # [新增邏輯] 如果答錯，自動新增到錯題本
+        if not is_correct:
+            # 檢查是否已存在相同的錯題記錄 (避免重複上傳同一張圖片導致重複記錄)
+            existing_mistake = db.session.query(MistakeNotebookEntry).filter_by(
+                student_id=user_id,
+                exam_image_path=image_path
+            ).first()
+
+            if not existing_mistake:
+                new_mistake_entry = MistakeNotebookEntry(
+                    student_id=user_id,
+                    skill_id=unit_id,
+                    notes="考卷診斷自動記錄",
+                    # 將 AI 的分析結果儲存在 question_data，方便未來使用
+                    question_data={
+                        'type': 'exam_diagnosis',
+                        'matched_unit': matched_unit,
+                        'error_analysis': error_analysis
+                    },
+                    exam_image_path=image_path
+                )
+                db.session.add(new_mistake_entry)
+
         db.session.commit()
         
         return {
