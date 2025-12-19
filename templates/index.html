@@ -43,6 +43,17 @@
             flex-direction: column;
         }
 
+        /* [Surface Pro 繪圖修正] */
+        canvas {
+            /* 關鍵：告訴瀏覽器在 Canvas 上禁止預設的捲動行為 */
+            touch-action: none !important; 
+            /* 確保游標在畫布上是十字線，方便對準 */
+            cursor: crosshair;
+            /* 防止選取到畫布時出現藍色框框 */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
         /* === Navbar === */
         .navbar {
             background: #2c3e50;
@@ -488,6 +499,51 @@
             flex-wrap: wrap;
             gap: 5px;
             justify-content: center;
+            /* Drawer styles */
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            background-color: #f8f9fa;
+            border-radius: 0 0 8px 8px;
+            padding: 0;
+            margin-top: 0;
+        }
+
+        .symbol-buttons.expanded {
+            max-height: 250px;
+            opacity: 1;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            overflow-y: auto;
+        }
+
+        #toggle-math-btn {
+            background: none;
+            border: 1px solid #ced4da;
+            cursor: pointer;
+            color: #6c757d;
+            width: 42px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        #toggle-math-btn:hover {
+            background-color: #e9ecef;
+            color: #0d6efd;
+            border-color: #0d6efd;
+        }
+
+        #toggle-math-btn.active {
+            background-color: #0d6efd;
+            color: white;
+            border-color: #0d6efd;
         }
 
         .symbol-button {
@@ -1062,7 +1118,12 @@
             <!-- 2. AI 動態建議提示區 (隨著對話生成) -->
             <div id="dynamic-prompts" class="suggestions-container" style="display: none;"></div>
             <div class="chat-input-area">
-                <div class="symbol-buttons"><button class="symbol-button" data-symbol="π">π</button><button
+                <div class="chat-input-group">
+                    <button id="toggle-math-btn" type="button" title="開啟數學鍵盤"><i class="fas fa-calculator"></i></button>
+                    <input type="text" id="chat-input" placeholder="問我觀念...">
+                    <button id="chat-send-button">送出</button>
+                </div>
+                <div class="symbol-buttons" id="math-toolbar"><button class="symbol-button" data-symbol="π">π</button><button
                         class="symbol-button" data-symbol="√">√</button><button class="symbol-button"
                         data-symbol="²">²</button><button class="symbol-button" data-symbol="³">³</button><button
                         class="symbol-button" data-symbol="°">°</button><button class="symbol-button"
@@ -1072,8 +1133,6 @@
                         class="symbol-button" data-symbol="≥">≥</button><button class="symbol-button"
                         data-symbol="≈">≈</button><button class="symbol-button" data-symbol="∑">∑</button><button
                         class="symbol-button" data-symbol="∫">∫</button></div>
-                <div class="chat-input-group"><input type="text" id="chat-input" placeholder="問我觀念..."><button
-                        id="chat-send-button">送出</button></div>
                 <!-- 新增：隱藏的圖片上傳 input --><input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
         </div>
@@ -1509,6 +1568,33 @@
             }
         }
 
+        // [座標修正] 獲取精確的畫筆位置 (支援滑鼠與觸控)
+        function getMousePos(canvas, evt) {
+            // 1. 每次都重新獲取 Canvas 的位置與大小 (因為 UI 可能會變動，如折疊選單)
+            const rect = canvas.getBoundingClientRect();
+            
+            // 2. 獲取觸控點或滑鼠點
+            let clientX, clientY;
+            
+            if (evt.touches && evt.touches.length > 0) {
+                clientX = evt.touches[0].clientX;
+                clientY = evt.touches[0].clientY;
+            } else if (evt.changedTouches && evt.changedTouches.length > 0) {
+                // 處理 touchend 情況
+                clientX = evt.changedTouches[0].clientX;
+                clientY = evt.changedTouches[0].clientY;
+            } else {
+                clientX = evt.clientX;
+                clientY = evt.clientY;
+            }
+
+            // 3. 返回 CSS 像素座標 (因為 ctx 已設定 scale(dpr, dpr))
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
         // === 初始化畫布 ===
         function initCanvas() {
             resizeCanvas();
@@ -1518,6 +1604,11 @@
             canvas.addEventListener('pointermove', draw);
             canvas.addEventListener('pointerup', stopDraw);
             canvas.addEventListener('pointerout', stopDraw);
+            
+            // [Surface Pro] 強制防止 touchmove 觸發滾動
+            canvas.addEventListener('touchmove', function(e) {
+                e.preventDefault(); 
+            }, { passive: false });
 
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1574,15 +1665,17 @@
         function startDraw(e) {
             if (isProcessing) return;
             isDrawing = true;
+            const pos = getMousePos(canvas, e);
             ctx.beginPath();
-            ctx.moveTo(e.offsetX, e.offsetY);
+            ctx.moveTo(pos.x, pos.y);
             setPenStyle();
             saveState();
         }
 
         function draw(e) {
             if (!isDrawing || isProcessing) return;
-            ctx.lineTo(e.offsetX, e.offsetY);
+            const pos = getMousePos(canvas, e);
+            ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
         }
 
@@ -2346,6 +2439,22 @@
 
             // 防呆：如果找不到聊天元件就不執行
             if (!chatSendBtn || !chatInput) return;
+
+            // 0. 數學鍵盤切換邏輯
+            const toggleBtn = document.getElementById('toggle-math-btn');
+            const mathToolbar = document.getElementById('math-toolbar');
+            if (toggleBtn && mathToolbar) {
+                toggleBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    mathToolbar.classList.toggle('expanded');
+                    toggleBtn.classList.toggle('active');
+                    if (mathToolbar.classList.contains('expanded')) {
+                        toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
+                    } else {
+                        toggleBtn.innerHTML = '<i class="fas fa-calculator"></i>';
+                    }
+                });
+            }
 
             // 1. 符號按鈕事件
             document.querySelectorAll('.symbol-button').forEach(button => {

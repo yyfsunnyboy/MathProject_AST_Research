@@ -41,34 +41,36 @@ def clean_and_parse_json(text):
 def enforce_strict_mode(text):
     if not text: return ""
     import re
-    # 1. 暴力刪除情緒廢話 (針對圖片回傳常見的句型)
-    bad_patterns = [
-        r"同學[，！!、]*你好[，！!、]*", 
-        r"同學[，！!、]*",
-        r"你很棒[，！!、]*", 
-        r"你已經很棒[了喔]*[，！!、]*",
-        r"這是一個非常重要的一步[，！!、]*",
-        r"非常正確[，！!、]*",
-        r"別擔心[，！!、]*",
-        r"我相信你可以做到的[！!]*",
-        r"接下來，我們", 
-        r"請你再試著",
-        r"哈囉[，！!、]*",
-        r"老師發現",
-        r"我們一起",
-        r"來仔細看看"
-    ]
-    for p in bad_patterns:
-        text = re.sub(p, "", text).strip()
     
-    # 2. 去除首尾殘留標點
-    text = text.lstrip("，,！!。 ")
+    # [Step 1] 移除 Markdown 格式
+    text = text.replace('**', '')
+
+    # [Step 2] 智慧刪除廢話 (保留句子結構)
+    # 我們不直接刪除 "你很棒"，而是用替換的方式
     
-    # 3. LaTeX 雙重轉義保護 (確保 $F(x)$ 不會因為反斜線消失而變亂碼)
-    # 先還原可能的多重轉義，再統一為雙反斜線
-    if isinstance(text, str):
-        text = text.replace('\\\\\\\\', '\\\\')
-        text = text.replace('\\\\', '\\\\\\\\')
+    # 刪除純粹的稱讚句 (獨立成句的)
+    text = re.sub(r"(^|[，！!。])同學[，！!、]*你很棒[，！!、]*", r"\1", text)
+    text = re.sub(r"(^|[，！!。])你已經很棒.*?[，！!]", r"\1", text)
+    text = re.sub(r"(^|[，！!。])這一步非常正確[。！!]*", r"\1", text)
+    
+    # 刪除開場白
+    text = re.sub(r"^同學[，！!、]*", "", text)
+    text = re.sub(r"^哈囉[，！!、]*", "", text)
+    
+    # [Step 3] 修復 "地找到了" -> "正確地找到了" 或 "找到了"
+    # 如果句子開頭變成 "地..." 或 "的..."，移除該字
+    text = text.strip()
+    if text.startswith("地") or text.startswith("的"):
+        text = text[1:]
+        
+    # 去除首尾殘留標點
+    text = text.strip("，,！!。 ")
+
+    # [Step 4] 終極 LaTeX 保護 (這是修復 Math Input Error 的關鍵)
+    # 確保所有反斜線在 JSON 傳輸前都是雙份的
+    # 先還原 (避免變成 4 條線)，再統一加倍
+    text = text.replace('\\\\\\\\', '\\\\') 
+    text = text.replace('\\\\', '\\\\\\\\')
     
     return text
 
@@ -367,7 +369,7 @@ def ask_ai_text_with_context(user_question, context=""):
     system_prompt = f"""
     [CRITICAL RULES]
     1. STYLE: Senior Professor. No greeting (Hi, Hello), No praise (Good job, Great), No encouragement (Don't worry, Keep going).
-    2. LENGTH: MAX 40 words.
+    2. LENGTH: MAX 80 words.
     3. CONTENT: Point out errors directly using questions.
     4. FORMAT: Use single $ for LaTeX. Example: $x^2$.
     5. JSON: Must include 'reply' and 'follow_up_prompts' ([Observe], [Relate], [Execute]).
@@ -483,7 +485,7 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
 ROLE: Strict Math Professor.
 TONE: Cold, Direct, Concise.
 FORBIDDEN: "同學", "你好", "很棒", "加油", "別擔心", "不過", "試試看".
-LENGTH: Max 40 words.
+LENGTH: Max 80 words.
 TASK: 
 1. Identify the error in 1 sentence.
 2. Ask 1 leading question.
@@ -539,7 +541,7 @@ LATEX: Use single backslash e.g. $x^2$.
     ultra_short_prompt = """
     [CRITICAL RULES]
     1. STYLE: Senior Professor. No greeting (Hi, Hello), No praise (Good job, Great), No encouragement (Don't worry, Keep going).
-    2. LENGTH: MAX 40 words.
+    2. LENGTH: MAX 80 words.
     3. CONTENT: Point out errors directly using questions.
     4. FORMAT: Use single $ for LaTeX. Example: $x^2$.
     5. JSON: Must include 'reply' and 'follow_up_prompts' ([Observe], [Relate], [Execute]).
