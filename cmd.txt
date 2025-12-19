@@ -43,9 +43,9 @@ New-Item static/style.css
 第一次安裝(從Github下載)
 ===========================
 # 1. 進入專案資料夾
-cd D:\Python\math-master
-cd E:\Python\math-master
-cd Python\math-master
+cd D:\Python\Mathproject
+cd E:\Python\Mathproject
+cd Python\Mathproject
 # 2. 建立虛擬環境
 python -m venv venv
 
@@ -58,6 +58,11 @@ pip install flask-login
 pip install python-dotenv
 pip install pandas
 pip install openpyxl
+
+
+$env:GEMINI_API_KEY = "AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw"
+python app.py
+http://127.0.0.1:5000
 
 
 set GEMINI_API_KEY=AIzaSyAHdn-IImFJwyVMqRt5TdqBFOdnw_bgbbY
