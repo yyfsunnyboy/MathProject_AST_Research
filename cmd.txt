@@ -45,12 +45,15 @@ New-Item static/style.css
 # 1. 進入專案資料夾
 cd D:\Python\math-master
 cd E:\Python\math-master
-cd Python\math-master
+cd C:\Python\Mathproject
 # 2. 建立虛擬環境
 python -m venv venv
 
 # 3. 啟動虛擬環境
 venv\Scripts\activate
+$env:GEMINI_API_KEY = "AIzaSyCCvlrh5-3Y_Ck15cZDJ-R0C3yYN9WTBpw"
+python app.py
+http://127.0.0.1:5000
 
 # 4. 安裝套件
 pip install Flask google-generativeai
