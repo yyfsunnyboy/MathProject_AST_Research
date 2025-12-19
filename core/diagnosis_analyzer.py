@@ -73,14 +73,6 @@ def perform_weakness_analysis(student_id, force_refresh=False):
             skill_error_stats[skill_id]['calculation_errors'] += 1
         else:
             skill_error_stats[skill_id]['other_errors'] += 1
-            
-    # [新增] 統計全域錯誤類型 (用於長條圖)
-    global_error_stats = {
-        '觀念錯誤': 0,
-        '計算錯誤': 0,
-        '其他錯誤': 0
-    }
-
     
     # 分析 ExamAnalysis (統計錯誤並補充信心度和評語資訊)
     exam_feedback = {}
@@ -107,19 +99,12 @@ def perform_weakness_analysis(student_id, force_refresh=False):
             skill_error_stats[skill_id]['total_errors'] += 1
             error_type = str(exam.error_type).upper() if exam.error_type else 'OTHER'
             
-            if 'CONCEPT' in error_type: # CONCEPTUAL or 觀念
+            if 'CONCEPT' in error_type: # CONFCEPTUAL or 觀念
                 skill_error_stats[skill_id]['concept_errors'] += 1
             elif 'CALCULATION' in error_type: # CALCULATION or 計算
                 skill_error_stats[skill_id]['calculation_errors'] += 1
             else:
                 skill_error_stats[skill_id]['other_errors'] += 1
-    
-    # 彙整全域錯誤統計
-    for stats in skill_error_stats.values():
-        global_error_stats['觀念錯誤'] += stats['concept_errors']
-        global_error_stats['計算錯誤'] += stats['calculation_errors']
-        global_error_stats['其他錯誤'] += stats['other_errors']
-
 
         if skill_id not in exam_feedback:
             exam_feedback[skill_id] = {
@@ -180,15 +165,9 @@ def perform_weakness_analysis(student_id, force_refresh=False):
         ai_result = analyze_student_weakness(prompt_data)
         
         # 7. 儲存分析結果到資料庫
-        # [修改] 儲存複合圖表資料
-        chart_data_payload = {
-            'radar': ai_result.get('mastery_scores', {}),
-            'bar': global_error_stats
-        }
-        
         new_diagnosis = LearningDiagnosis(
             student_id=student_id,
-            radar_chart_data=json.dumps(chart_data_payload, ensure_ascii=False),
+            radar_chart_data=json.dumps(ai_result.get('mastery_scores', {}), ensure_ascii=False),
             ai_comment=ai_result.get('overall_comment', ''),
             recommended_unit=ai_result.get('recommended_unit', '')
         )
@@ -201,9 +180,6 @@ def perform_weakness_analysis(student_id, force_refresh=False):
             'cached': False,
             'data': new_diagnosis.to_dict()
         }
-
-
-
         
     except Exception as e:
         db.session.rollback()

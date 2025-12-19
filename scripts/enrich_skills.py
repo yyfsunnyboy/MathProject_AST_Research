@@ -72,34 +72,47 @@ def generate_prompts(model, skill: SkillInfo, examples: list[TextbookExample]) -
             for i, ex in enumerate(examples)
         ])
 
-    JSON_SCHEMA = 'system_instruction, prompt_1, prompt_2, prompt_3' 
-
-    # 設定 System Prompt
-    MAX_RETRIES = 3
-    RETRY_DELAY = 2
+    JSON_SCHEMA = 'prompt_1, prompt_2, prompt_3' 
 
     # 設定 System Prompt
     SYSTEM_PROMPT = f"""
-請針對技能『{skill.skill_ch_name}』與例題『{context_content}』生成一個 JSON。
+你是一位經驗豐富、擅長引導低成就學生的數學老師。
+請根據提供的單元資料，設計 3 個**「學生解題當下最該問自己的問題」**。
 
-【核心任務：教學指令 (system_instruction)】
-你是啟發式助教。請在指令中要求自己：
-1. **極簡回答**：每則回話限 50 字內，不給答案。
-2. **邏輯鏈追問**：回傳的 `follow_up_prompts` 必須嚴格遵守以下三步：
-   - 第一問【觀察】：引導學生看題目資訊（例：底數一樣嗎？）。
-   - 第二問【聯想】：聯想公式（例：底數相同相乘，指數要怎麼算？）。
-   - 第三問【執行】：引導寫出第一步（例：你可以試著先把式子列出來嗎？）。
+目標：讓學生點擊這些按鈕時，像是有個老師在旁邊輕聲提醒他思考方向。
 
-【輔助任務：生成初始引導詞】
-請提供 3 個精簡的破冰問題。
+---
+【強制輸出要求】
+1. 輸出格式：純 JSON 物件 (keys: {JSON_SCHEMA})。
+2. 語氣：**學生的內心獨白** (以「我」為主詞)。
+3. 字數：25 字以內 (短而有力)。
+4. **格式禁令**：**嚴禁使用 Markdown 粗體 (**...**) 或斜體 (*...*)**。按鈕文字必須是純文字。
+5. **LaTeX**：數學符號用 `$` 包覆 (例如 $x^2$)。
+6. **關鍵字**：請從資料中提取專有名詞或概念填入問題。
 
-【輸出 JSON 格式】：
-{{
-  "system_instruction": "...",
-  "prompt_1": "這題第一步做什麼？",
-  "prompt_2": "公式怎麼帶？",
-  "prompt_3": "要注意什麼陷阱？"
-}}
+---
+目標技能描述: {skill.description}
+[資料來源: {context_source}]
+{context_content}
+
+---
+請生成以下解題三部曲：
+
+1. **prompt_1 (啟動與聚焦 - Start)**: 
+   - **如果是有專有名詞的題目**：問定義。 (如：什麼是『判別式』？)
+   - **如果是應用題**：問題目目標。 (如：題目給這些數字，是要我求什麼？)
+   - **如果是計算題**：問運算規則。 (如：看到絕對值，第一步要先做什麼？)
+   - 【通用框架】**「這題提到的『[關鍵字]』是什麼意思？第一步該看哪裡？」**
+
+2. **prompt_2 (策略與工具 - Method)**: 
+   - 學生需要知道「用什麼招式」。
+   - 【框架】**「這種題型是要直接『[某種運算]』，還是要先『列方程式』？」**
+   - 或 **「有沒有什麼『口訣』或『固定步驟』可以解這題？」**
+
+3. **prompt_3 (反思與檢查 - Check)**: 
+   - 養成驗算習慣，避開常見陷阱。
+   - 【框架】**「算出來的答案，有沒有符合『[題目特殊要求]』？」**
+   - 或 **「最後一步，我是不是忘了檢查『[常見錯誤點，如正負號/單位]』？」**
 """
 
     try:
@@ -132,9 +145,7 @@ if __name__ == "__main__":
         try:
             with db.engine.connect() as connection:
                 connection.execute(text("PRAGMA journal_mode=WAL"))
-                connection.execute(text("PRAGMA busy_timeout=10000"))
-                connection.execute(text("PRAGMA synchronous=NORMAL"))
-            print("✅ 穩定模式已啟動 (WAL + Busy Timeout + Normal Sync)")
+            print("✅ SQLite WAL 模式已啟用 (防止資料庫鎖死與損壞)")
         except Exception as e:
             print(f"⚠️ 無法啟用 WAL 模式: {e}")
         print("🚀 開始為技能補充 AI 提示詞 (Enrich Skills - Interactive Mode)...")
@@ -237,26 +248,14 @@ if __name__ == "__main__":
                     skill.suggested_prompt_2 = prompts.get('prompt_2')
                     skill.suggested_prompt_3 = prompts.get('prompt_3')
                     
-                    # ✨ 更新為邏輯鏈教學指令
-                    system_inst = prompts.get('system_instruction')
-                    if system_inst:
-                        skill.gemini_prompt = system_inst
-                        print(f"   [OK] 已更新 {skill.skill_ch_name} 為邏輯鏈模式")
-
                     db.session.commit()
                     count_processed += 1
                 except Exception as e:
                     db.session.rollback()
-                    db.session.expunge_all() # 重要：清理快取，避免壞掉的物件影響下一輪
-                    print(f"❌ 寫入 DB 失敗: {e}")
-                    
-                    if "malformed" in str(e).lower():
-                        print("🚨 CRITICAL ERROR: 資料庫檔案毀損 (Disk image is malformed)！")
-                        print("   請立即停止程式，並從備份還原資料庫。")
-                        sys.exit(1)
+                    print(f"寫入 DB 失敗: {e}")
             
-            # 避免 API Rate Limit (延長緩衝時間)
-            time.sleep(1.5)
+            # 避免 API Rate Limit
+            time.sleep(1)
 
         print(f"\n✨ 全部作業完成！")
         print(f"   - 實際處理/更新: {count_processed} 個")

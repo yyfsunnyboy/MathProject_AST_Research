@@ -369,78 +369,51 @@ def analyze_handwriting():
 
 @practice_bp.route('/chat_ai', methods=['POST'])
 def chat_ai():
-    try:
-        data = request.get_json()
-        user_question = data.get('question', '').strip()
-        context = data.get('context', '')
-        question_text = data.get('question_text', '')  # 接收完整題目文字
+    data = request.get_json()
+    user_question = data.get('question', '').strip()
+    context = data.get('context', '')
+    question_text = data.get('question_text', '')  # 接收完整題目文字
 
-        if not user_question:
-            return jsonify({
-                "reply": "請輸入您的問題！",
-                "follow_up_prompts": []
-            }), 400
+    if not user_question:
+        return jsonify({"reply": "請輸入問題！"}), 400
 
-        # 1. 取得當前 Context 與 Skill ID
-        # 優先從 request 取得 (若有)，其次從 session
-        skill_id = data.get('skill_id') # 允許前端直接傳入
-        
-        if not skill_id:
-             # User requested: session.get('current_skill_id')
-            skill_id = session.get('current_skill_id')
-            
-        if not skill_id: 
-            # Fallback to get_current helper
-            current = get_current()
-            skill_id = current.get("skill")
-            
-        # 安全取得 prererq_skills
-        current = get_current() # ensure we have it
-        prereq_skills = current.get('prereq_skills', [])
-
-        # 2. 決定使用的題目內容 (優先順序: 傳入 > Session > Context)
-        if question_text:
-            full_question_context = question_text
-        elif current.get("question"):
-            full_question_context = current.get("question")
+    # 安全取得當前題目
+    current = get_current()
+    skill_id = current.get("skill")
+    prereq_skills = current.get('prereq_skills', []) # 新增：從 session 讀取前置技能資訊
+    
+    # 優先使用傳入的題目文字，否則使用 session 中的，最後使用 context
+    if question_text:
+        full_question_context = question_text
+    elif current.get("question"):
+        full_question_context = current.get("question")
+    else:
+        full_question_context = context or "（無題目資訊）"
+    
+    # 如果 session 沒資料，從 context 猜測 skill
+    if not skill_id:
+        if any(kw in context for kw in ['餘式', 'remainder', 'f(x)', '除']):
+            skill_id = 'remainder'
+        elif any(kw in context for kw in ['因式', 'factor', '(x -', '是否為']):
+            skill_id = 'factor_theorem'
+        elif any(kw in context for kw in ['不等式', 'inequality', '可行域', '≥', '≤']):
+            skill_id = 'inequality_graph'
         else:
-            full_question_context = context or "（無題目資訊）"
+            skill_id = 'remainder'
 
-        # 3. 如果 Session 沒技能 ID，嘗試從 Context 推斷 (Fallback 邏輯)
-        if not skill_id:
-            # 簡易關鍵字判斷，避免 skill_id 為 None 導致無法讀取專屬 Prompt
-            if context: 
-                if any(k in context for k in ['餘式', 'remainder', 'f(x)']): skill_id = 'remainder'
-                elif any(k in context for k in ['因式', 'factor']): skill_id = 'factor_theorem'
-                elif any(k in context for k in ['不等式', 'inequality', '≥', '≤']): skill_id = 'inequality_graph'
-        
-        # 4. 建構系統 Prompt (強制 JSON 格式指令已在 build_chat_prompt 內處理)
-        full_prompt = build_chat_prompt(
-            skill_id=skill_id,
-            user_question=user_question,
-            full_question_context=full_question_context,
-            context=context,
-            prereq_skills=prereq_skills
-        )
-        
-        # 5. 呼叫 AI 並取得 JSON 回應
-        # get_chat_response 已包含 JSON 解析與容錯 (return cleaned_data dict)
-        result = get_chat_response(full_prompt)
-        
-        # 6. 回傳 JSON 給前端 (修正 Unicode 編碼問題)
-        import json
-        return current_app.response_class(
-            response=json.dumps(result, ensure_ascii=False),
-            status=200,
-            mimetype='application/json'
-        )
-
-    except Exception as e:
-        current_app.logger.error(f"Chat AI Route Error: {e}")
-        return jsonify({
-            "reply": "系統發生錯誤，請稍後再試。",
-            "follow_up_prompts": [] 
-        }), 500
+    # Remove direct DB prompt reading and logic from here
+    
+    # Call AI Analyzer to build prompt and get response
+    full_prompt = build_chat_prompt(
+        skill_id=skill_id,
+        user_question=user_question,
+        full_question_context=full_question_context,
+        context=context,
+        prereq_skills=prereq_skills
+    )
+    
+    result = get_chat_response(full_prompt)
+    return jsonify(result)
 
 @practice_bp.route('/draw_diagram', methods=['POST'])
 @login_required
@@ -2355,8 +2328,6 @@ DEFAULT_PROMPTS = [
 @practice_bp.route('/get_suggested_prompts/<skill_id>')
 @login_required
 def get_suggested_prompts(skill_id):
-    # 強制過期以確保讀取到 enrich_skills.py 剛寫入的最新資料
-    db.session.expire_all()
     skill_info = db.session.get(SkillInfo, skill_id)
     prompts = []
     if skill_info:
