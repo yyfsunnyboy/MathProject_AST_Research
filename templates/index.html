@@ -2273,9 +2273,19 @@
 
                         const msg = document.createElement('div');
                         msg.className = 'bot-message latest';  // 標記為最新
-                        msg.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${data.reply || '無回應'}</pre>`;
+                        msg.innerHTML = data.reply || '無回應';
+                        // 保持格式
+                        msg.style.whiteSpace = 'pre-wrap';
+                        msg.style.wordBreak = 'break-word';
                         chatHistory.appendChild(msg);
                         chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                        // [關鍵修復] 讓 MathJax 渲染剛加入的 LaTeX
+                        if (window.MathJax) {
+                            try {
+                                window.MathJax.typesetPromise([msg]);
+                            } catch (err) { }
+                        }
 
                         if (data.follow_up_prompts && data.follow_up_prompts.length > 0) {
                             showDynamicSuggestions(data.follow_up_prompts);
@@ -2312,7 +2322,7 @@
 
                         const msg = document.createElement('div');
                         msg.className = 'bot-message latest';
-                        msg.innerHTML = `<pre>AI 連線失敗，請稍後再試</pre>`;
+                        msg.innerHTML = `AI 連線失敗，請稍後再試`;
                         chatHistory.appendChild(msg);
                         chatHistory.scrollTop = chatHistory.scrollHeight;
 
@@ -2494,11 +2504,10 @@
             chatHistory.appendChild(messageDiv);
             chatHistory.scrollTop = chatHistory.scrollHeight;
 
-            // MathJax 渲染
+            // [關鍵修復] 通知 MathJax 渲染新加入的數學公式
             if (window.MathJax) {
-                try {
-                    window.MathJax.typesetPromise([messageDiv]);
-                } catch (err) { }
+                // 使用 Promise 避免阻塞，針對整個 chat-box 或最新訊息渲染
+                window.MathJax.typesetPromise([messageDiv]).catch((err) => console.log('MathJax error:', err));
             }
             return messageDiv;
         }
@@ -2570,6 +2579,40 @@
         });
     </script>
     <script>(function () { function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'9afcd8958a218457',t:'MTc2NjA0MTg4NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } } if (document.body) { var a = document.createElement('iframe'); a.height = 1; a.width = 1; a.style.position = 'absolute'; a.style.top = 0; a.style.left = 0; a.style.border = 'none'; a.style.visibility = 'hidden'; document.body.appendChild(a); if ('loading' !== document.readyState) c(); else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } } } })();</script>
+    <script>
+        // [MathJax 強制渲染補丁]
+        document.addEventListener('DOMContentLoaded', function () {
+            // 注意：這裡使用 ID 'chat-history' 因為這是頁面實際的聊天容器 ID
+            const chatBox = document.getElementById('chat-history');
+
+            // 定義渲染函數
+            const forceRender = () => {
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    // 針對整個 chatBox 進行重新排版
+                    // 使用 catch 避免報錯干擾
+                    try {
+                        window.MathJax.typesetPromise([chatBox]).catch((err) => { });
+                    } catch (e) { }
+                }
+            };
+
+            // 1. 建立觀察者：只要對話框有變動，就觸發渲染
+            if (chatBox) {
+                const observer = new MutationObserver((mutations) => {
+                    forceRender();
+                });
+                observer.observe(chatBox, { childList: true, subtree: true });
+            }
+
+            // 2. 為了保險，每隔 1000ms 檢查一次是否有未渲染的 $ 符號
+            setInterval(() => {
+                // 如果 MathJax 存在且頁面內容包含 "$" (可能是未渲染的公式)
+                if (window.MathJax && document.body.innerText.includes('$')) {
+                    forceRender();
+                }
+            }, 1000);
+        });
+    </script>
 </body>
 
 </html>

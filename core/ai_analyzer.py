@@ -16,72 +16,93 @@ gemini_model = None
 gemini_chat = None
 
 def clean_and_parse_json(text):
-    """
-    強力清洗並解析 Gemini 回傳的 JSON 字串。
-    能夠自動移除 Markdown (```json) 與多餘雜訊，只提取有效的 JSON 物件。
-    """
     try:
-        # 1. 移除常見的 Markdown code block 標記
+        # 移除 Markdown 標記
         text = re.sub(r'```json\s*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'```\s*', '', text)
         
-        # 2. 使用 Regex 尋找最外層的 { } 結構
-        # dotall 模式讓 . 可以匹配換行符號
+        # 尋找最外層的 { }
         match = re.search(r'\{.*\}', text, re.DOTALL)
         if match:
             text = match.group(0)
             
-        # 3. 嘗試解析
-        return json.loads(text)
-    except json.JSONDecodeError:
-        # 嘗試修復截斷的 JSON (簡單補全)
-        try:
-            if text.strip().endswith(','):
-                text = text.strip()[:-1] 
-            if not text.strip().endswith('}'):
-                text += '}'
-            return json.loads(text)
-        except:
-            print(f"JSON 解析失敗 (即使嘗試補全後): {text}")
-            return None
+        # 關鍵修復：處理 LaTeX 中常見的雙反斜線與 Unicode
+        # 先嘗試直接解析
+        return json.loads(text, strict=False)
     except Exception as e:
-        print(f"JSON 解析失敗: {e}, 原始文字: {text}")
-        return None
+        try:
+            # 如果失敗，嘗試修復可能被截斷或轉義錯誤的字串
+            import ast
+            return ast.literal_eval(text)
+        except:
+            print(f"JSON 解析終極失敗: {e}")
+            return {"reply": text, "follow_up_prompts": []}
+
+def enforce_strict_mode(text):
+    if not text: return ""
+    import re
+    # 1. 暴力刪除情緒廢話 (針對圖片回傳常見的句型)
+    bad_patterns = [
+        r"同學[，！!、]*你好[，！!、]*", 
+        r"同學[，！!、]*",
+        r"你很棒[，！!、]*", 
+        r"你已經很棒[了喔]*[，！!、]*",
+        r"這是一個非常重要的一步[，！!、]*",
+        r"非常正確[，！!、]*",
+        r"別擔心[，！!、]*",
+        r"我相信你可以做到的[！!]*",
+        r"接下來，我們", 
+        r"請你再試著",
+        r"哈囉[，！!、]*",
+        r"老師發現",
+        r"我們一起",
+        r"來仔細看看"
+    ]
+    for p in bad_patterns:
+        text = re.sub(p, "", text).strip()
+    
+    # 2. 去除首尾殘留標點
+    text = text.lstrip("，,！!。 ")
+    
+    # 3. LaTeX 雙重轉義保護 (確保 $F(x)$ 不會因為反斜線消失而變亂碼)
+    # 先還原可能的多重轉義，再統一為雙反斜線
+    if isinstance(text, str):
+        text = text.replace('\\\\\\\\', '\\\\')
+        text = text.replace('\\\\', '\\\\\\\\')
+    
+    return text
 
 # 預設批改 Prompt
-DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手寫的計算紙。請你扮演一個非常有耐心、擅長鼓勵的數學家教老師。我的學生對數學比較沒信心
+DEFAULT_PROMPT =  """
+你是資深數學中學老師，講話精準樂於幫助同學思考，語言極度精簡、冷靜、直接。規則：
+1. **禁開場白**：禁止「哈囉、你好、很棒」等任何贅詞及任何鼓勵或情緒詞（如「很棒」「加油」「別擔心」「你已經很努力」「這是很好的開始」）。
+2. **直擊錯誤**：直接指出算式問題，不要委婉。
+3. **字數硬限**：每次回話嚴格限制在 40 字內。
+4. **LaTeX 規範**：公式務必使用單個 $ 包裹。
+5. **邏輯鏈氣泡**：必須回傳 follow_up_prompts：【觀察】、【聯想】、【執行】。
+6. **直接指出錯誤或重點，不委婉。
+
 題目：{context}
 此單元的前置基礎技能有：{prereq_text}
 
 請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字、格式條列清楚。
-如果學生計算錯誤或觀念不熟，你可以根據提供的前置技能列表，建議他回到哪個基礎技能練習。
 
 【⚠️ 絕對嚴格的數學輸出規範 ⚠️】：
 為了讓網頁能正確顯示數學公式，你必須遵守以下規則，否則學生會看到亂碼：
-
 1. **所有的數學符號與算式**，無論多短，都**必須**用單個錢字號 $ 包裹。
-   - ❌ 錯誤：x^3 + \\frac{1}{x^3}
    - ✅ 正確：$x^3 + \\frac{1}{x^3}$
-   
 2. **變數與數字**：
-   - ❌ 錯誤：令 a = x
    - ✅ 正確：令 $a = x$
-   - ❌ 錯誤：答案是 198
-   - ✅ 正確：答案是 $198$
-
 3. **禁止巢狀 $**：
-   - ❌ 錯誤：$\\sqrt{ $3$ \\times $5$ }$
-   - ✅ 正確：$\\sqrt{3 \\times 5}$  (整個算式用一組 $ 包起來即可)
-
+   - ✅ 正確：$\\sqrt{3 \\times 5}$
 4. **常用符號對照表**：
    - 分數：$\\frac{a}{b}$
    - 次方：$x^2$
    - 根號：$\\sqrt{x}$
    - 乘號：\\times 或 \\cdot
 
-請檢查你的 JSON 輸出中的 "reply" 欄位，確保所有數學部分都已經加上了 $。
 {
-  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。",
+  "reply": "用 Markdown 格式寫出具體建議(步驟對錯、遺漏、改進點)。如果計算過程完全正確,reply 內容應為「答對了,計算過程很正確!」。(記住：極致簡練，不超過40字)",
   "is_process_correct": true 或 false,
   "correct": true 或 false,
   "next_question": true 或 false,
@@ -89,9 +110,9 @@ DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手
   "error_description": "如果答錯,簡短描述錯誤原因(例如:正負號弄反、公式背錯),30字以內。如果答對則為 null",
   "improvement_suggestion": "如果答錯,給學生的具體改進建議,30字以內。如果答對則為 null",
   "follow_up_prompts": [
-      "Prompt 1 (觀察/發現)",
-      "Prompt 2 (修正/行動)",
-      "Prompt 3 (延伸/驗證)"
+      "Prompt 1 (【觀察】：引導學生觀察圖形或算式特徵)",
+      "Prompt 2 (【聯想】：提示相關公式或策略)",
+      "Prompt 3 (【執行】：具體修正步驟或驗算)"
   ]
 }
 
@@ -104,22 +125,22 @@ DEFAULT_PROMPT = """你是一位功文數學數學助教，正在批改學生手
 # ======================================================
 
 DEFAULT_CHAT_PROMPT = """
-你是一個「蘇格拉底式引導機器人」，一位專業且親切的數學老師。
-你的工作**絕對不是解題**，而是**指出下一個思考點**，協助學生自己找到答案。
-
-【教學導向要求】
-1. **去標題化**：嚴禁使用「思考：」、「選項：」、「建議問句」或「1. 2. 3.」等制式標題。直接以親切老師的口吻對話。
-2. **思維引導**：回答時應先**肯定學生的發現**，再拋出一個問題。例如：「你發現了關鍵喔！那接下來如果我們...會變怎樣？」。
-3. **禁止直接給答案**：嚴禁出現數字結果或完整算式。不要解釋原理，而是問學生「這裡該怎麼做」。
+你是資深數學中學老師，講話精準樂於幫助同學思考，語言極度精簡、冷靜、直接。規則：
+1. **禁開場白**：禁止「哈囉、你好、很棒」等任何贅詞及任何鼓勵或情緒詞（如「很棒」「加油」「別擔心」「你已經很努力」「這是很好的開始」）。
+2. **直擊錯誤**：直接指出算式問題，不要委婉。
+3. **字數硬限**：每次回話嚴格限制在 40 字內。
+4. **LaTeX 規範**：公式務必使用單個 $ 包裹。
+5. **邏輯鏈氣泡**：必須回傳 follow_up_prompts：【觀察】、【聯想】、【執行】。
+6. **直接指出錯誤或重點，不委婉。
 
 【JSON 輸出格式與安全守則】：
 你必須輸出符合此 JSON schema 的內容：
 {
-  "reply": "老師的對話內容 (口語化，100字內，不含標題，必須包含 LaTeX 格式的數學符號，如 \\sqrt{7})",
+  "reply": "老師的對話內容精準批改或引導內容 (口語化，40字內，不含標題與情緒，必須包含 LaTeX 格式的數學符號，如 \\sqrt{7})",
   "follow_up_prompts": [
-    "思考型問題1 (觀察層：針對具體錯誤點，引導觀察)",
-    "思考型問題2 (策略層：提示具體修正動作或替代方法)",
-    "思考型問題3 (反思層：引導驗算或思考觀念陷阱)"
+    "問題1 (【觀察】：引導學生觀察圖形或算式特徵)",
+    "問題2 (【聯想】：提示相關公式或策略)",
+    "問題3 (【執行】：具體修正步驟或驗算)"
   ]
 }
 """
@@ -205,7 +226,13 @@ def analyze(image_data_url, context, api_key, prerequisite_skills=None):
 
             # 清理可能的 ```json 標記
             cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
-            return json.loads(cleaned)
+            data = json.loads(cleaned)
+            
+            # [關鍵] 強制注入嚴格模式清洗 (圖片路徑)
+            if 'reply' in data:
+                data['reply'] = enforce_strict_mode(data['reply'])
+                
+            return data
 
         finally:
             if os.path.exists(temp_path):
@@ -338,7 +365,12 @@ def ask_ai_text_with_context(user_question, context=""):
     model = get_model()
     
     system_prompt = f"""
-    你是功文數學 AI 助教，用繁體中文親切回答。
+    [CRITICAL RULES]
+    1. STYLE: Senior Professor. No greeting (Hi, Hello), No praise (Good job, Great), No encouragement (Don't worry, Keep going).
+    2. LENGTH: MAX 40 words.
+    3. CONTENT: Point out errors directly using questions.
+    4. FORMAT: Use single $ for LaTeX. Example: $x^2$.
+    5. JSON: Must include 'reply' and 'follow_up_prompts' ([Observe], [Relate], [Execute]).
     
     【當前題目】：
     {context or "（無題目資訊）"}
@@ -444,14 +476,23 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
 
     prompt_template = None
 
-    # 1. Try to get skill-specific specific prompt
-    if skill_id:
-        try:
-            skill = SkillInfo.query.get(skill_id)
-            if skill and skill.gemini_prompt:
-                prompt_template = skill.gemini_prompt
-        except Exception as e:
-            print(f"Error fetching skill info: {e}")
+    # [SYSTEM OVERRIDE] 強制設定，覆蓋任何資料庫傳來的軟性指令
+    # 我們不讀取 skill.gemini_prompt，以免舊的暖男指令汙染
+    base_instruction = """
+[SYSTEM OVERRIDE]
+ROLE: Strict Math Professor.
+TONE: Cold, Direct, Concise.
+FORBIDDEN: "同學", "你好", "很棒", "加油", "別擔心", "不過", "試試看".
+LENGTH: Max 40 words.
+TASK: 
+1. Identify the error in 1 sentence.
+2. Ask 1 leading question.
+3. Output standard JSON with "follow_up_prompts".
+LATEX: Use single backslash e.g. $x^2$.
+    """
+    
+    # 強制忽略 DB，直接使用 Override 指令
+    prompt_template = base_instruction
 
     # 2. If no skill prompt, try SystemSetting
     if not prompt_template:
@@ -494,18 +535,31 @@ def build_chat_prompt(skill_id, user_question, full_question_context, context, p
     if "【學生當前正在練習的題目】" not in full_prompt:
         full_prompt = f"【學生當前正在練習的題目】\n{full_question_context}\n\n" + full_prompt
 
-    # 7. Append Rigid JSON Instructions
+    # 7. Priority System Instruction (Override any fluff)
+    ultra_short_prompt = """
+    [CRITICAL RULES]
+    1. STYLE: Senior Professor. No greeting (Hi, Hello), No praise (Good job, Great), No encouragement (Don't worry, Keep going).
+    2. LENGTH: MAX 40 words.
+    3. CONTENT: Point out errors directly using questions.
+    4. FORMAT: Use single $ for LaTeX. Example: $x^2$.
+    5. JSON: Must include 'reply' and 'follow_up_prompts' ([Observe], [Relate], [Execute]).
+    """
+    
+    # Prepend this to ensure it's the first thing logic sees or append heavily
+    full_prompt = ultra_short_prompt + "\n\n" + full_prompt
+
+    # 8. Append Rigid JSON Instructions
     full_prompt += """
     
     # We need to guide the student further using Socratic method.
     請**嚴格按照以下 JSON 格式回覆**，不要加入任何過多文字。
     
     {
-      "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。**請完全口語化，不要使用「思考：」、「步驟：」等標題**。結尾加一句鼓勵的話。注意：這裡**只要**包含回答內容，**絕對不要**包含建議的追問選項。",
+      "reply": "用繁體中文回答學生的問題。如果學生答錯，給予引導；如果答對，給予鼓勵。**請完全口語化，不要使用「思考：」、「步驟：」等標題**。每次回話不超過 40 字。",
       "follow_up_prompts": [
-          "問題1 (觀察層：老師，這裡的...為什麼...？)",
-          "問題2 (策略層：如果我不...，還有別的方法嗎？)",
-          "問題3 (反思層：這題的陷阱是不是在...？)"
+          "問題1 (【觀察】：老師，這裡的...為什麼...？)",
+          "問題2 (【聯想】：如果我不...，還有別的方法嗎？)",
+          "問題3 (【執行】：這題的陷阱是不是在...？)"
       ]
     }
     direct output JSON. No Markdown.
@@ -544,24 +598,38 @@ def get_chat_response(prompt):
         raw_text = response.text
         
         # 嘗試解析 (優先使用官方 JSON 模式，失敗則用強力清洗)
+        # 統一處理 JSON 解析
+        data = None
         try:
-            return json.loads(raw_text)
+            # 優先嘗試標準 JSON 解析
+            data = json.loads(raw_text)
         except json.JSONDecodeError:
-            cleaned_data = clean_and_parse_json(raw_text)
-            
-            # [關鍵修復]：如果清洗後還是 None，回傳一個安全預設值，絕對不要回傳 None！
-            if cleaned_data is None:
-                print(f"解析失敗，原始回傳: {raw_text}")
-                return {
-                    "reply": "運算發生錯誤，請試著換個方式問問看。", 
-                    "follow_up_prompts": ["重試"]
-                }
-            
-            # 強制確保回傳格式包含 follow_up_prompts
+            # 解析失敗則嘗試清洗
+            data = clean_and_parse_json(raw_text)
+
+        # [關鍵修復]：如果解析/清洗後還是 None，回傳一個安全預設值
+        if data is None:
+            print(f"解析失敗，原始回傳: {raw_text}")
             return {
-                "reply": cleaned_data.get('reply', 'AI 無法回應'),
-                "follow_up_prompts": cleaned_data.get('follow_up_prompts', [])
+                "reply": "運算發生錯誤，請試著換個方式問問看。", 
+                "follow_up_prompts": ["重試"]
             }
+
+        # [強制嚴格模式] 無論來源為何，都必須執行清洗
+        reply_text = data.get('reply', '')
+        
+        # 1. 移除 Markdown 粗體語法 (轉為純文字)
+        if isinstance(reply_text, str):
+            reply_text = reply_text.replace('**', '')
+        
+        # 2. 呼叫全域嚴格模式清洗 (去廢話 + 保護 LaTeX)
+        data['reply'] = enforce_strict_mode(reply_text)
+        
+        # 3. 確保 follow_up_prompts 存在
+        if 'follow_up_prompts' not in data:
+            data['follow_up_prompts'] = []
+            
+        return data
 
     except Exception as e:
         print(f"AI 生成錯誤: {e}")

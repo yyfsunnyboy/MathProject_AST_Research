@@ -1,306 +1,204 @@
 import random
 from fractions import Fraction
-
-# Helper to format numbers for display in LaTeX
-def format_number_for_display(num):
-    if isinstance(num, Fraction):
-        if num.denominator == 1:
-            return str(num.numerator)
-        # Use double backslashes for LaTeX commands inside normal strings or f-strings
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
-    elif isinstance(num, float) and num.is_integer():
-        return str(int(num))
-    else:
-        return str(num)
-
-# Helper to format numbers for the actual answer string (e.g., "1/2" not "\\frac{1}{2}")
-def format_number_for_answer(num):
-    if isinstance(num, Fraction):
-        if num.denominator == 1:
-            return str(num.numerator)
-        return f"{num.numerator}/{num.denominator}"
-    elif isinstance(num, float) and num.is_integer():
-        return str(int(num))
-    else:
-        return str(num)
-
-def generate_additivity_problem():
-    """
-    生成關於定積分區間可加性 (additivity of intervals) 的題目。
-    例如：已知 int_a^b f(x) dx = K, int_b^c f(x) dx = M，求 int_a^c f(x) dx。
-    """
-    a, b, c = sorted(random.sample(range(-5, 6), 3))
-    val_ab = random.randint(-20, 20)
-    val_bc = random.randint(-20, 20)
-    val_ac = val_ab + val_bc
-
-    question_text = (
-        f"已知連續函數 $f(x)$ 滿足 $\\int_{{{a}}}^{{{b}}} f(x) \\, dx = {val_ab}$ 且 $\\int_{{{b}}}^{{{c}}} f(x) \\, dx = {val_bc}$。"
-        f"請問 $\\int_{{{a}}}^{{{c}}} f(x) \\, dx$ 的值為何？"
-    )
-    correct_answer = str(val_ac)
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_reverse_limit_problem():
-    """
-    生成關於定積分上下限交換 (reverse limits) 的題目。
-    例如：已知 int_a^b f(x) dx = K，求 int_b^a f(x) dx。
-    """
-    a, b = sorted(random.sample(range(-5, 6), 2))
-    while a == b: # Ensure a != b for a meaningful interval
-        b = random.randint(-5, 6)
-    val_ab = random.randint(-20, 20)
-    val_ba = -val_ab
-
-    question_text = (
-        f"已知連續函數 $f(x)$ 滿足 $\\int_{{{a}}}^{{{b}}} f(x) \\, dx = {val_ab}$。"
-        f"請問 $\\int_{{{b}}}^{{{a}}} f(x) \\, dx$ 的值為何？"
-    )
-    correct_answer = str(val_ba)
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_linearity_problem():
-    """
-    生成關於定積分線性性質 (linearity) 的題目。
-    例如：已知 int_a^b f(x) dx = K, int_a^b g(x) dx = M，求 int_a^b (c f(x) + d g(x)) dx。
-    """
-    a, b = sorted(random.sample(range(-5, 6), 2))
-    while a == b: # Ensure a != b for non-zero interval
-        b = random.randint(-5, 6)
-
-    val_f = random.randint(-15, 15)
-    val_g = random.randint(-15, 15)
-    c_factor = random.randint(-3, 3)
-    d_factor = random.randint(-3, 3)
-    
-    # Avoid trivial cases where both factors are zero, which would make the integrand 0
-    while c_factor == 0 and d_factor == 0:
-        c_factor = random.randint(-3, 3)
-        d_factor = random.randint(-3, 3)
-
-    integrand_parts = []
-    if c_factor != 0:
-        if c_factor == 1: integrand_parts.append("f(x)")
-        elif c_factor == -1: integrand_parts.append("-f(x)")
-        else: integrand_parts.append(f"{c_factor}f(x)")
-    
-    if d_factor != 0:
-        if d_factor == 1:
-            integrand_parts.append("g(x)")
-        elif d_factor == -1:
-            integrand_parts.append("-g(x)")
-        else:
-            integrand_parts.append(f"{d_factor}g(x)")
-    
-    # Combine with appropriate '+' sign if needed
-    integrand_display = ""
-    for i, part in enumerate(integrand_parts):
-        if i > 0 and not part.startswith('-'): # If not the first term and not negative, add '+'
-            integrand_display += "+"
-        integrand_display += part
-            
-    correct_value = c_factor * val_f + d_factor * val_g
-
-    question_text = (
-        f"已知連續函數 $f(x)$ 和 $g(x)$ 滿足 $\\int_{{{a}}}^{{{b}}} f(x) \\, dx = {val_f}$ 且 $\\int_{{{a}}}^{{{b}}} g(x) \\, dx = {val_g}$。"
-        f"請問 $\\int_{{{a}}}^{{{b}}} ({integrand_display}) \\, dx$ 的值為何？"
-    )
-    correct_answer = str(correct_value)
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_constant_integral_problem():
-    """
-    生成求常數函數定積分的題目。
-    例如：求 int_a^b C dx。
-    """
-    a, b = sorted(random.sample(range(-5, 6), 2))
-    while a == b: # Ensure a != b
-        b = random.randint(-5, 6)
-    
-    C = random.randint(-10, 10)
-    
-    correct_value = C * (b - a)
-    
-    question_text = (
-        f"請問定積分 $\\int_{{{a}}}^{{{b}}} {C} \\, dx$ 的值為何？"
-    )
-    correct_answer = str(correct_value)
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_linear_integral_problem():
-    """
-    生成求線性函數 (mx+c) 定積分的題目，其值可透過幾何或基本定理計算。
-    強調定積分可以為正、負、零。
-    """
-    a, b = sorted(random.sample(range(-3, 4), 2)) # Keep range small for simpler numbers
-    while a == b: # Ensure a != b
-        b = random.randint(-3, 4)
-
-    m = random.randint(-2, 2)
-    c = random.randint(-5, 5)
-
-    # Integral of mx+c is (m/2)x^2 + cx evaluated from a to b
-    val_at_b = Fraction(m, 2) * b**2 + c * b
-    val_at_a = Fraction(m, 2) * a**2 + c * a
-    
-    correct_value = val_at_b - val_at_a
-    
-    # Format the integrand expression
-    func_str = ""
-    if m == 0: # It's a constant function C
-        func_str = format_number_for_display(c)
-    else: # It's a linear function mx+c
-        if m == 1:
-            func_str_m_part = "x"
-        elif m == -1:
-            func_str_m_part = "-x"
-        else:
-            func_str_m_part = f"{format_number_for_display(m)}x"
-
-        c_str_display = ""
-        if c > 0:
-            c_str_display = f"+{format_number_for_display(c)}"
-        elif c < 0:
-            c_str_display = format_number_for_display(c) # Negative sign already included
-        
-        func_str = f"{func_str_m_part}{c_str_display}"
-    
-    question_text = (
-        f"請問定積分 $\\int_{{{a}}}^{{{b}}} ({func_str}) \\, dx$ 的值為何？"
-    )
-    correct_answer = format_number_for_answer(correct_value)
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_conceptual_signed_area_problem():
-    """
-    生成關於定積分作為有向面積的觀念題。
-    例如：若函數在某區間上方/下方，或上方/下方面積總和大小關係，判斷積分值的正負或零。
-    """
-    scenario_type = random.choice(['positive_above', 'negative_below', 'mixed_above_greater', 'mixed_below_greater', 'mixed_equal'])
-    
-    a, b = sorted(random.sample(range(-5, 6), 2))
-    while a == b:
-        b = random.randint(-5, 6)
-
-    # Use a, b in the question text to make it concrete, but they don't affect the conceptual answer.
-    a_display = format_number_for_display(a)
-    b_display = format_number_for_display(b)
-
-    if scenario_type == 'positive_above':
-        question_text = (
-            f"若連續函數 $f(x)$ 在區間 $[{a_display}, {b_display}]$ 上恆在 $x$ 軸上方，請問 $\\int_{{{a_display}}}^{{{b_display}}} f(x) \\, dx$ 的值會是正數、負數還是零？"
-        )
-        correct_answer = "正數"
-    elif scenario_type == 'negative_below':
-        question_text = (
-            f"若連續函數 $f(x)$ 在區間 $[{a_display}, {b_display}]$ 上恆在 $x$ 軸下方，請問 $\\int_{{{a_display}}}^{{{b_display}}} f(x) \\, dx$ 的值會是正數、負數還是零？"
-        )
-        correct_answer = "負數"
-    elif scenario_type == 'mixed_above_greater':
-        question_text = (
-            f"若連續函數 $f(x)$ 在區間 $[{a_display}, {b_display}]$ 上有部分在 $x$ 軸上方，有部分在 $x$ 軸下方，"
-            f"且上方區域的面積總和大於下方區域的面積總和，請問 $\\int_{{{a_display}}}^{{{b_display}}} f(x) \\, dx$ 的值會是正數、負數還是零？"
-        )
-        correct_answer = "正數"
-    elif scenario_type == 'mixed_below_greater':
-        question_text = (
-            f"若連續函數 $f(x)$ 在區間 $[{a_display}, {b_display}]$ 上有部分在 $x$ 軸上方，有部分在 $x$ 軸下方，"
-            f"且下方區域的面積總和大於上方區域的面積總和，請問 $\\int_{{{a_display}}}^{{{b_display}}} f(x) \\, dx$ 的值會是正數、負數還是零？"
-        )
-        correct_answer = "負數"
-    else: # mixed_equal
-        question_text = (
-            f"若連續函數 $f(x)$ 在區間 $[{a_display}, {b_display}]$ 上有部分在 $x$ 軸上方，有部分在 $x$ 軸下方，"
-            f"且上方區域的面積總和等於下方區域的面積總和，請問 $\\int_{{{a_display}}}^{{{b_display}}} f(x) \\, dx$ 的值會是正數、負數還是零？"
-        )
-        correct_answer = "零"
-        
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
+import math
 
 def generate(level=1):
     """
-    生成定積分相關題目。
+    生成關於定積分基本概念、性質的題目。
+    包含：
+    1. 定積分的定義（淨有向面積，非單純面積）
+    2. 定積分值的正負判斷 (對於簡單函數)
+    3. 定積分的區間可加性
+    4. 定積分與黎曼和的關係 (極限概念)
     """
-    problem_types = [
-        'additivity',
-        'reverse_limit',
-        'linearity',
-        'constant_integral',
-        'linear_integral',
-        'conceptual_signed_area'
+    problem_type_choices = []
+
+    if level == 1:
+        problem_type_choices = ['concept_net_signed_area', 'sign_prediction_simple', 'riemann_limit_concept']
+    elif level == 2:
+        problem_type_choices = ['concept_net_signed_area', 'sign_prediction_linear', 'property_additivity', 'riemann_limit_concept']
+    else: # Default to level 1 for any unexpected level value
+        problem_type_choices = ['concept_net_signed_area', 'sign_prediction_simple', 'riemann_limit_concept']
+
+    problem_type = random.choice(problem_type_choices)
+
+    if problem_type == 'concept_net_signed_area':
+        return generate_concept_net_signed_area_problem()
+    elif problem_type == 'sign_prediction_simple':
+        return generate_sign_prediction_simple_problem()
+    elif problem_type == 'sign_prediction_linear':
+        return generate_sign_prediction_linear_problem()
+    elif problem_type == 'property_additivity':
+        return generate_property_additivity_problem()
+    else: # riemann_limit_concept
+        return generate_riemann_limit_concept_problem()
+
+def generate_concept_net_signed_area_problem():
+    """
+    生成關於定積分意義的題目，強調「淨有向面積」或其超越「面積」的特性。
+    """
+    question_type = random.choice(['definition_direct', 'true_false_area_only'])
+
+    if question_type == 'definition_direct':
+        question_text = r"對於一個在區間 $[a,b]$ 上連續的函數 $f(x)$，定積分 $\\int_{{a}}^{{b}} f(x) \, dx$ 的意義是？" \
+                        r"<br>(請回答兩個字或三個字，例如：面積、淨有向面積、累積量)"
+        correct_answer = "淨有向面積"
+    else: # true_false_area_only
+        question_text = r"判斷以下敘述是否正確：<br>「定積分 $\\int_{{a}}^{{b}} f(x) \, dx$ 總是代表函數 $f(x)$ 與 $x$ 軸所圍成的『面積』。」" \
+                        r"<br>(請回答『是』或『否』)"
+        correct_answer = "否"
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_sign_prediction_simple_problem():
+    """
+    生成關於定積分正負判斷的題目，使用簡單的常數函數 $f(x) = C$。
+    """
+    constant_val = random.choice([-5, -3, -1, 0, 1, 2, 4]) # Include 0 for "零" case
+    
+    # Generate interval [a, b] such that a < b
+    a = random.randint(-5, 2)
+    b = random.randint(a + 1, 7) # Ensure b > a
+
+    question_text = fr"對於函數 $f(x) = {constant_val}$，在區間 $[{a},{b}]$ 上的定積分 $\\int_{{{a}}}^{{{b}}} {constant_val} \, dx$ 會是正數、負數還是零？"
+    
+    if constant_val > 0:
+        correct_answer = "正數"
+    elif constant_val < 0:
+        correct_answer = "負數"
+    else: # constant_val == 0
+        correct_answer = "零"
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_sign_prediction_linear_problem():
+    """
+    生成關於定積分正負判斷的題目，使用簡單的線性函數 $f(x) = x$ 或 $f(x) = -x$。
+    """
+    func_type = random.choice(['x', 'neg_x'])
+    
+    # Generate interval [a, b] such that a < b
+    a_val = random.randint(-4, 2)
+    b_val = random.randint(a_val + 1, 6) 
+    
+    if func_type == 'x':
+        f_x_str = "x"
+        if b_val <= 0: # e.g., [-3, -1], integral is negative
+            correct_answer = "負數"
+        elif a_val >= 0: # e.g., [1, 3], integral is positive
+            correct_answer = "正數"
+        else: # a_val < 0 < b_val, depends on symmetry
+            if abs(a_val) < b_val: # e.g., [-2, 3], positive area (right side) is larger
+                correct_answer = "正數"
+            elif abs(a_val) > b_val: # e.g., [-3, 2], negative area (left side) is larger
+                correct_answer = "負數"
+            else: # abs(a_val) == b_val, e.g., [-2, 2], symmetric around 0
+                correct_answer = "零"
+    else: # func_type == 'neg_x' (f(x) = -x)
+        f_x_str = "-x"
+        if b_val <= 0: # e.g., [-3, -1], integral is positive
+            correct_answer = "正數"
+        elif a_val >= 0: # e.g., [1, 3], integral is negative
+            correct_answer = "負數"
+        else: # a_val < 0 < b_val
+            if abs(a_val) < b_val: # e.g., [-2, 3], negative area (right side) is larger
+                correct_answer = "負數"
+            elif abs(a_val) > b_val: # e.g., [-3, 2], positive area (left side) is larger
+                correct_answer = "正數"
+            else: # abs(a_val) == b_val, e.g., [-2, 2], symmetric around 0
+                correct_answer = "零"
+
+    question_text = fr"對於函數 $f(x) = {f_x_str}$，在區間 $[{a_val},{b_val}]$ 上的定積分 $\\int_{{{a_val}}}^{{{b_val}}} {f_x_str} \, dx$ 會是正數、負數還是零？"
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_property_additivity_problem():
+    """
+    生成關於定積分區間可加性 ($\\int_a^c f(x) dx = \\int_a^b f(x) dx + \\int_b^c f(x) dx$) 的題目。
+    """
+    # Generate three distinct ordered points a, b, c
+    points = sorted(random.sample(range(-10, 10), 3))
+    a, b, c = points[0], points[1], points[2]
+
+    # Generate values for K1 and K2
+    k1 = random.randint(-10, 10)
+    k2 = random.randint(-10, 10)
+    
+    question_text = fr"已知 $\\int_{{{a}}}^{{{b}}} f(x) \, dx = {k1}$ 且 $\\int_{{{b}}}^{{{c}}} f(x) \, dx = {k2}$，" \
+                    fr"請問 $\\int_{{{a}}}^{{{c}}} f(x) \, dx$ 的值為何？"
+    
+    correct_answer = str(k1 + k2)
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_riemann_limit_concept_problem():
+    """
+    生成關於定積分作為黎曼和極限的題目。
+    """
+    keyword_options = [
+        ("當區間分割數 $n$ 趨近於 ______ 時的極限。", "無限大"),
+        ("定積分被定義為當黎曼和的子區間數量 $n$ 趨於 ______ 時的極限。", "無窮大"),
+        ("定積分 $\\int_{{a}}^{{b}} f(x) \, dx$ 是黎曼和在子區間寬度 $\\Delta x$ 趨近於 ______ 時的極限。", "零")
     ]
     
-    problem_type = random.choice(problem_types)
+    question_template, correct_answer_template = random.choice(keyword_options)
     
-    if problem_type == 'additivity':
-        return generate_additivity_problem()
-    elif problem_type == 'reverse_limit':
-        return generate_reverse_limit_problem()
-    elif problem_type == 'linearity':
-        return generate_linearity_problem()
-    elif problem_type == 'constant_integral':
-        return generate_constant_integral_problem()
-    elif problem_type == 'linear_integral':
-        return generate_linear_integral_problem()
-    elif problem_type == 'conceptual_signed_area':
-        return generate_conceptual_signed_area_problem()
+    question_text = fr"定積分是將黎曼和{question_template}"
+    correct_answer = correct_answer_template
     
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
 
 def check(user_answer, correct_answer):
     """
     檢查答案是否正確。
     """
-    user_answer = user_answer.strip()
-    correct_answer = correct_answer.strip()
+    user_answer = user_answer.strip().lower()
+    correct_answer = correct_answer.strip().lower()
     
     is_correct = False
-    result_text = ""
+    feedback_message = ""
 
-    # Try to compare as numbers (float/fraction) first, then as strings for conceptual answers
-    try:
-        user_num = Fraction(user_answer)
-        correct_num = Fraction(correct_answer)
-        if user_num == correct_num:
+    # Specific checks for common string answers
+    if correct_answer in ["正數", "負數", "零", "是", "否", "無限大", "無窮大", "淨有向面積"]:
+        if user_answer == correct_answer:
             is_correct = True
-    except ValueError:
-        # If not a number, compare as strings (case-insensitive for "正數", "負數", "零")
-        if user_answer.lower() == correct_answer.lower():
-            is_correct = True
-            
-    if is_correct:
-        result_text = f"完全正確！答案是 ${correct_answer}$。"
-    else:
-        # For numerical answers, display the correct answer in LaTeX format for feedback
+            feedback_message = f"完全正確！答案是「{correct_answer}」。"
+        else:
+            is_correct = False
+            feedback_message = f"答案不正確。正確答案應為：「{correct_answer}」。"
+    else: # Numerical answers (e.g., from property_additivity)
         try:
-            correct_fraction = Fraction(correct_answer)
-            formatted_correct_answer = format_number_for_display(correct_fraction)
-            result_text = f"答案不正確。正確答案應為：${formatted_correct_answer}$"
-        except ValueError: # If conceptual answer, display as is
-            result_text = f"答案不正確。正確答案應為：${correct_answer}$"
-        
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+            user_num = float(user_answer)
+            correct_num = float(correct_answer)
+            if abs(user_num - correct_num) < 1e-9: # Compare floats with tolerance
+                is_correct = True
+                feedback_message = f"完全正確！答案是 ${correct_answer}$。"
+            else:
+                is_correct = False
+                feedback_message = f"答案不正確。正確答案應為：${correct_answer}$。"
+        except ValueError:
+            is_correct = False
+            feedback_message = f"答案格式不正確或內容有誤。正確答案應為：${correct_answer}$。"
+
+    return {"correct": is_correct, "result": feedback_message, "next_question": True}
