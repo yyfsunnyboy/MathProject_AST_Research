@@ -159,6 +159,21 @@ def init_db(engine):
         )
     ''')
 
+    # [新增] Mistake Notebook Entries 表格 (新版 Schema)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS mistake_notebook_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            exam_image_path TEXT,
+            question_data TEXT,
+            notes TEXT,
+            skill_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES users (id),
+            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id)
+        )
+    ''')
+
     # [新增] Textbook Examples 表格 (新版 Schema)
     c.execute('''
         CREATE TABLE IF NOT EXISTS textbook_examples (
@@ -360,6 +375,32 @@ class ClassStudent(db.Model):
     class_id = db.Column(db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# [新版對應] MistakeNotebookEntry 模型
+class MistakeNotebookEntry(db.Model):
+    __tablename__ = 'mistake_notebook_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    exam_image_path = db.Column(db.String(255), nullable=True)
+    question_data = db.Column(db.JSON, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    skill_id = db.Column(db.String(50), db.ForeignKey('skills_info.skill_id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    student = db.relationship('User', backref=db.backref('mistake_entries', lazy=True))
+    skill = db.relationship('SkillInfo', backref=db.backref('mistake_entries', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'exam_image_path': self.exam_image_path,
+            'question_data': self.question_data,
+            'notes': self.notes,
+            'skill_id': self.skill_id,
+            'skill_name': self.skill.skill_ch_name if self.skill else '未分類',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M')
+        }
 
 class MistakeLog(db.Model):
     __tablename__ = 'mistake_logs'

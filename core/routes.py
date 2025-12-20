@@ -319,6 +319,29 @@ def check_answer():
 
     # 更新進度
     update_progress(current_user.id, skill, is_correct)
+
+    # 如果答錯，自動記錄到錯題本
+    if not is_correct:
+        try:
+            question_text = current.get('question_text')
+            # 檢查是否已存在相同的錯題記錄 (基於問題內容)
+            existing_entry = db.session.query(MistakeNotebookEntry).filter_by(
+                student_id=current_user.id,
+                skill_id=skill
+            ).filter(MistakeNotebookEntry.question_data.contains(question_text)).first()
+
+            if not existing_entry and question_text:
+                new_entry = MistakeNotebookEntry(
+                    student_id=current_user.id,
+                    skill_id=skill,
+                    question_data={'type': 'system_question', 'text': question_text},
+                    notes='系統練習題自動記錄'
+                )
+                db.session.add(new_entry)
+                db.session.commit()
+        except Exception as e:
+            current_app.logger.error(f"自動記錄錯題失敗: {e}")
+            db.session.rollback() # Rollback on error
     
     return jsonify(result)
 
@@ -2891,6 +2914,81 @@ def reset_ai_prompt_setting():
         current_app.logger.error(f"Reset AI Prompt Error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
+# ==========================================
+# 錯題本功能 (Mistake Notebook)
+# ==========================================
+from models import MistakeNotebookEntry
+
+@core_bp.route('/mistake-notebook')
+@login_required
+def mistake_notebook():
+    """顯示錯題本主頁面"""
+    return render_template('mistake_notebook.html', username=current_user.username)
+
+@core_bp.route('/add_mistake_page')
+@login_required
+def add_mistake_page():
+    """顯示手動新增錯題的頁面"""
+    skills = db.session.query(SkillInfo).filter_by(is_active=True).order_by(SkillInfo.skill_ch_name).all()
+    return render_template('add_mistake.html', skills=skills, username=current_user.username)
+
+@core_bp.route('/api/mistake-notebook', methods=['GET'])
+@login_required
+def api_mistake_notebook():
+    """獲取當前使用者的所有錯題記錄"""
+    entries = db.session.query(MistakeNotebookEntry).filter_by(student_id=current_user.id).order_by(MistakeNotebookEntry.created_at.desc()).all()
+    return jsonify([entry.to_dict() for entry in entries])
+
+@core_bp.route('/mistake-notebook/upload-image', methods=['POST'])
+@login_required
+def upload_mistake_image():
+    """處理錯題圖片上傳"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': '沒有檔案'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': '未選擇檔案'}), 400
+
+    if file and allowed_exam_file(file.filename):
+        # 建立專屬該使用者的資料夾
+        upload_dir = os.path.join(current_app.static_folder, 'mistake_uploads', str(current_user.id))
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        filename = secure_filename(file.filename)
+        # 加上 UUID 避免檔名衝突
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        file.save(file_path)
+        
+        # 回傳相對路徑
+        relative_path = os.path.join('mistake_uploads', str(current_user.id), unique_filename).replace('\\', '/')
+        return jsonify({'success': True, 'path': relative_path})
+    
+    return jsonify({'success': False, 'message': '檔案格式不符'}), 400
+
+@core_bp.route('/mistake-notebook/add', methods=['POST'])
+@login_required
+def add_mistake_entry():
+    """新增一筆錯題記錄到資料庫"""
+    try:
+        data = request.get_json()
+        
+        new_entry = MistakeNotebookEntry(
+            student_id=current_user.id,
+            exam_image_path=data.get('exam_image_path'),
+            question_data=data.get('question_data'), # Can be JSON
+            notes=data.get('notes'),
+            skill_id=data.get('skill_id')
+        )
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': '錯題已成功記錄！'})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"新增錯題失敗: {e}")
+        return jsonify({'success': False, 'message': f'伺服器錯誤: {str(e)}'}), 500
 
 
 # ==========================================

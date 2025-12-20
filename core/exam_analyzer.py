@@ -261,9 +261,13 @@ def analyze_exam_image(image_path, grade, curriculum='general'):
         }
 
 
+from models import db, SkillInfo, SkillCurriculum, ExamAnalysis, MistakeNotebookEntry
+
+# ... (rest of the file is the same until save_analysis_result)
+
 def save_analysis_result(user_id, analysis_result, image_path):
     """
-    將分析結果存入資料庫
+    將分析結果存入資料庫,並在答錯時自動記錄到錯題本
     
     Args:
         user_id: 使用者 ID
@@ -307,8 +311,30 @@ def save_analysis_result(user_id, analysis_result, image_path):
             feedback=error_analysis.get('feedback'),
             image_path=image_path
         )
-        
         db.session.add(exam_analysis)
+
+        # 如果答錯,自動記錄到錯題本
+        if not is_correct:
+            # 檢查是否已存在相同的錯題記錄 (基於圖片路徑)
+            existing_entry = db.session.query(MistakeNotebookEntry).filter_by(
+                student_id=user_id,
+                exam_image_path=image_path
+            ).first()
+
+            if not existing_entry:
+                new_mistake_entry = MistakeNotebookEntry(
+                    student_id=user_id,
+                    exam_image_path=image_path,
+                    question_data={
+                        'type': 'exam_diagnosis',
+                        'matched_unit': matched_unit,
+                        'error_analysis': error_analysis
+                    },
+                    notes='考卷診斷自動記錄',
+                    skill_id=unit_id
+                )
+                db.session.add(new_mistake_entry)
+        
         db.session.commit()
         
         return {
@@ -322,3 +348,4 @@ def save_analysis_result(user_id, analysis_result, image_path):
             'success': False,
             'error': f'儲存分析結果失敗: {str(e)}'
         }
+
