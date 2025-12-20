@@ -2363,15 +2363,6 @@ def get_suggested_prompts(skill_id):
 
 # === 班級管理功能 ===
 
-def generate_class_code():
-    """產生 6 碼隨機班級代碼 (大寫字母 + 數字)"""
-    chars = string.ascii_uppercase + string.digits
-    while True:
-        code = ''.join(random.choice(chars) for _ in range(6))
-        # 確保代碼唯一
-        if not db.session.query(Class).filter_by(class_code=code).first():
-            return code
-
 @core_bp.route('/classes/create', methods=['POST'])
 @login_required
 def create_class():
@@ -2385,10 +2376,10 @@ def create_class():
         if not class_name:
             return jsonify({"success": False, "message": "請輸入班級名稱"}), 400
             
+        # class_code is now generated automatically by the model's default
         new_class = Class(
             name=class_name,
-            teacher_id=current_user.id,
-            class_code=generate_class_code()
+            teacher_id=current_user.id
         )
         db.session.add(new_class)
         db.session.commit()
@@ -2401,6 +2392,67 @@ def create_class():
     except Exception as e:
         current_app.logger.error(f"建立班級失敗: {e}")
         return jsonify({"success": False, "message": "建立班級失敗"}), 500
+
+@core_bp.route('/classes/regenerate_code/<int:class_id>', methods=['POST'])
+@login_required
+def regenerate_class_code(class_id):
+    """重新產生班級代碼"""
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+
+    try:
+        target_class = db.session.query(Class).filter_by(id=class_id, teacher_id=current_user.id).first()
+        if not target_class:
+            return jsonify({"success": False, "message": "找不到班級或無權限"}), 404
+
+        from models import generate_invitation_code
+        target_class.class_code = generate_invitation_code()
+        db.session.commit()
+        
+        return jsonify({"success": True, "new_code": target_class.class_code})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"重新產生代碼失敗: {e}")
+        return jsonify({"success": False, "message": "產生新代碼失敗"}), 500
+
+@core_bp.route('/class/join', methods=['POST'])
+@login_required
+def join_class():
+    """學生使用代碼加入班級"""
+    if current_user.role != 'student':
+        flash('只有學生才能加入班級。', 'warning')
+        return redirect(url_for('core.dashboard'))
+
+    class_code = request.form.get('class_code', '').strip()
+    if not class_code:
+        flash('請輸入班級代碼。', 'warning')
+        return redirect(url_for('core.dashboard'))
+
+    target_class = db.session.query(Class).filter_by(class_code=class_code).first()
+
+    if not target_class:
+        flash('無效的班級代碼。', 'danger')
+        return redirect(url_for('core.dashboard'))
+
+    # 檢查是否已在班級中
+    is_member = db.session.query(ClassStudent).filter_by(class_id=target_class.id, student_id=current_user.id).first()
+    if is_member:
+        flash(f'您已經在「{target_class.name}」班級中了。', 'info')
+        return redirect(url_for('core.dashboard'))
+
+    # 加入班級
+    try:
+        new_membership = ClassStudent(class_id=target_class.id, student_id=current_user.id)
+        db.session.add(new_membership)
+        db.session.commit()
+        flash(f'成功加入班級：「{target_class.name}」！', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"加入班級失敗: {e}")
+        flash('加入班級時發生錯誤，請稍後再試。', 'danger')
+
+    return redirect(url_for('core.dashboard'))
+
 
 @core_bp.route('/classes/delete/<int:class_id>', methods=['POST'])
 @login_required

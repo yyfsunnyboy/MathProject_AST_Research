@@ -1,5 +1,7 @@
 import sqlite3
 import json
+import secrets
+import string
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from datetime import datetime
@@ -350,12 +352,30 @@ class SkillPrerequisites(db.Model):
     prerequisite_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
     __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)
 
+import secrets
+import string
+
+# ... (imports)
+
+# --- 以下為 ORM 模型定義 (對應上述所有表格) ---
+
+# ... (other models)
+
+def generate_invitation_code(length=8):
+    """產生一個隨機的、由大寫字母和數字組成的邀請碼"""
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = ''.join(secrets.choice(alphabet) for i in range(length))
+        # 確保生成的代碼是唯一的
+        if not Class.query.filter_by(class_code=code).first():
+            return code
+
 class Class(db.Model):
     __tablename__ = 'classes'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    class_code = db.Column(db.String(10), unique=True, nullable=False)
+    class_code = db.Column(db.String(8), unique=True, nullable=False, default=generate_invitation_code)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref=db.backref('teaching_classes', lazy=True))
     students = db.relationship('User', secondary='class_students', backref=db.backref('enrolled_classes', lazy=True))
@@ -368,6 +388,7 @@ class Class(db.Model):
             'student_count': len(self.students),
             'created_at': self.created_at.strftime('%Y-%m-%d')
         }
+
 
 class ClassStudent(db.Model):
     __tablename__ = 'class_students'

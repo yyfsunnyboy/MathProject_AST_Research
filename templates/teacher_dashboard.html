@@ -293,8 +293,13 @@
                     container.innerHTML = data.classes.map(cls => `
                         <div class="stat-box" style="text-align: left; position: relative;">
                             <div style="font-size: 1.2em; font-weight: bold; color: #2c3e50;">${cls.name}</div>
-                            <div style="margin-top: 10px; color: #7f8c8d;">
-                                班級代碼：<span style="background-color: #f1c40f; color: #fff; padding: 2px 5px; border-radius: 3px; font-weight: bold;">${cls.class_code}</span>
+                            <div style="margin-top: 10px; color: #7f8c8d; display: flex; align-items: center; gap: 5px;">
+                                <span>班級代碼：</span>
+                                <span id="code-${cls.id}" style="background-color: #f1c40f; color: #fff; padding: 2px 5px; border-radius: 3px; font-weight: bold;">
+                                    ${cls.class_code}
+                                </span>
+                                <button onclick="copyCode('${cls.class_code}')" title="複製邀請碼" style="background: none; border: none; cursor: pointer; font-size: 1em;">📋</button>
+                                <button onclick="regenerateCode(${cls.id})" title="產生新代碼" style="background: none; border: none; cursor: pointer; font-size: 1em;">🔄</button>
                             </div>
                             <div style="margin-top: 5px; color: #7f8c8d;">學生人數：${cls.student_count} 人</div>
                             <div style="margin-top: 15px;">
@@ -340,6 +345,46 @@
                 alert('發生錯誤，請稍後再試');
             }
         }
+
+        function copyCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                alert('邀請碼已複製！');
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+                alert('複製失敗，請手動複製。');
+            });
+        }
+
+        async function regenerateCode(classId) {
+            if (!confirm('確定要產生新的邀請碼嗎？舊的代碼將會失效。')) {
+                return;
+            }
+            try {
+                const url = "{{ url_for('core.regenerate_class_code', class_id=0) }}".replace('0', classId);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const codeSpan = document.getElementById(`code-${classId}`);
+                    if (codeSpan) {
+                        codeSpan.textContent = data.new_code;
+                        // Also update the copy button's onclick handler if necessary, though in this structure it's not needed
+                        alert('新的邀請碼已產生！');
+                        loadClasses(); // Easiest way to refresh all data including copy button onclick
+                    }
+                } else {
+                    alert(data.message || '產生新碼失敗');
+                }
+            } catch (error) {
+                console.error('Error regenerating code:', error);
+                alert('操作失敗，請稍後再試');
+            }
+        }
+
 
         let currentClassId = null;
 

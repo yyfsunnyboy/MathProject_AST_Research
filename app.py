@@ -221,6 +221,9 @@ def create_app():
         # if current_user.role == 'teacher':
         #     return redirect(url_for('teacher_dashboard'))
 
+        # 取得學生已加入的班級
+        enrolled_classes = current_user.enrolled_classes if current_user.is_authenticated and hasattr(current_user, 'enrolled_classes') else []
+
         view_mode = request.args.get('view', 'curriculum')
         curriculum = request.args.get('curriculum', 'junior_high')
         volume = request.args.get('volume')
@@ -281,7 +284,8 @@ def create_app():
                                      volume=volume,
                                      chapter=chapter,
                                      grouped_sections=grouped_sections,
-                                     username=current_user.username)
+                                     username=current_user.username,
+                                     enrolled_classes=enrolled_classes)
             elif curriculum and volume:
                 chapters = get_chapters_by_curriculum_volume(curriculum, volume)
                 return render_template('dashboard.html',
@@ -290,7 +294,8 @@ def create_app():
                                      curriculum=curriculum,
                                      volume=volume,
                                      chapters=chapters,
-                                     username=current_user.username)
+                                     username=current_user.username,
+                                     enrolled_classes=enrolled_classes)
             elif curriculum:
                 volumes = get_volumes_by_curriculum(curriculum)
 
@@ -332,7 +337,8 @@ def create_app():
                                      curriculum=curriculum,
                                      volumes=volumes,
                                      grade_map=grade_map,
-                                     username=current_user.username)
+                                     username=current_user.username,
+                                     enrolled_classes=enrolled_classes)
         else:
             selected_category = request.args.get('category')
 
@@ -354,7 +360,8 @@ def create_app():
                                      view_mode='all',
                                      level='skills_in_category',
                                      category=selected_category,
-                                     username=current_user.username)
+                                     username=current_user.username,
+                                     enrolled_classes=enrolled_classes)
             else:
                 ordered_categories_query = db.session.query(SkillInfo.category)\
                     .join(SkillCurriculum, SkillInfo.skill_id == SkillCurriculum.skill_id)\
@@ -380,7 +387,8 @@ def create_app():
                                      view_mode='all',
                                      level='categories',
                                      categories=categories,
-                                     username=current_user.username)
+                                     username=current_user.username,
+                                     enrolled_classes=enrolled_classes)
 
     with app.app_context():
         init_db(db.engine)
