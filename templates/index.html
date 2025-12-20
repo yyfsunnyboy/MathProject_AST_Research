@@ -1568,19 +1568,15 @@
             }
         }
 
-        // [座標修正] 獲取精確的畫筆位置 (支援滑鼠與觸控)
+        // [1:1 精準座標]
         function getMousePos(canvas, evt) {
-            // 1. 每次都重新獲取 Canvas 的位置與大小 (因為 UI 可能會變動，如折疊選單)
             const rect = canvas.getBoundingClientRect();
             
-            // 2. 獲取觸控點或滑鼠點
             let clientX, clientY;
-            
             if (evt.touches && evt.touches.length > 0) {
                 clientX = evt.touches[0].clientX;
                 clientY = evt.touches[0].clientY;
             } else if (evt.changedTouches && evt.changedTouches.length > 0) {
-                // 處理 touchend 情況
                 clientX = evt.changedTouches[0].clientX;
                 clientY = evt.changedTouches[0].clientY;
             } else {
@@ -1588,7 +1584,8 @@
                 clientY = evt.clientY;
             }
 
-            // 3. 返回 CSS 像素座標 (因為 ctx 已設定 scale(dpr, dpr))
+            // 直接減去 Canvas 的左上角座標
+            // 因為我們已經確保了 width == rect.width，所以 scale 是 1
             return {
                 x: clientX - rect.left,
                 y: clientY - rect.top
@@ -1605,10 +1602,16 @@
             canvas.addEventListener('pointerup', stopDraw);
             canvas.addEventListener('pointerout', stopDraw);
             
-            // [Surface Pro] 強制防止 touchmove 觸發滾動
-            canvas.addEventListener('touchmove', function(e) {
-                e.preventDefault(); 
+            // [Surface Pro] 防止畫圖時捲動頁面
+            canvas.addEventListener('touchstart', function(e) {
+                if (e.target === canvas) e.preventDefault();
             }, { passive: false });
+            canvas.addEventListener('touchmove', function(e) {
+                if (e.target === canvas) e.preventDefault();
+            }, { passive: false });
+
+            // 強制設定 CSS 屬性以鎖定觸控行為
+            canvas.style.touchAction = 'none';
 
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1622,20 +1625,16 @@
         }
 
         function resizeCanvas() {
-            const rect = canvas.parentElement.getBoundingClientRect();
-            // [新增] 支援 High DPI (Retina)
-            const dpr = window.devicePixelRatio || 1;
+            // [Surface Pro 筆觸終極修正] 強制 1:1 解析度
+            // 1. 取得實際顯示的寬高 (包含 padding 但不含 border)
+            const rect = canvas.getBoundingClientRect();
 
-            // 設定真實像素解析度
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
+            // 2. 設定真實像素解析度 = 顯示解析度
+            canvas.width = rect.width;
+            canvas.height = rect.height;
 
-            // 強制 CSS 顯示尺寸符合父容器
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = rect.height + 'px';
-
-            // 縮放座標系以符合 CSS 像素
-            ctx.scale(dpr, dpr);
+            // 3. 強制設定 CSS 屬性以鎖定觸控行為
+            canvas.style.touchAction = 'none';
 
             // 重置畫筆樣式 (resize 會清除 context)
             setPenStyle();
@@ -1643,10 +1642,8 @@
             if (undoStack.length > 0) {
                 const img = new Image();
                 img.onload = () => {
-                    // 根據 dpr 調整繪製尺寸，維持正確比例
-                    const w = img.width / dpr;
-                    const h = img.height / dpr;
-                    ctx.drawImage(img, 0, 0, w, h);
+                    // 1:1 繪製
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 };
                 img.src = undoStack[undoStack.length - 1];
             }
@@ -1779,10 +1776,8 @@
             redoStack.push(undoStack.pop());
             const img = new Image();
             img.onload = () => {
-                const dpr = window.devicePixelRatio || 1; // 取得當前 DPR
-                ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr); // 使用邏輯單位清除
-                // 修正：繪製時考慮 dpr 縮放
-                ctx.drawImage(img, 0, 0, img.width / dpr, img.height / dpr);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 updateUndoRedoButtons();
             };
             img.src = undoStack[undoStack.length - 1];
@@ -1792,10 +1787,8 @@
             if (redoStack.length === 0) return;
             const img = new Image();
             img.onload = () => {
-                const dpr = window.devicePixelRatio || 1; // 取得當前 DPR
-                ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr); // 使用邏輯單位清除
-                // 修正：繪製時考慮 dpr 縮放
-                ctx.drawImage(img, 0, 0, img.width / dpr, img.height / dpr);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 undoStack.push(canvas.toDataURL());
                 redoStack.pop();
                 updateUndoRedoButtons();
