@@ -1,8 +1,8 @@
 # 智學AIGC賦能平台 系統分析：智慧適性化練習介面 (Intelligent Adaptive Practice Interface)
 
 **文件資訊**
-* **版本**：2.0 (前端互動與 AI 整合深度分析)
-* **日期**：2025-12-09
+**文件版本**：2.1 (同步解題三部曲與適性診斷機制)
+* **日期**：2025-12-22
 * **文件狀態**：正式版
 * **負責人**：System Architect
 * **相關檔案**：前端 `index.html` / 後端 `routes.py`, `ai_analyzer.py`
@@ -13,7 +13,7 @@
 
 ### 1.1 模組描述
 本模組是學生進行數學學習的核心場域。它突破了傳統「單向刷題」的限制，打造了一個 **「多模態 (Multimodal) 互動學習環境」**。
-透過整合 **MathJax** (數學渲染)、**Dynamic Iframe** (動態視覺化) 與 **AI Chatbot** (即時輔導)，本介面實現了「題目、圖形、家教」三位一體的學習體驗。
+透過整合 **MathJax** (數學渲染)、**Dynamic Iframe** (動態視覺化) 與 **AI Chatbot** (即時輔導)，本介面實現了「題目、圖形、家教」三位一體的學習體驗。此外，背後由 **Code-as-Content** 技術驅動，確保每一道題目皆為即時運算生成，實現「無限題庫」。
 
 ![practice UI](practice1.png)
 
@@ -139,11 +139,14 @@ const response = await fetch('/chat_ai', {
 ```
 * **效益**：AI 不需要學生重新複製題目，就能直接回答「這題是差平方公式的應用...」。
 
-### 4.2 蘇格拉底式引導 (Socratic Guidance)
-後端的 Prompt 設計讓 AI 扮演「引導者」而非「解題機」。
-* **情境**：學生問「答案是多少？」
-* **AI 回應**：AI 不會給答案，而是回傳：「我們先觀察一下係數，你覺得可以用十字交乘法嗎？」
-* **Follow-up Prompts**：介面下方會自動生成建議追問按鈕（如「提示第一步」、「顯示相關公式」），降低學生提問的心理門檻。
+### 4.2 蘇格拉底式引導 (Pedagogical Trilogy Integration)
+後端的 Prompt 設計讓 AI 扮演「引導者」而非「解題機」，落實模組三的 **「解題三部曲」**：
+*   **啟動 (Start)**：當學生不知如何下手時，AI 問：「題目提到的『關鍵字』是什麼意思？」（對應 `prompt_1`）。
+*   **策略 (Strategy)**：當學生卡在中間時，AI 提示：「有沒有『口訣』或『固定步驟』可以解這題？」（對應 `prompt_2`）。
+*   **檢查 (Check)**：當學生算錯時，AI 提醒：「算出來的答案，有沒有符合『範圍限制』？」（對應 `prompt_3`）。
+
+### 4.3 適性化診斷 (Adaptive Diagnosis)
+當學生連續答錯時，系統會調用 **模組四 (Knowledge Graph)** 的資料，在 AI 對話框中顯示：「偵測到你在『一元二次方程式』有困難，建議先複習基礎的『配方法』。」這種 **「向下診斷 (Downward Diagnosis)」** 能力，是本平台區別於傳統題庫的最大亮點。
 
 ---
 
@@ -174,4 +177,5 @@ const response = await fetch('/chat_ai', {
 
 1.  **Hybrid Rendering**：結合 Server-side 的 Python 運算能力（生成題目與圖形程式碼）與 Client-side 的 MathJax 渲染能力，達到最佳效能與顯示效果。
 2.  **No-Refresh Experience**：全站採用 AJAX (Fetch API) 與使用者互動，答題、看詳解、換題皆無須重整頁面，體驗流暢如 App。
-3.  **Adaptive Visuals**：圖形不是死板的 JPG，而是由程式碼生成的動態內容，能完全對應每一次隨機生成的題目參數，這是傳統題庫無法做到的。
+3.  **Adaptive Visuals**：圖形不是死板的 JPG，而是由程式碼生成的動態內容，能完全對應每一次隨機生成的題目參數。
+4.  **Sustainability (SDGs)**：全數位化的練習介面（SDG 12 責任消費與生產），搭配 AI 助教降低學習門檻（SDG 4 優質教育），展現了明確的競賽價值。

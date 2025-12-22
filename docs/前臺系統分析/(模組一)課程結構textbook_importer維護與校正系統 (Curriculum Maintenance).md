@@ -1,8 +1,8 @@
 # 智學AIGC賦能平台 系統分析：課程結構維護與校正系統 (Curriculum Maintenance)
 
 **文件資訊**
-* **版本**：1.0
-* **日期**：2025-12-08
+* **版本**：2.1 (同步非同步處理與 Skip Code Gen 功能)
+* **日期**：2025-12-22
 * **文件狀態**：正式版
 * **負責人**：System Architect
 * **相關檔案**：前端 `admin_curriculum.html` / 後端 `routes.py`
@@ -21,7 +21,8 @@
 ### 1.2 核心目標
 1.  **結構清洗**：修正 AI 解析出的錯誤章節名稱或順序 (例如：`數與弐` -> `數與式`)。
 2.  **層級調整**：重新定義「章 (Chapter)」與「節 (Section)」的隸屬關係。
-3.  **資料完整性確保**：作為防火牆，防止錯誤的 Metadata 流入後端的自動出題系統 (`sync_skills_files.py`)。
+3.  **模式選擇 (Skip Code Gen)**：支援 **「僅匯入結構 (Skip Code Gen)」** 模式，允許管理者先快速建立資料庫架構，日後再批次生成程式碼，大幅提升建置效率 (Commercial Value)。
+4.  **資料完整性確保**：作為防火牆，防止錯誤的 Metadata 流入後端的自動出題系統 (`sync_skills_files.py`)。
 
 ---
 
@@ -107,9 +108,12 @@ graph TD
 
 ## 4. 後端處理邏輯 (Backend Logic)
 
-後端 API 邏輯主要位於 `routes.py`，使用 Flask Blueprint 處理路由與 SQLAlchemy 進行 ORM 操作。
+後端 API 邏輯主要位於 `routes.py`，使用 Flask Blueprint 處理路由，並配合 Background Task 機制回傳進度。
 
-### 4.1 資料查詢 API (`/api/get_curriculum_data`)
+### 4.1 資料查詢與匯入狀態 API
+* **進度回饋 (Async Feedback)**：
+    * 當前台觸發 `textbook_importer` 上傳後，後端會回傳一個 `task_id`。
+    * 前端透過輪詢 (Polling) `/api/task_status/<task_id>`，即時更新 **「處理進度條 (Progress Bar)」**，顯示如 "Extracting Text...", "Analyzing with AI...", "Saving to DB..." 等狀態，優化使用者體驗 (Interface Design)。
 * **Method**: `GET`
 * **邏輯**：
     1.  接收 Query String (`curriculum`, `grade`, `volume`, `chapter`, `section`)。

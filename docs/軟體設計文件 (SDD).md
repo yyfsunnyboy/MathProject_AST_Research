@@ -1,7 +1,7 @@
 # 智學AIGC賦能平台 (Smart-Edu AIGC Platform) - 軟體設計文件 (SDD)
 
-**版本**: 3.0 (整合全系統分析文件)
-**日期**: 2025-12-10
+**版本**: 3.1 (系統優化與驗證整合)
+**日期**: 2025-12-22
 **文件狀態**: 正式版
 
 ---
@@ -38,9 +38,9 @@ graph TD
     subgraph Core_Pipeline [AI 核心處理流水線]
         direction TB
         Importer[模組 1: 教材數位化引擎<br>(OCR + 結構提取)]
-        Sync[模組 2: 題庫自動程式化<br>(Python Code Gen)]
-        Enrich[模組 3: 教學引導增強<br>(Socratic Prompt Gen)]
-        Graph[模組 4: 知識圖譜建構<br>(Dependency Analysis)]
+        Sync[模組 2: 題庫自動程式化<br>(AST Self-Healing + Strict Prompt)]
+        Enrich[模組 3: 教學引導增強<br>(Pedagogical Trilogy)]
+        Graph[模組 4: 知識圖譜建構<br>(Context Injection)]
     end
 
     subgraph Backend_Services [後端服務層]
@@ -76,12 +76,12 @@ graph TD
 | 領域 | 技術/工具 | 用途說明 |
 | :--- | :--- | :--- |
 | **後端框架** | **Flask 2.0+** | 輕量級 Web 框架，負責 API 路由與業務邏輯。 |
-| **資料庫** | **SQLite** (開發) / **SQLAlchemy** | 關聯式資料庫與 ORM，維護核心數據結構。 |
-| **AI 引擎** | **Google Gemini API** (Pro/Vision) | 核心大腦，負責 OCR、語意理解、代碼生成、圖譜分析。 |
-| **文件處理** | **PyMuPDF, PyTesseract, Pypandoc, Wand** | 處理 PDF, Word, 圖片 OCR 與格式轉換。 |
-| **前端技術** | **HTML5, Bootstrap 5, Vanilla JS** | 響應式介面，強調操作流暢度。 |
-| **數學渲染** | **MathJax 3.x** | 前端高品質 LaTeX 數學公式渲染。 |
-| **互動元件** | **SweetAlert2, Select2** | 優化前端使用者體驗 (UX)。 |
+| **資料庫** | **SQLite (WAL Mode)** | 啟用 Write-Ahead Logging 模式，支援高併發寫入與讀取。 |
+| **AI 引擎** | **Google Gemini API** (Pro/Vision) | 核心大腦，負責 OCR、語意理解、代碼生成、圖譜分析 (Context Injection)。 |
+| **文件處理** | **PyMuPDF, PyTesseract, Pypandoc (Clean)** | 處理 PDF, Word，針對 Pandoc 轉換結果進行 LaTeX 深度清洗。 |
+| **前端技術** | **HTML5, Bootstrap 5, Vanilla JS** | 響應式介面，強調操作流暢度 (No-Refresh AJAX)。 |
+| **數學渲染** | **MathJax 3.x** | 前端高品質 LaTeX 數學公式渲染 (SVG 輸出)。 |
+| **互動元件** | **SweetAlert2, Select2, Chart.js** | 優化前端使用者體驗 (UX)，提供視覺化回饋。 |
 
 ---
 
@@ -149,7 +149,8 @@ erDiagram
 *   **操作**：上傳 PDF 或 Word 課本，設定 Metadata (課綱、年級)。
 *   **AI 技術**：
     *   **混合 OCR**：結合 PyTesseract (圖) 與 PyMuPDF (文)，並利用 Wand 處理 Word 向量圖。
-    *   **結構分析**：Gemini 分析章節標題與例題，修復 JSON 格式與 LaTeX 語法錯誤。
+    *   **非同步管線**：實作 Async Background Task 與 Retry 機制，確保大檔案處理不中斷。
+    *   **結構分析**：Gemini 分析章節標題與例題，修復 JSON 格式與 LaTeX 語法錯誤 (clean_pandoc)。
 *   **產出**：寫入 `SkillInfo`, `SkillCurriculum`, `TextbookExample` 資料表。
 
 #### 階段 2：維護與校正 (Maintenance & Cleaning)
@@ -161,14 +162,16 @@ erDiagram
 此階段將靜態資料轉化為動態資產。
 *   **題庫程式化** (`sync_skills_files.py` / `/admin_skills.html`)：
     *   比對資料庫與檔案系統，找出 `Missing` 的技能。
-    *   **AI Code Gen**：讀取 `SkillInfo` 描述與 `TextbookExample`，自動撰寫含 AST 語法驗證的 Python 出題腳本 (`skills/*.py`)。
+    *   **AI Code Gen**：讀取 `SkillInfo` 描述與 `TextbookExample`，自動撰寫含 **AST 自我修復 (Self-Healing)** 與 **Strict Prompting** 的 Python 出題腳本。
+    *   **Code-as-Content**：將生成的程式碼視為永久資產，實現無限變題。
 *   **教學引導增強** (`enrich_skills.py`)：
-    *   **Few-Shot Learning**：AI 參考例題詳解，生成三階段「蘇格拉底式」引導語 (觀察 -> 步驟 -> 檢查)，寫入 `SkillInfo`。
+    *   **Pedagogical Trilogy**：AI 參考例題詳解，生成三階段「解題三部曲」引導語 (啟動 -> 策略 -> 檢查)，寫入 `SkillInfo`。
 
 #### 階段 4：知識圖譜建構 (Graph Building)
 *   **工具**：`auto_build_prerequisites.py` / `/admin_prerequisites.html`
-*   **邏輯**：AI 分析技能間的依賴關係，並結合「跨學制規則」(高中依賴國中) 與「順序規則」。
-*   **產出**：寫入 `skill_prerequisites` 關聯表，並可透過前台介面進行人工圖譜微調。
+*   **與 Context 注入**：AI 不僅僅看標題，更閱讀「例題詳解 (Context)」來挖掘隱性依賴。
+*   **Token 優化**：自動截取核心範圍 (Top 80 Candidates)，在成本與精確度間取得平衡。
+*   **產出**：寫入 `skill_prerequisites` 關聯表，並可透過前台介面進行人工圖譜微調 (Human-in-the-loop)。
 
 ### 4.2 重點特色：智慧適性化練習介面 (Intelligent Adaptive Practice Interface)
 
@@ -238,9 +241,9 @@ AI 的批改不只給出「對/錯」，而是進行深度的歸因分析：
 *   **風格**：Kumon 式輔導。
 *   **限制**：嚴格禁止直接給出數字答案。
 *   **三階段引導**：
-    1.  **觀察 (Observe)**：引導學生發現題目規律。
-    2.  **步驟 (Steps)**：提示關鍵的第一步。
-    3.  **檢查 (Check)**：反思答案合理性。
+    1.  **啟動 (Start/Observe)**：引導學生發現題目規律，問定義與目標。
+    2.  **策略 (Method/Strategy)**：提示解題工具或關鍵步驟。
+    3.  **檢查 (Check/Reflect)**：反思答案合理性與驗算。
 
 ---
 

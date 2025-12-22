@@ -1,8 +1,8 @@
 # 智學AIGC賦能平台 系統分析：技能管理與代碼生成控制台 (Skill Management Console)
 
 **文件資訊**
-* **版本**：1.0
-* **日期**：2025-12-08
+* **版本**：2.1 (同步 Code-as-Content 與 AST 回饋機制)
+* **日期**：2025-12-22
 * **文件狀態**：正式版
 * **負責人**：System Architect
 * **相關檔案**：前端 `admin_skills.html` / 後端 `routes.py`, `core/code_generator.py`
@@ -19,8 +19,9 @@
 
 ### 1.2 核心目標
 1.  **狀態可視化**：即時掃描檔案系統，以綠燈/紅燈顯示每個技能是否已有對應的 `.py` 檔案。
-2.  **單點 AI 生成**：針對特定技能觸發 `auto_generate_skill_code`，進行程式碼修復或重建。
-3.  **元數據檢視**：快速查看技能的 Prompt 描述、對應的章節位置。
+2.  **單點 AI 生成**：針對特定技能觸發 `auto_generate_skill_code`，進行程式碼修復或重建。同時前端會即時接收 **AST 語法驗證** 的結果，若失敗會顯示具體錯誤 (Interface Design)。
+3.  **Code-as-Content 管理**：將程式碼視為核心資產，介面設計強調對這些資產的「可觀測性 (Observability)」。
+4.  **元數據檢視**：快速查看技能的 Prompt 描述、對應的章節位置。
 
 ---
 
@@ -114,8 +115,8 @@ graph TD
     3.  該函式會：
         * 讀取 `SkillInfo`。
         * 組裝 Prompt。
-        * 呼叫 Gemini。
-        * 驗證 AST 語法。
+        * 呼叫 Gemini (依循 13 點 Strict Prompt 規則)。
+        * 驗證 AST 語法 (啟動 Self-Healing 流水線)。
         * 寫入檔案。
     4.  若生成成功，回傳 `{success: true}`；若失敗 (如 AI 拒絕或語法錯誤)，回傳錯誤訊息。
 

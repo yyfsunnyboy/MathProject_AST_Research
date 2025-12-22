@@ -1,11 +1,11 @@
 # 智學AIGC賦能平台 系統分析：技能代碼同步與生成系統 (Skill Code Sync & Gen)
 
 **文件資訊**
-* **版本**：1.2 (對應原始碼邏輯修正)
-* **日期**：2025-12-07
+* **版本**：1.3 (同步 AST 自我修復與 Prompt 規則)
+* **日期**：2025-12-22
 * **文件狀態**：正式版
 * **負責人**：Backend Engineer
-* **對應程式碼**：`scripts/sync_skills_files.py`
+* **對應程式碼**：`scripts/sync_skills_files.py` / `core/code_generator.py`
 
 ---
 
@@ -87,8 +87,13 @@ graph TD
 * **核心呼叫**：透過 `core.code_generator.auto_generate_skill_code(skill_id)` 執行。
 * **功能**：
     * 自動讀取 `SkillInfo` 的描述與題型設定。
-    * 產生包含 `BaseQuestion` 繼承結構的 Python 代碼。
-    * 內建 AST 語法檢查，確保生成的程式碼無語法錯誤。
+    * **Prompt 工程 (13 點鐵律)**：
+        *   **Code-as-Content**：要求 AI 僅輸出純 Python 程式碼，不含任何 Markdown 標記。
+        *   **嚴格語法依循**：透過 `PROMPT_SKELETON` 強制規定 `f-string` 的雙大括號脫逸 (`{{ }}`)、LaTeX 的 `raw string` 使用規範。
+    * **AST 自我修復流水線 (Self-Healing Pipeline)**：
+        *   **第一道防線**：`validate_python_code` 使用 Python 內建 `ast` 模組進行預檢查。
+        *   **自動修復 (`fix_code_syntax`)**：針對常見錯誤（如 `invalid escape sequence`、`f-string single '}'`、`Unknown environment cases`）進行正則表達式自動修正。
+        *   **二次驗證**：修復後再次驗證，確保寫入硬碟的程式碼 100% 可執行。
 
 ---
 

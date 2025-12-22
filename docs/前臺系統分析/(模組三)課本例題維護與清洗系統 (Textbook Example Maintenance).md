@@ -1,8 +1,8 @@
 # 智學AIGC賦能平台 系統分析：課本例題維護與清洗系統 (Textbook Example Maintenance)
 
 **文件資訊**
-* **版本**：1.0
-* **日期**：2025-12-08
+* **版本**：2.1 (同步 Context Injection 與 Human-in-the-loop 概念)
+* **日期**：2025-12-22
 * **文件狀態**：正式版
 * **負責人**：System Architect
 * **相關檔案**：前端 `admin_examples.html` / 後端 `routes.py`, `models.py`
@@ -20,7 +20,8 @@
 ### 1.2 核心目標
 1.  **資料除錯**：修正 OCR 識別錯誤的數學公式 (如 `x2` -> `x^2`)。
 2.  **垃圾清除**：刪除內容破碎、無法理解或重複的例題，避免誤導後續的 AI 模型。
-3.  **關聯修正**：確保例題掛載在正確的 `Skill ID` 下，作為 Few-Shot Learning 的高品質範本。
+3.  **Context 注入準備 (Innovation)**：修正後的例題將成為模組三 (Enrich) 與模組四 (Graph) 的 **Context Injection** 來源，直接決定了 AI 助教引導語與知識圖譜的準確度。
+4.  **品質防火牆**：作為「人機協作 (Human-in-the-loop)」介面，確保下游自動化流程不會被錯誤資料污染。
 
 ---
 

@@ -1,10 +1,10 @@
 # 智學AIGC賦能平台 系統分析：AI 輔助教材分析與匯入系統
 
-**版本**：1.2 (修正格式與 UI 圖示)  
-**日期**：2025-12-07  
+**版本**：1.3 (同步最新程式架構)  
+**日期**：2025-12-22  
 **文件狀態**：正式版  
 **負責人**：System Architect  
-**相關檔案**：前端 `textbook_importer.html` / 後端 `textbook_processor.py`
+**相關檔案**：前端 `textbook_importer.html` / 後端 `textbook_processor.py` / 路由 `routes.py`
 
 ---
 
@@ -137,19 +137,34 @@ graph TD
 後端核心 `textbook_processor.py` 基於 **Flask** 框架，針對不同檔案格式實作了差異化的 ETL 流程。
 
 ### 4.1 檔案前處理與分流
-1.  **檔名過濾**：自動過濾以 `~$` 開頭的 Word 暫存檔，避免程式錯誤。
-2.  **格式分流**：
+1.  **非同步佇列處理 (Asynchronous Processing)**：
+    *   考量 PDF/Word 轉檔與 AI 分析極為耗時，後端採用 **Threading** 與 **Queue** 機制。
+    *   API 接收請求後立即回傳 `202 Accepted`，實際任務在背景執行 (`background_processing`)，避免前端連線逾時。
+2.  **檔名過濾**：自動過濾以 `~$` 開頭的 Word 暫存檔，避免程式錯誤。
+3.  **格式分流**：
     * **PDF 處理**：
         * 使用 `PyMuPDF (fitz)` 快速提取文字層。
         * 使用 `PyTesseract` 針對頁面截圖進行 OCR，以補全掃描檔或複雜排版中的遺漏文字。
     * **Word (.docx) 處理**：
         * 使用 `Pypandoc` 將文件轉換為 Markdown 格式，參數設定保留 LaTeX 公式結構。
         * **影像處理**：引入 `Wand` 將舊式向量圖 (`.wmf`, `.emf`) 轉換為 `.png`，解決 OCR 引擎不支援的問題。
-        * **格式清洗 (`clean_pandoc_output`)**：使用 Regex 移除轉檔產生的雜訊（如雙重上標 `^`）並標準化行內公式邊界。
+        * **深度格式清洗 (`clean_pandoc_output`)**：
+            * **修正上標異常**：自動修復 Pandoc 產生的雙重上標錯誤 (如 `^{\^{\circ}}` $\rightarrow$ `^{\circ}`)。
+            * **公式標準化**：將 Word 特有的 `\(` ... `\)` 行內數式標記轉為 MathJax 通用的 `$` ... `$`。
+            * **Sqrt 修正**：補全 `sqrt` 指令的參數括號 (如 `\sqrt 2` $\rightarrow$ `\sqrt{2}`)。
 
 ### 4.2 AI 分析與資料清洗
-* **Prompt 工程**：根據使用者選擇的「課綱類型」動態載入對應的 System Prompt（例如：國中版強調主題拆分，普高版強調觀念整合）。
-* **JSON 容錯解析 (`_sanitize_and_parse_json`)**：針對 LLM 常見的輸出錯誤（如 Markdown 標記殘留、引號未閉合）進行多階段修復與解析。
+* **Prompt 工程 (動態策略)**：
+    * **國中版 (Junior High)**：採用標準「章節-小節-觀念」三層結構，強調主題拆分。
+    * **普高版 (Senior High)**：採用 **"Flatten Structure" (扁平化)** 策略，將複雜的「單元-觀念」對映至系統結構，並強制提取所有練習題 (隨堂/習題) 而非僅限例題。
+* **強韌性 API 呼叫 (`_call_gemini_with_retry`)**：
+    * 實作 **Exponential Backoff (指數退避)** 機制，當遇到 `ResourceExhausted` (429 Too Many Requests) 錯誤時，自動等待並重試 (Delay: 5s -> 10s...)，確保批次處理不中斷。
+* **JSON 容錯解析 (`_sanitize_and_parse_json`)**：
+    * 針對 LLM 輸出不穩定的特性，設計了 **4 級 fallback 解析策略**：
+        1.  **標準解析**：直接解析。
+        2.  **保守修復**：僅轉義無效的反斜線。
+        3.  **激進修復**：轉義所有孤立反斜線。
+        4.  **區塊提取**：若整體失敗，嘗試用 Regex 提取個別 `{...}` 章節區塊進行局部解析。
 * **LaTeX 標準化 (`fix_common_latex_errors`)**：
     * 在寫入資料庫前，將非標準數學符號轉換為標準 LaTeX 語法。
     * *範例*：`sin x` $\rightarrow$ `\sin x`、`alpha` $\rightarrow$ `\alpha`、`>=` $\rightarrow$ `\geq`。
