@@ -1,206 +1,146 @@
 import random
 from fractions import Fraction
-import math
 import re
 
-# Helper function for GCD, used in Fraction simplification (though Fraction handles it automatically)
-def gcd(a, b):
-    while b:
-        a, b = b, a % b
-    return a
-
-# Helper function to simplify square roots for x^2 = -k problem
-def simplify_sqrt(n):
-    if n < 0:
-        raise ValueError("Cannot simplify sqrt of negative number for real part.")
-    if n == 0:
-        return 0, 1 # 0*sqrt(1) -> 0
-    
-    coeff = 1
-    radical = n
-    
-    i = 2
-    while i * i <= radical:
-        if radical % (i * i) == 0:
-            coeff *= i
-            radical //= (i * i)
-        else:
-            i += 1
-    return coeff, radical
-
-# Helper function to format a complex number (Fraction real, Fraction imag) into a string "a+bi"
-def format_complex(real_part, imag_part):
+# Helper function to format complex numbers consistently for display and correct_answer
+def format_complex_output(real_part, imag_part):
     """
-    Formats a complex number (Fraction real_part, Fraction imag_part) into a+bi string.
-    Handles fractions, negative signs, 0, 1, and -1 coefficients for i.
+    Formats a complex number (given its real and imaginary parts) into a string
+    in the standard a+bi form, handling fractions and special cases like pure real,
+    pure imaginary, or i/-i.
     """
-    real_str = str(real_part) if real_part.denominator != 1 else str(real_part.numerator)
-    imag_str = str(imag_part) if imag_part.denominator != 1 else str(imag_part.numerator)
+    # Convert to Fraction to ensure exactness and proper formatting if not integer
+    # Use limit_denominator to prevent extremely complex fractions for display
+    real_f = Fraction(real_part).limit_denominator(100)
+    imag_f = Fraction(imag_part).limit_denominator(100)
 
-    # If both parts are zero
-    if real_part == 0 and imag_part == 0:
-        return "0"
-    
-    # If imaginary part is zero
-    if imag_part == 0:
+    # Convert to string, handling common cases
+    real_str = str(real_f)
+    imag_str = str(imag_f)
+
+    if imag_f == 0:
         return real_str
     
-    # If real part is zero
-    if real_part == 0:
-        if imag_part == 1:
+    if real_f == 0:
+        if imag_f == 1:
             return "i"
-        elif imag_part == -1:
+        elif imag_f == -1:
             return "-i"
         else:
             return f"{imag_str}i"
-            
-    # Both parts are non-zero
-    op = "+" if imag_part > 0 else "-"
-    abs_imag_part = abs(imag_part)
-    abs_imag_str = str(abs_imag_part) if abs_imag_part.denominator != 1 else str(abs_imag_part.numerator)
+    else: # Both real and imaginary parts are non-zero
+        if imag_f > 0:
+            if imag_f == 1:
+                return f"{real_str}+i"
+            else:
+                return f"{real_str}+{imag_str}i"
+        else: # imag_f < 0
+            # str(imag_f) already includes the minus sign.
+            # Example: real=1, imag=-1/2 -> "1-1/2i"
+            if imag_f == -1:
+                return f"{real_str}-i"
+            else:
+                return f"{real_str}{imag_str}i"
 
-    if abs_imag_part == 1:
-        return f"{real_str}{op}i"
-    else:
-        return f"{real_str}{op}{abs_imag_str}i"
-
-
-# --- Problem Generation Functions ---
-
-def generate_solve_x_squared():
+# Helper function to parse user input string into a complex number (Python's built-in complex type)
+def parse_complex_input(s):
     """
-    題目: 以i表示下列各方程式的解。 $x^2 = -k$
+    Parses a string representing a complex number (e.g., "1+2i", "3", "i")
+    into a Python complex number object. Handles common user input variations.
     """
-    k_raw = random.randint(2, 50) 
-    coeff, radical = simplify_sqrt(k_raw)
-
-    radical_str = ""
-    if radical > 1:
-        radical_str = f"\\sqrt{{{radical}}}"
+    s = s.strip().lower().replace(" ", "")
     
-    if coeff == 1 and radical == 1: # k_raw = 1
-        val_str = "i"
-    elif coeff == 1: # e.g. k_raw = 5 -> sqrt(5)i
-        val_str = f"{radical_str}i"
-    elif radical == 1: # e.g. k_raw = 4 -> 2i
-        val_str = f"{coeff}i"
-    else: # e.g. k_raw = 12 -> 2sqrt(3)i
-        val_str = f"{coeff}{radical_str}i"
+    if not s: # Empty string
+        return None
 
-    question_text = f"以 $i$ 表示下列方程式的解：$x^{{2}} = -{k_raw}$。"
-    correct_answer = f"$\\pm {val_str}$"
+    # Specific handling for "i" and "-i" as Python's complex() expects "j"
+    if s == "i":
+        return complex(0, 1)
+    if s == "-i":
+        return complex(0, -1)
     
-    return {
-        "question_text": question_text,
-        "answer": correct_answer, 
-        "correct_answer": correct_answer
-    }
+    # Replace 'i' with 'j' for Python's complex() constructor
+    s = s.replace("i", "j")
+    
+    try:
+        return complex(s)
+    except ValueError:
+        return None # Parsing failed
 
-def generate_real_imag_parts():
+def generate_real_imag_parts_problem():
     """
-    題目: 求下列各複數的實部與虛部。
+    Generates a problem asking for the real or imaginary part of a given complex number.
     """
-    a = random.randint(-10, 10)
-    b = random.randint(-10, 10)
+    real = random.randint(-10, 10)
+    imag = random.randint(-10, 10)
     
-    # Ensure not both are zero
-    if a == 0 and b == 0:
-        a = random.randint(1, 10) 
-
-    problem_case = random.choice(['general', 'real_only', 'imag_only'])
+    # Ensure variety: purely real, purely imaginary, or full complex
+    problem_choice = random.choice(['full', 'pure_real', 'pure_imag'])
     
-    if problem_case == 'real_only':
-        b = 0
-        while a == 0: # Ensure 'a' is not 0 for purely real
-            a = random.randint(-10, 10)
-    elif problem_case == 'imag_only':
-        a = 0
-        while b == 0: # Ensure 'b' is not 0 for purely imaginary
-            b = random.randint(-10, 10)
-            
-    complex_str = format_complex(Fraction(a), Fraction(b))
+    if problem_choice == 'pure_real':
+        imag = 0
+    elif problem_choice == 'pure_imag':
+        real = 0
+        while imag == 0: # Ensure it's not 0+0i
+            imag = random.randint(-10, 10)
     
-    question_text = f"求下列複數的實部與虛部：${complex_str}$。"
-    correct_answer = f"實部: {a}, 虛部: {b}"
+    z_str = format_complex_output(real, imag)
     
-    return {
-        "question_text": question_text,
-        "answer": correct_answer, 
-        "correct_answer": correct_answer
-    }
-
-def generate_complex_equality():
-    """
-    題目: 已知實數 $x, y$ 滿足 $(expr_x) + (expr_y)i = (rhs_a) + (rhs_b)i$，求 $x, y$ 的值。
-    """
-    val_x = random.randint(-5, 5)
-    val_y = random.randint(-5, 5)
+    part_to_ask = random.choice(['實部', '虛部'])
     
-    coeff_x = random.choice([1, random.randint(2, 3)])
-    offset_x = random.randint(-5, 5)
-    
-    coeff_y = random.choice([1, random.randint(2, 3)])
-    offset_y = random.randint(-5, 5)
-    
-    rhs_real = coeff_x * val_x + offset_x
-    rhs_imag = coeff_y * val_y + offset_y
-
-    expr_real_str = f"{coeff_x}x"
-    if offset_x > 0:
-        expr_real_str += f"+{offset_x}"
-    elif offset_x < 0:
-        expr_real_str += str(offset_x)
-
-    expr_imag_str = f"{coeff_y}y"
-    if offset_y > 0:
-        expr_imag_str += f"+{offset_y}"
-    elif offset_y < 0:
-        expr_imag_str += str(offset_y)
-
-    question_text = (
-        f"已知實數 $x, y$ 滿足 $({expr_real_str}) + ({expr_imag_str})i "
-        f"= {format_complex(Fraction(rhs_real), Fraction(rhs_imag))} $，求 $x, y$ 的值。"
-    )
-    correct_answer = f"$x={val_x}, y={val_y}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_complex_arithmetic_sum_sub():
-    """
-    題目: 已知複數 $z_1 = a+bi, z_2 = c+di$，求 $z_1 \\pm z_2$ 的值。
-    """
-    a1, b1 = random.randint(-10, 10), random.randint(-10, 10)
-    a2, b2 = random.randint(-10, 10), random.randint(-10, 10)
-
-    # Ensure at least one imaginary part is non-zero
-    while b1 == 0 and b2 == 0:
-        b1, b2 = random.randint(-10, 10), random.randint(-10, 10)
-    # Ensure at least one real part is non-zero
-    while a1 == 0 and a2 == 0:
-        a1, a2 = random.randint(-10, 10), random.randint(-10, 10)
-
-    z1_str = format_complex(Fraction(a1), Fraction(b1))
-    z2_str = format_complex(Fraction(a2), Fraction(b2))
-
-    op = random.choice(['+', '-'])
-    
-    if op == '+':
-        res_real = Fraction(a1 + a2)
-        res_imag = Fraction(b1 + b2)
-    else: # op == '-'
-        res_real = Fraction(a1 - a2)
-        res_imag = Fraction(b1 - b2)
+    if part_to_ask == '實部':
+        correct_answer_val = real
+    else: # '虛部'
+        correct_answer_val = imag
         
-    result_str = format_complex(res_real, res_imag)
+    question_text = fr"請問複數 ${z_str}$ 的{part_to_ask}為何？"
+    
+    # The answer for this type is a simple number, not a complex number string
+    correct_answer_str = str(Fraction(correct_answer_val).limit_denominator(100))
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer_str,
+        "correct_answer": correct_answer_str
+    }
 
-    question_text = (
-        f"已知複數 $z_1 = {z1_str}, z_2 = {z2_str}$，求 $z_1 {op} z_2$ 的值。"
-    )
-    correct_answer = f"${result_str}$"
+def generate_equality_problem():
+    """
+    Generates a problem involving the equality of two complex numbers,
+    requiring solving for two real variables (a and b).
+    """
+    val_a = random.randint(-5, 5)
+    val_b = random.randint(-5, 5)
+    
+    left_real_offset = random.randint(-3, 3)
+    left_imag_offset = random.randint(-3, 3)
+    
+    coeff_a_lhs = random.choice([1, 2, 3, -1, -2]) # Coefficient for 'a'
+    coeff_b_lhs = random.choice([1, 2, 3, -1, -2]) # Coefficient for 'b'
+    
+    # Right side values based on val_a, val_b
+    right_real_val = left_real_offset + coeff_a_lhs * val_a
+    right_imag_val = left_imag_offset + coeff_b_lhs * val_b
+    
+    # Construct left side expressions
+    a_var_str = f"{coeff_a_lhs}a" if abs(coeff_a_lhs) != 1 else ("a" if coeff_a_lhs == 1 else "-a")
+    b_var_str = f"{coeff_b_lhs}b" if abs(coeff_b_lhs) != 1 else ("b" if coeff_b_lhs == 1 else "-b")
+    
+    left_real_expr = a_var_str
+    if left_real_offset != 0:
+        # Use + or - directly if offset is positive or negative
+        left_real_expr = f"{a_var_str}{'+' if left_real_offset > 0 else ''}{left_real_offset}"
+    
+    left_imag_expr = b_var_str
+    if left_imag_offset != 0:
+        left_imag_expr = f"{b_var_str}{'+' if left_imag_offset > 0 else ''}{left_imag_offset}"
+
+    right_complex_str = format_complex_output(right_real_val, right_imag_val)
+
+    question_text = fr"已知實數 $a, b$ 滿足 $({left_real_expr}) + ({left_imag_expr})i = {right_complex_str}$，求 $a,b$ 的值。"
+    
+    # Expected answer format: "a=X,b=Y"
+    correct_answer = f"a={val_a},b={val_b}"
     
     return {
         "question_text": question_text,
@@ -208,32 +148,32 @@ def generate_complex_arithmetic_sum_sub():
         "correct_answer": correct_answer
     }
 
-def generate_complex_arithmetic_mult():
+def generate_add_sub_problem():
     """
-    題目: 已知複數 $z_1 = a+bi, z_2 = c+di$，求 $z_1 z_2$ 的值。
+    Generates a problem for addition or subtraction of two complex numbers.
     """
-    a1, b1 = random.randint(-5, 5), random.randint(-5, 5)
-    a2, b2 = random.randint(-5, 5), random.randint(-5, 5)
+    z1_real = random.randint(-10, 10)
+    z1_imag = random.randint(-10, 10)
+    z2_real = random.randint(-10, 10)
+    z2_imag = random.randint(-10, 10)
     
-    # Ensure both complex numbers are not trivial (0 or purely real/imaginary resulting in trivial product)
-    while (a1 == 0 and b1 == 0) or (a2 == 0 and b2 == 0) or \
-          (b1 == 0 and b2 == 0) or (a1 == 0 and a2 == 0):
-        a1, b1 = random.randint(-5, 5), random.randint(-5, 5)
-        a2, b2 = random.randint(-5, 5), random.randint(-5, 5)
-
-    z1_str = format_complex(Fraction(a1), Fraction(b1))
-    z2_str = format_complex(Fraction(a2), Fraction(b2))
+    op_symbol = random.choice(['+', '-'])
     
-    # (a1 + b1*i)(a2 + b2*i) = (a1*a2 - b1*b2) + (a1*b2 + b1*a2)*i
-    res_real = Fraction(a1 * a2 - b1 * b2)
-    res_imag = Fraction(a1 * b2 + b1 * a2)
+    z1_str = format_complex_output(z1_real, z1_imag)
+    z2_str = format_complex_output(z2_real, z2_imag)
     
-    result_str = format_complex(res_real, res_imag)
-
-    question_text = (
-        f"已知複數 $z_1 = {z1_str}, z_2 = {z2_str}$，求 $z_1 z_2$ 的值。"
-    )
-    correct_answer = f"${result_str}$"
+    question_text = fr"已知複數 $z_1 = {z1_str}$, $z_2 = {z2_str}$，求 $z_1 {op_symbol} z_2$ 的值。"
+    
+    # Convert to Python's complex type for calculation
+    z1_complex = complex(z1_real, z1_imag)
+    z2_complex = complex(z2_real, z2_imag)
+    
+    if op_symbol == '+':
+        result_complex = z1_complex + z2_complex
+    else: # op_symbol == '-'
+        result_complex = z1_complex - z2_complex
+        
+    correct_answer = format_complex_output(result_complex.real, result_complex.imag)
     
     return {
         "question_text": question_text,
@@ -241,43 +181,96 @@ def generate_complex_arithmetic_mult():
         "correct_answer": correct_answer
     }
 
-def generate_i_powers():
+def generate_multiplication_problem():
     """
-    題目: 1. 求 $i^n$ 的值。 2. 求 $i + i^2 + ... + i^N$ 的值。
+    Generates a problem for multiplication of two complex numbers.
     """
-    problem_type = random.choice(['single_power', 'sum_of_powers'])
+    z1_real = random.randint(-5, 5)
+    z1_imag = random.randint(-5, 5)
+    z2_real = random.randint(-5, 5)
+    z2_imag = random.randint(-5, 5)
+    
+    # Ensure variety: at least one imaginary part is non-zero, and neither complex number is zero.
+    attempts = 0
+    while ((z1_real == 0 and z1_imag == 0) or 
+           (z2_real == 0 and z2_imag == 0) or 
+           (z1_imag == 0 and z2_imag == 0)) and attempts < 5:
+        z1_real = random.randint(-5, 5)
+        z1_imag = random.randint(-5, 5)
+        z2_real = random.randint(-5, 5)
+        z2_imag = random.randint(-5, 5)
+        attempts += 1
+    # If still trivial after attempts, force non-trivial numbers
+    if attempts == 5:
+        z1_real = random.choice([1, 2, -1, -2])
+        z1_imag = random.choice([1, 2, -1, -2])
+        z2_real = random.choice([1, 2, -1, -2])
+        z2_imag = random.choice([1, 2, -1, -2])
+
+    z1_str = format_complex_output(z1_real, z1_imag)
+    z2_str = format_complex_output(z2_real, z2_imag)
+    
+    # Use parentheses for multiplication to avoid ambiguity
+    question_text = fr"求下列各式的值：<br>$({z1_str})({z2_str})$"
+    
+    # Convert to Python's complex type for calculation
+    z1_complex = complex(z1_real, z1_imag)
+    z2_complex = complex(z2_real, z2_imag)
+    
+    result_complex = z1_complex * z2_complex
+    
+    correct_answer = format_complex_output(result_complex.real, result_complex.imag)
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_powers_of_i_problem():
+    """
+    Generates a problem about powers of i, either a single power (i^n)
+    or a sum of powers (i + i^2 + ... + i^n).
+    """
+    problem_type = random.choice(['single_power', 'sum_powers'])
     
     if problem_type == 'single_power':
-        n = random.randint(1, 100)
+        n = random.randint(1, 100) # Exponent up to 100
+        
         remainder = n % 4
         
         if remainder == 1:
-            result_str = "i"
+            result = "i"
         elif remainder == 2:
-            result_str = "-1"
+            result = "-1"
         elif remainder == 3:
-            result_str = "-i"
-        else: # remainder == 0 (i^4 = 1)
-            result_str = "1"
-            
-        question_text = f"求 $i^{{{n}}}$ 的值。"
-        correct_answer = f"${result_str}$"
+            result = "-i"
+        else: # remainder == 0 (i^4, i^8, ...)
+            result = "1"
         
-    else: # sum_of_powers
-        N = random.randint(4, 100) 
+        question_text = fr"求 $i^{{{n}}}$ 的值。"
+        correct_answer = result
+        
+    else: # sum_powers
+        # Sum i^1 + ... + i^N
+        # If N is a multiple of 4, sum is 0.
+        # Otherwise, it's i, i-1, i-1-i for N%4 = 1, 2, 3 respectively
+        
+        N = random.randint(4, 100) # Start from 4 to ensure cycle is included, up to 100
+        
         remainder = N % 4
         
         if remainder == 0:
-            result_str = "0"
+            result = "0"
         elif remainder == 1: # i^1 + ... + i^(4k+1) = i
-            result_str = "i"
-        elif remainder == 2: # i^1 + ... + i^(4k+2) = i + i^2 = i-1
-            result_str = "i-1"
-        else: # remainder == 3 (i^1 + ... + i^(4k+3) = i + i^2 + i^3 = i-1-i = -1)
-            result_str = "-1"
+            result = "i"
+        elif remainder == 2: # i^1 + ... + i^(4k+2) = i + (-1) = -1+i
+            result = "-1+i"
+        else: # remainder == 3 (i^1 + ... + i^(4k+3) = i + (-1) + (-i) = -1
+            result = "-1"
             
-        question_text = f"求 $i + i^{{2}} + ... + i^{{{N}}}$ 的值。"
-        correct_answer = f"${result_str}$"
+        question_text = fr"求 $i + i^{{2}} + i^{{3}} + \dots + i^{{{N}}}$ 的值。"
+        correct_answer = result
         
     return {
         "question_text": question_text,
@@ -285,196 +278,137 @@ def generate_i_powers():
         "correct_answer": correct_answer
     }
 
-def generate_complex_arithmetic_div():
+def generate_division_problem():
     """
-    題目: 將下列各複數表示成 $a+bi$ （其中 $a,b$ 為實數）的形式。 $\\frac{z_1}{z_2}$
+    Generates a problem for division of two complex numbers,
+    requiring the result to be in a+bi form.
     """
-    a1, b1 = random.randint(-10, 10), random.randint(-10, 10)
-    a2, b2 = random.randint(-5, 5), random.randint(-5, 5)
+    num_real = random.randint(-5, 5)
+    num_imag = random.randint(-5, 5)
+    den_real = random.randint(-5, 5)
+    den_imag = random.randint(-5, 5)
+    
+    # Ensure denominator is not zero
+    while den_real == 0 and den_imag == 0:
+        den_real = random.randint(-5, 5)
+        den_imag = random.randint(-5, 5)
 
-    # Ensure denominator is not 0
-    while a2 == 0 and b2 == 0:
-        a2, b2 = random.randint(-5, 5), random.randint(-5, 5)
+    # Ensure numerator is not 0+0i unless denominator is simple (e.g. 1+0i)
+    # This prevents trivial "0 / Z" problems where Z is complex.
+    while (num_real == 0 and num_imag == 0) and (den_real != 1 or den_imag != 0):
+        num_real = random.randint(-5, 5)
+        num_imag = random.randint(-5, 5)
     
-    # Ensure numerator is not 0
-    while a1 == 0 and b1 == 0:
-        a1, b1 = random.randint(-10, 10), random.randint(-10, 10)
-        
-    z1_str = format_complex(Fraction(a1), Fraction(b1))
-    z2_str = format_complex(Fraction(a2), Fraction(b2))
-
-    # (a1 + b1*i) / (a2 + b2*i) = (a1 + b1*i)(a2 - b2*i) / (a2^2 + b2^2)
-    denominator_sq = a2*a2 + b2*b2
+    # Convert to Python complex type for easy calculation
+    numerator = complex(num_real, num_imag)
+    denominator = complex(den_real, den_imag)
     
-    num_real = a1*a2 + b1*b2 
-    num_imag = b1*a2 - a1*b2 
+    result_complex = numerator / denominator
     
-    res_real = Fraction(num_real, denominator_sq)
-    res_imag = Fraction(num_imag, denominator_sq)
+    correct_answer = format_complex_output(result_complex.real, result_complex.imag)
     
-    result_str = format_complex(res_real, res_imag)
-
-    question_text = (
-        f"將下列各複數表示成 $a+bi$ （其中 $a,b$ 為實數）的形式： $\\frac{{{z1_str}}}{{{z2_str}}}$。"
-    )
-    correct_answer = f"${result_str}$"
+    num_str = format_complex_output(num_real, num_imag)
+    den_str = format_complex_output(den_real, den_imag)
+    
+    question_text = fr"將下列各複數表示成 $a+bi$ （其中 $a,b$ 為實數）的形式。<br>$\\frac{{{num_str}}}{{{den_str}}}$"
     
     return {
         "question_text": question_text,
         "answer": correct_answer,
         "correct_answer": correct_answer
     }
-
 
 def generate(level=1):
+    """
+    Generates a random problem related to complex numbers based on the specified skill.
+    The level parameter is currently unused but can be extended for difficulty scaling.
+    """
     problem_types = [
-        'solve_x_squared',
         'real_imag_parts',
-        'complex_equality',
-        'complex_arithmetic_sum_sub',
-        'complex_arithmetic_mult',
-        'i_powers',
-        'complex_arithmetic_div'
+        'equality',
+        'add_sub',
+        'multiplication',
+        'powers_of_i',
+        'division'
     ]
     
     problem_type = random.choice(problem_types)
     
-    if problem_type == 'solve_x_squared':
-        return generate_solve_x_squared()
-    elif problem_type == 'real_imag_parts':
-        return generate_real_imag_parts()
-    elif problem_type == 'complex_equality':
-        return generate_complex_equality()
-    elif problem_type == 'complex_arithmetic_sum_sub':
-        return generate_complex_arithmetic_sum_sub()
-    elif problem_type == 'complex_arithmetic_mult':
-        return generate_complex_arithmetic_mult()
-    elif problem_type == 'i_powers':
-        return generate_i_powers()
-    elif problem_type == 'complex_arithmetic_div':
-        return generate_complex_arithmetic_div()
-
+    if problem_type == 'real_imag_parts':
+        return generate_real_imag_parts_problem()
+    elif problem_type == 'equality':
+        return generate_equality_problem()
+    elif problem_type == 'add_sub':
+        return generate_add_sub_problem()
+    elif problem_type == 'multiplication':
+        return generate_multiplication_problem()
+    elif problem_type == 'powers_of_i':
+        return generate_powers_of_i_problem()
+    elif problem_type == 'division':
+        return generate_division_problem()
 
 def check(user_answer, correct_answer):
+    """
+    Checks if the user's answer is correct for a given complex numbers problem.
+    Handles different answer formats: complex numbers (a+bi), single numbers,
+    and a=X,b=Y for equality problems.
+    """
     user_answer = user_answer.strip()
     correct_answer = correct_answer.strip()
 
-    # Special handling for "x^2 = -k" type which expects "pm N i" or "pm N sqrt(M) i"
-    if correct_answer.startswith("$\\pm"):
-        # Remove LaTeX and 'pm' for canonical comparison
-        ua_cleaned = user_answer.replace('$', '').replace('\\pm', '').replace('\\sqrt{', 'sqrt(').replace('}', ')').strip()
-        ca_cleaned = correct_answer.replace('$', '').replace('\\pm', '').replace('\\sqrt{', 'sqrt(').replace('}', ')').strip()
-
-        is_correct = (user_answer == correct_answer) # Exact match, including LaTeX formatting
-
-        # Also accept positive form
-        if not is_correct:
-            is_correct = (ua_cleaned == ca_cleaned)
-        
-        # Also accept negative form
-        if not is_correct:
-            # Need to handle potential leading minus for sqrt(N)i or Ni
-            if ca_cleaned.startswith('-'): # If correct is already negative e.g. -2sqrt(3)i, this would make it positive
-                is_correct = (ua_cleaned == ca_cleaned[1:]) # Compare with the positive version of correct answer
-            else: # If correct is positive, compare with user's negative version
-                is_correct = (ua_cleaned == '-' + ca_cleaned)
-            
-        result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-        return {"correct": is_correct, "result": result_text, "next_question": True}
-
-    # For '實部: X, 虛部: Y' format
-    if correct_answer.startswith("實部:"):
-        # Normalize user input: remove spaces, '實部:', '虛部:' and compare parts
-        clean_user_answer = user_answer.replace(' ', '').replace('實部:', '實部:').replace('虛部:', '虛部:').strip()
-        clean_correct_answer = correct_answer.replace(' ', '').replace('實部:', '實部:').replace('虛部:', '虛部:').strip()
-        is_correct = (clean_user_answer == clean_correct_answer)
-        result_text = f"完全正確！答案是 {correct_answer}。" if is_correct else f"答案不正確。正確答案應為：{correct_answer}"
-        return {"correct": is_correct, "result": result_text, "next_question": True}
-        
-    # For 'x=X, y=Y' format
-    if correct_answer.startswith("$x="):
-        # Remove '$' from both for regex matching
-        clean_user_answer = user_answer.replace('$', '').strip()
-        clean_correct_answer = correct_answer.replace('$', '').strip()
-        
-        try:
-            user_x_match = re.search(r"x\s*=\s*([+-]?\s*\d+(?:/\d+)?)", clean_user_answer)
-            user_y_match = re.search(r"y\s*=\s*([+-]?\s*\d+(?:/\d+)?)", clean_user_answer)
-            correct_x_match = re.search(r"x\s*=\s*([+-]?\s*\d+(?:/\d+)?)", clean_correct_answer)
-            correct_y_match = re.search(r"y\s*=\s*([+-]?\s*\d+(?:/\d+)?)", clean_correct_answer)
-            
-            is_correct = False
-            if user_x_match and user_y_match and correct_x_match and correct_y_match:
-                user_x = Fraction(user_x_match.group(1).replace(' ', ''))
-                user_y = Fraction(user_y_match.group(1).replace(' ', ''))
-                correct_x = Fraction(correct_x_match.group(1).replace(' ', ''))
-                correct_y = Fraction(correct_y_match.group(1).replace(' ', ''))
-                
-                is_correct = (user_x == correct_x and user_y == correct_y)
-            
-            result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-            return {"correct": is_correct, "result": result_text, "next_question": True}
-        except Exception:
-            pass # Fall through to general complex number parsing if parsing fails or regex doesn't match
-
-    # General complex number parsing for a+bi format (e.g., for sum, sub, mult, div, i_powers)
-    def parse_complex_str_to_fractions(s):
-        s = s.strip().lower().replace(' ', '') # Clean up string
-        if not s:
-            return None, None
-        
-        if s == "0":
-            return Fraction(0), Fraction(0)
-        
-        # Canonicalize implicit "1i" or "-1i" from "i" or "-i"
-        # Handles cases like "i" -> "1i", "-i" -> "-1i", "1+i" -> "1+1i"
-        s = re.sub(r'(?<![\d.])([+-]?)i', r'\11i', s)
-        
-        real_sum = Fraction(0)
-        imag_sum = Fraction(0)
-        
-        # Regex to find terms: signed number (optionally with fraction) optionally followed by 'i'
-        # e.g., "1", "+2i", "-3/4", "+5/2i"
-        terms = re.findall(r"[+-]?\s*\d*(?:/\d+)?i?|[+-]?\s*\d+(?:/\d+)?", s)
-        
-        if not terms and s != "0": # If no terms found and it's not "0", it's invalid
-            return None, None
-
-        for term in terms:
-            term = term.strip()
-            if not term: continue
-
-            if 'i' in term:
-                coeff_str = term.replace('i', '')
-                try:
-                    if not coeff_str: # Should not happen after re.sub, but for robustness
-                        imag_sum += Fraction(1)
-                    elif coeff_str == '+': # e.g., from a cleaned "1+i" -> "1+1i", term is "+1i" -> coeff is "+"
-                        imag_sum += Fraction(1)
-                    elif coeff_str == '-': # e.g., from a cleaned "1-i" -> "1-1i", term is "-1i" -> coeff is "-"
-                        imag_sum += Fraction(-1)
-                    else:
-                        imag_sum += Fraction(coeff_str)
-                except ValueError:
-                    return None, None # Invalid imaginary part
-            else: # Real part
-                try:
-                    real_sum += Fraction(term)
-                except ValueError:
-                    return None, None # Invalid real part
-                    
-        return real_sum, imag_sum
-
-
-    # Parse user and correct answers into canonical (Fraction, Fraction) tuples
-    # Remove LaTeX '$' for parsing
-    user_real, user_imag = parse_complex_str_to_fractions(user_answer.replace('$', ''))
-    correct_real, correct_imag = parse_complex_str_to_fractions(correct_answer.replace('$', ''))
-    
     is_correct = False
-    if user_real is not None and user_imag is not None and \
-       correct_real is not None and correct_imag is not None:
-        is_correct = (user_real == correct_real and user_imag == correct_imag)
+    
+    # Case 1: Equality problem (a=X,b=Y format)
+    # Regex to match "a=digits,b=digits" or "b=digits,a=digits"
+    equality_re = r"^[ab]\s*=\s*[-]?\d+(\.\d+)?(\/\d+)?\s*,\s*[ab]\s*=\s*[-]?\d+(\.\d+)?(\/\d+)?$"
+    if re.fullmatch(equality_re, correct_answer, re.IGNORECASE):
+        user_parts = {}
+        # Parse user answer parts, allowing for "a=X,b=Y" or "b=Y,a=X"
+        for part in user_answer.split(','):
+            match = re.match(r"([ab])\s*=\s*([-]?\d+(\.\d+)?(\/\d+)?)", part.strip(), re.IGNORECASE)
+            if match:
+                var_name = match.group(1).lower()
+                var_val = Fraction(match.group(2))
+                user_parts[var_name] = var_val
+        
+        correct_parts = {}
+        for part in correct_answer.split(','):
+            match = re.match(r"([ab])\s*=\s*([-]?\d+(\.\d+)?(\/\d+)?)", part.strip(), re.IGNORECASE)
+            if match:
+                var_name = match.group(1).lower()
+                var_val = Fraction(match.group(2))
+                correct_parts[var_name] = var_val
+        
+        # Check if both 'a' and 'b' values match, order doesn't matter for user input
+        if len(user_parts) == 2 and \
+           user_parts.get('a') == correct_parts.get('a') and \
+           user_parts.get('b') == correct_parts.get('b'):
+            is_correct = True
+
+    # Case 2: Real/Imaginary Part problems (single number or fraction answer)
+    elif re.fullmatch(r"[-+]?\d+(\.\d+)?(\/\d+)?", correct_answer): 
+        try:
+            user_val = Fraction(user_answer).limit_denominator(100)
+            correct_val = Fraction(correct_answer).limit_denominator(100)
+            if user_val == correct_val:
+                is_correct = True
+        except ValueError:
+            pass
+
+    # Case 3: Complex number problems (a+bi form, including i, -i, pure real, pure imag)
+    else:
+        user_complex = parse_complex_input(user_answer)
+        correct_complex = parse_complex_input(correct_answer)
+        
+        if user_complex is not None and correct_complex is not None:
+            # Convert real/imaginary parts to Fraction for exact comparison
+            user_real_f = Fraction(user_complex.real).limit_denominator(100)
+            user_imag_f = Fraction(user_complex.imag).limit_denominator(100)
+            correct_real_f = Fraction(correct_complex.real).limit_denominator(100)
+            correct_imag_f = Fraction(correct_complex.imag).limit_denominator(100)
+
+            if user_real_f == correct_real_f and user_imag_f == correct_imag_f:
+                is_correct = True
 
     result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
     return {"correct": is_correct, "result": result_text, "next_question": True}

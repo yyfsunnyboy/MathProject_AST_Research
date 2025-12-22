@@ -2,123 +2,232 @@ import random
 import math
 from fractions import Fraction
 
-# Helper functions for combinations and permutations
-def nCr(n, r):
-    # n choose r
-    if r < 0 or r > n:
-        return 0
-    if r == 0 or r == n:
-        return 1
-    if r > n // 2:
-        r = n - r
-    
-    # Use math.comb for efficiency and correctness (available from Python 3.8)
-    return math.comb(n, r)
-
-def nPr(n, r):
-    # n permute r
-    if r < 0 or r > n:
-        return 0
-    
-    # Use math.perm for efficiency and correctness (available from Python 3.8)
-    return math.perm(n, r)
-
 def generate(level=1):
-    problem_type = random.choice([
-        'true_false_property',
-        'simple_combination_permutation',
-        'conditional_combination',
-        'binomial_coefficient',
-        'sum_of_binomials',
-        'geometric_combinations'
-    ])
+    """
+    生成「綜合練習題」相關題目，涵蓋組合、組合數性質與二項式定理的應用。
+    """
+    problem_types = [
+        'combination_properties_tf',                       # T/F on C(n,k) properties, C-P relation, binomial coeff symmetry
+        'basic_combination',                               # Simple C(n,k) calculation, pairs, distinct roles
+        'conditional_combination',                         # At least one type, exact mix
+        'binomial_coefficient_term',                       # Find specific term's coefficient in (ax+by^k)^n
+        'sum_of_binomial_coefficients',                    # Problems related to 2^n, inequalities
+        'grouping_distinct_groups_roles',                  # Complex grouping into distinct groups with roles
+        'distribution_at_least_one_distinct_to_distinct',  # Distinct items to distinct boxes, at least one in each
+        'reverse_combination_calc',                        # Find n given C(n,k) result
+        'parity_combination_sum',                          # Choose numbers for an even sum
+        'permutation_with_repetition_string',              # Permutation of letters with repetitions
+        'binomial_theorem_product_coefficient',            # Coefficient from product of binomials
+        'geometry_combination_collinear_points'            # Lines/Triangles from points with collinear subset
+    ]
+    
+    # Adjust difficulty based on level if needed, for now, random choice across all
+    problem_type = random.choice(problem_types)
 
-    if problem_type == 'true_false_property':
-        return generate_true_false_property_problem(level)
-    elif problem_type == 'simple_combination_permutation':
-        return generate_simple_combination_permutation_problem(level)
+    if problem_type == 'combination_properties_tf':
+        return generate_combination_properties_tf()
+    elif problem_type == 'basic_combination':
+        return generate_basic_combination_problem()
     elif problem_type == 'conditional_combination':
-        return generate_conditional_combination_problem(level)
-    elif problem_type == 'binomial_coefficient':
-        return generate_binomial_coefficient_problem(level)
-    elif problem_type == 'sum_of_binomials':
-        return generate_sum_of_binomials_problem(level)
-    elif problem_type == 'geometric_combinations':
-        return generate_geometric_combinations_problem(level)
+        return generate_conditional_combination_problem()
+    elif problem_type == 'binomial_coefficient_term':
+        return generate_binomial_coefficient_problem()
+    elif problem_type == 'sum_of_binomial_coefficients':
+        return generate_sum_of_binomial_coefficients_problem()
+    elif problem_type == 'grouping_distinct_groups_roles':
+        return generate_grouping_distinct_groups_roles_problem()
+    elif problem_type == 'distribution_at_least_one_distinct_to_distinct':
+        return generate_distribution_at_least_one_distinct_to_distinct_problem()
+    elif problem_type == 'reverse_combination_calc':
+        return generate_reverse_combination_problem()
+    elif problem_type == 'parity_combination_sum':
+        return generate_parity_combination_problem()
+    elif problem_type == 'permutation_with_repetition_string':
+        return generate_permutation_with_repetition_string_problem()
+    elif problem_type == 'binomial_theorem_product_coefficient':
+        return generate_binomial_theorem_product_coefficient_problem()
+    elif problem_type == 'geometry_combination_collinear_points':
+        return generate_geometry_combination_collinear_points_problem()
 
-def generate_true_false_property_problem(level):
-    problem_sub_type = random.choice([
-        'C_n_k_C_n_n_minus_k', # C_n^k = C_n^(n-k)
-        'P_n_k_C_n_k_k_factorial', # P_n^k = C_n^k * k!
-        'binomial_coefficient_symmetry', # (x+y)^n x^a y^b coeff == x^b y^a coeff
-        'sum_of_Cnk_power_of_2', # sum C_n^k = 2^n (can be false)
-        'C_n_k_plus_C_n_k_plus_1_C_n_plus_1_k_plus_1' # Pascal's identity (can be false)
-    ])
 
-    n = random.randint(5, 12 + level)
-    k = random.randint(1, n - 1 if n > 1 else 1) # Ensure k is valid, 1 <= k <= n-1
+def generate_combination_properties_tf():
+    sub_types = [
+        'C_n_k_C_n_n_k',
+        'C_P_relation_correct',
+        'C_P_relation_incorrect',
+        'binomial_coeffs_symmetric',
+        'C_n_k_definition_statement'
+    ]
+    sub_type = random.choice(sub_types)
 
-    question_text = ""
-    correct_answer = ""
+    if sub_type == 'C_n_k_C_n_n_k':
+        n = random.randint(5, 15)
+        k = random.randint(1, n // 2 if n >= 2 else 1) # Ensure k is valid
+        question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$(1) C_{{{n}}}^{{{k}}} = C_{{{n}}}^{{{n-k}}}$。"
+        correct_answer = "○"
+    elif sub_type == 'C_P_relation_correct':
+        n = random.randint(5, 10)
+        k = random.randint(1, n)
+        question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$(1) C_{{{n}}}^{{{k}}} \\times {k}! = P_{{{n}}}^{{{k}}}$。"
+        correct_answer = "○"
+    elif sub_type == 'C_P_relation_incorrect':
+        n = random.randint(5, 10)
+        k = random.randint(1, n)
+        incorrect_factor = k
+        while incorrect_factor == k: # Ensure it's incorrect
+            incorrect_factor = random.randint(1, n + 1)
+        question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$(1) C_{{{n}}}^{{{k}}} \\times {incorrect_factor}! = P_{{{n}}}^{{{k}}}$。"
+        correct_answer = "×"
+    elif sub_type == 'binomial_coeffs_symmetric':
+        n = random.randint(5, 10)
+        k1 = random.randint(1, n - 1)
+        k2 = n - k1
+        var1 = random.choice(['x', 'a', 'p'])
+        var2 = random.choice(['y', 'b', 'q'])
+        while var1 == var2:
+            var2 = random.choice(['y', 'b', 'q'])
+
+        question_text = (
+            f"下列敘述對的打「○」，錯的打「×」。<br>$(1)$ 在 $({var1}+{var2})^{{{n}}}$ 的展開式中，"
+            f"${var1}^{{{k1}}} {var2}^{{{k2}}}$ 項的係數與 ${var1}^{{{k2}}} {var2}^{{{k1}}}$ 項的係數相等。"
+        )
+        correct_answer = "○"
+    elif sub_type == 'C_n_k_definition_statement':
+        n = random.randint(5, 10)
+        k = random.randint(1, n)
+        question_text = (
+            f"下列敘述對的打「○」，錯的打「×」。<br>"
+            f"從 ${n}$ 個人中選出 ${k}$ 人的組合數為 $C_{{{n}}}^{{{k}}}$。"
+        )
+        correct_answer = "○"
+
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_basic_combination_problem():
+    sub_type = random.choice(['selection', 'pairs', 'grouping_distinct_roles'])
+
+    if sub_type == 'selection':
+        total = random.randint(8, 20)
+        select = random.randint(3, total - 1) # Ensure select is smaller than total
+        question_text = f"從 ${total}$ 個人中選出 ${select}$ 人，共有幾種選法？"
+        correct_answer = str(math.comb(total, select))
+    elif sub_type == 'pairs':
+        n_people = random.randint(10, 30)
+        question_text = (
+            f"在一場比賽中，規定參與的選手每人都必須和其他選手各比賽一場。"
+            f"若有 ${n_people}$ 位選手，請問總共會有幾場比賽？"
+        )
+        correct_answer = str(math.comb(n_people, 2))
+    elif sub_type == 'grouping_distinct_roles':
+        total_people = random.randint(7, 12)
+        role1_count = random.randint(2, total_people // 2)
+        remaining = total_people - role1_count
+        role2_count = random.randint(2, max(2, remaining - 1)) # Ensure at least 1 person remains (or just enough for roles)
+
+        # Re-adjust if selected counts exceed total or are impossible
+        while role1_count + role2_count > total_people or role2_count < 1:
+            role1_count = random.randint(2, total_people // 2)
+            remaining = total_people - role1_count
+            role2_count = random.randint(2, max(2, remaining - 1))
+
+
+        role1_name = random.choice(['掃地', '洗碗', '擔任組長'])
+        role2_name = random.choice(['拖地', '擦桌子', '擔任副組長'])
+        while role1_name == role2_name:
+            role2_name = random.choice(['拖地', '擦桌子', '擔任副組長'])
+
+        question_text = (
+            f"從 ${total_people}$ 人中選 ${role1_count}$ 人{role1_name}，"
+            f"另選 ${role2_count}$ 人{role2_name}，共有幾種選法？"
+        )
+        answer_val = math.comb(total_people, role1_count) * math.comb(total_people - role1_count, role2_count)
+        correct_answer = str(answer_val)
+
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_conditional_combination_problem():
+    num_men = random.randint(5, 10)
+    num_women = random.randint(4, 9)
+    total_select = random.randint(3, 7)
     
-    if problem_sub_type == 'C_n_k_C_n_n_minus_k':
-        question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$C_{{{{ {n} }}}}^{{{{ {k} }}}} = C_{{{{ {n} }}}}^{{{{ {n-k} }}}}$"
-        correct_answer = "○"
-    elif problem_sub_type == 'P_n_k_C_n_k_k_factorial':
-        question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$P_{{{{ {n} }}}}^{{{{ {k} }}}} = C_{{{{ {n} }}}}^{{{{ {k} }}}} \\times {k}!$"
-        correct_answer = "○"
-    elif problem_sub_type == 'binomial_coefficient_symmetry':
-        a = random.randint(1, n - 1)
-        b = n - a
-        question_text = f"下列敘述對的打「○」，錯的打「×」。<br>在 $(x+y)^{{{{ {n} }}}}$ 的展開式中，$x^{{{{ {a} }}}} y^{{{{ {b} }}}}$ 項的係數與 $x^{{{{ {b} }}}} y^{{{{ {a} }}}}$ 項的係數相等。"
-        correct_answer = "○"
-    elif problem_sub_type == 'sum_of_Cnk_power_of_2':
-        is_true_statement = random.random() < 0.7 # Most likely true
-        if is_true_statement:
-            question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$C_{{{{ {n} }}}}^{{0}} + C_{{{{ {n} }}}}^{{1}} + \\dots + C_{{{{ {n} }}}}^{{{{ {n} }}}} = 2^{{{{ {n} }}}}$"
-            correct_answer = "○"
-        else: # False case: sum of subset of terms or wrong exponent
-            false_type = random.choice(['missing_term', 'wrong_exponent'])
-            if false_type == 'missing_term':
-                if n < 1: # Regenerate if n is too small for meaningful 'missing_term'
-                    return generate_true_false_property_problem(level)
-                
-                missing_term_idx = random.randint(0, n)
-                terms_list = []
-                actual_sum_val = 0
-                for i in range(n + 1):
-                    if i == missing_term_idx:
-                        pass # Skip this term
-                    else:
-                        terms_list.append(f"C_{{{{ {n} }}}}^{{{{ {i} }}}}")
-                        actual_sum_val += nCr(n, i)
-                
-                sum_str = " + ".join(terms_list)
-                question_text = f"下列敘述對的打「○」，錯的打「×」。<br>${sum_str} = 2^{{{{ {n} }}}}$"
-                correct_answer = "○" if actual_sum_val == (1 << n) else "×"
-                
-            elif false_type == 'wrong_exponent':
-                wrong_exp = n + random.choice([-1, 1, 2])
-                while wrong_exp <= 0 or wrong_exp == n: # Ensure exponent is positive and different from n
-                    wrong_exp = n + random.choice([-1, 1, 2])
-                question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$C_{{{{ {n} }}}}^{{0}} + C_{{{{ {n} }}}}^{{1}} + \\dots + C_{{{{ {n} }}}}^{{{{ {n} }}}} = 2^{{{{ {wrong_exp} }}}}$"
-                correct_answer = "×" 
+    while total_select > num_men + num_women or total_select < 2:
+        total_select = random.randint(3, 7)
 
-    elif problem_sub_type == 'C_n_k_plus_C_n_k_plus_1_C_n_plus_1_k_plus_1':
-        is_true_statement = random.random() < 0.7 # Most likely true
-        if is_true_statement:
-            question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$C_{{{{ {n} }}}}^{{{{ {k} }}}} + C_{{{{ {n} }}}}^{{{{ {k+1} }}}} = C_{{{{ {n+1} }}}}^{{{{ {k+1} }}}}$"
-            correct_answer = "○"
-        else: # False case: use wrong index for C_(n+1)
-            wrong_idx = k + random.choice([-1, 0, 2])
-            while wrong_idx < 0 or wrong_idx > n + 1 or wrong_idx == k+1: # Ensure index is valid and different
-                wrong_idx = k + random.choice([-1, 0, 2])
+    sub_types = [
+        'exact_mix',
+        'at_least_one_type',
+        'at_least_one_of_each'
+    ]
+    sub_type = random.choice(sub_types)
+
+    if sub_type == 'exact_mix':
+        select_men = random.randint(1, total_select - 1)
+        select_women = total_select - select_men
+        while select_men > num_men or select_women > num_women or select_women < 1:
+            select_men = random.randint(1, total_select - 1)
+            select_women = total_select - select_men
+
+        question_text = (
+            f"從 ${num_men}$ 位男生、${num_women}$ 位女生中選派 ${total_select}$ 人參加社區服務，"
+            f"請問恰為 ${select_men}$ 男生 ${select_women}$ 女生的選派方法有多少種？"
+        )
+        answer_val = math.comb(num_men, select_men) * math.comb(num_women, select_women)
+        correct_answer = str(answer_val)
+
+    elif sub_type == 'at_least_one_type':
+        select_gender = random.choice(['女', '男'])
+        
+        if select_gender == '女':
+            total_ways = math.comb(num_men + num_women, total_select)
+            ways_all_men = 0
+            if total_select <= num_men:
+                ways_all_men = math.comb(num_men, total_select)
+            answer_val = total_ways - ways_all_men
             
-            question_text = f"下列敘述對的打「○」，錯的打「×」。<br>$C_{{{{ {n} }}}}^{{{{ {k} }}}} + C_{{{{ {n} }}}}^{{{{ {k+1} }}}} = C_{{{{ {n+1} }}}}^{{{{ {wrong_idx} }}}}$"
-            actual_sum = nCr(n, k) + nCr(n, k + 1)
-            stated_C = nCr(n + 1, wrong_idx)
-            correct_answer = "○" if actual_sum == stated_C else "×"
+            question_text = (
+                f"從 ${num_men}$ 位男生、${num_women}$ 位女生中選派 ${total_select}$ 人參加社區服務，"
+                f"請問至少有 $1$ 名女生的選派方法有多少種？"
+            )
+        else: # At least one man
+            total_ways = math.comb(num_men + num_women, total_select)
+            ways_all_women = 0
+            if total_select <= num_women:
+                ways_all_women = math.comb(num_women, total_select)
+            answer_val = total_ways - ways_all_women
 
+            question_text = (
+                f"從 ${num_men}$ 位男生、${num_women}$ 位女生中選派 ${total_select}$ 人參加社區服務，"
+                f"請問至少有 $1$ 名男生的選派方法有多少種？"
+            )
+        correct_answer = str(answer_val)
+
+    elif sub_type == 'at_least_one_of_each':
+        total_ways = math.comb(num_men + num_women, total_select)
+        
+        ways_all_men = 0
+        if total_select <= num_men:
+            ways_all_men = math.comb(num_men, total_select)
+        
+        ways_all_women = 0
+        if total_select <= num_women:
+            ways_all_women = math.comb(num_women, total_select)
+
+        answer_val = total_ways - ways_all_men - ways_all_women
+        
+        question_text = (
+            f"從 ${num_men}$ 位男生、${num_women}$ 位女生中選派 ${total_select}$ 人參加社區服務，"
+            f"請問男女生至少各 $1$ 名的選派方法有多少種？"
+        )
+        correct_answer = str(answer_val)
+    
     return {
         "question_text": question_text,
         "answer": correct_answer,
@@ -126,39 +235,85 @@ def generate_true_false_property_problem(level):
     }
 
 
-def generate_simple_combination_permutation_problem(level):
-    n = random.randint(5, 12 + level*2)
-    k = random.randint(2, min(n, 7 + level)) # k is generally smaller
+def generate_binomial_coefficient_problem():
+    n = random.randint(4, 7)
+    coeff1_val = random.randint(1, 3) * random.choice([-1, 1])
+    coeff2_val = random.randint(1, 3) * random.choice([-1, 1])
+    
+    var1_char = random.choice(['x', 'a'])
+    var2_char = random.choice(['y', 'b'])
+    while var1_char == var2_char:
+        var2_char = random.choice(['y', 'b'])
+        
+    power_var2_base = random.randint(1, 2)
 
-    problem_sub_type = random.choice([
-        'combination_select', # Choose k items from n (order doesn't matter)
-        'permutation_arrange', # Arrange k items from n (order matters)
-        'permutation_all_arrange', # Arrange all n items
-        'handshakes_inverse' # C_n^2 type problem, asking for n given total
-    ])
+    k = random.randint(1, n-1)
+    
+    target_pow1 = n - k
+    target_pow2 = k * power_var2_base
 
-    question_text = ""
-    correct_answer = ""
+    term1_str = f"{coeff1_val}{var1_char}"
+    term2_str = f"{coeff2_val}{var2_char}^{{{power_var2_base}}}" if power_var2_base > 1 else f"{coeff2_val}{var2_char}"
 
-    if problem_sub_type == 'combination_select':
-        item = random.choice(['人', '書', '球', '花'])
-        verb = random.choice(['選出', '取出', '抽出'])
-        question_text = f"從 ${n}$ {item}中{verb} ${k}$ {item}，共有多少種選法？"
-        correct_answer = str(nCr(n, k))
-    elif problem_sub_type == 'permutation_arrange':
-        item = random.choice(['人', '字母'])
-        verb = random.choice(['排成一列', '安排'])
-        question_text = f"從 ${n}$ {item}中選出 ${k}$ {item} {verb}，共有多少種排法？"
-        correct_answer = str(nPr(n, k))
-    elif problem_sub_type == 'permutation_all_arrange':
-        item = random.choice(['人', '書', '字母'])
-        question_text = f"將 ${n}$ 個不同的{item}排成一列，共有多少種排法？"
-        correct_answer = str(math.factorial(n))
-    elif problem_sub_type == 'handshakes_inverse':
-        num_players = random.randint(5, 15) # Keep n smaller for this problem type for easier inverse calculation
-        total_games = nCr(num_players, 2)
-        question_text = f"在一場桌球比賽中，每位選手都必須和其他選手各比賽一場。若賽程總計為 ${total_games}$ 場，則選手共有多少人？"
-        correct_answer = str(num_players)
+    if coeff1_val == 1: term1_str = var1_char
+    if coeff1_val == -1: term1_str = f"-{var1_char}"
+    if coeff2_val == 1: term2_str = f"{var2_char}^{{{power_var2_base}}}" if power_var2_base > 1 else var2_char
+    if coeff2_val == -1: term2_str = f"-{var2_char}^{{{power_var2_base}}}" if power_var2_base > 1 else f"-{var2_char}"
+    
+    if term2_str.startswith('-'):
+        question_expression = f"({term1_str}{term2_str})^{{{n}}}"
+    else:
+        question_expression = f"({term1_str}+{term2_str})^{{{n}}}"
+
+    binomial_coeff_part = math.comb(n, k)
+    coeff_val_part = (coeff1_val ** (n - k)) * (coeff2_val ** k)
+    final_coefficient = binomial_coeff_part * coeff_val_part
+
+    question_text = (
+        f"求 $ {question_expression} $ 展開式中 "
+        f"$ {var1_char}^{{{target_pow1}}} {var2_char}^{{{target_pow2}}} $ 項的係數。"
+    )
+    correct_answer = str(final_coefficient)
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_sum_of_binomial_coefficients_problem():
+    sub_type = random.choice(['simple_power', 'inequality'])
+
+    if sub_type == 'simple_power':
+        n = random.randint(5, 12)
+        question_text = f"求 $ C_{{{n}}}^{{0}} + C_{{{n}}}^{{1}} + C_{{{n}}}^{{2}} + \\dots + C_{{{n}}}^{{{n}}} $ 的值。"
+        correct_answer = str(2**n)
+    elif sub_type == 'inequality':
+        n_true = random.randint(8, 12)
+        
+        sum_type = random.choice(['full', 'exclude_C0', 'exclude_C0_Cn'])
+
+        if sum_type == 'full':
+            sum_str = r"C_{{n}}^{{0}} + C_{{n}}^{{1}} + \dots + C_{{n}}^{{n}}"
+            target_value = 2**n_true
+        elif sum_type == 'exclude_C0':
+            sum_str = r"C_{{n}}^{{1}} + C_{{n}}^{{2}} + \dots + C_{{n}}^{{n}}"
+            target_value = 2**n_true - 1
+        else: # exclude_C0_Cn
+            sum_str = r"C_{{n}}^{{1}} + C_{{n}}^{{2}} + \dots + C_{{n}}^{{n-1}}"
+            target_value = 2**n_true - 2
+
+        lower_bound = random.randint(target_value - 50, target_value - 10)
+        upper_bound = random.randint(target_value + 10, target_value + 50)
+        
+        while not (lower_bound < target_value < upper_bound):
+            lower_bound = random.randint(target_value - 50, target_value - 10)
+            upper_bound = random.randint(target_value + 10, target_value + 50)
+
+        question_text = (
+            f"求滿足不等式 $ {lower_bound} < {sum_str} < {upper_bound} $ 的正整數 $n$。"
+        )
+        correct_answer = str(n_true)
 
     return {
         "question_text": question_text,
@@ -166,187 +321,265 @@ def generate_simple_combination_permutation_problem(level):
         "correct_answer": correct_answer
     }
 
-def generate_conditional_combination_problem(level):
-    num_men = random.randint(4, 8 + level)
-    num_women = random.randint(3, 7 + level)
-    total_select = random.randint(3, min(num_men + num_women, 9 + level))
+def generate_grouping_distinct_groups_roles_problem():
+    K = random.randint(2, 3) # Number of groups (and teachers, and places)
+    N_teachers = K
+    S_per_group = random.randint(2, 3) # Students per group
+    M_students = K * S_per_group # Total students
 
-    # Adjust total_select if it's too small for some types
-    if total_select < 2:
-        total_select = 2
+    answer_val = 1
+    current_teachers = N_teachers
+    current_students = M_students
+    
+    place_options = ['甲', '乙', '丙']
+    places_str = '、'.join(place_options[:K])
 
-    problem_sub_type = random.choice([
-        'exactly', # Exactly k men and (total-k) women
-        'at_least_one_type', # At least 1 woman
-        'at_least_both_types' # At least 1 man AND at least 1 woman
-    ])
+    for _ in range(K):
+        answer_val *= math.comb(current_teachers, 1)
+        answer_val *= math.comb(current_students, S_per_group)
+        current_teachers -= 1
+        current_students -= S_per_group
 
-    # Pre-checks for impossible scenarios
-    if problem_sub_type == 'at_least_one_type': # e.g. at least 1 woman
-        if num_women == 0 or total_select == 0:
-            return generate_conditional_combination_problem(level) # Regenerate if impossible
-    elif problem_sub_type == 'at_least_both_types': # at least 1 man AND at least 1 woman
-        if num_men == 0 or num_women == 0 or total_select < 2:
-            return generate_conditional_combination_problem(level) # Regenerate
-        if total_select > num_men + num_women:
-            return generate_conditional_combination_problem(level) # Regenerate
-
-    question_text = f"從 ${num_men}$ 位男生、${num_women}$ 位女生中選派 ${total_select}$ 人參加社區服務，共有多少種選派方法，若："
-    correct_answer = ""
-
-    if problem_sub_type == 'exactly':
-        lower_r = max(0, total_select - num_women)
-        upper_r = min(total_select, num_men)
-        
-        if lower_r > upper_r: # No valid combination possible, regenerate
-            return generate_conditional_combination_problem(level)
-        
-        men_to_select = random.randint(lower_r, upper_r)
-        women_to_select = total_select - men_to_select
-        
-        question_text += f"<br>(1) 恰為 ${men_to_select}$ 男生與 ${women_to_select}$ 女生。"
-        correct_answer = str(nCr(num_men, men_to_select) * nCr(num_women, women_to_select))
-
-    elif problem_sub_type == 'at_least_one_type':
-        # At least one female
-        question_text += "<br>(1) 至少有 $1$ 名女生。"
-        total_ways = nCr(num_men + num_women, total_select)
-        ways_no_women = nCr(num_men, total_select)
-        correct_answer = str(total_ways - ways_no_women)
-        
-    elif problem_sub_type == 'at_least_both_types':
-        # At least 1 man and at least 1 woman
-        question_text += "<br>(1) 男生、女生至少各 $1$ 名。"
-        total_ways = nCr(num_men + num_women, total_select)
-        ways_no_men = nCr(num_women, total_select)
-        ways_no_women = nCr(num_men, total_select)
-        correct_answer = str(total_ways - ways_no_men - ways_no_women)
-
+    question_text = (
+        f"將 ${N_teachers}$ 名教師、${M_students}$ 名學生分成 ${K}$ 組，"
+        f"每組由 $1$ 名教師和 ${S_per_group}$ 名學生組成，"
+        f"分別安排到 {places_str} 各地參加活動，共有多少種分配方法？"
+    )
+    correct_answer = str(answer_val)
     return {
         "question_text": question_text,
         "answer": correct_answer,
         "correct_answer": correct_answer
     }
 
-def generate_binomial_coefficient_problem(level):
-    # (ax^p + by^q)^n, find coefficient of x^X y^Y
-    
-    n = random.randint(4, 7 + level)
-    
-    # Generate coefficients
-    coeff1 = random.randint(1, 3) * random.choice([-1, 1])
-    coeff2 = random.randint(1, 3) * random.choice([-1, 1])
-    
-    # Generate powers for x and y terms inside the binomial
-    x_power_inner = random.randint(1, 2) # E.g., x^1 or x^2
-    y_power_inner = random.randint(1, 3) # E.g., y^1, y^2, y^3
-    
-    # The general term is C_n^r * (coeff1*x^x_power_inner)^(n-r) * (coeff2*y^y_power_inner)^r
-    # So the power of x in a term is (n-r) * x_power_inner
-    # And the power of y in a term is r * y_power_inner
-    
-    # We need to find an 'r' (from 0 to n) that generates the target powers.
-    # To simplify, let's fix 'r' first, then derive the target x and y powers.
-    r = random.randint(0, n)
-    
-    x_target_power = (n - r) * x_power_inner
-    y_target_power = r * y_power_inner
-    
-    # Construct the terms for the binomial
-    term1 = f"{coeff1}x"
-    if x_power_inner > 1:
-        term1 = f"{coeff1}x^{{{{ {x_power_inner} }}}}"
-    
-    term2 = f"{coeff2}y"
-    if y_power_inner > 1:
-        term2 = f"{coeff2}y^{{{{ {y_power_inner} }}}}"
-    
-    question_text = f"求 $({term1} + {term2})^{{{{ {n} }}}}$ 展開式中 $x^{{{{ {x_target_power} }}}} y^{{{{ {y_target_power} }}}}$ 項的係數。"
 
-    # Calculate the coefficient: C_n^r * (coeff1)^(n-r) * (coeff2)^r
-    binom_coeff = nCr(n, r)
-    numerical_coeff = binom_coeff * (coeff1 ** (n - r)) * (coeff2 ** r)
-    
-    correct_answer = str(numerical_coeff)
+def generate_distribution_at_least_one_distinct_to_distinct_problem():
+    N_people = random.randint(4, 6) # Number of students/people
+    K_villages = random.randint(3, 4) # Number of villages/boxes
 
+    while N_people < K_villages:
+        N_people = random.randint(4, 6)
+        K_villages = random.randint(3, 4)
+
+    answer_val = 0
+    for i in range(K_villages + 1):
+        term = math.comb(K_villages, i) * ((K_villages - i) ** N_people)
+        if i % 2 == 0:
+            answer_val += term
+        else:
+            answer_val -= term
+    
+    question_text = (
+        f"將 ${N_people}$ 名大學生分配到 ${K_villages}$ 個村落服務，"
+        f"每個村落至少 $1$ 名，共有多少種分配方法？"
+    )
+    correct_answer = str(answer_val)
     return {
         "question_text": question_text,
         "answer": correct_answer,
         "correct_answer": correct_answer
     }
 
-def generate_sum_of_binomials_problem(level):
-    question_type = random.choice(['sum_Cnk_0_to_n', 'sum_Cnk_1_to_n'])
+def generate_reverse_combination_problem():
+    k = random.choice([2, 3])
     
-    target_n = random.randint(7, 12) # A common range for n for these sums
-    
-    if question_type == 'sum_Cnk_0_to_n':
-        target_sum = (1 << target_n) # 2^n
-        sum_latex_expr_for_question = r"C_{n}^{0} + C_{n}^{1} + \dots + C_{n}^{n}"
-    else: # sum_Cnk_1_to_n
-        target_sum = (1 << target_n) - 1 # 2^n - 1
-        sum_latex_expr_for_question = r"C_{n}^{1} + C_{n}^{2} + \dots + C_{n}^{n}"
+    n_true = random.randint(5, 15)
+    while n_true < k:
+        n_true = random.randint(5, 15)
 
-    # Create bounds around target_sum
-    lower_bound = target_sum - random.randint(10, 50)
-    upper_bound = target_sum + random.randint(10, 50)
+    result_comb = math.comb(n_true, k)
     
-    # Ensure bounds make sense (lower_bound is positive)
-    lower_bound = max(1, lower_bound)
-    
-    question_text = f"求滿足不等式 ${lower_bound} < {sum_latex_expr_for_question} < {upper_bound}$ 的正整數 $n$。"
-    correct_answer = str(target_n)
+    if k == 2:
+        question_text = (
+            f"桌球比賽中，若規定參與的選手每人都必須和其他選手各比賽一場，"
+            f"賽程總計為 ${result_comb}$ 場，則選手共有多少人？"
+        )
+    else: # k == 3, simpler context
+        item_name = random.choice(['物件', '學生', '球'])
+        question_text = (
+            f"從 ${n_true}$ 個{item_name}中選出 ${k}$ 個，共有 ${result_comb}$ 種選法。請問總共有多少個{item_name}？"
+        )
 
+    correct_answer = str(n_true)
     return {
         "question_text": question_text,
         "answer": correct_answer,
         "correct_answer": correct_answer
     }
 
-def generate_geometric_combinations_problem(level):
-    num_total_points = random.randint(7, 12 + level)
-    # Ensure num_collinear_points is meaningful (at least 3 and less than total)
-    num_collinear_points_upper_bound = min(num_total_points - 1, 6 + level // 2)
+def generate_parity_combination_problem():
+    total_count = random.randint(7, 10)
+    num_select = random.choice([3, 4])
     
-    if num_collinear_points_upper_bound < 3: # If not enough points to form meaningful collinear set, regenerate
-        return generate_geometric_combinations_problem(level)
+    # Ensure num_odd and num_even are sufficient for selections
+    # Heuristic: ensure there's at least 'num_select // 2' of each parity
+    min_needed = num_select // 2
+    
+    num_odd_initial = random.randint(max(min_needed, num_select % 2), total_count - min_needed)
+    num_even_initial = total_count - num_odd_initial
+
+    # Reroll until valid counts are achieved
+    while num_odd_initial < min_needed or num_even_initial < min_needed:
+        num_odd_initial = random.randint(max(min_needed, num_select % 2), total_count - min_needed)
+        num_even_initial = total_count - num_odd_initial
+    
+    num_odd = num_odd_initial
+    num_even = num_even_initial
+
+    answer_val = 0
+    for k_odd_chosen in range(0, num_select + 1, 2):
+        k_even_chosen = num_select - k_odd_chosen
         
-    num_collinear_points = random.randint(3, num_collinear_points_upper_bound)
+        if k_odd_chosen <= num_odd and k_even_chosen <= num_even:
+            answer_val += math.comb(num_odd, k_odd_chosen) * math.comb(num_even, k_even_chosen)
 
-    problem_sub_type = random.choice(['lines', 'triangles'])
-
-    question_text = f"平面上有 ${num_total_points}$ 個點，其中恰有 ${num_collinear_points}$ 個點共線，其餘點皆不共線（任意三點皆不共線）。"
-    correct_answer = ""
-
-    if problem_sub_type == 'lines':
-        question_text += "<br>(1) 這些點共可決定多少條直線？"
-        # Total pairs - pairs from collinear points + 1 (for the single line formed by collinear points)
-        num_lines = nCr(num_total_points, 2) - nCr(num_collinear_points, 2) + 1
-        correct_answer = str(num_lines)
-    elif problem_sub_type == 'triangles':
-        question_text += "<br>(1) 以這些點中的 $3$ 個點為頂點，共可決定多少個三角形？"
-        # Total triplets - triplets from collinear points (cannot form a triangle)
-        num_triangles = nCr(num_total_points, 3) - nCr(num_collinear_points, 3)
-        correct_answer = str(num_triangles)
-        
+    question_text = (
+        f"從 $1, 2, \\dots, {total_count}$ 這 ${total_count}$ 個數中，"
+        f"同時取出 ${num_select}$ 個不同的數，且其和為偶數，共有多少種取法？"
+    )
+    correct_answer = str(answer_val)
     return {
         "question_text": question_text,
         "answer": correct_answer,
         "correct_answer": correct_answer
     }
+
+def generate_permutation_with_repetition_string_problem():
+    # Example: "snoopy" (s,n,o,o,p,y) Choose 3 letters, arrange.
+    word_data = ("snoopy", {'s':1, 'n':1, 'o':2, 'p':1, 'y':1}, 6)
+    word, counts_dict, total_len = word_data
+    k = 3 # Fixed k for this specific example type
+
+    distinct_chars_list = list(counts_dict.keys()) # ['s', 'n', 'o', 'p', 'y']
+    
+    answer_val = 0
+    
+    # Case 1: All 3 distinct letters
+    # Choose 3 distinct characters from the types available (s, n, o, p, y) -> C(5,3)
+    # Arrange them -> 3!
+    answer_val += math.comb(len(distinct_chars_list), k) * math.factorial(k)
+    
+    # Case 2: 2 letters are the same, 1 is distinct (e.g., o, o, S)
+    # Identify characters that appear at least twice: only 'o' in "snoopy"
+    chars_with_at_least_2 = [char for char, count in counts_dict.items() if count >= 2]
+    
+    if chars_with_at_least_2:
+        for repeated_char in chars_with_at_least_2:
+            # Choose 1 character to be the repeated pair (e.g., 'o', 1 way)
+            # Choose 1 distinct character from the *other* distinct types
+            remaining_distinct_types = [c for c in distinct_chars_list if c != repeated_char]
+            if remaining_distinct_types:
+                answer_val += math.comb(len(remaining_distinct_types), 1) * (math.factorial(k) // math.factorial(2))
+
+    question_text = (
+        f"從「{word}」一字共 ${total_len}$ 個字母中，"
+        f"任選 ${k}$ 個字母排成一列，共有多少種排法？"
+    )
+    correct_answer = str(answer_val)
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_binomial_theorem_product_coefficient_problem():
+    n = random.randint(5, 8)
+    a_coeff_val = random.randint(1, 4) * random.choice([-1, 1])
+    target_power = 2
+    
+    cn1 = math.comb(n, 1)
+    cn2 = math.comb(n, 2)
+    
+    # Calculate target_value (coefficient of x^2) using a pre-determined 'a_coeff_val'
+    # Coefficient = C(n,2) + a_coeff_val * C(n,1)
+    target_value = cn2 + a_coeff_val * cn1
+
+    question_text = (
+        f"已知 $(1+{a_coeff_val}x)(1+x)^{{{n}}}$ 的展開式中 $x^{{2}}$ 項的係數為 ${target_value}$，"
+        f"求實數 $a$ 的值。"
+    )
+    correct_answer = str(a_coeff_val) # Now we ask for 'a' that makes this true.
+    
+    # For a problem where 'a' is unknown but target_value is given, and 'a' needs to be calculated:
+    # Set a random 'target_value' for the coefficient, then calculate 'a'.
+    # e.g., target_value = random.randint(5, 20) * random.choice([-1, 1])
+    # a = (target_value - cn2) / cn1
+    # Ensure a is integer or simple fraction
+    # numerator = target_value - cn2
+    # denominator = cn1
+    # while numerator % denominator != 0:
+    #     n = random.randint(5, 8)
+    #     target_value = random.randint(5, 20) * random.choice([-1, 1])
+    #     cn1 = math.comb(n, 1)
+    #     cn2 = math.comb(n, 2)
+    #     numerator = target_value - cn2
+    #     denominator = cn1
+    # correct_a = Fraction(numerator, denominator)
+    # This version is what's in the example. Let's switch to this more challenging one.
+    
+    target_value_q = random.randint(5, 20) * random.choice([-1, 1])
+    
+    # Reroll until we get an integer 'a' for simplicity
+    while (target_value_q - cn2) % cn1 != 0:
+        n = random.randint(5, 8)
+        cn1 = math.comb(n, 1)
+        cn2 = math.comb(n, 2)
+        target_value_q = random.randint(5, 20) * random.choice([-1, 1])
+
+    correct_a = (target_value_q - cn2) // cn1
+
+    question_text = (
+        f"已知 $(1+ax)(1+x)^{{{n}}}$ 的展開式中 $x^{{2}}$ 項的係數為 ${target_value_q}$，"
+        f"求實數 $a$ 的值。"
+    )
+    correct_answer = str(correct_a)
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
+def generate_geometry_combination_collinear_points_problem():
+    total_points = random.randint(8, 12)
+    collinear_points = random.randint(4, min(total_points - 1, 6))
+    
+    question_type = random.choice(['lines', 'triangles'])
+    
+    if question_type == 'lines':
+        ans_val = math.comb(total_points, 2) - math.comb(collinear_points, 2) + 1
+        question_text = (
+            f"空間中有 ${total_points}$ 個點，其中有 ${collinear_points}$ 個點共線，"
+            f"其餘點不共線。請問這些點共可決定多少條直線？"
+        )
+    else: # triangles
+        ans_val = math.comb(total_points, 3) - math.comb(collinear_points, 3)
+        question_text = (
+            f"空間中有 ${total_points}$ 個點，其中有 ${collinear_points}$ 個點共線，"
+            f"其餘點不共線。請問以這些點中的 $3$ 個點為頂點，共可決定多少個三角形？"
+        )
+    
+    correct_answer = str(ans_val)
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
+
 
 def check(user_answer, correct_answer):
-    user_answer = str(user_answer).strip().upper()
-    correct_answer = str(correct_answer).strip().upper()
+    user_answer = user_answer.strip().upper()
+    correct_answer = correct_answer.strip().upper()
     
     is_correct = (user_answer == correct_answer)
     
     if not is_correct:
         try:
-            # For numerical answers, try converting to float for comparison
-            if float(user_answer) == float(correct_answer):
+            user_val = float(Fraction(user_answer))
+            correct_val = float(Fraction(correct_answer))
+            if abs(user_val - correct_val) < 1e-9:
                 is_correct = True
-        except ValueError:
+        except (ValueError, ZeroDivisionError):
             pass
 
     result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"

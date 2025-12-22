@@ -108,9 +108,9 @@ def fix_code_syntax(code_str, error_msg=""):
         fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
         
         # [新增] 修復下標 (遞迴數列常用 a_{n}) 和 上標 (次方)
-        # 把 _{n} 變成 _{{n}}, ^{n} 變成 ^{{n}}
-        fixed_code = re.sub(r'_\{(\w+|\d+)\}', r'_{{\1}}', fixed_code)
-        fixed_code = re.sub(r'\^\{(\w+|\d+)\}', r'^{{\1}}', fixed_code)
+        # 把 _{n} 變成 _{{n}}, ^{n} 變成 ^{{n}}, 支援負號 (e.g. 10^{-2})
+        fixed_code = re.sub(r'_\{(-?\w+)\}', r'_{{\1}}', fixed_code)
+        fixed_code = re.sub(r'\^\{(-?\w+)\}', r'^{{\1}}', fixed_code)
         
         # 修復三角函數/加總/組合
         fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code)

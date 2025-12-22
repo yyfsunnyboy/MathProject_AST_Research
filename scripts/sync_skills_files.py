@@ -190,7 +190,9 @@ if __name__ == "__main__":
                     success_count += 1
                 else:
                     fail_count += 1
-                    print(f"   ❌ 失敗: {skill_id}")
+                    # result[1] contains the error message if is_ok is False
+                    error_msg = result[1] if isinstance(result, tuple) and len(result) > 1 else "Unknown error"
+                    print(f"   ❌ 失敗: {skill_id} -> {error_msg}")
 
             except Exception as e:
                 fail_count += 1

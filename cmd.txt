@@ -43,7 +43,7 @@ New-Item static/style.css
 第一次安裝(從Github下載)
 ===========================
 # 1. 進入專案資料夾
-cd D:\Python\math-master
+cd D:\Python\Mathproject
 cd E:\Python\math-master
 cd C:\Python\Mathproject
 # 2. 建立虛擬環境
