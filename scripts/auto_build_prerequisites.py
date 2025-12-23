@@ -7,8 +7,12 @@ from tqdm import tqdm
 from sqlalchemy import distinct
 
 # ==========================================
-# 1. 設定路徑以匯入專案模組
-# script/ -> root/
+# 🚨 確認執行檔案
+# ==========================================
+print("🔥 RUNNING V13.0 DASHBOARD VERSION:", __file__)
+
+# ==========================================
+# 1. 設定路徑
 # ==========================================
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -17,145 +21,171 @@ from models import db, SkillInfo, SkillCurriculum, TextbookExample
 from core.ai_analyzer import get_model
 
 # ==========================================
-# 互動選單函式
+# 課程座標 (支援中文解析)
 # ==========================================
-def get_user_selection(options, prompt_text):
-    if not options:
-        return None
-    
-    # 過濾 None 並排序
-    options = sorted([o for o in options if o is not None])
-    
-    print(f"\n{prompt_text}")
+class CurriculumPosition:
+    def __init__(self, grade, volume, chapter, order):
+        self.grade_val = self._parse_grade(grade)
+        self.volume_val = self._parse_volume(volume)
+        self.chapter_val = self._parse_int(chapter)
+        self.order = order if order is not None else 9999
+        self.raw = f"{volume} | {chapter}"
+
+    def _parse_int(self, v):
+        if not v: return 0
+        m = re.search(r'\d+', str(v))
+        return int(m.group()) if m else 0
+
+    def _parse_grade(self, s):
+        s = str(s).strip()
+        if not s: return 0
+        if '高一' in s or '10' in s: return 10
+        if '高二' in s or '11' in s: return 11
+        if '高三' in s or '12' in s or '甲' in s or '乙' in s: return 12
+        if '7' in s: return 7
+        if '8' in s: return 8
+        if '9' in s: return 9
+        return self._parse_int(s)
+
+    def _parse_volume(self, s):
+        v = self._parse_int(s)
+        # 權重：下冊 > 上冊，乙 > 甲
+        if '下' in str(s): v += 0.5
+        if '乙' in str(s): v += 0.2
+        if '甲' in str(s): v += 0.1
+        return v
+
+    def __lt__(self, other):
+        if self.grade_val != other.grade_val: return self.grade_val < other.grade_val
+        if self.volume_val != other.volume_val: return self.volume_val < other.volume_val
+        if self.chapter_val != other.chapter_val: return self.chapter_val < other.chapter_val
+        return self.order < other.order
+
+# ==========================================
+# 建立課程座標快取
+# ==========================================
+def build_curriculum_map():
+    curr_map = {}
+    rows = db.session.query(SkillCurriculum).all()
+    for r in rows:
+        curr_map[r.skill_id] = {
+            "pos": CurriculumPosition(r.grade, r.volume, r.chapter, r.display_order),
+            "name": r.skill_id 
+        }
+    return curr_map
+
+# ==========================================
+# 選單介面
+# ==========================================
+def get_user_selection(options, title):
+    valid_opts = sorted([str(o) for o in options if o is not None])
+    print(f"\n{title}")
     print("   [0] ALL (全部處理)")
-    for i, opt in enumerate(options, 1):
-        print(f"   [{i}] {opt}")
-        
-    while True:
-        try:
-            choice = input("👉 請選擇 (輸入數字): ").strip()
-            if choice == '0':
-                return None
-            idx = int(choice) - 1
-            if 0 <= idx < len(options):
-                return options[idx]
-            print("⚠️ 輸入無效，請重試。")
-        except ValueError:
-            print("⚠️ 請輸入數字。")
-
-# ==========================================
-# 核心邏輯：準備候選技能池
-# ==========================================
-def get_candidate_skills(target_skill, all_skills_cache):
-    """
-    為目標技能篩選出「可能的」前置技能候選池。
-    邏輯：
-    1. 排除自己。
-    2. 跨階段：目標是高中 (gh_)，則所有國中 (jh_) 都是候選。
-    3. 同階段：必須排序 (order_index) 在目標之前。
-    """
-    candidates = []
+    for i, o in enumerate(valid_opts, 1):
+        print(f"   [{i}] {o}")
     
-    target_id = target_skill.skill_id
-    target_is_gh = target_id.startswith('gh_')
-    target_order = target_skill.order_index or 99999
-
-    for s in all_skills_cache:
-        candidate_id = s['id']
-        
-        # 排除自己
-        if candidate_id == target_id:
-            continue
-            
-        candidate_order = s['order'] or 99999
-        candidate_is_jh = candidate_id.startswith('jh_')
-        candidate_is_gh = candidate_id.startswith('gh_')
-
-        is_valid = False
-
-        # [規則 A] 跨階段：目標是高中，候選是國中 -> 必定納入
-        if target_is_gh and candidate_is_jh:
-            is_valid = True
-        
-        # [規則 B] 同階段：依照順序判斷 (高中找高中、國中找國中)
-        elif (target_is_gh and candidate_is_gh) or (not target_is_gh and candidate_is_jh):
-            if candidate_order < target_order:
-                is_valid = True
-
-        if is_valid:
-            # 格式: "ID (中文名稱)"
-            candidates.append(f"{s['id']} ({s['name']})")
-
-    return candidates
+    while True:
+        c = input("👉 ").strip()
+        if c == '0': return None
+        try:
+            val = valid_opts[int(c) - 1]
+            return val
+        except:
+            print("⚠️ 輸入錯誤，請輸入數字")
 
 # ==========================================
-# AI 分析函式 (加入例題上下文 + 數量限制)
+# 候選池 (分三區：同章、同冊、跨冊)
 # ==========================================
-def identify_prerequisites(model, target_skill, candidate_list, example_text=None):
-    """
-    呼叫 AI 判斷前置技能
-    """
-    # 取順序最接近的 80 個技能作為候選 (節省 Token)
-    candidates_str = "\n".join(candidate_list[-80:]) 
+def get_candidate_skills(target_skill, cache):
+    t_obj = next((x for x in cache if x['id'] == target_skill.skill_id), None)
+    if not t_obj: 
+        t_pos = CurriculumPosition("12", "99", "99", 9999) 
+    else:
+        t_pos = t_obj['pos']
 
-    # 構建例題區塊 (含詳解)
-    example_block = ""
-    if example_text:
-        example_block = f"""
-    --- TARGET SKILL EXAMPLE PROBLEM (For Analysis) ---
-    Analyze the following problem to understand the step-by-step math operations required:
-    {example_text}
-    """
+    zone_1 = [] # 同章 (最優先)
+    zone_2 = [] # 同冊 (次優先)
+    zone_3 = [] # 跨冊 (基礎)
+
+    for s in cache:
+        if s['id'] == target_skill.skill_id: continue
+        s_pos = s['pos']
+        
+        # 1. 未來過濾
+        if s_pos.grade_val > t_pos.grade_val: continue
+        if s_pos.grade_val == t_pos.grade_val:
+            # 同年級，比較冊與章節順序
+            if s_pos.volume_val > t_pos.volume_val: continue
+            if s_pos.volume_val == t_pos.volume_val:
+                if s_pos.chapter_val > t_pos.chapter_val: continue
+                # 同章節，比較 display_order
+                if s_pos.chapter_val == t_pos.chapter_val and s_pos.order >= t_pos.order: continue
+
+        # 2. 分區邏輯
+        item = s # 儲存完整物件方便後續處理
+
+        if s_pos.grade_val == t_pos.grade_val:
+            if s_pos.volume_val == t_pos.volume_val:
+                if s_pos.chapter_val == t_pos.chapter_val:
+                    zone_1.append(item) # Zone 1: 同章
+                else:
+                    zone_2.append(item) # Zone 2: 同冊不同章
+            else:
+                zone_3.append(item) # 同年級不同冊 (視為 Zone 3)
+        else:
+            zone_3.append(item) # 以前年級 (Zone 3)
+
+    # 3. 排序：全部由近到遠 (Reverse)
+    zone_1.sort(key=lambda x: x['pos'], reverse=True)
+    zone_2.sort(key=lambda x: x['pos'], reverse=True)
+    zone_3.sort(key=lambda x: x['pos'], reverse=True)
+
+    return zone_1, zone_2, zone_3
+
+# ==========================================
+# AI 分析
+# ==========================================
+def identify_prerequisites(model, skill, zones, example=None):
+    z1, z2, z3 = zones
+    
+    # 格式化給 AI 看 (加入 ID)
+    def fmt(lst, limit): 
+        return chr(10).join([f"[[{x['id']}]] {x['name']} ({x['pos'].raw})" for x in lst[:limit]])
+
+    context_a = fmt(z1, 30) # 同章給 30 個
+    context_b = fmt(z2, 40) # 同冊給 40 個
+    context_c = fmt(z3, 30) # 以前給 30 個
 
     prompt = f"""
-    You are a Math Curriculum Expert responsible for building a Knowledge Graph.
-    Your task is to identify the **Direct Prerequisite Skills** for the 'Target Skill' from the 'Candidate Pool'.
+    You are a Math Logic Engine.
+    Task: Pick **3 to 5** prerequisite IDs for the Target.
+    
+    TARGET:
+    {skill.skill_ch_name} (ID: {skill.skill_id})
+    Context: {example[:150] if example else "N/A"}
 
-    Target Skill Info:
-    - ID: {target_skill.skill_id}
-    - Name: {target_skill.skill_ch_name}
-    - Description: {target_skill.description}
-    {example_block}
+    CANDIDATES:
+    [ZONE 1: Direct Parents (Same Chapter)]
+    {context_a if context_a else "(None)"}
 
-    Candidate Skills Pool (Sorted by curriculum order):
-    {candidates_str}
+    [ZONE 2: Related Tools (Same Book)]
+    {context_b if context_b else "(None)"}
 
-    Analysis Logic:
-    1. **Analyze Requirements**: Look at the Target Skill's description and the Example Problem. What underlying concepts are needed? (e.g., to solve quadratic equations, one needs factoring and square roots).
-    2. **Map to Candidates**: Find skills in the 'Candidate Pool' that cover these concepts.
-    3. **Hierarchy Rule**: 
-       - If Target is High School (gh_), check Junior High (jh_) candidates first.
-       - Select strictly necessary predecessors only.
+    [ZONE 3: Foundation (Previous Grades)]
+    {context_c if context_c else "(None)"}
 
-    Output Format:
-    - Return a JSON list of skill IDs ONLY.
-    - **LIMIT**: Select at most **5** most critical prerequisite skills. Sort them by importance.
-    - Example: ["jh_ID1", "gh_ID2"]
-    - If no prerequisites found, return [].
-    - DO NOT return markdown formatting like ```json ... ```. Just the raw JSON string.
-
-    JSON Output:
+    INSTRUCTIONS:
+    1. Prioritize Zone 1 for direct flow.
+    2. Use Zone 2/3 for inverse operations (e.g. Integral->Derivative) or basic tools.
+    3. OUTPUT: JSON list of IDs. Example: ["id1", "id2"]
     """
-
     try:
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        # 清理 Markdown
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
-            
-        result_ids = json.loads(text)
-        
-        # [修改] 硬性限制：只回傳前 5 個
-        if isinstance(result_ids, list):
-            return result_ids[:5]
+        r = model.generate_content(prompt).text.strip()
+        match = re.search(r'\[(.*?)\]', r, re.DOTALL)
+        if match:
+            return json.loads(f"[{match.group(1)}]")
         return []
-        
-    except Exception as e:
-        print(f"   [AI Error] {e}")
+    except:
         return []
 
 # ==========================================
@@ -164,137 +194,106 @@ def identify_prerequisites(model, target_skill, candidate_list, example_text=Non
 def main():
     app = create_app()
     with app.app_context():
-        print("🚀 啟動前置技能自動建構工具 (Auto-Build Prerequisites)")
-        print("========================================================")
+        print("🚀 Auto Build Prerequisites (Log Enhanced)")
+
+        base = db.session.query(SkillCurriculum)
         
-        # ==========================================
-        # 1. 階層篩選 (Hierarchical Filtering)
-        # ==========================================
-        base_query = db.session.query(SkillCurriculum)
+        # --- 選單 ---
+        curr = get_user_selection([r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum))], "選擇課綱")
+        if curr: base = base.filter(SkillCurriculum.curriculum == curr)
 
-        # Level 1: Curriculum (課綱)
-        curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).order_by(SkillCurriculum.curriculum).all()]
-        selected_curr = get_user_selection(curriculums, "請選擇要處理的課綱 (Curriculum):")
-        if selected_curr:
-            base_query = base_query.filter(SkillCurriculum.curriculum == selected_curr)
+        grade = get_user_selection([r[0] for r in base.with_entities(distinct(SkillCurriculum.grade))], "選擇年級")
+        if grade: base = base.filter(SkillCurriculum.grade == grade)
 
-        # Level 2: Grade (年級 - 基於上一層篩選結果)
-        grades = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.grade)).order_by(SkillCurriculum.grade).all()]
-        selected_grade = get_user_selection(grades, "請選擇年級 (Grade):")
-        if selected_grade:
-            base_query = base_query.filter(SkillCurriculum.grade == selected_grade)
+        volume = get_user_selection([r[0] for r in base.with_entities(distinct(SkillCurriculum.volume))], "選擇冊別")
+        if volume: base = base.filter(SkillCurriculum.volume == volume)
 
-        # Level 3: Volume (冊別 - 基於上一層篩選結果)
-        volumes = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.volume)).order_by(SkillCurriculum.volume).all()]
-        selected_volume = get_user_selection(volumes, "請選擇冊別 (Volume):")
-        if selected_volume:
-            base_query = base_query.filter(SkillCurriculum.volume == selected_volume)
-
-        # Level 4: Chapter (章節 - 基於上一層篩選結果)
-        chapters = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.chapter)).order_by(SkillCurriculum.chapter).all()]
-        selected_chapter = get_user_selection(chapters, "請選擇章節 (Chapter):")
-        if selected_chapter:
-            base_query = base_query.filter(SkillCurriculum.chapter == selected_chapter)
-
-        # ==========================================
-        # 2. 取得目標技能
-        # ==========================================
-        # Join SkillInfo 以便後續操作
-        target_skills_query = base_query.with_entities(SkillCurriculum.skill_id).distinct()
-        target_ids = [r[0] for r in target_skills_query.all()]
+        chapter = get_user_selection([r[0] for r in base.with_entities(distinct(SkillCurriculum.chapter))], "選擇章節")
+        if chapter: base = base.filter(SkillCurriculum.chapter == chapter)
+        # ------------
         
-        # 查詢完整的 SkillInfo 物件
+        target_ids = [r[0] for r in base.with_entities(SkillCurriculum.skill_id).distinct()]
         target_skills = SkillInfo.query.filter(SkillInfo.skill_id.in_(target_ids)).order_by(SkillInfo.order_index).all()
 
-        print(f"\n📋 共篩選出 {len(target_skills)} 個目標技能待處理。")
-        if not target_skills:
-            print("無資料，結束程式。")
-            return
+        print(f"📋 目標: {len(target_skills)} 個技能")
+        if not target_skills: return
 
-        # ==========================================
-        # 3. 模式選擇與確認
-        # ==========================================
-        print("\n請選擇操作模式:")
-        print("   [1] Safe Mode (安全模式): 僅處理目前「沒有」前置技能的項目")
-        print("   [2] Power Mode (強制模式): 重新分析並「覆蓋」現有的前置技能")
-        mode = input("👉 請輸入 (預設 1): ").strip() or "1"
+        mode = input("模式 [1] Safe (跳過已有) [2] Power (強制覆蓋) : ").strip() or "1"
+        if input("確認執行? (y/n): ").lower() != 'y': return
 
-        confirm = input("是否開始執行 AI 分析? (y/n): ").strip().lower()
-        if confirm != 'y':
-            print("已取消。")
-            return
-
-        # ==========================================
-        # 4. 準備全域快取 (Candidate Cache)
-        # ==========================================
-        print("📦 正在建立技能快取資料庫...")
-        all_skills_query = SkillInfo.query.filter_by(is_active=True).order_by(SkillInfo.order_index).all()
-        # 快取結構: 只存必要的比對資訊
-        all_skills_cache = [
-            {
-                'id': s.skill_id, 
-                'name': s.skill_ch_name, 
-                'order': s.order_index
-            } for s in all_skills_query
-        ]
-        # 建立 Map 方便寫入 DB
-        skill_map = {s.skill_id: s for s in all_skills_query}
-
-        # ==========================================
-        # 5. 開始處理
-        # ==========================================
-        model = get_model()
+        # Cache
+        print("🗺️  Building Cache...")
+        curr_map = build_curriculum_map()
+        all_skills = SkillInfo.query.filter_by(is_active=True).all()
         
-        print("\n--- 開始分析 ---")
-        for skill in tqdm(target_skills, desc="分析進度"):
-            
-            # SkillInfo.prerequisites 是一個 List (或 Query)
-            current_prereqs = list(skill.prerequisites)
-            if mode == '1' and len(current_prereqs) > 0:
+        cache = []
+        for s in all_skills:
+            info = curr_map.get(s.skill_id)
+            pos = info["pos"] if info else CurriculumPosition(0, "", 0, 0)
+            cache.append({"id": s.skill_id, "name": s.skill_ch_name, "pos": pos})
+        
+        skill_map = {s.skill_id: s for s in all_skills}
+        model = get_model()
+
+        # Processing
+        for skill in tqdm(target_skills, desc="Running"):
+            if mode == '1' and skill.prerequisites:
                 continue
 
-            # A. 取得候選池
-            candidates = get_candidate_skills(skill, all_skills_cache)
-            if not candidates:
-                continue 
-
-            # B. 取得參考例題 (TextbookExample)
-            example_data = None
-            ex_obj = TextbookExample.query.filter_by(skill_id=skill.skill_id).first()
-            if ex_obj:
-                # 組合題目與詳解
-                example_data = f"Problem: {ex_obj.problem_text}\nSolution: {ex_obj.detailed_solution or ex_obj.correct_answer}"
-
-            # C. 呼叫 AI (限制最多 5 個)
-            recommended_ids = identify_prerequisites(model, skill, candidates, example_data)
+            # 1. 取得分區候選人
+            z1, z2, z3 = get_candidate_skills(skill, cache)
             
-            # D. 寫入資料庫
-            if recommended_ids:
+            # 🔥 [LOG] 顯示分區數量
+            tqdm.write(f"\n[分析] {skill.skill_ch_name}")
+            tqdm.write(f"   📊 候選: Z1(同章)={len(z1)} | Z2(同冊)={len(z2)} | Z3(跨冊)={len(z3)}")
+
+            ex = TextbookExample.query.filter_by(skill_id=skill.skill_id).first()
+            
+            # 2. AI 挑選
+            ai_ids = identify_prerequisites(model, skill, (z1, z2, z3), ex.problem_text if ex else None)
+            
+            # 3. 補位 (Fallback)
+            final_ids = []
+            seen = set()
+
+            # (A) AI 結果
+            for pid in ai_ids:
+                if pid in skill_map and pid != skill.skill_id and pid not in seen:
+                    final_ids.append(pid)
+                    seen.add(pid)
+            
+            ai_count = len(final_ids)
+
+            # (B) Python 補滿
+            # 順序：先 Z1 (同章最近) -> Z2 (同冊最近) -> Z3 (以前最近)
+            fallback_pool = z1 + z2 + z3 
+            
+            for cand in fallback_pool:
+                if len(final_ids) >= 5: break
+                if cand['id'] not in seen and cand['id'] != skill.skill_id:
+                    final_ids.append(cand['id'])
+                    seen.add(cand['id'])
+
+            # 4. 寫入
+            if final_ids:
                 try:
-                    # [Power Mode] 覆蓋前先清空
-                    if mode == '2':
-                        skill.prerequisites = []
+                    skill.prerequisites = []
+                    for fid in final_ids:
+                        skill.prerequisites.append(skill_map[fid])
+                    db.session.commit()
                     
-                    added_count = 0
-                    for pre_id in recommended_ids:
-                        if pre_id in skill_map:
-                            prereq_skill = skill_map[pre_id]
-                            # 避免重複添加
-                            if prereq_skill not in skill.prerequisites:
-                                skill.prerequisites.append(prereq_skill)
-                                added_count += 1
-                    
-                    if added_count > 0:
-                        db.session.commit()
-                    
-                    # 避免 Rate Limit
-                    time.sleep(1) 
+                    # 🔥 [LOG] 顯示更新結果
+                    tqdm.write(f"   💾 Update: {len(final_ids)} 筆 (AI:{ai_count} + 補位:{len(final_ids)-ai_count})")
                     
                 except Exception as e:
                     db.session.rollback()
-                    print(f"❌ DB Write Error for {skill.skill_id}: {e}")
+                    tqdm.write(f"   ❌ Error: {e}")
+            else:
+                tqdm.write("   ⚠️ No Candidates found.")
+            
+            time.sleep(0.5)
 
-        print("\n✅ 處理完成！所有關聯已寫入資料庫。")
+        print("\n✅ 完成！")
 
 if __name__ == "__main__":
     main()
