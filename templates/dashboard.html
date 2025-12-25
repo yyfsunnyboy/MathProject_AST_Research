@@ -356,30 +356,32 @@
         {% if current_user.role == 'student' %}
         <div style="display: flex; gap: 20px; margin-bottom: 20px;">
             <!-- Join Class Card -->
-            <div style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <div
+                style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                 <h4>加入新班級</h4>
                 <form action="{{ url_for('core.join_class') }}" method="POST" style="display: flex; gap: 10px;">
                     <input type="text" name="class_code" placeholder="請輸入班級代碼" required
-                           style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                     <button type="submit"
-                            style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                        style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
                         加入
                     </button>
                 </form>
             </div>
             <!-- My Classes Card -->
-            <div style="flex: 2; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <div
+                style="flex: 2; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                 <h4>我加入的班級</h4>
                 {% if enrolled_classes %}
-                    <ul style="list-style: none; padding: 0; margin: 0;">
-                        {% for class in enrolled_classes %}
-                            <li style="padding: 5px 0; border-bottom: 1px solid #f0f0f0;">
-                                <strong>{{ class.name }}</strong> (授課老師: {{ class.teacher.username }})
-                            </li>
-                        {% endfor %}
-                    </ul>
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    {% for class in enrolled_classes %}
+                    <li style="padding: 5px 0; border-bottom: 1px solid #f0f0f0;">
+                        <strong>{{ class.name }}</strong> (授課老師: {{ class.teacher.username }})
+                    </li>
+                    {% endfor %}
+                </ul>
                 {% else %}
-                    <p style="color: #777;">您尚未加入任何班級。</p>
+                <p style="color: #777;">您尚未加入任何班級。</p>
                 {% endif %}
             </div>
         </div>

@@ -46,7 +46,7 @@
         /* [Surface Pro 繪圖修正] */
         canvas {
             /* 關鍵：告訴瀏覽器在 Canvas 上禁止預設的捲動行為 */
-            touch-action: none !important; 
+            touch-action: none !important;
             /* 確保游標在畫布上是十字線，方便對準 */
             cursor: crosshair;
             /* 防止選取到畫布時出現藍色框框 */
@@ -976,7 +976,7 @@
 <body>
     <!-- Navbar -->
     <div class="navbar">
-        <div class="logo">功文數學練習</div>
+        <div class="logo">自適應性教學系統練習網站</div>
         <a href="/dashboard">返回儀表板</a>
     </div>
     <!-- 主容器 -->
@@ -1123,16 +1123,16 @@
                     <input type="text" id="chat-input" placeholder="問我觀念...">
                     <button id="chat-send-button">送出</button>
                 </div>
-                <div class="symbol-buttons" id="math-toolbar"><button class="symbol-button" data-symbol="π">π</button><button
-                        class="symbol-button" data-symbol="√">√</button><button class="symbol-button"
-                        data-symbol="²">²</button><button class="symbol-button" data-symbol="³">³</button><button
-                        class="symbol-button" data-symbol="°">°</button><button class="symbol-button"
-                        data-symbol="θ">θ</button><button class="symbol-button" data-symbol="∞">∞</button><button
-                        class="symbol-button" data-symbol="±">±</button><button class="symbol-button"
-                        data-symbol="≠">≠</button><button class="symbol-button" data-symbol="≤">≤</button><button
-                        class="symbol-button" data-symbol="≥">≥</button><button class="symbol-button"
-                        data-symbol="≈">≈</button><button class="symbol-button" data-symbol="∑">∑</button><button
-                        class="symbol-button" data-symbol="∫">∫</button></div>
+                <div class="symbol-buttons" id="math-toolbar"><button class="symbol-button"
+                        data-symbol="π">π</button><button class="symbol-button" data-symbol="√">√</button><button
+                        class="symbol-button" data-symbol="²">²</button><button class="symbol-button"
+                        data-symbol="³">³</button><button class="symbol-button" data-symbol="°">°</button><button
+                        class="symbol-button" data-symbol="θ">θ</button><button class="symbol-button"
+                        data-symbol="∞">∞</button><button class="symbol-button" data-symbol="±">±</button><button
+                        class="symbol-button" data-symbol="≠">≠</button><button class="symbol-button"
+                        data-symbol="≤">≤</button><button class="symbol-button" data-symbol="≥">≥</button><button
+                        class="symbol-button" data-symbol="≈">≈</button><button class="symbol-button"
+                        data-symbol="∑">∑</button><button class="symbol-button" data-symbol="∫">∫</button></div>
                 <!-- 新增：隱藏的圖片上傳 input --><input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
         </div>
@@ -1571,7 +1571,7 @@
         // [1:1 精準座標]
         function getMousePos(canvas, evt) {
             const rect = canvas.getBoundingClientRect();
-            
+
             let clientX, clientY;
             if (evt.touches && evt.touches.length > 0) {
                 clientX = evt.touches[0].clientX;
@@ -1601,12 +1601,12 @@
             canvas.addEventListener('pointermove', draw);
             canvas.addEventListener('pointerup', stopDraw);
             canvas.addEventListener('pointerout', stopDraw);
-            
+
             // [Surface Pro] 防止畫圖時捲動頁面
-            canvas.addEventListener('touchstart', function(e) {
+            canvas.addEventListener('touchstart', function (e) {
                 if (e.target === canvas) e.preventDefault();
             }, { passive: false });
-            canvas.addEventListener('touchmove', function(e) {
+            canvas.addEventListener('touchmove', function (e) {
                 if (e.target === canvas) e.preventDefault();
             }, { passive: false });
 
@@ -2544,7 +2544,11 @@
                     }
 
                     // 1. 顯示老師的對話 (移除制式標題)
-                    const cleanedReply = (finalData.reply || "").replace(/(思考|選項|建議|回覆|解析|步驟|回答)[：:\d\s]*/g, "");
+                    // [修復] 將後端過度轉義的 \\ 轉回 \ 以讓 MathJax 識別
+                    let rawReply = finalData.reply || "";
+                    rawReply = rawReply.replace(/\\\\/g, '\\');
+
+                    const cleanedReply = rawReply.replace(/(思考|選項|建議|回覆|解析|步驟|回答)[：:\d\s]*/g, "");
 
                     // 移除思考中訊息
                     if (thinkingDiv && thinkingDiv.parentNode) {
@@ -2556,7 +2560,14 @@
 
                     // 2. 更新動態思考泡泡 (若 JSON 斷了就隱藏，不報錯)
                     console.log("Updating dynamic prompts with:", finalData.follow_up_prompts);
-                    showDynamicSuggestions(finalData.follow_up_prompts || []);
+
+                    // [修復] 提示詞也需要清洗反斜線
+                    let safePrompts = finalData.follow_up_prompts || [];
+                    if (Array.isArray(safePrompts)) {
+                        safePrompts = safePrompts.map(p => p.replace(/\\\\/g, '\\'));
+                    }
+
+                    showDynamicSuggestions(safePrompts);
 
                     // 如果有需要處理 correct/incorrect 邏輯，這裡可以繼續 (但目前 finalData 可能缺這些欄位)
                     // 若需要維持原有邏輯，需確保 backend 回傳正確結構或在此補上預設值
@@ -2589,6 +2600,13 @@
         // ============================================================
         // 全域函式 (Global Functions) - 放在最外層確保括號平衡
         // ============================================================
+
+        // [New] 格式化數學文字：修復反斜線問題
+        function formatMathText(text) {
+            if (!text) return "";
+            // 將過度轉義的 \\ 轉回 \
+            return text.replace(/\\\\/g, '\\');
+        }
 
         function addBotMessage(text) {
             const chatHistory = document.getElementById('chat-history');
