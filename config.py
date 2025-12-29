@@ -57,4 +57,7 @@ class Config:
     # 使用我們剛剛下載的 DeepSeek R1 (8B)
     #LOCAL_MODEL_NAME = "deepseek-r1:8b"
     # ★★★ 修改這裡：換成剛下載的極速版 ★★★
-    LOCAL_MODEL_NAME = "qwen2.5-coder:1.5b"
+    #LOCAL_MODEL_NAME = "qwen2.5-coder:1.5b"
+    LOCAL_MODEL_NAME = "qwen2.5-coder:3b"
+    #LOCAL_MODEL_NAME = "qwen2.5:7b"
+    #LOCAL_MODEL_NAME = "phi3.5"

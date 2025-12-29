@@ -15,6 +15,32 @@ from models import db, SkillInfo, TextbookExample, ExperimentLog
 
 TEMPLATE_PATH = 'skills/Example_Program.py'
 
+UNIVERSAL_SKELETON = """
+import random
+
+def generate(level=1):
+    # 1. Define Variables (Logic Layer)
+    a = random.randint(1, 100)
+    b = random.randint(1, 100)
+    
+    # 2. Calculate Answer
+    ans = a + b
+    
+    # 3. Question Text
+    # NOTICE: Use f-string with TRIPLE QUOTES for safety
+    question_text = f\"\"\"計算 ${a} + {b}$ 的值為何？\"\"\"
+    
+    # 4. Return Data
+    return {
+        "question_text": question_text,
+        "answer": str(ans),
+        "correct_answer": str(ans)
+    }
+
+def check(user_ans, correct_ans):
+    return {"correct": user_ans.strip() == correct_ans.strip(), "result": f"答案是 ${correct_ans}$", "next_question": True}
+"""
+
 def fix_code_syntax(code_str, error_msg=""):
     """
     [保留 GitHub 版本功能 + 針對數列組合擴充] 自動修復常見的 AI 生成語法錯誤
@@ -144,153 +170,67 @@ def fix_logic_errors(code_str, error_log):
             
     return fixed_code
 
-# --- 定義 Prompt 骨架 (完整 13 點規則版) ---
-PROMPT_SKELETON = """
-You are a Python expert specializing in educational software for math learning.
-Your task is to write a Python script for a specific math skill.
 
-Target Skill ID: <<SKILL_ID>>
-Topic Description: <<TOPIC_DESCRIPTION>>
-Input Type: <<INPUT_TYPE>> (If 'graph', use matplotlib to generate an image)
-
---- REFERENCE EXAMPLES (How this skill is taught) ---
-<<EXAMPLES_TEXT>>
-
---- CODE TEMPLATE (You MUST follow this structure) ---
-<<TEMPLATE_CODE>>
-
---- REQUIREMENTS ---
-1. **Functionality**:
-   - Implement `def generate(level=1):` returning a dict with `question_text`, `answer`, `correct_answer`.
-   - Implement `check(user_answer, correct_answer)`: Return dict with `correct` (bool) and `result` (feedback string).
-   - The code must be robust, handling random number generation to create unique problems each time.
-
-2. **Input Types**:
-   - If Input Type is 'text': The question is text-only.
-   - If Input Type is 'graph': The `generate` function MUST create a matplotlib figure, save it to `static/generated_plots/<<SKILL_ID>>_<uuid>.png`, and include `<img src="...">` in `question_text`.
-
-3. **Output Format**:
-   - Return ONLY the raw Python code.
-   - Do NOT wrap in markdown code blocks (```python ... ```).
-   - Do NOT include explanations outside the code.
-
-【CRITICAL PYTHON SYNTAX RULES (Strict Enforcement)】
-1. **Function Signature - MANDATORY**: 
-   - The main entry function MUST be defined EXACTLY as: 
-     `def generate(level=1):`
-   - ❌ WRONG: `def generate():` (Will cause TypeError)
-   - ✅ CORRECT: `def generate(level=1):`
-
-2. **f-string Escaping - MANDATORY DOUBLE BRACES**: 
-   - When using f-strings (f"..."), you MUST use **DOUBLE CURLY BRACES** `{{ }}` for any LaTeX syntax or literal braces.
-   - ❌ WRONG: f"Ans: $x^{2}$" (Python thinks '2' is a variable -> SyntaxError)
-   - ✅ CORRECT: f"Ans: $x^{{2}}$" (Python renders this as: Ans: $x^2$)
-
-3. **Raw Strings for LaTeX**:
-   - For LaTeX commands, ALWAYS use raw strings (r"...") or double backslashes (\\\\).
-   - ✅ CORRECT: r"\\angle A", r"\\frac{{1}}{{2}}", r"\\sum", r"\\%"
-   - ❌ WRONG: "\\angle A", "\\sum", "\\%" (SyntaxWarning: invalid escape sequence)
-
-4. **Clean Output**: 
-   - Output ONLY valid Python code starting with `import ...`. 
-
-5. **LaTeX in f-strings - DETAILED EXAMPLES**: 
-   - Exponents: f"$x^{{2}}$" (NOT f"$x^{2}$")
-   - Subscripts (Recursion): f"$a_{{n}}$" (NOT f"$a_{n}$")
-   - Fractions: f"$\\frac{{a}}{{b}}$" (NOT f"$\\frac{a}{b}$")
-   - Sets: f"$x \\in \\mathbb{{R}}$"
-   - Summation: f"$\\sum_{{i=1}}^{{n}}$" (Double braces for limits)
-   - **Common Pitfall**: If using variables inside LaTeX, do NOT double brace the variable itself, only the LaTeX braces.
-     - Correct: f"$\\frac{{{numerator}}}{{{denominator}}}$" (Outer {} for Python variable, Inner {} for LaTeX syntax)
-
-6. **Escape Sequences & Percent Signs**:
-   - For LaTeX backslashes (e.g., \\frac, \\circ, \\triangle, \\sum) and PERCENT SIGNS (%), you MUST use **Python Raw Strings (r"...")** OR **Double Backslashes (\\\\)**.
-   - ❌ WRONG: "\\sum", "\\%" (Python raises SyntaxWarning because of \\s and \\%)
-   - ✅ CORRECT: r"\\sum", r"\\%"
-
-7. **No Full-width Characters**:
-   - Do NOT use full-width symbols (？, ：, ，, ＋) in variable names or logic flow. They are ONLY allowed inside display strings (question_text).
-
-8. **Template Markers**:
-   - NEVER include template markers like `${{` or `}}` inside the final Python code.
-
-9. **CRITICAL LATEX COMMAND ESCAPING**:
-   - All LaTeX commands (e.g., \\angle, \\begin, \\frac, \\overline, \\circ, \\sum) MUST be written with a double backslash (\\\\) if inside normal strings, or standard backslash if inside raw strings (r"...").
-
-10. **F-STRING & LATEX INTERACTION (THE "NO DOUBLE $" RULE)**:
-    - **CRITICAL**: DO NOT put `$` signs directly inside the curly braces `{{ }}` or immediately next to them if the variable is already within a `$...$` block.
-    - **CORRECT (Grouped)**: f"${{a}}：{{b}} = {{c}}：x$"
-    - **WRONG (Isolated)**:   f"${{a}}：${{b}} = ${{c}}：x$"
-
-11. **NO NEWLINES INSIDE LATEX (The "Red \\n" Rule)**:
-    - **NEVER** put a newline character `\\n` inside the LaTeX delimiters `$...$`.
-    - If you need a line break, use `<br>` and place it **OUTSIDE** the math block.
-    - ❌ WRONG: f"Solve: $\\n x^2 = 1$"
-    - ✅ CORRECT: f"Solve:<br>$x^2 = 1$"
-
-12. **RANDOM RANGE SAFETY (CRITICAL for Stability)**:
-    - Check `start <= stop` before calling `random.randint(start, stop)`.
-    - Avoid `ValueError: empty range for randrange()`.
-
-13. **NO EXTERNAL LIBRARIES (Standard Library Only)**:
-    - **DO NOT** import `sympy`, `numpy`, `pandas`, or `scipy`.
-    - Use ONLY Python standard libraries: `random`, `math`, `fractions`, `re`, `collections`.
-
-Now, generate the Python code for '<<SKILL_ID>>'.
-"""
 
 def auto_generate_skill_code(skill_id, queue=None):
     """
     自動為指定的 skill_id 生成 Python 出題程式碼。
-    [完全體] 包含：13點規則 + Replace策略 + Regex修復 + AST語法修復 + Pyflakes邏輯修復 + 實驗數據記錄
+    使用 UNIVERSAL_SKELETON 作為 One-Shot 範本，結合資料庫的邏輯需求。
     """
-    start_time = time.time()  # ★ 開始計時
+    start_time = time.time()
 
     message = f"正在為技能 '{skill_id}' 自動生成程式碼..."
     if current_app: current_app.logger.info(message)
     if queue: queue.put(f"INFO: {message}")
 
-    # 1. 讀取範本
-    template_path = os.path.join(current_app.root_path, TEMPLATE_PATH)
-    template_code = ""
-    if os.path.exists(template_path):
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template_code = f.read()
+    # 1. 取得該技能的「邏輯需求」 (從 SkillInfo)
+    skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
+    
+    # 讀取 gemini_prompt 作為數學邏輯需求
+    target_logic = skill.gemini_prompt if (skill and skill.gemini_prompt) else f"Generate a Python math problem for skill: {skill_id}"
 
-    # 2. 讀取例題
-    examples = TextbookExample.query.filter_by(skill_id=skill_id).all()
-    examples_text = "\n".join([
-        f"--- 例題 ---\n題目: {ex.problem_text}\n答案: {ex.correct_answer}\n詳解: {ex.detailed_solution}\n" 
-        for ex in examples
-    ])
+    # 2. 組合 Prompt：教 AI 「看著 A (範本)，寫出 B (新邏輯)」
+    system_instruction = """
+You are a Python Code Generator.
+Task: Write Python code for a NEW math skill based on the "TARGET LOGIC".
+Method: MIMIC the structure of the "GOLDEN TEMPLATE" exactly.
 
-    skill = SkillInfo.query.get(skill_id)
-    topic_description = skill.description if skill else skill_id
-    input_type = skill.input_type if skill else "text"
+RULES:
+1. Return ONLY the raw Python code. No text explanations.
+2. Do NOT copy the logic from the template (don't write addition code).
+3. Implement the logic described in "TARGET LOGIC".
+4. Use standard variable names (e.g., question_text, ans).
+5. Always use f-string with TRIPLE QUOTES (f\"\"\"...\"\"\") for question_text.
+"""
 
-    # 3. 構建 Prompt
-    prompt = PROMPT_SKELETON.replace("<<SKILL_ID>>", skill_id) \
-                            .replace("<<TOPIC_DESCRIPTION>>", str(topic_description)) \
-                            .replace("<<INPUT_TYPE>>", input_type) \
-                            .replace("<<EXAMPLES_TEXT>>", examples_text) \
-                            .replace("<<TEMPLATE_CODE>>", template_code)
+    full_prompt = f"""
+{system_instruction}
 
-    # 4. 呼叫 AI 模型
+### GOLDEN TEMPLATE (Follow this coding style):
+```python
+{UNIVERSAL_SKELETON}
+TARGET LOGIC (Implement this math concept):
+{target_logic}
+
+YOUR CODE:
+"""
+
+    # 3. 呼叫 AI 模型
     try:
         client = get_ai_client() 
-        response = client.generate_content(prompt)
+        response = client.generate_content(full_prompt)
         generated_code = response.text
         
         if current_app:
             current_app.logger.info(f"🤖 AI 生成完成，長度: {len(generated_code)} chars")
 
-        # 5. 清理 Markdown
+        # 4. 清理 Markdown
         if generated_code.startswith("```python"): generated_code = generated_code.replace("```python", "", 1)
         if generated_code.startswith("```"): generated_code = generated_code.replace("```", "", 1)
         if generated_code.endswith("```"): generated_code = generated_code.rsplit("```", 1)[0]
         generated_code = generated_code.strip()
 
-        # 6. Regex LaTeX 預防性修復
+        # 5. Regex LaTeX 預防性修復 (保留原本邏輯)
         latex_commands = [
             'angle', 'frac', 'sqrt', 'pi', 'times', 'div', 'pm', 'circ', 'triangle', 'overline', 'degree',
             'alpha', 'beta', 'gamma', 'delta', 'theta', 'phi', 'rho', 'sigma', 'omega', 'Delta', 'lambda',
@@ -309,11 +249,11 @@ def auto_generate_skill_code(skill_id, queue=None):
         initial_error = None
         repair_triggered = False
 
-        # 7. 語法驗證與修復 (Syntax Check)
+        # 6. 語法驗證與修復 (Syntax Check)
         is_valid, syntax_error = validate_python_code(generated_code)
         if not is_valid:
-            initial_error = syntax_error # 記錄原始錯誤
-            repair_triggered = True      # 標記有觸發修復
+            initial_error = syntax_error
+            repair_triggered = True
             
             if current_app: current_app.logger.warning(f"語法錯誤: {syntax_error}，嘗試修復...")
             generated_code = fix_code_syntax(generated_code, syntax_error)
@@ -321,14 +261,12 @@ def auto_generate_skill_code(skill_id, queue=None):
             # 二次驗證
             is_valid_2, syntax_error_2 = validate_python_code(generated_code)
             if not is_valid_2:
-                # 失敗也要記錄 Log
-                log_experiment(skill_id, start_time, len(prompt), len(generated_code), False, syntax_error_2, True)
+                log_experiment(skill_id, start_time, len(full_prompt), len(generated_code), False, syntax_error_2, True)
                 msg = f"自動修復失敗: {syntax_error_2}"
                 if current_app: current_app.logger.error(msg)
                 return False, msg
 
-        # 7.5 [新增] 靜態邏輯分析 (Semantic Analysis)
-        # 即使語法正確，也要檢查有沒有 NameError
+        # 7. 靜態邏輯分析 (Pyflakes)
         is_logically_valid, logic_error_log = validate_logic_with_pyflakes(generated_code)
         
         if not is_logically_valid:
@@ -336,17 +274,8 @@ def auto_generate_skill_code(skill_id, queue=None):
                 current_app.logger.warning(f"邏輯檢查未通過，嘗試語意修復 (Semantic Repair)...")
                 if not initial_error: initial_error = "Pyflakes Logic Error"
             
-            # 進行修復
             generated_code = fix_logic_errors(generated_code, logic_error_log)
-            
-            # 修復後再次檢查以確認
-            is_logically_valid_2, logic_error_log_2 = validate_logic_with_pyflakes(generated_code)
-            if is_logically_valid_2:
-                if current_app: current_app.logger.info("Semantic Repair Triggered: 已注入預設變數並修復成功")
-                repair_triggered = True 
-            else:
-                 if current_app: current_app.logger.warning(f"Semantic Repair Partial: 注入變數後仍有警告: {logic_error_log_2}")
-                 # 這裡我們還是讓它過，因為有時候警告不影響執行
+            repair_triggered = True
 
         # 8. 寫入檔案
         output_dir = os.path.join(current_app.root_path, 'skills')
@@ -356,12 +285,7 @@ def auto_generate_skill_code(skill_id, queue=None):
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(generated_code)
 
-        # 9. 更新資料庫
-        if skill:
-            skill.input_type = input_type
-            db.session.commit()
-
-        # 10. Reload Module
+        # 9. Reload Module
         try:
             module_name = f"skills.{skill_id}"
             if module_name in sys.modules:
@@ -369,19 +293,15 @@ def auto_generate_skill_code(skill_id, queue=None):
             else:
                 importlib.import_module(module_name)
             
-            # ★★★ 成功！寫入實驗數據 ★★★
-            log_experiment(skill_id, start_time, len(prompt), len(generated_code), True, initial_error, repair_triggered)
-            
+            log_experiment(skill_id, start_time, len(full_prompt), len(generated_code), True, initial_error, repair_triggered)
             return True, "Success"
 
         except Exception as e:
-            # Runtime 錯誤也要記
-            log_experiment(skill_id, start_time, len(prompt), len(generated_code), False, f"Runtime: {str(e)}", repair_triggered)
+            log_experiment(skill_id, start_time, len(full_prompt), len(generated_code), False, f"Runtime: {str(e)}", repair_triggered)
             return False, f"Runtime Error: {str(e)}"
 
     except Exception as e:
-        # AI 呼叫錯誤
-        log_experiment(skill_id, start_time, len(prompt), 0, False, f"AI Error: {str(e)}", False)
+        log_experiment(skill_id, start_time, len(full_prompt), 0, False, f"AI Error: {str(e)}", False)
         return False, f"AI Error: {str(e)}"
 
 # 輔助函式：寫入 DB
