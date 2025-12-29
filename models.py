@@ -47,7 +47,7 @@ def init_db(engine):
         )
     ''')
 
-    # Skills Info 表格 (已修正：加入 suggested_prompt 1-3 欄位)
+    # Skills Info 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS skills_info (
             skill_id TEXT PRIMARY KEY,
@@ -161,7 +161,7 @@ def init_db(engine):
         )
     ''')
 
-    # [新增] Mistake Notebook Entries 表格 (新版 Schema)
+    # Mistake Notebook Entries 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS mistake_notebook_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,7 +176,7 @@ def init_db(engine):
         )
     ''')
 
-    # [新增] Textbook Examples 表格 (新版 Schema)
+    # Textbook Examples 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS textbook_examples (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,7 +196,7 @@ def init_db(engine):
         )
     ''')
 
-    # [新增] Learning Diagnosis 表格
+    # Learning Diagnosis 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS learning_diagnosis (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -209,7 +209,7 @@ def init_db(engine):
         )
     ''')
 
-    # [新增] System Settings 表格 (新版 Schema)
+    # System Settings 表格
     c.execute('''
         CREATE TABLE IF NOT EXISTS system_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,6 +217,25 @@ def init_db(engine):
             value TEXT NOT NULL,
             description TEXT,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # [新增] Experiment Log 表格 (科展實驗數據專用)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS experiment_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            skill_id TEXT,
+            ai_provider TEXT,
+            model_name TEXT,
+            duration_seconds REAL,
+            input_length INTEGER,
+            output_length INTEGER,
+            is_success BOOLEAN DEFAULT 0,
+            syntax_error_initial TEXT,
+            ast_repair_triggered BOOLEAN DEFAULT 0,
+            cpu_usage REAL,
+            ram_usage REAL
         )
     ''')
 
@@ -352,15 +371,6 @@ class SkillPrerequisites(db.Model):
     prerequisite_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
     __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)
 
-import secrets
-import string
-
-# ... (imports)
-
-# --- 以下為 ORM 模型定義 (對應上述所有表格) ---
-
-# ... (other models)
-
 def generate_invitation_code(length=8):
     """產生一個隨機的、由大寫字母和數字組成的邀請碼"""
     alphabet = string.ascii_uppercase + string.digits
@@ -397,7 +407,6 @@ class ClassStudent(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# [新版對應] MistakeNotebookEntry 模型
 class MistakeNotebookEntry(db.Model):
     __tablename__ = 'mistake_notebook_entries'
     id = db.Column(db.Integer, primary_key=True)
@@ -476,7 +485,6 @@ class ExamAnalysis(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         }
 
-# [新版對應] TextbookExample 模型
 class TextbookExample(db.Model):
     __tablename__ = 'textbook_examples'
     id = db.Column(db.Integer, primary_key=True)
@@ -511,7 +519,6 @@ class TextbookExample(db.Model):
             'difficulty_level': self.difficulty_level
         }
 
-# [新版對應] LearningDiagnosis 模型
 class LearningDiagnosis(db.Model):
     __tablename__ = 'learning_diagnosis'
     id = db.Column(db.Integer, primary_key=True)
@@ -532,7 +539,6 @@ class LearningDiagnosis(db.Model):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
         }
 
-# [新版對應] SystemSetting 模型
 class SystemSetting(db.Model):
     __tablename__ = 'system_settings'
     id = db.Column(db.Integer, primary_key=True)
@@ -549,3 +555,36 @@ class SystemSetting(db.Model):
             'description': self.description,
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None
         }
+
+# [新增] ExperimentLog 模型 (科展實驗數據記錄)
+class ExperimentLog(db.Model):
+    """
+    科展實驗數據記錄表
+    用於記錄每一次 AI 生成的詳細效能指標與修復狀況
+    """
+    __tablename__ = 'experiment_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, comment="實驗時間")
+    
+    # --- 控制變因 ---
+    skill_id = db.Column(db.String(64), comment="測試的技能ID")
+    ai_provider = db.Column(db.String(20), comment="AI 引擎 (local/gemini)")
+    model_name = db.Column(db.String(64), comment="模型版本")
+    
+    # --- 效能指標 ---
+    duration_seconds = db.Column(db.Float, comment="生成耗時 (秒)")
+    input_length = db.Column(db.Integer, comment="Prompt 字數")
+    output_length = db.Column(db.Integer, comment="生成代碼字數")
+    
+    # --- 科學驗證指標 (關鍵!) ---
+    is_success = db.Column(db.Boolean, default=False, comment="最終是否可用")
+    syntax_error_initial = db.Column(db.Text, nullable=True, comment="原始語法錯誤訊息 (若無則空)")
+    ast_repair_triggered = db.Column(db.Boolean, default=False, comment="是否觸發 AST 修復")
+    
+    # --- 系統資源 ---
+    cpu_usage = db.Column(db.Float, nullable=True, comment="CPU 使用率 (%)")
+    ram_usage = db.Column(db.Float, nullable=True, comment="RAM 使用率 (%)")
+
+    def __repr__(self):
+        return f"<Log {self.model_name}: {self.duration_seconds}s, Success={self.is_success}>"

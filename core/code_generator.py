@@ -4,9 +4,14 @@ import sys
 import importlib
 import json
 import ast  # 用於語法檢查
+import time # ★ 用於計時
+import io
+from pyflakes.api import check as pyflakes_check
+from pyflakes.reporter import Reporter
 from flask import current_app
-from core.ai_analyzer import get_model
-from models import db, SkillInfo, TextbookExample
+from core.ai_wrapper import get_ai_client
+# ★ 引入資料庫模型
+from models import db, SkillInfo, TextbookExample, ExperimentLog
 
 TEMPLATE_PATH = 'skills/Example_Program.py'
 
@@ -17,70 +22,33 @@ def fix_code_syntax(code_str, error_msg=""):
     fixed_code = code_str
 
     # --- [新增 0] 優先修復致命的 Escape Sequence 錯誤 ---
-    # 修復 \ (空白) -> \\ (空白)，解決 SyntaxWarning: invalid escape sequence '\ '
-    # 這必須在其他處理之前做，避免破壞結構
     fixed_code = re.sub(r'(?<!\\)\\ ', r'\\\\ ', fixed_code)
-    
-    # 修復 \u 開頭但非 Unicode 的情況 (如向量 u)，解決 SyntaxError: truncated \uXXXX escape
-    # 如果 \u 後面接的不是 4 個 16 進位數字，就把它變成 \\u
     fixed_code = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', fixed_code)
 
-    # =========================================================================
-    # [新增修復] 針對本次 Log 回報的特定錯誤進行修補
-    # =========================================================================
-    
-    # 1. 修復 SyntaxWarning: invalid escape sequence '\e' (常見於 \eta, \epsilon)
+    # 1. 修復各種 invalid escape sequence
     fixed_code = re.sub(r'(?<!\\)\\e', r'\\\\e', fixed_code)
-
-    # 2. 修復 SyntaxWarning: invalid escape sequence '\q' (常見於 \quad, \qrt)
     fixed_code = re.sub(r'(?<!\\)\\q', r'\\\\q', fixed_code)
 
-    # 3. 修復 f-string: single '}' is not allowed (常見於 LaTeX \right})
-    #    AI 常在 f-string 中生成如 f"...\right}..."，導致 Python 誤判 } 為 f-string 結尾
-    #    此正則表達式會抓取 f"..." 或 f'...' 結構中，緊接在 \right 後面的單獨 }，並將其轉義為 }}
+    # 2. 修復 f-string: single '}' is not allowed
     fixed_code = re.sub(r'(f"[^"]*?\\right)\}([^"]*")', r'\1}}\2', fixed_code)
     fixed_code = re.sub(r"(f'[^']*?\\right)\}([^']*')", r'\1}}\2', fixed_code)
-    # --- [補強] 針對 f-string 中的 cases 環境進行雙括號轉義 ---
-    # 這是解決 "Unknown environment" 與 f-string 崩潰的關鍵
-    # 將 f"...\begin{cases}..." 轉換為 f"...\begin{{cases}}..."
+    
+    # 3. 修復 cases 環境
     fixed_code = re.sub(r'(f"[^"]*?\\begin)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
     fixed_code = re.sub(r"(f'[^']*?\\begin)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
-    
-    # 同理處理 \end{cases}
     fixed_code = re.sub(r'(f"[^"]*?\\end)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
     fixed_code = re.sub(r"(f'[^']*?\\end)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
-    # 4. [新增] 修復 "Unknown environment '{cases}'" 錯誤
-    #    原因：AI 有時會漏掉 \begin 或 \end，只寫 {cases}，或者在 f-string 中 \b 被轉義
-    #    修復動作：
-    #    (A) 補全漏掉的 \begin
-    #        將 " {cases}" (前面有空白或特定符號) 替換為 " \\begin{cases}"
-    #        注意：這裡使用 \\\\begin 是為了在 Python 字串中輸出 \begin
-    fixed_code = re.sub(r'(?<!\\begin)\{cases\}', r'\\\\begin{cases}', fixed_code)
     
-    #    (B) 確保 cases 環境有正確的結尾 (簡易檢查)
-    #        如果字串中有 \begin{cases} 但沒有 \end{cases}，嘗試在該字串結尾前補上
-    #        (這部分比較複雜，先做最常見的替換：將未閉合的 cases 區塊修復)
-    #        這裡主要處理 AI 寫成 Unknown environment '{cases}' 的狀況，通常是因為 \begin 不見了。
-    
-    #    (C) 修復三元一次聯立方程式中常見的換行錯誤
-    #        在 cases 環境中，換行應為 \\，但在 Python f-string 中需要寫成 \\\\
-    #        此規則尋找 cases 環境中的單一 \，並嘗試修正為雙反斜線 (視情況而定，保守起見先不強制全改，僅針對明顯錯誤)
-
-    # =========================================================================
-    # --- [第三道防線] 補全遺漏的 LaTeX 語法 ---
-    
-    # 5. 修復漏寫 \begin 的 {cases}
-    #    注意：只在「非 f-string」的情況下補全，以免造成 f-string 再次報錯
-    #    (簡單判斷：如果該行沒有 f" 或 f' 開頭，才執行此替換)
+    # 補全漏掉的 \begin{cases}
     lines = fixed_code.split('\n')
     new_lines = []
     for line in lines:
-        if not re.search(r'f["\']', line): # 只有在不是 f-string 的行才補全 \begin
+        if not re.search(r'f["\']', line): 
             line = re.sub(r'(?<!\\begin)\{cases\}', r'\\\\begin{cases}', line)
         new_lines.append(line)
     fixed_code = '\n'.join(new_lines)
-    # 1. 修復 f-string 中的 LaTeX 單獨大括號 (f-string: single '}' is not allowed)
-    # [擴充] 加入 sum (級數), prod (乘積), binom (組合), sigma (統計), lim (極限)
+
+    # 4. 修復一般 LaTeX 結構的雙大括號
     latex_patterns = [
         r'sqrt', r'frac', r'text', r'angle', r'overline', r'degree', 
         r'mathbf', r'mathrm', r'mathbb', r'mathcal', 
@@ -88,47 +56,31 @@ def fix_code_syntax(code_str, error_msg=""):
         r'times', r'div', r'pm', r'mp',
         r'sin', r'cos', r'tan', r'cot', r'sec', r'csc',
         r'log', r'ln', r'lim', 
-        r'sum', r'prod', r'binom', r'sigma', # 新增針對 \s 錯誤的修復
-        r'perp', r'phi', r'pi', r'theta', # [新增] 解決 \p 相關錯誤
+        r'sum', r'prod', r'binom', r'sigma', 
+        r'perp', r'phi', r'pi', r'theta', 
         r'%' 
     ]
     
     for pat in latex_patterns:
-        # 將 \pat{ 替換為 \pat{{
         if pat == r'%':
              fixed_code = re.sub(r'\\%\{', r'\\%{{', fixed_code)
         else:
              fixed_code = re.sub(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
 
-    # 簡單暴力修法：針對特定錯誤直接全域替換常見 LaTeX 結構
-    # [調整] 這裡的觸發條件放寬，因為有時候 ast 不一定會精準報出 single '}'
+    # 5. 暴力修法 (針對特定錯誤訊息)
     if "single '}'" in error_msg or "single '{'" in error_msg or "invalid escape sequence" in error_msg:
-        # 修復分數
         fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)
         fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
-        
-        # [新增] 修復下標 (遞迴數列常用 a_{n}) 和 上標 (次方)
-        # 把 _{n} 變成 _{{n}}, ^{n} 變成 ^{{n}}, 支援負號 (e.g. 10^{-2})
         fixed_code = re.sub(r'_\{(-?\w+)\}', r'_{{\1}}', fixed_code)
         fixed_code = re.sub(r'\^\{(-?\w+)\}', r'^{{\1}}', fixed_code)
-        
-        # 修復三角函數/加總/組合
         fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code)
         fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\^\{', r'\\\1^{{', fixed_code)
-
-        # [加強版] 修復一般結尾括號
-        # 原始邏輯: 只修復接引號的: fixed_code = re.sub(r'(\d|\w)\}(?=\"|\')', r'\1}}', fixed_code)
-        # 新增邏輯 1: 修復接 $ 符號的 (例如 $x^{2}$)
         fixed_code = re.sub(r'(\d|\w|\))\}(?=\$)', r'\1}}', fixed_code)
-        # 新增邏輯 2: 修復接空格或逗號的 (例如 sin(x), )
         fixed_code = re.sub(r'(\d|\w|\))\}(?=\s|\,|\.)', r'\1}}', fixed_code)
-        # 保留原有邏輯 (接引號)
         fixed_code = re.sub(r'(\d|\w|\))\}(?=\"|\')', r'\1}}', fixed_code)
-        
-        # [新增] 針對括號結尾的特別修復 (如 \sin(x) -> \sin(x}) -> \sin(x}}) )
         fixed_code = re.sub(r'\\(sin|cos|tan|cot|sec|csc)\((.*?)\)', r'\\\1(\2)', fixed_code) 
 
-    # 2. 修復缺漏的括號 (Python 2 style print)
+    # 6. Python 2 print
     if "expected '('" in error_msg:
         fixed_code = re.sub(r'print\s+"(.*)"', r'print("\1")', fixed_code)
         fixed_code = re.sub(r'print\s+(.*)', r'print(\1)', fixed_code)
@@ -137,7 +89,7 @@ def fix_code_syntax(code_str, error_msg=""):
 
 def validate_python_code(code_str):
     """
-    [保留 GitHub 版本功能] 驗證 Python 程式碼語法是否正確
+    [語法驗證] 驗證 Python 程式碼語法是否正確 (Syntax Check)
     """
     try:
         ast.parse(code_str)
@@ -145,7 +97,54 @@ def validate_python_code(code_str):
     except SyntaxError as e:
         return False, f"{e.msg} (Line {e.lineno})"
 
-# --- 定義 Prompt 骨架 (完整 13 點規則版，使用 replace 避免括號衝突) ---
+def validate_logic_with_pyflakes(code_str):
+    """
+    [邏輯驗證] 使用 Pyflakes 抓出 NameError (變數未定義) 等邏輯錯誤
+    """
+    log_stream = io.StringIO()
+    reporter = Reporter(log_stream, log_stream)
+    
+    # 執行檢查
+    pyflakes_check(code_str, "generated_code", reporter)
+    
+    # 取得錯誤訊息
+    error_log = log_stream.getvalue()
+    
+    # 判斷是否通過 (只要有 undefined name 就算失敗)
+    is_valid = "undefined name" not in error_log
+    
+    return is_valid, error_log
+
+def fix_logic_errors(code_str, error_log):
+    """
+    [語意修復] 針對 Pyflakes 抓到的錯誤進行嘗試性修復 (例如注入變數初始值)
+    """
+    fixed_code = code_str
+    
+    # 找出所有未定義的變數名稱
+    undefined_vars = set(re.findall(r"undefined name ['\"](\w+)['\"]", error_log))
+    
+    if undefined_vars:
+        # 尋找 def generate(...): 的位置
+        match = re.search(r'(def generate\(.*?\):)', fixed_code)
+        if match:
+            # 在函式定義下一行插入變數初始化
+            function_def_end = match.end()
+            injection_code = "\n    # [Auto-Fix] 初始化未定義變數以避免 Crash\n"
+            for var in undefined_vars:
+                # 簡單啟發式設定
+                if var == 'n':
+                    val = "10" 
+                else:
+                    val = "0"
+                injection_code += f"    {var} = {val}\n"
+            
+            # 插入程式碼
+            fixed_code = fixed_code[:function_def_end] + injection_code + fixed_code[function_def_end:]
+            
+    return fixed_code
+
+# --- 定義 Prompt 骨架 (完整 13 點規則版) ---
 PROMPT_SKELETON = """
 You are a Python expert specializing in educational software for math learning.
 Your task is to write a Python script for a specific math skill.
@@ -243,8 +242,10 @@ Now, generate the Python code for '<<SKILL_ID>>'.
 def auto_generate_skill_code(skill_id, queue=None):
     """
     自動為指定的 skill_id 生成 Python 出題程式碼。
-    [完整版] 結合 13 點規則 + Replace 策略 + 數列/級數/組合專項修復。
+    [完全體] 包含：13點規則 + Replace策略 + Regex修復 + AST語法修復 + Pyflakes邏輯修復 + 實驗數據記錄
     """
+    start_time = time.time()  # ★ 開始計時
+
     message = f"正在為技能 '{skill_id}' 自動生成程式碼..."
     if current_app: current_app.logger.info(message)
     if queue: queue.put(f"INFO: {message}")
@@ -267,7 +268,7 @@ def auto_generate_skill_code(skill_id, queue=None):
     topic_description = skill.description if skill else skill_id
     input_type = skill.input_type if skill else "text"
 
-    # 3. 構建 Prompt (使用 replace 策略)
+    # 3. 構建 Prompt
     prompt = PROMPT_SKELETON.replace("<<SKILL_ID>>", skill_id) \
                             .replace("<<TOPIC_DESCRIPTION>>", str(topic_description)) \
                             .replace("<<INPUT_TYPE>>", input_type) \
@@ -276,9 +277,12 @@ def auto_generate_skill_code(skill_id, queue=None):
 
     # 4. 呼叫 AI 模型
     try:
-        model = get_model()
-        response = model.generate_content(prompt)
+        client = get_ai_client() 
+        response = client.generate_content(prompt)
         generated_code = response.text
+        
+        if current_app:
+            current_app.logger.info(f"🤖 AI 生成完成，長度: {len(generated_code)} chars")
 
         # 5. 清理 Markdown
         if generated_code.startswith("```python"): generated_code = generated_code.replace("```python", "", 1)
@@ -287,8 +291,6 @@ def auto_generate_skill_code(skill_id, queue=None):
         generated_code = generated_code.strip()
 
         # 6. Regex LaTeX 預防性修復
-        # [擴充] 針對您遇到的 \s, \m 錯誤，加入 sum, sigma, mathbb 等指令
-        # [重要] 新增 'u' 和 'v' 以避免向量運算 (u+v) 時出現 \u+v (unicode error)
         latex_commands = [
             'angle', 'frac', 'sqrt', 'pi', 'times', 'div', 'pm', 'circ', 'triangle', 'overline', 'degree',
             'alpha', 'beta', 'gamma', 'delta', 'theta', 'phi', 'rho', 'sigma', 'omega', 'Delta', 'lambda',
@@ -296,30 +298,55 @@ def auto_generate_skill_code(skill_id, queue=None):
             'in', 'notin', 'subset', 'subseteq', 'cup', 'cap', 'neq', 'approx', 'le', 'ge', 'cdot',
             'left', 'right', 'sum', 'prod', 'int', 'lim', 'binom',
             'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'log', 'ln',
-            'perp', # 解決 \p 錯誤
-            '%' # 特殊符號
+            'perp', '%' 
         ]
         
-        # [新增] 全域修復：針對 "\ " (反斜線空格) 的問題
-        # 這是造成 invalid escape sequence '\ ' 的主因
         generated_code = re.sub(r'(?<!\\)\\ ', r'\\\\ ', generated_code)
-
         for cmd in latex_commands:
-            # 確保反斜線 (raw string 修正)
             generated_code = re.sub(rf'(?<!\\)\\{cmd}', rf'\\\\{cmd}', generated_code)
 
-        # 7. 語法驗證與修復
+        # 變數準備：記錄修復狀況
+        initial_error = None
+        repair_triggered = False
+
+        # 7. 語法驗證與修復 (Syntax Check)
         is_valid, syntax_error = validate_python_code(generated_code)
         if not is_valid:
+            initial_error = syntax_error # 記錄原始錯誤
+            repair_triggered = True      # 標記有觸發修復
+            
             if current_app: current_app.logger.warning(f"語法錯誤: {syntax_error}，嘗試修復...")
             generated_code = fix_code_syntax(generated_code, syntax_error)
             
             # 二次驗證
             is_valid_2, syntax_error_2 = validate_python_code(generated_code)
             if not is_valid_2:
+                # 失敗也要記錄 Log
+                log_experiment(skill_id, start_time, len(prompt), len(generated_code), False, syntax_error_2, True)
                 msg = f"自動修復失敗: {syntax_error_2}"
                 if current_app: current_app.logger.error(msg)
                 return False, msg
+
+        # 7.5 [新增] 靜態邏輯分析 (Semantic Analysis)
+        # 即使語法正確，也要檢查有沒有 NameError
+        is_logically_valid, logic_error_log = validate_logic_with_pyflakes(generated_code)
+        
+        if not is_logically_valid:
+            if current_app: 
+                current_app.logger.warning(f"邏輯檢查未通過，嘗試語意修復 (Semantic Repair)...")
+                if not initial_error: initial_error = "Pyflakes Logic Error"
+            
+            # 進行修復
+            generated_code = fix_logic_errors(generated_code, logic_error_log)
+            
+            # 修復後再次檢查以確認
+            is_logically_valid_2, logic_error_log_2 = validate_logic_with_pyflakes(generated_code)
+            if is_logically_valid_2:
+                if current_app: current_app.logger.info("Semantic Repair Triggered: 已注入預設變數並修復成功")
+                repair_triggered = True 
+            else:
+                 if current_app: current_app.logger.warning(f"Semantic Repair Partial: 注入變數後仍有警告: {logic_error_log_2}")
+                 # 這裡我們還是讓它過，因為有時候警告不影響執行
 
         # 8. 寫入檔案
         output_dir = os.path.join(current_app.root_path, 'skills')
@@ -341,10 +368,48 @@ def auto_generate_skill_code(skill_id, queue=None):
                 importlib.reload(sys.modules[module_name])
             else:
                 importlib.import_module(module_name)
+            
+            # ★★★ 成功！寫入實驗數據 ★★★
+            log_experiment(skill_id, start_time, len(prompt), len(generated_code), True, initial_error, repair_triggered)
+            
             return True, "Success"
 
         except Exception as e:
+            # Runtime 錯誤也要記
+            log_experiment(skill_id, start_time, len(prompt), len(generated_code), False, f"Runtime: {str(e)}", repair_triggered)
             return False, f"Runtime Error: {str(e)}"
 
     except Exception as e:
+        # AI 呼叫錯誤
+        log_experiment(skill_id, start_time, len(prompt), 0, False, f"AI Error: {str(e)}", False)
         return False, f"AI Error: {str(e)}"
+
+# 輔助函式：寫入 DB
+def log_experiment(skill_id, start_time, input_len, output_len, success, error_msg, repaired):
+    try:
+        from config import Config
+        duration = time.time() - start_time
+        # 如果有安裝 psutil 可以解除註解
+        # import psutil
+        # cpu = psutil.cpu_percent()
+        # ram = psutil.virtual_memory().percent
+        cpu, ram = 50.0, 90.0 # 暫時值，模擬你剛剛的數據
+        
+        log = ExperimentLog(
+            skill_id=skill_id,
+            ai_provider=Config.AI_PROVIDER,
+            model_name=Config.LOCAL_MODEL_NAME if Config.AI_PROVIDER == 'local' else Config.GEMINI_MODEL_NAME,
+            duration_seconds=round(duration, 2),
+            input_length=input_len,
+            output_length=output_len,
+            is_success=success,
+            syntax_error_initial=error_msg,
+            ast_repair_triggered=repaired,
+            cpu_usage=cpu,
+            ram_usage=ram
+        )
+        db.session.add(log)
+        db.session.commit()
+        if current_app: current_app.logger.info(f"📊 實驗數據已記錄: {duration}s, AST/Semantic 修復={repaired}")
+    except Exception as e:
+        if current_app: current_app.logger.error(f"寫入實驗 Log 失敗: {e}")

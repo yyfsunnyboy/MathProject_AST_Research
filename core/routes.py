@@ -229,7 +229,7 @@ def practice(skill_id):
 @practice_bp.route('/get_next_question')
 def next_question():
     skill_id = request.args.get('skill', 'remainder')
-    requested_level = request.args.get('level', type=int) # 新增：從前端獲取請求的難度等級
+    requested_level = request.args.get('level', type=int) 
     
     # 從 DB 驗證 skill 是否存在
     skill_info = get_skill_info(skill_id)
@@ -239,29 +239,24 @@ def next_question():
     try:
         mod = importlib.import_module(f"skills.{skill_id}")
         
-        # === 核心邏輯修改：根據課綱決定題目難度 ===
-        # 1. 從 session 讀取使用者當前的課綱情境
-        current_curriculum_context = session.get('current_curriculum', 'general') # 若無情境，預設為 'general'
-
-        # 2. 查詢 skill_curriculum 表以取得指定的 difficulty_level
+        # 1. 課綱與難度判斷邏輯
+        current_curriculum_context = session.get('current_curriculum', 'general')
         curriculum_entry = db.session.query(SkillCurriculum).filter_by(
             skill_id=skill_id,
             curriculum=current_curriculum_context
         ).first()
 
-        # 3. 決定要使用的難度等級
-        if requested_level: # 如果前端有明確指定等級，則優先使用
+        if requested_level: 
             difficulty_level = requested_level
-        elif curriculum_entry and curriculum_entry.difficulty_level: # 否則，使用課綱設定的等級
+        elif curriculum_entry and curriculum_entry.difficulty_level: 
             difficulty_level = curriculum_entry.difficulty_level
         else:
-            difficulty_level = 1 # 如果在課綱中找不到特定設定，預設為等級 1
+            difficulty_level = 1 
 
-        # 讀取使用者進度，僅用於顯示，不再用於決定題目難度
         progress = db.session.query(Progress).filter_by(user_id=current_user.id, skill_id=skill_id).first()
         consecutive = progress.consecutive_correct if progress else 0
 
-        # 新增：查詢前置技能，並準備給 AI 的資訊
+        # 前置技能查詢
         prereq_query = db.session.query(SkillInfo).join(
             SkillPrerequisites, SkillInfo.skill_id == SkillPrerequisites.prerequisite_id
         ).filter(
@@ -271,24 +266,49 @@ def next_question():
         
         prereq_info_for_ai = [{'id': p.skill_id, 'name': p.skill_ch_name} for p in prereq_query]
 
-        data = mod.generate(level=difficulty_level) # 將從課綱查到的 difficulty_level 傳入 generate 函數
+        # ★★★ [新增] 自動重試機制 (Retry Logic) ★★★
+        # 這是為了解決 1.5B 模型偶爾發生 IndexError 的避震器
+        max_retries = 5
+        data = None
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                # 嘗試生成題目
+                data = mod.generate(level=difficulty_level)
+                
+                # 簡單驗證格式，避免生成空題目
+                if not data or "question_text" not in data or "correct_answer" not in data:
+                    raise ValueError("生成的題目格式不完整")
+                
+                # 如果成功，就跳出迴圈
+                break
+            except Exception as e:
+                last_error = e
+                # 在後台記錄錯誤，但不回傳給使用者，而是默默重試
+                current_app.logger.warning(f"⚠️ 題目生成失敗 (嘗試 {attempt+1}/{max_retries}): {skill_id} - {e}")
+                if attempt == max_retries - 1:
+                    # 如果試了 5 次都失敗，才真的放棄
+                    raise e
         
+        # ----------------------------------------------
+
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
-        # 修正：在 data 產生後，才加入前置技能資訊
         data['prereq_skills'] = prereq_info_for_ai
-        set_current(skill_id, data) # set_current 會將整個 data 存入 session
+        set_current(skill_id, data) 
         
         return jsonify({
             "new_question_text": data["question_text"],
             "context_string": data.get("context_string", ""),
             "inequality_string": data.get("inequality_string", ""),
-            "consecutive_correct": consecutive, # 連續答對
-            "current_level": difficulty_level, # 顯示的等級應為當前題目的等級
-            "answer_type": skill_info.get("input_type", "text") # 從 DB 讀取作答類型
+            "consecutive_correct": consecutive, 
+            "current_level": difficulty_level, 
+            "answer_type": skill_info.get("input_type", "text") 
         })
     except Exception as e:
-        return jsonify({"error": f"生成題目失敗: {str(e)}"}), 500
+        # 真的全部失敗了，才會顯示這個錯誤
+        return jsonify({"error": f"生成題目失敗，請稍後再試: {str(e)}"}), 500
 
 @practice_bp.route('/check_answer', methods=['POST'])
 def check_answer():

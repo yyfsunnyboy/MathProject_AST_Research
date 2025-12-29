@@ -20,13 +20,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from werkzeug.security import generate_password_hash, check_password_hash
 from core.routes import core_bp
 from core.ai_analyzer import configure_gemini
-from config import (
-    SQLALCHEMY_DATABASE_URI,
-    SQLALCHEMY_TRACK_MODIFICATIONS,
-    SECRET_KEY,
-    GEMINI_API_KEY,
-    GEMINI_MODEL_NAME
-)
+from config import Config
 from models import init_db, User, db, Progress, SkillInfo, SkillCurriculum, SkillPrerequisites
 from core.utils import get_all_active_skills
 
@@ -73,19 +67,19 @@ def create_app():
 
     # 載入設定
     app.config.update(
-        SQLALCHEMY_DATABASE_URI=SQLALCHEMY_DATABASE_URI,
-        SQLALCHEMY_TRACK_MODIFICATIONS=SQLALCHEMY_TRACK_MODIFICATIONS,
-        SECRET_KEY=SECRET_KEY,
-        GEMINI_API_KEY=GEMINI_API_KEY,
-        GEMINI_MODEL_NAME=GEMINI_MODEL_NAME
+        SQLALCHEMY_DATABASE_URI=Config.SQLALCHEMY_DATABASE_URI,
+        SQLALCHEMY_TRACK_MODIFICATIONS=Config.SQLALCHEMY_TRACK_MODIFICATIONS,
+        SECRET_KEY=Config.SECRET_KEY,
+        GEMINI_API_KEY=Config.GEMINI_API_KEY,
+        GEMINI_MODEL_NAME=Config.GEMINI_MODEL_NAME
         ,SQLALCHEMY_ENGINE_OPTIONS={
             "connect_args": {"timeout": 30}  # 增加等待解鎖的時間到 30 秒
         }
     )    
 
-    # 驗證 API Key
-    if not app.config['GEMINI_API_KEY']:
-        raise ValueError("請設定 GEMINI_API_KEY 環境變數！")
+    # 只有在真的要用 Gemini 時才檢查
+    if app.config.get('AI_PROVIDER') == 'gemini' and not app.config.get('GEMINI_API_KEY'):
+        raise ValueError("Gemini 模式請設定 GEMINI_API_KEY 環境變數！")
 
     # 初始化擴充套件
     db.init_app(app)
