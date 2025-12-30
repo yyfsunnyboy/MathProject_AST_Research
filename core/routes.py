@@ -1,5 +1,6 @@
 # core/routes.py
 from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash, send_file
+from markupsafe import Markup
 from datetime import datetime
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
@@ -19,13 +20,14 @@ import random
 import string
 from sqlalchemy.orm import aliased
 from flask import session, jsonify
+from config import Config
 from models import db, SkillInfo, SkillPrerequisites, SkillCurriculum, Progress, Class, ClassStudent, User, ExamAnalysis, init_db
 from sqlalchemy.exc import IntegrityError
 from core.utils import get_skill_info
 from core.session import get_current, set_current
 from core.ai_analyzer import get_model, analyze, build_chat_prompt, get_chat_response
 from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
-from core.data_importer import import_textbook_examples_from_file
+from core.data_importer import import_excel_to_db
 from . import textbook_processor
 from werkzeug.utils import secure_filename
 from sqlalchemy import distinct
@@ -1726,6 +1728,49 @@ def db_maintenance():
         flash(f'載入資料庫管理頁面時發生錯誤，請檢查伺服器日誌。錯誤：{e}', 'danger')
         return redirect(url_for('dashboard'))
 
+@core_bp.route('/upload_db', methods=['POST'])
+@login_required
+def upload_db():
+    # 權限檢查：僅管理員可執行
+    if not current_user.is_admin:
+        flash('您沒有權限執行此操作', 'danger')
+        return redirect(url_for('core.db_maintenance'))
+
+    if 'file' not in request.files:
+        flash('沒有檔案被上傳', 'danger')
+        return redirect(url_for('core.db_maintenance'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('未選擇檔案', 'danger')
+        return redirect(url_for('core.db_maintenance'))
+    
+    if file and (file.filename.endswith('.xlsx')):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(Config.UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        
+        try:
+            success, message = import_excel_to_db(filepath)
+
+            if success:
+                # 把換行符號轉成 HTML 的 <br> 顯示在 Flash 訊息
+                flash(Markup(message.replace('\n', '<br>')), 'success')
+            else:
+                flash(message, 'danger')
+                
+        except Exception as e:
+            flash(f'處理檔案時發生錯誤: {str(e)}', 'danger')
+            
+        # 處理完後刪除暫存檔
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            
+        return redirect(url_for('core.db_maintenance'))
+    else:
+        flash('不支援的檔案格式，請上傳 .xlsx', 'danger')
+        return redirect(url_for('core.db_maintenance'))
+
 @core_bp.route('/admin/import_textbook_examples', methods=['POST'])
 @login_required
 def import_textbook_examples():
@@ -1754,12 +1799,17 @@ def import_textbook_examples():
             file.save(filepath)
             
             # 執行匯入
-            count = import_textbook_examples_from_file(filepath)
+            # 現在統一使用支援多 Sheet 的 Excel 匯入器
+            success, message = import_excel_to_db(filepath)
             
             # 清理暫存檔
-            os.remove(filepath)
+            if os.path.exists(filepath):
+                os.remove(filepath)
             
-            flash(f'成功匯入 {count} 筆課本例題！', 'success')
+            if success:
+                flash(Markup(message.replace('\n', '<br>')), 'success')
+            else:
+                flash(message, 'danger')
             
         except Exception as e:
             current_app.logger.error(f"Import textbook examples failed: {e}\n{traceback.format_exc()}")

@@ -332,16 +332,19 @@
 
                     <!-- 匯入資料庫 -->
                     <div class="operation-item" style="border-top: 3px solid #f39c12;">
-                        <h3><i class="bi bi-upload" style="color: #f39c12;"></i> 還原資料庫</h3>
-                        <p>上傳 Excel 檔案 (.xlsx) 以還原資料庫。資料將會<strong>附加</strong>到現有表格中。</p>
-                        <form action="{{ url_for('core.db_maintenance') }}" method="POST" enctype="multipart/form-data"
-                            onsubmit="return confirm('您確定要匯入此 Excel 檔案嗎？\n\n系統將會把資料「附加」到現有資料庫中。\n\n若您希望完全還原備份，建議先執行「清空資料庫」操作。\n\n您確定要繼續嗎？');">
-                            <input type="hidden" name="action" value="import_db">
+                        <h3><i class="bi bi-upload" style="color: #f39c12;"></i> 資料匯入 (Excel/CSV)</h3>
+                        <form action="{{ url_for('core.upload_db') }}" method="post" enctype="multipart/form-data">
                             <div class="form-group">
-                                <input type="file" name="file" required accept=".xlsx, .xls">
+                                <label for="dbFile">選擇備份檔案 (.xlsx 或 .csv)</label>
+                                <input type="file" id="dbFile" name="file" accept=".csv, .xlsx" required>
+                                <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                                    <strong>Excel (.xlsx) 模式：</strong> 每個 Sheet 名稱需對應資料庫 Table 名稱 (例如:
+                                    <code>users</code>, <code>skills_info</code>)。<br>
+                                    若 Sheet 名稱在資料庫中找不到，將會被自動略過。
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-warning" style="width: 100%;">
-                                <i class="bi bi-cloud-upload"></i> 一鍵匯入 (上傳 Excel)
+                                <i class="bi bi-cloud-upload"></i> 開始匯入
                             </button>
                         </form>
                     </div>

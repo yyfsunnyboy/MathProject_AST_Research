@@ -1,28 +1,66 @@
 import random
 
-def generate(level=1):
-    # 1. Define Variables (Logic Layer)
-    a = random.randint(-10, 10)
-    dist = random.randint(1, 10)
-    direction = random.choice(['right', 'left'])
+def sub_problem_reading():
+    # 随机选择两个点的位置
+    A = random.randint(-10, 10)
+    B = random.randint(-10, 10)
     
-    # 2. Calculate Answer
-    if direction == 'right':
-        target_val = a + dist
-        dir_text = "右"
-    else:
-        target_val = a - dist
-        dir_text = "左"
+    # 确保A和B不重合
+    while A == B:
+        B = random.randint(-10, 10)
     
-    # 3. Question Text
-    question_text = f"""數線上 A 點座標為 ${a}$，B 點在 A 點的{dir_text}邊 ${dist}$ 單位處，求 B 點座標？"""
+    # 计算中点C的位置
+    C = (A + B) / 2
     
-    # 4. Return Data
+    # 生成题目描述
+    question = f"1. 畫一條數線，並標記 A ({A})、B ({B}) 的位置。\n"
+    question += f"2. 寫出中點 C 的坐標。"
+    
+    # 生成答案
+    answer = f"1. 圖示標示 A 點在 {A}，B 點在 {B}\n"
+    answer += f"2. C({C})"
+    
     return {
-        "question_text": question_text,
-        "answer": str(target_val),
-        "correct_answer": str(target_val)
+        "question": question,
+        "answer": answer
     }
 
+def sub_problem_distance():
+    # 随机选择两个点的位置
+    A = random.randint(-10, 10)
+    B = random.randint(-10, 10)
+    
+    # 确保A和B不重合
+    while A == B:
+        B = random.randint(-10, 10)
+    
+    # 计算两点之间的距离
+    distance = abs(A - B)
+    
+    # 生成题目描述
+    question = f"1. 畫一條數線，並標記 A ({A})、B ({B}) 的位置。\n"
+    question += f"2. 寫出 A 和 B 間的距離。"
+    
+    # 生成答案
+    answer = f"1. 圖示標示 A 點在 {A}，B 點在 {B}\n"
+    answer += f"2. 距離為 {distance}"
+    
+    return {
+        "question": question,
+        "answer": answer
+    }
+
+def generate(level=1):
+    if level == 1:
+        return sub_problem_reading()
+    elif level == 2:
+        return sub_problem_distance()
+    else:
+        raise ValueError("Invalid level. Please choose 1 or 2.")
+
 def check(user_ans, correct_ans):
-    return {"correct": user_ans.strip() == correct_ans.strip(), "result": f"答案是 ${correct_ans}$", "next_question": True}
+    # 忽略空白进行比对
+    user_ans = user_ans.replace(" ", "")
+    correct_ans = correct_ans.replace(" ", "")
+    
+    return user_ans == correct_ans

@@ -17,14 +17,16 @@ class GeminiClient:
     """
     雲端適配器：負責跟 Google Gemini 溝通
     """
-    def __init__(self):
+    def __init__(self, model_name=None):
         if not Config.GEMINI_API_KEY:
             error_msg = "❌ 錯誤：Gemini 模式需要設定 GEMINI_API_KEY"
             if current_app: current_app.logger.error(error_msg)
             raise ValueError(error_msg)
             
         genai.configure(api_key=Config.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(Config.GEMINI_MODEL_NAME)
+        # Use provided model_name or fallback to default
+        self.model_name = model_name if model_name else "gemini-1.5-flash"
+        self.model = genai.GenerativeModel(self.model_name)
 
     def generate_content(self, prompt):
         try:
@@ -41,9 +43,10 @@ class LocalLLMClient:
     本地適配器：負責跟 Ollama (DeepSeek) 溝通
     這就是我們科展實驗的核心！
     """
-    def __init__(self):
+    def __init__(self, model_name=None):
         self.api_url = Config.LOCAL_API_URL
-        self.model_name = Config.LOCAL_MODEL_NAME
+        # Use provided model_name or fallback to default
+        self.model_name = model_name if model_name else "qwen2.5-coder:3b"
 
     def generate_content(self, prompt):
         # Ollama API 的標準格式
@@ -70,25 +73,30 @@ class LocalLLMClient:
             if current_app: current_app.logger.error(error_msg)
             return AIResponse(error_msg)
 
-def get_ai_client():
+def get_ai_client(role='default'):
     """
     工廠函式 (Factory Function)：
-    根據 config.py 的 AI_PROVIDER 開關，決定現在要派誰上場。
+    根據 role 參數從 Config.MODEL_ROLES 取得對應的 provider 與 model。
     """
-    # 轉小寫以防萬一
-    provider = Config.AI_PROVIDER.lower()
+    # 1. 取得角色設定，若找不到則回退到 default
+    role_config = Config.MODEL_ROLES.get(role, Config.MODEL_ROLES.get('default'))
     
+    # 2. 解析設定
+    provider = role_config.get('provider', 'local').lower()
+    model_name = role_config.get('model')
+    
+    # 3. 分派客戶端
     if provider == 'gemini':
         if current_app: 
-            current_app.logger.info(f"✨ [AI Mode] Google Gemini ({Config.GEMINI_MODEL_NAME})")
-        return GeminiClient()
+            current_app.logger.info(f"✨ [AI Mode] Role: {role} -> Google Gemini ({model_name})")
+        return GeminiClient(model_name)
         
     elif provider == 'local':
         if current_app: 
-            current_app.logger.info(f"💻 [AI Mode] Local Ollama ({Config.LOCAL_MODEL_NAME})")
-        return LocalLLMClient()
+            current_app.logger.info(f"💻 [AI Mode] Role: {role} -> Local Ollama ({model_name})")
+        return LocalLLMClient(model_name)
         
     else:
         if current_app:
-            current_app.logger.warning(f"⚠️ 未知的 AI_PROVIDER: {provider}，強制切換至 Local 模式")
-        return LocalLLMClient()
+            current_app.logger.warning(f"⚠️ 未知的 Provider: {provider}，強制切換至 Local 模式")
+        return LocalLLMClient(model_name)

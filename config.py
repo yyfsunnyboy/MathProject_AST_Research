@@ -40,24 +40,47 @@ class Config:
     # 4. ★★★ AI 雙模組設定 (科展實驗核心) ★★★
     # ==========================================
     
-    # 策略開關：'local' (本地端) 或 'gemini' (雲端)
-    # 從環境變數讀取，若無則預設為 'local' (直接使用 DeepSeek R1)
-    AI_PROVIDER = os.getenv('AI_PROVIDER', 'local')
-
-    # --- [Cloud] Google Gemini 設定 ---
-    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    # 標準名稱 gemini-2.5-flash 
-    GEMINI_MODEL_NAME = "gemini-2.5-flash" 
+    # AI 模型調度中心
     
-    CHAT_PROMPT_TEMPLATE = "你是功文數學 AI 助教，用繁體中文親切回答高職學生：{question}。解釋要簡單、步驟清楚，適合數學弱勢學生。"
+    # 預設供應商 (預設用 local 比較省錢)
+    DEFAULT_PROVIDER = 'local' 
 
-    # --- [Local] Ollama / DeepSeek 設定 ---
-    # 這是 Ollama 的標準 API 接口
+    # ★ 關鍵修改：角色與模型的對照表
+    # 格式：'角色': {'provider': '供應商', 'model': '模型名稱'}
+    MODEL_ROLES = {
+        # 1. 工程師：專門寫 Code (精準、強迫症)
+        'coder': {
+            'provider': 'local',
+            'model': 'qwen2.5-coder:7b'
+        },
+        
+        # 2. 助教：專門解釋觀念 (溫柔、話多)
+        'tutor': {
+            'provider': 'local',
+            'model': 'phi3.5'
+        },
+        
+        # 3. 教授：專門解析課本與圖片 (聰明、視力好)
+        'vision_analyzer': {
+            'provider': 'gemini', 
+            'model': 'gemini-1.5-flash' 
+        },
+
+        # 4. 預設值 (Default)
+        'default': {
+            'provider': 'local',
+            'model': 'qwen2.5-coder:7b'
+        }
+    }
+
+    # --- [Cloud] Google Gemini API Key ---
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+    
+    # --- [Local] Ollama API URL ---
     LOCAL_API_URL = "http://localhost:11434/api/generate"
-    # 使用我們剛剛下載的 DeepSeek R1 (8B)
-    #LOCAL_MODEL_NAME = "deepseek-r1:8b"
-    # ★★★ 修改這裡：換成剛下載的極速版 ★★★
-    #LOCAL_MODEL_NAME = "qwen2.5-coder:1.5b"
-    LOCAL_MODEL_NAME = "qwen2.5-coder:3b"
-    #LOCAL_MODEL_NAME = "qwen2.5:7b"
-    #LOCAL_MODEL_NAME = "phi3.5"
+    
+    # (舊變數保留以防其他檔案引用報錯，但建議盡快遷移)
+    AI_PROVIDER = DEFAULT_PROVIDER
+    GEMINI_MODEL_NAME = "gemini-2.5-flash"
+    #LOCAL_MODEL_NAME = "qwen2.5-coder:3b"
+    LOCAL_MODEL_NAME = "qwen2.5-coder:7b"
