@@ -24,6 +24,7 @@ def get_model_mapping():
         'exam_analysis': ExamAnalysis,
         'system_settings': SystemSetting,
         'experiment_logs': ExperimentLog,
+        'experiment_log': ExperimentLog,
         'learning_diagnosis': LearningDiagnosis,
         'mistake_notebook_entries': MistakeNotebookEntry,
         'skill_curriculum': SkillCurriculum

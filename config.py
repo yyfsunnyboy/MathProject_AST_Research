@@ -51,7 +51,8 @@ class Config:
         # 1. 工程師：專門寫 Code (精準、強迫症)
         'coder': {
             'provider': 'local',
-            'model': 'qwen2.5-coder:7b'
+            #'model': 'qwen2.5-coder:7b'
+            'model': 'qwen3-coder:30b'
         },
         
         # 2. 助教：專門解釋觀念 (溫柔、話多)
