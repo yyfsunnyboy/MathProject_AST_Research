@@ -1,147 +1,89 @@
+# ==============================================================================
+# ID: jh_數學1上_IntegerSubtractionOperation
+# Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 410.21s | RAG: 2 examples
+# Created At: 2025-12-31 13:01:28
+# Fix Status: [Clean Pass]
+# ==============================================================================
+
 import random
+from fractions import Fraction
+
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
+    if isinstance(num, Fraction):
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
+
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
+
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
+    
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
+    
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
+
+def generate_subtraction_problem():
+    # Generate two random integers for the problem
+    val_a = random.randint(-100, 100)
+    val_b = random.randint(-100, 100)
+    
+    # Ensure that the problem is not trivial (e.g., 0 - 0)
+    while val_a == val_b:
+        val_b = random.randint(-100, 100)
+    
+    # Calculate the answer
+    ans = val_a - val_b
+    
+    # Format the question and answer
+    question_text = f"請計算 ${fmt_num(val_a)} - {fmt_num(val_b)}$ 的值為何？"
+    return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
+
+def generate_app_problem():
+    # Word problem for integer subtraction
+    val_a = random.randint(-100, 100)
+    val_b = random.randint(-100, 100)
+    
+    # Ensure that the problem is not trivial (e.g., 0 - 0)
+    while val_a == val_b:
+        val_b = random.randint(-100, 100)
+    
+    # Calculate the answer
+    ans = val_a - val_b
+    
+    # Create a word problem
+    if val_a > 0 and val_b > 0:
+        question_text = f"小明有 {val_a} 元，他花了 {val_b} 元買書，請問他還剩下多少元？"
+    elif val_a < 0 and val_b < 0:
+        question_text = f"小明的銀行帳戶餘額為 {val_a} 元，他再存入 {val_b} 元，請問他現在的帳戶餘額為多少元？"
+    else:
+        question_text = f"小明的銀行帳戶餘額為 {val_a} 元，他再存入 {val_b} 元，請問他現在的帳戶餘額為多少元？"
+    
+    return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
 
 def generate(level=1):
-    """
-    生成國中一年級上學期「整數的減法」相關題目。
-    包含四種基本題型：
-    1. 正數 - 正數
-    2. 正數 - 負數
-    3. 負數 - 正數
-    4. 負數 - 負數
-    """
-    problem_type = random.choice([
-        'pos_minus_pos', 
-        'pos_minus_neg', 
-        'neg_minus_pos', 
-        'neg_minus_neg'
-    ])
-    
-    if problem_type == 'pos_minus_pos':
-        return generate_pos_minus_pos_problem(level)
-    elif problem_type == 'pos_minus_neg':
-        return generate_pos_minus_neg_problem(level)
-    elif problem_type == 'neg_minus_pos':
-        return generate_neg_minus_pos_problem(level)
-    else: # 'neg_minus_neg'
-        return generate_neg_minus_neg_problem(level)
-
-def _get_number_range(level):
-    """根據難度等級回傳數字範圍"""
-    if level == 1:
-        return (1, 30)
-    elif level == 2:
-        return (20, 100)
-    else: # level 3 or higher
-        return (50, 200)
-
-def generate_pos_minus_pos_problem(level):
-    """
-    題型：正數 - 正數 (a - b)
-    範例：14 - 23
-    """
-    min_val, max_val = _get_number_range(level)
-    a = random.randint(min_val, max_val)
-    b = random.randint(min_val, max_val)
-    
-    # 避免 a = b，使得答案為 0，過於簡單
-    while a == b:
-        b = random.randint(min_val, max_val)
-        
-    result = a - b
-    
-    question_text = f"計算下列各式的值：\n$ {a} - {b} $"
-    correct_answer = str(result)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_pos_minus_neg_problem(level):
-    """
-    題型：正數 - 負數 (a - (-b))
-    範例：125 - (-25)
-    """
-    min_val, max_val = _get_number_range(level)
-    a = random.randint(min_val, max_val)
-    b = random.randint(min_val, max_val)
-    
-    result = a - (-b)
-    
-    question_text = f"計算下列各式的值：\n$ {a} - ( -{b} ) $"
-    correct_answer = str(result)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_neg_minus_pos_problem(level):
-    """
-    題型：負數 - 正數 ((-a) - b)
-    範例：(-63) - 37
-    """
-    min_val, max_val = _get_number_range(level)
-    a = random.randint(min_val, max_val)
-    b = random.randint(min_val, max_val)
-    
-    result = (-a) - b
-    
-    question_text = f"計算下列各式的值：\n$ ( -{a} ) - {b} $"
-    correct_answer = str(result)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_neg_minus_neg_problem(level):
-    """
-    題型：負數 - 負數 ((-a) - (-b))
-    範例：(-133) - (-13)
-    """
-    min_val, max_val = _get_number_range(level)
-    a = random.randint(min_val, max_val)
-    b = random.randint(min_val, max_val)
-
-    # 避免 a = b
-    while a == b:
-        b = random.randint(min_val, max_val)
-        
-    result = (-a) - (-b)
-    
-    question_text = f"計算下列各式的值：\n$ ( -{a} ) - ( -{b} ) $"
-    correct_answer = str(result)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-    
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    """
-    user_answer = user_answer.strip()
-    correct_answer = correct_answer.strip()
-    
-    is_correct = (user_answer == correct_answer)
-    
-    # 增加對浮點數表示法的容錯，例如使用者輸入 '-9.0' 而非 '-9'
-    if not is_correct:
-        try:
-            if float(user_answer) == float(correct_answer):
-                is_correct = True
-        except (ValueError, TypeError):
-            pass
-
-    if is_correct:
-        result_text = f"完全正確！答案是 ${correct_answer}$。"
-    else:
-        result_text = f"答案不正確。正確答案應為：${correct_answer}$"
-        
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    type = random.choice(['calc', 'app'])
+    if type == 'calc': return generate_subtraction_problem()
+    else: return generate_app_problem()

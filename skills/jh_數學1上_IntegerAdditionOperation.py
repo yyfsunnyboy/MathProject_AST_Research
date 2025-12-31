@@ -1,185 +1,65 @@
+# ==============================================================================
+# ID: jh_數學1上_IntegerAdditionOperation
+# Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 301.25s | RAG: 4 examples
+# Created At: 2025-12-31 12:47:39
+# Fix Status: [Clean Pass]
+# ==============================================================================
+
 import random
+from fractions import Fraction
 
-def _format_term(n):
-    """Helper function to format a number for display in a math expression."""
-    return f"({n})" if n < 0 else str(n)
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
+    if isinstance(num, Fraction):
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
 
-def generate_negative_plus_negative():
-    """
-    題型：負數＋負數。
-    範例：(-9) + (-7) = -16
-    """
-    a = random.randint(1, 50)
-    b = random.randint(1, 50)
-    num1 = -a
-    num2 = -b
-    
-    correct_answer = num1 + num2
-    
-    question_text = f"計算 ${'('}{num1}{')'} + {'('}{num2}{')'}$ 的值。"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(correct_answer),
-        "correct_answer": str(correct_answer)
-    }
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
 
-def generate_mixed_sign_addition():
-    """
-    題型：正數＋負數 或 負數＋正數。
-    範例：13 + (-4) = 9  或  (-15) + 9 = -6
-    """
-    a = random.randint(1, 50)
-    b = random.randint(1, 50)
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
     
-    # 確保兩數不相等，以避免答案為 0 (這是 special_cases 的範疇)
-    while a == b:
-        b = random.randint(1, 50)
-        
-    if random.choice([True, False]):
-        # 正 + 負
-        num1 = a
-        num2 = -b
-    else:
-        # 負 + 正
-        num1 = -a
-        num2 = b
-        
-    correct_answer = num1 + num2
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
     
-    formatted_num1 = _format_term(num1)
-    formatted_num2 = _format_term(num2)
-    
-    question_text = f"計算 ${formatted_num1} + {formatted_num2}$ 的值。"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(correct_answer),
-        "correct_answer": str(correct_answer)
-    }
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-def generate_special_cases_addition():
-    """
-    題型：與 0 相加，或互為相反數的兩數相加。
-    範例：(-18) + 0 = -18  或  13 + (-13) = 0
-    """
-    problem_subtype = random.choice(['zero', 'inverse'])
-    
-    if problem_subtype == 'zero':
-        num1 = random.randint(-50, 50)
-        num2 = 0
-        if random.choice([True, False]): # 隨機交換順序
-            num1, num2 = num2, num1
-    else: # inverse
-        num1 = random.randint(1, 50)
-        num2 = -num1
-        if random.choice([True, False]): # 隨機交換順序
-            num1, num2 = num2, num1
-            
-    correct_answer = num1 + num2
-    
-    formatted_num1 = _format_term(num1)
-    formatted_num2 = _format_term(num2)
-    
-    question_text = f"計算 ${formatted_num1} + {formatted_num2}$ 的值。"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(correct_answer),
-        "correct_answer": str(correct_answer)
-    }
+def generate_calc_problem():
+    # 生成整數加法問題
+    val_a = random.randint(-10, -1)
+    val_b = random.randint(-10, -1)
+    ans = val_a + val_b
+    return {'question_text': f'請計算 ${fmt_num(val_a)} + {fmt_num(val_b)}$ 的值為何？', 'answer': str(ans), 'correct_answer': str(ans)}
 
-def generate_three_term_addition():
-    """
-    題型：三個整數相加，可利用交換律與結合律簡化。
-    範例：132 + (-59) + (-132) 或 (-23) + 1205 + (-77)
-    """
-    problem_subtype = random.choice(['inverse_trick', 'combine_trick'])
-    
-    if problem_subtype == 'inverse_trick':
-        # 包含一對相反數, e.g., a + b + (-a)
-        a = random.randint(20, 200)
-        b = random.randint(20, 200)
-        while a == b or a == -b:
-            b = random.randint(20, 200)
-            
-        terms = [a, b, -a]
-        correct_answer = b
-        
-    else: # combine_trick
-        # 兩個負數可以湊成整十或整百, e.g., a + (-b) + (-c) where b+c is nice
-        nice_sum = random.choice([50, 100, 150, 200])
-        b = random.randint(1, nice_sum - 1)
-        c = nice_sum - b
-        
-        a = random.randint(nice_sum + 10, nice_sum + 300)
-        
-        terms = [a, -b, -c]
-        correct_answer = a - nice_sum
-        
-    random.shuffle(terms)
-    num1, num2, num3 = terms
-    
-    f1 = _format_term(num1)
-    f2 = _format_term(num2)
-    f3 = _format_term(num3)
-    
-    question_text = f"計算 ${f1} + {f2} + {f3}$ 的值。"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(correct_answer),
-        "correct_answer": str(correct_answer)
-    }
+def generate_app_problem():
+    # 生成應用問題
+    val_a = random.randint(-10, -1)
+    val_b = random.randint(-10, -1)
+    ans = val_a + val_b
+    return {'question_text': f'小明在遊戲中先輸了 {abs(val_a)} 分，再輸了 {abs(val_b)} 分，總共輸了多少分？', 'answer': str(ans), 'correct_answer': str(ans)}
 
 def generate(level=1):
-    """
-    生成「整數的加法」相關題目。
-    
-    包含：
-    1. 負數 + 負數
-    2. 正負數相加
-    3. 特殊情況 (與 0 相加、相反數相加)
-    4. 三數相加 (利用運算律)
-    """
-    
-    # 根據難度級別選擇題型
-    # level 1: 基本的兩數相加
-    # level 2: 包含特殊情況與三數相加
-    if level == 1:
-        problem_generators = [
-            generate_negative_plus_negative,
-            generate_mixed_sign_addition
-        ]
-    else: # level 2 and above
-        problem_generators = [
-            generate_negative_plus_negative,
-            generate_mixed_sign_addition,
-            generate_special_cases_addition,
-            generate_three_term_addition
-        ]
-
-    # 從可用的題型中隨機選擇一個
-    chosen_generator = random.choice(problem_generators)
-    return chosen_generator()
-
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    """
-    user_answer = user_answer.strip()
-    correct_answer = correct_answer.strip()
-    
-    is_correct = (user_answer == correct_answer)
-    
-    # 數值容錯 (例如使用者輸入了 +9 而非 9)
-    if not is_correct:
-        try:
-            if int(user_answer) == int(correct_answer):
-                is_correct = True
-        except ValueError:
-            # 如果無法轉換為整數，則保持原來的比較結果
-            pass
-
-    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    type = random.choice(['calc', 'app'])
+    if type == 'calc': return generate_calc_problem()
+    else: return generate_app_problem()

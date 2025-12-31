@@ -52,7 +52,9 @@ class Config:
         'coder': {
             'provider': 'local',
             #'model': 'qwen2.5-coder:7b'
-            'model': 'qwen3-coder:30b'
+            #'model': 'qwen3-coder:30b'
+            #'model': 'qwen2.5-coder:14b'
+            'model': 'freehuntx/qwen3-coder:14b'
         },
         
         # 2. 助教：專門解釋觀念 (溫柔、話多)

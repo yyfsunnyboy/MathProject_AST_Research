@@ -13,39 +13,24 @@ from core.ai_wrapper import get_ai_client
 from models import db, SkillInfo, TextbookExample, ExperimentLog
 from config import Config
 
-# [v7.3] Universal Skeleton: Flat structure for stability
+# [v7.6] Universal Skeleton: Flat structure for stability
 UNIVERSAL_SKELETON = """
 import random
 from fractions import Fraction
 
 def generate(level=1):
-    # Dispatcher: Must choose from varied problem types
-    # Ensure types cover: Basic Concept, Calculation, Reverse Solving, Application
-    problem_type = random.choice(['concept', 'calc', 'reverse', 'app'])
-    
-    if problem_type == 'concept': return generate_concept_problem()
-    elif problem_type == 'calc': return generate_calc_problem()
-    elif problem_type == 'reverse': return generate_reverse_problem()
+    # Dispatcher: Choose problem type
+    problem_type = random.choice(['calc', 'app'])
+    if problem_type == 'calc': return generate_calc_problem()
     else: return generate_app_problem()
 
-def generate_concept_problem():
-    # ... logic ...
-    return {"question_text": "...", "answer": "...", "correct_answer": "..."}
-
 def generate_calc_problem():
-    # ... logic ...
-    return {"question_text": "...", "answer": "...", "correct_answer": "..."}
-
-def generate_reverse_problem():
-    # ... logic ...
     return {"question_text": "...", "answer": "...", "correct_answer": "..."}
 
 def generate_app_problem():
-    # ... logic ...
     return {"question_text": "...", "answer": "...", "correct_answer": "..."}
 
 def check(user_ans, correct_ans):
-    # Simple string comparison or number parsing
     return {"correct": user_ans.strip() == correct_ans.strip(), "result": f"Ans: {correct_ans}", "next_question": True}
 """
 
@@ -158,14 +143,16 @@ def auto_generate_skill_code(skill_id, queue=None):
     current_provider = role_config.get('provider', 'local')
     current_model = role_config.get('model', 'Unknown')
     
+    # ★★★ v7.6 修正：移除 14b，讓它走 Expert 路線 ★★★
     model_name_lower = current_model.lower()
     is_weak_model = (current_provider == 'local') and \
                     (("phi" in model_name_lower) or 
                      ("7b" in model_name_lower) or 
+                     # ("14b" in model_name_lower) or  <-- 移除這行，14B 很聰明，可以用高階 Prompt
                      ("3b" in model_name_lower) or
                      ("1.5b" in model_name_lower))
     
-    strategy_name = "Strict Skeleton" if is_weak_model else "General Math Pedagogy v7.3 (Chinese)"
+    strategy_name = "Strict Skeleton" if is_weak_model else "General Math Pedagogy v7.6 (Expert 14B+)"
     
     message = f"正在為技能 '{skill_id}' 生成程式碼 (Model: {current_model}, Strategy: {strategy_name})..."
     if current_app: current_app.logger.info(message)
@@ -178,7 +165,6 @@ def auto_generate_skill_code(skill_id, queue=None):
     examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(4).all()
     rag_count = len(examples)
     
-    # ★★★ [Log 修正] 確保 Log 會顯示 RAG 資訊 ★★★
     rag_msg = f"🔍 [RAG Info] Found {rag_count} textbook examples for '{skill_id}'"
     if current_app: current_app.logger.info(rag_msg)
     if queue: queue.put(f"INFO: {rag_msg}")
@@ -191,14 +177,12 @@ def auto_generate_skill_code(skill_id, queue=None):
             a = getattr(ex, 'correct_answer', getattr(ex, 'answer', 'N/A'))
             example_text += f"Ex {i+1}: {q} -> Ans: {a}\n"
 
-    # 3. Construct Prompt (v7.3)
+    # 3. Construct Prompt (v7.6)
     if is_weak_model:
-        system_instruction = f"""
-You are a Strict Code Generator. MIMIC the GOLDEN TEMPLATE exactly.
-"""
+        system_instruction = f"You are a Strict Code Generator. MIMIC the GOLDEN TEMPLATE exactly."
         full_prompt = f"{system_instruction}\n\n### GOLDEN TEMPLATE:\n```python\n{UNIVERSAL_SKELETON}\n```\n\n### TARGET LOGIC:\n{target_logic}"
     else:
-        # v7.4: HTML Utils + Chinese Pedagogy Instructions
+        # ★★★ v7.6 新增：fmt_num 工具與絕對值提示 ★★★
         golden_utils = r'''
 import random
 from fractions import Fraction
@@ -213,6 +197,11 @@ def to_latex(num):
             rem = abs(num) - (abs(num).numerator // abs(num).denominator)
             return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
         return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
+
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
     return str(num)
 
 def draw_number_line(points_map):
@@ -231,7 +220,6 @@ def draw_number_line(points_map):
         l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
     
     content = f"{l_n}\n{l_a}\n{l_l}"
-    # CSS: overflow-x: auto (Scrollable), background for contrast
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 '''
@@ -241,38 +229,39 @@ def draw_number_line(points_map):
             
             "### 🛑 CRITICAL RULES:\n"
             "1. **Language**: **ALL OUTPUT MUST BE IN TRADITIONAL CHINESE (繁體中文).**\n"
-            "2. **No Ghost Options**: If asking 'Which of the following...' (下列何者...), you **MUST** list the specific numbers/options in the `question_text`.\n"
-            "   - **BAD**: '下列何者為負數？' (User sees nothing)\n"
-            "   - **GOOD**: '在 -5, 3, 0 這三個數中，何者為負數？'\n"
-            "3. **Pedagogical Variety**: Design 3-5 sub-functions (Concept, Calc, Reverse, App).\n"
-            "4. **Tool Usage**: Use `to_latex` for numbers. Use `draw_number_line` ONLY for geometry/coordinates.\n"
+            "2. **Context Adaptation**: \n"
+            "   - **ADAPT** the template logic to the `TARGET SKILL` (e.g., if skill is Geometry, generate geometry).\n"
+            "   - **Formatting**: Use `fmt_num(val)` for negative numbers in equations (e.g., `(-3) + (-5)`).\n"
+            "   - **Variety**: If the skill allows, you can mix in **absolute values** (e.g., `|-5| + 3`) or **word problems**.\n"
+            "3. **No Ghost Options**: If asking 'Which of the following...', list options explicitly.\n"
+            "4. **Tool Usage**: Use `to_latex` for numbers. Use `draw_number_line` ONLY IF visual aid is needed.\n"
             "5. **Return Keys**: Always return `{'question_text', 'answer', 'correct_answer'}`.\n\n"
 
-            "### 🏗️ MANDATORY STRUCTURE (Follow the CHINESE examples):\n"
+            "### 🏗️ MANDATORY STRUCTURE (Template - ADAPT LOGIC):\n"
             "```python\n"
-            "def generate_concept_problem():\n"
-            "    # Type: Concept (Explicit Options)\n"
-            "    target = -5\n"
-            "    others = [3, 0, 8]\n"
-            "    options = [target] + others\n"
-            "    random.shuffle(options)\n"
-            "    opt_str = ', '.join([str(x) for x in options])\n"
-            "    return {'question_text': f'在 {opt_str} 中，何者為負數？', 'answer': str(target), 'correct_answer': str(target)}\n\n"
-
             "def generate_calc_problem():\n"
-            "    val = random.randint(-10, -1)\n"
-            "    return {'question_text': f'請計算 $|{val}|$ 的值為何？', 'answer': str(abs(val)), 'correct_answer': str(abs(val))}\n\n"
+            "    # [TEMPLATE] Example: Addition with parentheses\n"
+            "    val_a = random.randint(-10, -1)\n"
+            "    val_b = random.randint(-10, 10)\n"
+            "    # Example VARIATION: Mix absolute value (IF RELEVANT to skill)\n"
+            "    if random.random() < 0.3: \n"
+            "         return {'question_text': f'請計算 $|{val_a}| + {fmt_num(val_b)}$ 的值為何？', 'answer': str(abs(val_a)+val_b), 'correct_answer': str(abs(val_a)+val_b)}\n"
+            "    \n"
+            "    # Standard calculation\n"
+            "    ans = val_a + val_b \n"
+            "    # Note usage of fmt_num for correct negative formatting\n"
+            "    return {'question_text': f'請計算 ${fmt_num(val_a)} + {fmt_num(val_b)}$ 的值為何？', 'answer': str(ans), 'correct_answer': str(ans)}\n\n"
             
             "def generate(level=1):\n"
-            "    type = random.choice(['concept', 'calc'])\n"
-            "    if type == 'concept': return generate_concept_problem()\n"
-            "    else: return generate_calc_problem()\n"
+            "    type = random.choice(['calc', 'app'])\n"
+            "    if type == 'calc': return generate_calc_problem()\n"
+            "    else: return generate_app_problem()\n"
             "```\n\n"
 
             "### 🛠️ REQUIRED UTILS (Copy strictly):\n"
             f"```python\n{golden_utils}\n```\n\n"
             
-            "### 📚 REFERENCE EXAMPLES (Mimic logic, but output in CHINESE):\n" + example_text
+            "### 📚 REFERENCE EXAMPLES (These define your MATH LOGIC):\n" + example_text
         )
         full_prompt = system_instruction + "\n\n### TARGET SKILL LOGIC:\n" + target_logic + "\n\n### YOUR PYTHON CODE:\n```python\nimport random\n"
 
