@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerSubtractionOperation
 # Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
-# Duration: 410.21s | RAG: 2 examples
-# Created At: 2025-12-31 13:01:28
+# Duration: 194.12s | RAG: 2 examples
+# Created At: 2025-12-31 22:41:14
 # Fix Status: [Clean Pass]
 # ==============================================================================
 
@@ -57,8 +57,9 @@ def generate_subtraction_problem():
     # Calculate the answer
     ans = val_a - val_b
     
-    # Format the question and answer
+    # Format the question
     question_text = f"請計算 ${fmt_num(val_a)} - {fmt_num(val_b)}$ 的值為何？"
+    
     return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
 
 def generate_app_problem():
@@ -74,12 +75,14 @@ def generate_app_problem():
     ans = val_a - val_b
     
     # Create a word problem
-    if val_a > 0 and val_b > 0:
-        question_text = f"小明有 {val_a} 元，他花了 {val_b} 元買書，請問他還剩下多少元？"
+    if val_a >= 0 and val_b >= 0:
+        question_text = f"小明有 {val_a} 元，他花了 {val_b} 元，請問他還剩下多少元？"
     elif val_a < 0 and val_b < 0:
-        question_text = f"小明的銀行帳戶餘額為 {val_a} 元，他再存入 {val_b} 元，請問他現在的帳戶餘額為多少元？"
+        question_text = f"小明欠了 {abs(val_a)} 元，他又欠了 {abs(val_b)} 元，請問他總共欠了多少元？"
+    elif val_a < 0 and val_b >= 0:
+        question_text = f"小明欠了 {abs(val_a)} 元，他還了 {val_b} 元，請問他還欠多少元？"
     else:
-        question_text = f"小明的銀行帳戶餘額為 {val_a} 元，他再存入 {val_b} 元，請問他現在的帳戶餘額為多少元？"
+        question_text = f"小明有 {val_a} 元，他花了 {abs(val_b)} 元，請問他還剩下多少元？"
     
     return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
 

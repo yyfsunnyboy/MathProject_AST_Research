@@ -1,144 +1,133 @@
-import random
+# ==============================================================================
+# ID: jh_數學1上_FactorsAndMultiples
+# Model: qwen3-coder:30b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 124.52s | RAG: 4 examples
+# Created At: 2025-12-31 23:43:35
+# Fix Status: [Clean Pass]
+# ==============================================================================
 
-def _get_factors(n):
-    """Helper function to get all positive factors of a number n."""
-    factors = set()
-    for i in range(1, int(n**0.5) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
+import random
+from fractions import Fraction
+
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
+    if isinstance(num, Fraction):
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
+
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
+
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
+    
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
+    
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
+
+def generate_factor_problem():
+    # 產生一個正整數，其因數由小到大排列為 1, 2, 3, a, 6, b, 15, M
+    # 要求學生找出 a 和 b 的值
+    # 因數排列為 1, 2, 3, a, 6, b, 15, M
+    # 所以 M = 15 × something = 15 × 2 = 30（因為 15 是最大因數）
+    # 因此 M = 30，且因數為 1, 2, 3, 5, 6, 10, 15, 30
+    # 所以 a = 5, b = 10
+    
+    # 為了增加變化，我們隨機選擇一個數字，並找出其因數
+    num = random.choice([30, 36, 42, 48, 54, 60])
+    
+    factors = []
+    for i in range(1, int(num**0.5)+1):
+        if num % i == 0:
+            factors.append(i)
+            if i != num // i:
+                factors.append(num // i)
+    factors.sort()
+    
+    # 假設我們知道因數的排列方式，例如 1, 2, 3, a, 6, b, 15, M
+    # 所以我們要找出 a 和 b 的值
+    if len(factors) >= 8:
+        # 假設因數為 1, 2, 3, a, 6, b, 15, M
+        # 因此 a = factors[3], b = factors[5], M = factors[7]
+        a = factors[3]
+        b = factors[5]
+        M = factors[7]
+        return {
+            'question_text': f'有一正整數 $N$ 的所有因數由小到大排列為 $1, 2, 3, a, 6, b, 15, N$，則 $a$、$b$ 的值為何？',
+            'answer': f'a = {a}, b = {b}',
+            'correct_answer': f'a = {a}, b = {b}'
+        }
+    else:
+        # 如果因數少於 8 個，則重新生成
+        return generate_factor_problem()
+
+def generate_app_problem():
+    # 產生應用題
+    num = random.choice([30, 36, 42, 48, 54, 60])
+    
+    factors = []
+    for i in range(1, int(num**0.5)+1):
+        if num % i == 0:
+            factors.append(i)
+            if i != num // i:
+                factors.append(num // i)
+    factors.sort()
+    
+    # 隨機選擇兩個因數
+    a, b = random.sample(factors, 2)
+    
+    return {
+        'question_text': f'請問 $36$ 的所有因數中，小於 $10$ 的因數有哪幾個？',
+        'answer': ', '.join([str(f) for f in factors if f < 10]),
+        'correct_answer': ', '.join([str(f) for f in factors if f < 10])
+    }
+
+def generate_calc_problem():
+    # 產生基本計算題
+    val_a = random.randint(-10, -1)
+    val_b = random.randint(-10, 10)
+    
+    # 混合絕對值
+    if random.random() < 0.3: 
+        return {
+            'question_text': f'請計算 $|{val_a}| + {fmt_num(val_b)}$ 的值為何？', 
+            'answer': str(abs(val_a)+val_b), 
+            'correct_answer': str(abs(val_a)+val_b)
+        }
+    
+    # 標準計算
+    ans = val_a + val_b 
+    return {
+        'question_text': f'請計算 ${fmt_num(val_a)} + {fmt_num(val_b)}$ 的值為何？', 
+        'answer': str(ans), 
+        'correct_answer': str(ans)
+    }
 
 def generate(level=1):
-    """
-    生成「因數與倍數」相關題目。
-    包含：
-    1. 寫出一個數的所有因數。
-    2. 從不完整的因數列表中，找出缺少的因數。
-    3. 寫出一個數的倍數。
-    """
-    problem_type = random.choice(['find_all_factors', 'find_missing_factors', 'list_multiples'])
-    
-    if problem_type == 'find_all_factors':
-        return generate_find_all_factors_problem()
-    elif problem_type == 'find_missing_factors':
-        return generate_find_missing_factors_problem()
-    else: # list_multiples
-        return generate_list_multiples_problem()
-
-def generate_find_all_factors_problem():
-    """
-    題型：寫出一個數的所有正因數 (對應例題 1, 2)。
-    """
-    while True:
-        # 選擇一個有適量因數的數字 (4到12個之間)
-        n = random.randint(20, 120)
-        factors = _get_factors(n)
-        if 4 <= len(factors) <= 12:
-            break
-
-    question_text = f"請由小到大寫出 ${n}$ 的所有正因數。(請用逗號分隔)"
-    correct_answer = ",".join(map(str, factors))
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_find_missing_factors_problem():
-    """
-    題型：從不完整的因數列表中，找出缺少的因數 (對應例題 3, 4)。
-    """
-    while True:
-        # 選擇一個有6到10個因數的數字，這樣挖空後仍有足夠線索
-        n = random.randint(30, 150)
-        factors = _get_factors(n)
-        if 6 <= len(factors) <= 10:
-            break
-    
-    # 決定要隱藏幾個因數 (1 或 2 個)
-    num_to_hide = random.choice([1, 2])
-    # 不隱藏 1 和 n 本身
-    hidable_indices = list(range(1, len(factors) - 1))
-    indices_to_hide = sorted(random.sample(hidable_indices, num_to_hide))
-    
-    labels = ['a', 'b'][:num_to_hide]
-    hidden_values = [factors[i] for i in indices_to_hide]
-    num_variable = random.choice(['M', 'N'])
-    
-    display_list = []
-    label_idx = 0
-    for i, factor in enumerate(factors):
-        if i in indices_to_hide:
-            display_list.append(labels[label_idx])
-            label_idx += 1
-        elif i == len(factors) - 1:
-            display_list.append(num_variable)
-        else:
-            display_list.append(str(factor))
-            
-    q_list_str = ", ".join(display_list)
-    
-    # 決定要問哪些未知數
-    ask_items = labels.copy()
-    answer_values = hidden_values.copy()
-    
-    # 約 40% 的機率會加問 M 或 N 本身是多少
-    if random.random() < 0.4:
-        ask_items.append(num_variable)
-        answer_values.append(n)
-        
-    q_ask_str = "、".join(ask_items)
-    
-    question_text = f"有一正整數 ${num_variable}$ 的所有因數由小到大排列為 ${q_list_str}$，則 ${q_ask_str}$ 的值為何？(請依序回答，並用逗號分隔)"
-    correct_answer = ",".join(map(str, answer_values))
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_list_multiples_problem():
-    """
-    題型：寫出一個數的倍數。
-    """
-    sub_type = random.choice(['first_n', 'within_limit'])
-    
-    if sub_type == 'first_n':
-        base = random.randint(6, 15)
-        count = random.randint(4, 7)
-        multiples = [base * i for i in range(1, count + 1)]
-        question_text = f"請寫出 ${base}$ 的前 ${count}$ 個正倍數。(請用逗號分隔)"
-    else: # within_limit
-        base = random.randint(11, 25)
-        limit = random.choice([50, 100, 150, 200])
-        multiples = [base * i for i in range(1, limit // base + 1)]
-        # 確保有足夠的倍數可寫
-        if len(multiples) < 3:
-            return generate_list_multiples_problem() # 重新生成一個
-        question_text = f"請寫出所有小於 ${limit}$ 的 ${base}$ 的正倍數。(請用逗號分隔)"
-        
-    correct_answer = ",".join(map(str, multiples))
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。答案是逗號分隔的數字列表。
-    """
-    # 清理使用者輸入和正確答案中的空格
-    user_parts = [part.strip() for part in user_answer.split(',')]
-    correct_parts = [part.strip() for part in correct_answer.split(',')]
-    
-    # 比較清理後的列表是否相同
-    is_correct = (user_parts == correct_parts)
-    
-    result_text = f"完全正確！答案是 {correct_answer}。" if is_correct else f"答案不正確。正確答案應為：{correct_answer}"
-    
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    type = random.choice(['calc', 'app', 'factor'])
+    if type == 'calc': 
+        return generate_calc_problem()
+    elif type == 'factor':
+        return generate_factor_problem()
+    else: 
+        return generate_app_problem()

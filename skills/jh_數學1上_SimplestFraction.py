@@ -1,208 +1,134 @@
+# ==============================================================================
+# ID: jh_數學1上_SimplestFraction
+# Model: qwen3-coder:30b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 108.81s | RAG: 6 examples
+# Created At: 2025-12-31 23:58:37
+# Fix Status: [Clean Pass]
+# ==============================================================================
+
 import random
 from fractions import Fraction
-import math
 
-def _format_fraction(f, latex=True, mixed=True):
-    """
-    Helper to format Fraction objects into strings (LaTeX or plain).
-    Handles mixed numbers and signs.
-    e.g., Fraction(-5, 3) -> "$-1\\frac{{2}}{{3}}$" (latex, mixed)
-          Fraction(5, 3) -> "5/3" (plain, not mixed)
-          Fraction(3, 4) -> "$\\frac{{3}}{{4}}$" (latex)
-    """
-    if not isinstance(f, Fraction):
-        f = Fraction(f)
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
+    if isinstance(num, Fraction):
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
 
-    if f.denominator == 1:
-        return str(f.numerator)
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
 
-    sign = ""
-    if f.numerator < 0:
-        sign = "-"
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
     
-    abs_f = abs(f)
-    num = abs_f.numerator
-    den = abs_f.denominator
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
     
-    integer_part = num // den
-    remainder = num % den
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
+
+def generate_fraction_problem():
+    # 生成兩個隨機整數，作為分數的分子與分母
+    num = random.randint(-50, 50)
+    den = random.randint(1, 50)
     
-    if remainder == 0:
-        return f"{sign}{integer_part}"
-
-    # Use improper fraction format if not mixed or it's a proper fraction
-    if not mixed or integer_part == 0:
-        if latex:
-            return f"${sign}\\frac{{{num}}}{{{den}}}$"
-        else:
-            return f"{sign}{num}/{den}"
-    else:  # Format as a mixed number
-        if latex:
-            return f"${sign}{integer_part}\\frac{{{remainder}}}{{{den}}}$"
-        else:
-            # e.g., "-1 2/3"
-            return f"{sign}{integer_part} {remainder}/{den}"
-
-def generate_simplification_problem():
-    """
-    Generates a problem asking to simplify a fraction, or to identify
-    if it's already a simplest fraction. Corresponds to textbook example 1.
-    """
-    # 40% chance of generating a fraction that is already in its simplest form
-    if random.random() < 0.4:
-        n = random.randint(2, 19)
-        d = random.randint(n + 1, 20)
-        # Ensure they are coprime
-        while math.gcd(n, d) != 1:
-            n = random.randint(2, 19)
-            d = random.randint(n + 1, 20)
-
-        is_negative = random.choice([True, False])
-        
-        display_num = n
-        display_den = d
-        if is_negative:
-            # Randomly place the negative sign on the numerator or denominator for variety
-            if random.choice([True, False]):
-                display_num = -n
-            else:
-                display_den = -d
-        
-        question_text = f"判斷分數 $\\frac{{{display_num}}}{{{display_den}}}$ 是否為最簡分數？若不是，請化為最簡分數。"
-        correct_answer = "是最簡分數"
-
-        return {
-            "question_text": question_text,
-            "answer": correct_answer,
-            "correct_answer": correct_answer
-        }
-    else:
-        # Generate a fraction that can be simplified
-        n = random.randint(1, 10)
-        d = random.randint(n + 1, 12)
-        while math.gcd(n, d) != 1:
-             n = random.randint(1, 10)
-             d = random.randint(n + 1, 12)
-        
-        k = random.randint(2, 7) # Common factor
-        
-        num = n * k
-        den = d * k
-        
-        f_simple = Fraction(n, d)
-        
-        # Randomly make it negative
-        if random.random() < 0.5:
-            num = -num
-            f_simple = -f_simple
-
-        question_text = f"請將分數 $\\frac{{{num}}}{{{den}}}$ 化為最簡分數。"
-        # The answer should be an improper fraction if applicable, not mixed.
-        correct_answer = _format_fraction(f_simple, latex=False, mixed=False)
-
-        return {
-            "question_text": question_text,
-            "answer": correct_answer,
-            "correct_answer": correct_answer
-        }
-
-def generate_comparison_problem():
-    """
-    Generates a problem asking to compare 2 or 3 fractions.
-    Corresponds to textbook examples 2, 3, 4, 5.
-    """
-    num_fractions = random.choice([2, 3])
-    fractions = set()
-    while len(fractions) < num_fractions:
-        # Generate a reasonably simple fraction
-        is_mixed = random.random() < 0.5 # 50% chance of being > 1
-        d = random.randint(2, 12)
-        if is_mixed:
-            i_part = random.randint(1, 3)
-            n_part = random.randint(1, d - 1)
-            n = i_part * d + n_part
-        else:
-            # Proper fraction
-            n = random.randint(1, d - 1)
-        
-        f = Fraction(n, d)
-        
-        # 50% chance of being negative
-        if random.random() < 0.5:
-            f = -f
-            
-        fractions.add(f)
+    # 確保分母不為零
+    if den == 0:
+        den = 1
     
-    fractions_list = list(fractions)
-    random.shuffle(fractions_list)
+    # 簡化分數
+    frac = Fraction(num, den)
     
-    # Use mixed numbers for display in the question
-    question_fractions_str = [_format_fraction(f, latex=True, mixed=True) for f in fractions_list]
-
-    sorted_fractions = sorted(fractions_list)
+    # 生成問題
+    question_text = f"將分數 $\\frac{{{num}}}{{{den}}}$ 化為最簡分數。"
     
-    # Randomly choose between ascending (<) or descending (>) order
-    use_ascending = random.choice([True, False])
-    
-    if use_ascending:
-        direction = "小到大"
-        op = "<"
-        ordered_list = sorted_fractions
-    else:
-        direction = "大到小"
-        op = ">"
-        ordered_list = sorted_fractions[::-1]
-        
-    question_text = f"請將下列各數由**{direction}**排列，並用 '{op}' 連接：{', '.join(question_fractions_str)}"
-    
-    # Create a map from fraction object to its plain string representation for the answer key
-    frac_map = {f: _format_fraction(f, latex=False, mixed=True) for f in fractions_list}
-    
-    answer_parts = [frac_map[f] for f in ordered_list]
-    correct_answer = f" {op} ".join(answer_parts)
+    # 答案
+    answer = f"$\\frac{{{frac.numerator}}}{{{frac.denominator}}}$"
+    correct_answer = f"$\\frac{{{frac.numerator}}}{{{frac.denominator}}}$"
     
     return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': correct_answer
+    }
+
+def generate_comparison_problem():
+    # 生成兩個分數進行比較
+    num1 = random.randint(-20, 20)
+    den1 = random.randint(1, 20)
+    num2 = random.randint(-20, 20)
+    den2 = random.randint(1, 20)
+    
+    frac1 = Fraction(num1, den1)
+    frac2 = Fraction(num2, den2)
+    
+    # 生成問題
+    question_text = f"比較 $\\frac{{{num1}}}{{{den1}}}$ 與 $\\frac{{{num2}}}{{{den2}}}$ 的大小，並用「>」或「<」表示。"
+    
+    # 判斷大小
+    if frac1 > frac2:
+        symbol = ">"
+    elif frac1 < frac2:
+        symbol = "<"
+    else:
+        symbol = "="
+    
+    answer = f"$\\frac{{{num1}}}{{{den1}}} {symbol} \\frac{{{num2}}}{{{den2}}}$"
+    correct_answer = f"$\\frac{{{num1}}}{{{den1}}} {symbol} \\frac{{{num2}}}{{{den2}}}$"
+    
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': correct_answer
+    }
+
+def generate_is_simplest_problem():
+    # 生成一個分數
+    num = random.randint(-50, 50)
+    den = random.randint(1, 50)
+    
+    # 簡化分數
+    frac = Fraction(num, den)
+    
+    # 判斷是否為最簡分數
+    is_simplest = (frac.numerator == num and frac.denominator == den)
+    
+    # 生成問題
+    question_text = f"分數 $\\frac{{{num}}}{{{den}}}$ 是否為最簡分數？請說明理由。"
+    
+    answer = "是" if is_simplest else "不是"
+    correct_answer = "是" if is_simplest else "不是"
+    
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': correct_answer
     }
 
 def generate(level=1):
-    """
-    主生成函數，隨機選擇一種「最簡分數與比較」的題型。
-    包含：
-    1. 化為最簡分數或判斷是否為最簡分數。
-    2. 比較 2 個或 3 個分數的大小。
-    """
-    problem_type = random.choice(['simplification', 'comparison'])
+    # 根據難度選擇問題類型
+    problem_types = [
+        generate_fraction_problem,
+        generate_comparison_problem,
+        generate_is_simplest_problem
+    ]
     
-    if problem_type == 'simplification':
-        return generate_simplification_problem()
-    else: # comparison
-        return generate_comparison_problem()
-
-def check(user_answer, correct_answer):
-    """
-    檢查使用者答案是否正確。
-    - 對於「是最簡分數」的判斷，檢查關鍵字。
-    - 對於分數和比較題，標準化字串後進行比較。
-    """
-    user_ans = user_answer.strip()
-    correct_ans = correct_answer.strip()
-
-    is_correct = False
-    
-    # Case 1: Answer is a keyword phrase
-    if correct_ans == "是最簡分數":
-        if "是" in user_ans or "最簡" in user_ans:
-            is_correct = True
-    # Case 2: Answer is a fraction or a comparison string
-    else:
-        # Normalize by removing all whitespace for a robust comparison
-        norm_user = "".join(user_ans.split())
-        norm_correct = "".join(correct_ans.split())
-        if norm_user == norm_correct:
-            is_correct = True
-
-    result_text = f"完全正確！答案是 {correct_ans}。" if is_correct else f"答案不正確。正確答案應為：{correct_ans}"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    return random.choice(problem_types)()

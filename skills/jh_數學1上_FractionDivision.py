@@ -1,232 +1,133 @@
+# ==============================================================================
+# ID: jh_數學1上_FractionDivision
+# Model: qwen3-coder:30b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 111.44s | RAG: 3 examples
+# Created At: 2025-12-31 23:50:01
+# Fix Status: [Clean Pass]
+# ==============================================================================
+
 import random
 from fractions import Fraction
 
-# --- Helper Functions ---
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
+    if isinstance(num, Fraction):
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
 
-def _get_random_fraction(is_divisor=False):
-    """
-    生成一個隨機分數，可以是整數、真分數或帶分數/假分數。
-    is_divisor: 若為 True，確保分母不為零 (此邏輯下恆為真)。
-    """
-    # 1: integer, 2: proper fraction, 3: mixed/improper fraction
-    frac_type = random.choice([1, 2, 3])
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
 
-    if frac_type == 1:  # Integer
-        val = random.randint(1, 9)
-        if val == 1 and random.random() < 0.5: # -1 is a special case from examples
-             f = Fraction(-1)
-        else:
-             f = Fraction(val)
-    elif frac_type == 2:  # Proper fraction
-        den = random.randint(2, 9)
-        num = random.randint(1, den - 1)
-        f = Fraction(num, den)
-    else:  # Mixed / Improper fraction
-        den = random.randint(2, 9)
-        integer_part = random.randint(1, 3)
-        num_part = random.randint(1, den - 1)
-        f = Fraction(integer_part * den + num_part, den)
-
-    # Randomly assign a negative sign
-    if random.random() < 0.4 and f != -1:
-        f = -f
-
-    return f
-
-def _fraction_to_latex(f: Fraction, use_mixed=False, add_paren_if_neg=False):
-    """
-    將 Fraction 物件轉換為 LaTeX 字串 (不含 $ 符號)。
-    use_mixed: 是否將假分數顯示為帶分數。
-    add_paren_if_neg: 是否在負數時加上括號。
-    """
-    is_negative = f.numerator < 0
-    sign = "-" if is_negative else ""
-    num = abs(f.numerator)
-    den = f.denominator
-
-    core_str = ""
-    if den == 1:
-        core_str = str(num)
-    elif use_mixed and num >= den:
-        integer_part = num // den
-        rem_num = num % den
-        if rem_num == 0:
-            core_str = str(integer_part)
-        else:
-            core_str = f"{integer_part}\\frac{{{rem_num}}}{{{den}}}"
-    else:
-        core_str = f"\\frac{{{num}}}{{{den}}}"
-
-    final_str = f"{sign}{core_str}"
-
-    if is_negative and add_paren_if_neg:
-        return f"\\left( {final_str} \\right)"
-    else:
-        return final_str
-
-def _fraction_to_answer_string(f: Fraction):
-    """
-    將 Fraction 物件轉換為標準答案格式的字串 (例如 "-7/4" 或 "-1")。
-    """
-    if f.denominator == 1:
-        return str(f.numerator)
-    else:
-        return f"{f.numerator}/{f.denominator}"
-
-# --- Problem Type Generators ---
-
-def generate_reciprocal_problem():
-    """
-    生成求倒數的題目 (對應例題 1)。
-    """
-    f = _get_random_fraction()
-    if f == 0:
-        f = Fraction(random.randint(1, 5)) # Avoid 0 for reciprocal
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
     
-    reciprocal = 1 / f
-
-    f_latex = _fraction_to_latex(f, use_mixed=True)
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
     
-    question_text = f"寫出 ${f_latex}$ 的倒數。"
-    correct_answer = _fraction_to_answer_string(reciprocal)
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_two_term_division_problem():
-    """
-    生成兩項分數除法的題目 (對應例題 2, 3 的第一部分)。
-    """
-    f1 = _get_random_fraction()
-    f2 = _get_random_fraction(is_divisor=True)
+def generate_fraction_division_problem():
+    # 生成兩個分數，其中至少一個是負數
+    num1 = random.randint(1, 10)
+    den1 = random.randint(2, 10)
+    num2 = random.randint(1, 10)
+    den2 = random.randint(2, 10)
     
-    # Ensure the problem is not too simple, e.g., 4 / 2
-    if f1.denominator == 1 and f2.denominator == 1 and f1 % f2 == 0 and abs(f2.numerator) > 1:
-        f1 = _get_random_fraction()
-        f2 = _get_random_fraction(is_divisor=True)
-
-    ans = f1 / f2
-
-    f1_latex = _fraction_to_latex(f1, use_mixed=True)
-    f2_latex = _fraction_to_latex(f2, use_mixed=True, add_paren_if_neg=True)
-
-    question_text = f"計算下列式子的值：${f1_latex} \\div {f2_latex}$"
-    correct_answer = _fraction_to_answer_string(ans)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_three_term_division_problem():
-    """
-    生成三項分數連除的題目 (對應例題 2, 3 的第二部分)。
-    """
-    f1 = _get_random_fraction()
-    f2 = _get_random_fraction(is_divisor=True)
-    f3 = _get_random_fraction(is_divisor=True)
-    
-    # To make it simpler, let's limit the complexity of the third fraction
+    # 隨機決定是否為負數
     if random.random() < 0.5:
-         f3 = Fraction(random.choice([-1, 1]) * random.randint(1,5), random.randint(2,7))
-
-    ans = f1 / f2 / f3
-
-    f1_latex = _fraction_to_latex(f1, use_mixed=True, add_paren_if_neg=True if f1<0 else False)
-    f2_latex = _fraction_to_latex(f2, use_mixed=True, add_paren_if_neg=True)
-    f3_latex = _fraction_to_latex(f3, use_mixed=True, add_paren_if_neg=True)
-
-    question_text = f"計算下列式子的值：${f1_latex} \\div {f2_latex} \\div {f3_latex}$"
-    correct_answer = _fraction_to_answer_string(ans)
+        num1 = -num1
+    if random.random() < 0.5:
+        num2 = -num2
+    
+    frac1 = Fraction(num1, den1)
+    frac2 = Fraction(num2, den2)
+    
+    # 確保除數不為零
+    if frac2 == 0:
+        frac2 = Fraction(1, 2)
+    
+    # 計算除法結果
+    result = frac1 / frac2
+    
+    # 格式化問題文字
+    question_text = f"計算 $\\frac{{{frac1.numerator}}}{{{frac1.denominator}}} \\div \\frac{{{frac2.numerator}}}{{{frac2.denominator}}}$ 的值為何？"
     
     return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
+        'question_text': question_text,
+        'answer': str(result),
+        'correct_answer': str(result)
     }
 
-# --- Main Functions ---
+def generate_app_problem():
+    # 應用題：分數除法在實際情境中的應用
+    total_distance = random.randint(10, 50)
+    time_taken = random.randint(2, 10)
+    
+    # 計算平均速度（分數形式）
+    avg_speed = Fraction(total_distance, time_taken)
+    
+    question_text = f"小明騎腳踏車 $ {total_distance} $ 公里，用了 $ {time_taken} $ 小時。請問他平均每小時騎多少公里？"
+    
+    return {
+        'question_text': question_text,
+        'answer': str(avg_speed),
+        'correct_answer': str(avg_speed)
+    }
+
+def generate_calc_problem():
+    # 基本分數除法計算
+    num1 = random.randint(1, 10)
+    den1 = random.randint(2, 10)
+    num2 = random.randint(1, 10)
+    den2 = random.randint(2, 10)
+    
+    # 隨機決定是否為負數
+    if random.random() < 0.3:
+        num1 = -num1
+    if random.random() < 0.3:
+        num2 = -num2
+    
+    frac1 = Fraction(num1, den1)
+    frac2 = Fraction(num2, den2)
+    
+    # 確保除數不為零
+    if frac2 == 0:
+        frac2 = Fraction(1, 2)
+    
+    # 計算除法結果
+    result = frac1 / frac2
+    
+    # 格式化問題文字
+    question_text = f"請計算 $\\frac{{{frac1.numerator}}}{{{frac1.denominator}}} \\div \\frac{{{frac2.numerator}}}{{{frac2.denominator}}}$ 的值為何？"
+    
+    return {
+        'question_text': question_text,
+        'answer': str(result),
+        'correct_answer': str(result)
+    }
 
 def generate(level=1):
-    """
-    生成「分數除法」相關題目。
-    包含：
-    1. 求倒數
-    2. 兩項分數除法
-    3. 三項分數除法
-    """
-    problem_type = random.choice([
-        'reciprocal', 
-        'two_term_division', 
-        'three_term_division'
-    ])
-    
-    if problem_type == 'reciprocal':
-        return generate_reciprocal_problem()
-    elif problem_type == 'two_term_division':
-        return generate_two_term_division_problem()
-    else:
-        return generate_three_term_division_problem()
-
-def check(user_answer, correct_answer):
-    """
-    檢查使用者答案是否正確。
-    能處理整數、分數 (a/b)、帶分數 (a b/c) 等格式。
-    """
-    try:
-        correct_f = Fraction(correct_answer)
-    except (ValueError, TypeError):
-        return {"correct": False, "result": "內部錯誤：標準答案格式無效。", "next_question": True}
-
-    user_answer = user_answer.strip()
-    user_f = None
-    
-    try:
-        # Case 1: Simple fraction "a/b" or integer "a" or decimal "a.b"
-        user_f = Fraction(user_answer)
-    except (ValueError, TypeError):
-        # Case 2: Mixed number "a b/c"
-        try:
-            parts = user_answer.split()
-            if len(parts) == 2 and '/' in parts[1]:
-                integer_part = int(parts[0])
-                frac_part = Fraction(parts[1])
-                if integer_part < 0:
-                    user_f = integer_part - frac_part
-                else:
-                    user_f = integer_part + frac_part
-        except (ValueError, IndexError, TypeError):
-            pass
-    
-    is_correct = (user_f is not None) and (user_f == correct_f)
-
-    # Format the correct answer for display, showing both improper and mixed forms if applicable.
-    num = correct_f.numerator
-    den = correct_f.denominator
-    
-    answer_display = ""
-    if den == 1:
-        answer_display = str(num)
-    elif abs(num) < den:
-        answer_display = f"\\frac{{{num}}}{{{den}}}"
-    else: # Improper fraction
-        sign = "-" if num < 0 else ""
-        abs_num = abs(num)
-        improper_latex = f"{sign}\\frac{{{abs_num}}}{{{den}}}"
-        
-        integer_part = abs_num // den
-        rem_num = abs_num % den
-        
-        if rem_num == 0: # was actually an integer
-            answer_display = str(correct_f.numerator)
-        else:
-            mixed_latex = f"{sign}{integer_part}\\frac{{{rem_num}}}{{{den}}}"
-            answer_display = f"{improper_latex} \\; (\\text{{或}} \\; {mixed_latex})"
-
-    result_text = f"完全正確！答案是 ${answer_display}$。" if is_correct else f"答案不正確。正確答案應為：${answer_display}$"
-    
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    type = random.choice(['calc', 'app'])
+    if type == 'calc': 
+        return generate_calc_problem()
+    else: 
+        return generate_app_problem()
