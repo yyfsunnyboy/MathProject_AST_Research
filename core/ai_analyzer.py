@@ -573,7 +573,7 @@ LATEX: Use single backslash e.g. $x^2$.
     
     return full_prompt
 
-def get_chat_response(prompt):
+def get_chat_response(prompt, image=None):
     global gemini_chat
     if gemini_chat is None and gemini_model is not None:
         gemini_chat = gemini_model.start_chat(history=[])
@@ -588,12 +588,21 @@ def get_chat_response(prompt):
         }
 
     try:
+        # 準備請求內容
+        content = [prompt + " (IMPORTANT: Output ONLY valid JSON. Escape all backslashes.)"]
+        if image:
+            # 確保 image 是 PIL Image 物件或 blob
+            # 這裡假設 image 是 PIL Image
+            content.append(image)
+
         # 呼叫 Gemini
-        response = gemini_chat.send_message(prompt + " (IMPORTANT: Keep response concise. Do NOT solve the problem. Only guide steps. Do not reveal final answer. Use LaTeX format (surround with $). IMPORTANT: Escape all backslashes in JSON (e.g. use \\frac instead of \frac).)",
+        # 注意: ChatSession.send_message 支援列表 [text, image]
+        response = gemini_chat.send_message(
+            content,
             generation_config=genai.types.GenerationConfig(
                 response_mime_type='application/json', # 強制 JSON
                 temperature=0.5,
-                max_output_tokens=2048, # 稍微調高一點，避免 AI 加上"Here is JSON"後導致真正的 JSON 被截斷
+                max_output_tokens=2048, 
             )
         )
         
@@ -736,3 +745,61 @@ def analyze_student_weakness(prompt_data):
             "overall_comment": f"目前無法連線至 AI 伺服器 (錯誤: {str(e)})，系統已根據您的錯誤次數自動計算熟練度。建議您針對錯誤較多的單元進行複習。",
             "recommended_unit": fallback_recommendation
         }
+
+def analyze_question_image(image_file):
+    """
+    Analyzes an uploaded image to extract the math question and solve it.
+    Returns:
+        dict: {
+            "question_text": "extracted question",
+            "correct_answer": "calculated answer",
+            "answer_type": "text" (or other types if needed)
+        }
+    """
+    try:
+        model = get_model()
+
+        # Prepare the image for the API
+        img = PIL.Image.open(image_file.stream)
+
+        prompt = """
+        You are an expert math solver.
+        1. OCR: Extract the math question text from the image accurately. Use LaTeX for math symbols in the QUESTION TEXT (surrounded by single $).
+        2. SOLVE: Solve the problem step-by-step to find the final answer.
+        3. OUTPUT: Return a JSON object with:
+           - "question_text": The extracted question text. (Use LaTeX for math).
+           - "correct_answer": The final result/answer in a STUDENT-FRIENDLY PLAIN TEXT format.
+             - Do NOT use LaTeX or '$' in the correct_answer.
+             - For fractions, use 'a/b' (e.g., '1/2').
+             - For coordinates, use '(x, y)' (e.g., '(3, 5)').
+             - For text, return just the text.
+             - Keep it simple so a student can type it easily.
+           - "answer_type": "text"
+        
+        Example JSON:
+        {
+          "question_text": "Calculate $1 + 1$",
+          "correct_answer": "2",
+          "answer_type": "text"
+        }
+        
+        Do not include any other text.
+        """
+
+        response = model.generate_content([prompt, img])
+        raw_text = response.text.strip()
+        
+        # Clean JSON
+        cleaned = re.sub(r'^```json\s*|\s*```$', '', raw_text, flags=re.MULTILINE)
+        
+        # Parse
+        data = clean_and_parse_json(cleaned)
+        
+        if data and "question_text" in data and "correct_answer" in data:
+            return data
+        else:
+            return {"error": "AI could not parse the question."}
+
+    except Exception as e:
+        print(f"Error in analyze_question_image: {e}")
+        return {"error": f"Analysis failed: {str(e)}"}

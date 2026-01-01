@@ -337,6 +337,13 @@
                 style="background: #f1c40f; color: #333; padding: 8px 15px; border-radius: 4px;">📝 錯題本</a>
             <a href="{{ url_for('core.student_diagnosis') }}"
                 style="background: #8e44ad; padding: 8px 15px; border-radius: 4px;">📊 學習診斷</a>
+
+            <!-- Dashboard Upload Question Button (Simplified to Link) -->
+            <a href="{{ url_for('practice.practice', skill_id='custom_upload') }}"
+                style="background-color: #9b59b6; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 1em; margin-right: 5px;">
+                <i class="fas fa-camera"></i> 上傳題目
+            </a>
+
             <a href="{{ url_for('logout') }}">登出</a>
         </div>
     </div>
@@ -410,6 +417,11 @@
                     顯示所有
                 </a>
             </div>
+        </div>
+
+        <!-- 歡迎區塊 -->
+        <div class="alert">
+            <h3>歡迎回來，{{ current_user.username }}！</h3>
         </div>
 
         {% if view_mode == 'curriculum' %}
@@ -545,6 +557,9 @@
         </div>
         {% endif %}
         {% endif %}
+    </div>
+    </div>
+
     </div>
 </body>
 
