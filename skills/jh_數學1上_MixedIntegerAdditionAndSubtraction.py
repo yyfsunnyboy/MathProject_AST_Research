@@ -1,13 +1,13 @@
 # ==============================================================================
 # ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
-# Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
-# Duration: 291.61s | RAG: 8 examples
-# Created At: 2025-12-31 22:51:28
-# Fix Status: [Clean Pass]
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
+# Duration: 295.67s | RAG: 8 examples
+# Created At: 2026-01-06 16:13:53
+# Fix Status: [Repaired]
 # ==============================================================================
 
-import random
 from fractions import Fraction
+import random
 
 def to_latex(num):
     if isinstance(num, int): return str(num)
@@ -45,74 +45,89 @@ def draw_number_line(points_map):
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-def generate_calc_problem():
-    # 生成整數加減運算問題
-    val_a = random.randint(-100, 100)
-    val_b = random.randint(-100, 100)
-    val_c = random.randint(-100, 100)
-    
-    # 隨機選擇問題類型
-    problem_type = random.choice(['simple', 'with_absolute', 'with_parentheses', 'comparison'])
-    
-    if problem_type == 'simple':
-        # 簡單的加減運算
-        ans = val_a + val_b - val_c
-        question_text = f"請計算 ${fmt_num(val_a)} + {fmt_num(val_b)} - {fmt_num(val_c)}$ 的值為何？"
-        return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
-    
-    elif problem_type == 'with_absolute':
-        # 加入絕對值
-        abs_val = random.choice([abs(val_a), abs(val_b), abs(val_c)])
-        ans = abs_val + val_b - val_c
-        question_text = f"請計算 $|{fmt_num(val_a)}| + {fmt_num(val_b)} - {fmt_num(val_c)}$ 的值為何？"
-        return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
-    
-    elif problem_type == 'with_parentheses':
-        # 加入括號
-        ans = val_a + (val_b - val_c)
-        question_text = f"請計算 ${fmt_num(val_a)} + ({fmt_num(val_b)} - {fmt_num(val_c)})$ 的值為何？"
-        return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
-    
-    elif problem_type == 'comparison':
-        # 比較運算結果是否相同
-        expr1 = f"({fmt_num(val_a)} + {fmt_num(val_b)}) - {fmt_num(val_c)}"
-        expr2 = f"{fmt_num(val_a)} + ({fmt_num(val_b)} - {fmt_num(val_c)})"
-        ans1 = val_a + val_b - val_c
-        ans2 = val_a + (val_b - val_c)
-        if ans1 == ans2:
-            result = "相同"
-        else:
-            result = "不同"
-        question_text = f"比較下列兩式的運算結果是否相同：\n⑴ ${expr1}$ 和 ⑵ ${expr2}$"
-        return {'question_text': question_text, 'answer': result, 'correct_answer': result}
 
-def generate_app_problem():
-    # 生成應用問題
-    problem_type = random.choice(['temperature', 'elevation', 'money'])
-    
-    if problem_type == 'temperature':
-        temp1 = random.randint(-20, 30)
-        temp2 = random.randint(-20, 30)
-        ans = temp1 + temp2
-        question_text = f"某地早上氣溫為 ${fmt_num(temp1)}°C$，中午氣溫上升了 ${fmt_num(temp2)}°C$，請問中午的氣溫為多少度？"
-        return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
-    
-    elif problem_type == 'elevation':
-        elev1 = random.randint(-100, 100)
-        elev2 = random.randint(-100, 100)
-        ans = elev1 - elev2
-        question_text = f"某地海拔為 ${fmt_num(elev1)}$ 公尺，另一地比它低 ${fmt_num(elev2)}$ 公尺，請問另一地的海拔為多少公尺？"
-        return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
-    
-    elif problem_type == 'money':
-        money1 = random.randint(100, 1000)
-        money2 = random.randint(100, 1000)
-        money3 = random.randint(100, 1000)
-        ans = money1 - money2 + money3
-        question_text = f"小明有 ${money1}$ 元，買書花了 ${money2}$ 元，又收到 ${money3}$ 元的紅包，請問小明現在有幾元？"
-        return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
 
-def generate(level=1):
-    type = random.choice(['calc', 'app'])
-    if type == 'calc': return generate_calc_problem()
-    else: return generate_app_problem()
+def generate_type_A_problem():
+    # Generate two numbers a and b
+    a = random.randint(-10, 10)
+    b = random.randint(-10, 10)
+    
+    # Ensure a and b are not zero
+    while a == 0 or b == 0:
+        a = random.randint(-10, 10)
+        b = random.randint(-10, 10)
+    
+    # Create the expressions
+    expr1 = f"{a} + {b}"
+    expr2 = f"{a} - (-{b})"
+    
+    # Calculate the results
+    result1 = a + b
+    result2 = a - (-b)
+    
+    # Determine if they are equal
+    if result1 == result2:
+        answer = "相同"
+    else:
+        answer = "不相同"
+    
+    # Return the question and answer
+    return f"比較下列各題中，兩式的運算結果是否相同。\n⑴ {expr1} 和 {expr2}\n答案: {answer}"
+
+def generate_type_B_problem():
+    # Generate three numbers a, b, c
+    a = random.randint(-10, 10)
+    b = random.randint(-10, 10)
+    c = random.randint(-10, 10)
+    
+    # Ensure a, b, and c are not zero
+    while a == 0 or b == 0 or c == 0:
+        a = random.randint(-10, 10)
+        b = random.randint(-10, 10)
+        c = random.randint(-10, 10)
+    
+    # Create the expressions
+    expr1 = f"{c} - ({a} + {b})"
+    expr2 = f"{c} - {a} - {b}"
+    
+    # Calculate the results
+    result1 = c - (a + b)
+    result2 = c - a - b
+    
+    # Determine if they are equal
+    if result1 == result2:
+        answer = "相同"
+    else:
+        answer = "不相同"
+    
+    # Return the question and answer
+    return f"比較下列各題中，兩式的運算結果是否相同。\n⑴ {expr1} 和 {expr2}\n答案: {answer}"
+
+def generate_type_C_problem():
+    # Generate two numbers a and b
+    a = random.randint(-10, 10)
+    b = random.randint(-10, 10)
+    
+    # Ensure a and b are not zero
+    while a == 0 or b == 0:
+        a = random.randint(-10, 10)
+        b = random.randint(-10, 10)
+    
+    # Create the expressions
+    expr1 = f"{a} + {b}"
+    expr2 = f"{a} - (-{b})"
+    
+    # Calculate the results
+    result1 = a + b
+    result2 = a - (-b)
+    
+    # Determine if they are equal
+    if result1 == result2:
+        answer = "相同"
+    else:
+        answer = "不相同"
+    
+    # Return the question and answer
+    return f"比較下列各題中，兩式的運算結果是否相同。\n⑴ {expr1} 和 {expr2}\n答案: {answer}"
+
+# Example usage

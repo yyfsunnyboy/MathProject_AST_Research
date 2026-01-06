@@ -1,13 +1,12 @@
 # ==============================================================================
-# ID: jh_數學1上_IntegerMultiplication
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 164.51s | RAG: 5 examples
-# Created At: 2026-01-06 16:06:32
+# ID: jh_數學1上_FactorsAndMultiples
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Phi4 Plan + Qwen Code)
+# Duration: 182.74s | RAG: 4 examples
+# Created At: 2026-01-06 14:38:42
 # Fix Status: [Repaired]
 # ==============================================================================
 
 from fractions import Fraction
-import math
 import random
 
 def to_latex(num):
@@ -49,53 +48,54 @@ def draw_number_line(points_map):
 
 
 def generate_type_A_problem():
-    num1 = random.choice([-12, -1] + list(range(1, 13)))
-    num2 = random.choice([-12, -1] + list(range(1, 13)))
-    result = num1 * num2
-    question_text = f"計算 {num1} × {num2} 的值。"
-    answer = to_latex(result)
-    correct_answer = str(result)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+    target_number = random.randint(20, 100)
+    factors = [i for i in range(1, target_number + 1) if target_number % i == 0]
+    return {
+        'question_text': f"將 {target_number} 寫成 a×b，其中 a、b 為正整數，並由小到大寫出 {target_number} 的所有因數。",
+        'answer': factors,
+        'correct_answer': ', '.join(map(str, factors))
+    }
 
 def generate_type_B_problem():
-    num_count = random.choice([3, 4])
-    factors = []
-    special_factors_pool = [-25, -125, -2, -4, -5, 2, 4, 5, 8, 25, 125]
-    
-    for _ in range(num_count):
-        if random.random() < 0.3:
-            factor = random.choice(special_factors_pool)
-        else:
-            factor = random.choice([-12, -1] + list(range(1, 13)))
-        factors.append(factor)
-    
-    random.shuffle(factors)
-    result = math.prod(factors)
-    factors_str = " × ".join([to_latex(f) for f in factors])
-    question_text = f"計算 {factors_str} 的值。"
-    answer = to_latex(result)
-    correct_answer = str(result)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+    target_number = random.randint(50, 150)
+    factors = [i for i in range(1, target_number + 1) if target_number % i == 0]
+    return {
+        'question_text': f"將 {target_number} 寫成 c×d，其中 c、d 為正整數，並由小到大寫出 {target_number} 的所有因數。",
+        'answer': factors,
+        'correct_answer': ', '.join(map(str, factors))
+    }
 
 def generate_type_C_problem():
-    num_factors = random.randint(5, 9)
-    negative_count = random.randint(1, num_factors)
-    factors = []
+    original_number = random.randint(24, 72)
+    all_factors = sorted([i for i in range(1, original_number + 1) if original_number % i == 0])
     
-    for i in range(num_factors):
-        if i < negative_count:
-            factor = random.choice([-20, -1])
-        else:
-            factor = random.choice([1, 20])
-        factors.append(factor)
+    while len(all_factors) < 4:
+        original_number = random.randint(24, 72)
+        all_factors = sorted([i for i in range(1, original_number + 1) if original_number % i == 0])
+
+    problem_factors_list = list(all_factors)
+    num_internal_missing = random.choice([1, 2])
+    placeholders_to_ask_for = []
+    available_placeholders = ['a', 'b', 'c', 'd', 'e']
     
-    random.shuffle(factors)
-    expected_sign_text = "負數" if negative_count % 2 != 0 else "正數"
-    factors_str = " × ".join([to_latex(f) for f in factors])
-    question_text = f"判斷 {factors_str} 的計算結果是一個正數還是負數？說明你判斷的理由。"
-    answer = expected_sign_text
-    correct_answer = expected_sign_text
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+    for _ in range(num_internal_missing):
+        idx = random.randint(1, len(all_factors) - 2)
+        placeholder_name = random.choice(available_placeholders)
+        placeholders_to_ask_for.append(placeholder_name)
+        available_placeholders.remove(placeholder_name)
+        problem_factors_list[idx] = placeholder_name
+    
+    final_placeholder_name = random.choice(['M', 'N', 'P'])
+    placeholders_to_ask_for.append(final_placeholder_name)
+    problem_factors_list[-1] = final_placeholder_name
+    
+    question_text = f"有一正整數 {final_placeholder_name} 的所有因數由小到大排列為 {', '.join(map(str, problem_factors_list))}，則 {', '.join(placeholders_to_ask_for)} 的值為何？"
+    
+    return {
+        'question_text': question_text,
+        'answer': placeholders_to_ask_for,
+        'correct_answer': ', '.join(map(str, all_factors))
+    }
 
 def generate(level=1):
     type = random.choice(['type_A', 'type_B', 'type_C'])

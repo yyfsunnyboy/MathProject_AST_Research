@@ -1,3 +1,13 @@
+# -*- coding: utf-8 -*-
+# ==============================================================================
+# ID: sync_skills_files.py
+# Version: v7.7.7 (Hierarchical Selection + Batch Hybrid Mode)
+# Description:
+#   負責同步資料庫中的技能清單與本地實體檔案。
+#   支援「階層式篩選」與「專家分工批次生成」。
+#   Mode 4: 兩階段批次處理 (Batch Phase 1 -> Batch Phase 2) 以優化資源。
+# ==============================================================================
+
 import sys
 import os
 import glob
@@ -27,6 +37,8 @@ if project_root not in sys.path:
 from app import create_app
 from models import db, SkillInfo, SkillCurriculum, TextbookExample
 from core.code_generator import auto_generate_skill_code
+# 引入架構師功能
+from core.prompt_architect import generate_design_prompt
 from config import Config
 
 # [安全設定] 絕對不能刪除的檔案白名單
@@ -42,7 +54,7 @@ def get_user_selection(options, prompt_text):
     options = sorted([o for o in options if o is not None])
     
     print(f"\n{prompt_text}")
-    print("   [0] ALL (全部處理)")
+    print("   [0] ALL (全部/跳過)")
     for i, opt in enumerate(options, 1):
         print(f"   [{i}] {opt}")
         
@@ -73,24 +85,34 @@ if __name__ == "__main__":
         role_config = Config.MODEL_ROLES.get('coder', Config.MODEL_ROLES.get('default'))
         current_model = role_config.get('model', 'Unknown')
         
-        print(f"🚀 開始同步資料庫與實體檔案")
-        print(f"🤖 目前使用模型: \033[1;36m{current_model}\033[0m") # 青色高亮
+        # 取得架構師模型名稱
+        arch_config = Config.MODEL_ROLES.get('architect', {})
+        arch_model = arch_config.get('model', 'Unknown (Phi-4)')
+
+        print(f"🚀 開始同步資料庫與實體檔案 (v7.7.7)")
+        print(f"🤖 工程師模型 (Coder): \033[1;36m{current_model}\033[0m") 
+        print(f"🧠 架構師模型 (Architect): \033[1;35m{arch_model}\033[0m")
         
-        # --- 1. 互動篩選 ---
+        # --- 1. 互動篩選 (層層過濾) ---
+        
+        # Level 1: 課綱
         curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).order_by(SkillCurriculum.curriculum).all()]
         selected_curr = get_user_selection(curriculums, "請選擇課綱:")
 
+        # Level 2: 年級
         q_grade = db.session.query(distinct(SkillCurriculum.grade))
         if selected_curr: q_grade = q_grade.filter(SkillCurriculum.curriculum == selected_curr)
         grades = [r[0] for r in q_grade.order_by(SkillCurriculum.grade).all()]
         selected_grade = get_user_selection(grades, "請選擇年級:")
 
+        # Level 3: 冊別
         q_vol = db.session.query(distinct(SkillCurriculum.volume))
         if selected_curr: q_vol = q_vol.filter(SkillCurriculum.curriculum == selected_curr)
         if selected_grade: q_vol = q_vol.filter(SkillCurriculum.grade == selected_grade)
         volumes = [r[0] for r in q_vol.all()]
         selected_vol = get_user_selection(volumes, "請選擇冊別:")
 
+        # Level 4: 章節
         q_chap = db.session.query(distinct(SkillCurriculum.chapter))
         if selected_curr: q_chap = q_chap.filter(SkillCurriculum.curriculum == selected_curr)
         if selected_grade: q_chap = q_chap.filter(SkillCurriculum.grade == selected_grade)
@@ -98,9 +120,29 @@ if __name__ == "__main__":
         chapters = [r[0] for r in q_chap.all()]
         selected_chap = get_user_selection(chapters, "請選擇章節:")
 
-        is_full_scan = all(x is None for x in [selected_curr, selected_grade, selected_vol, selected_chap])
+        # Level 5: 單一技能 (新增功能)
+        selected_skill_id = None
+        # 只有當前面的篩選條件至少有一個不是 None 時，才列出技能，避免一次列出數百個
+        if any([selected_curr, selected_grade, selected_vol, selected_chap]):
+            q_skill = db.session.query(SkillInfo.skill_id, SkillInfo.skill_ch_name).join(SkillCurriculum).filter(SkillInfo.is_active == True)
+            if selected_curr: q_skill = q_skill.filter(SkillCurriculum.curriculum == selected_curr)
+            if selected_grade: q_skill = q_skill.filter(SkillCurriculum.grade == selected_grade)
+            if selected_vol: q_skill = q_skill.filter(SkillCurriculum.volume == selected_vol)
+            if selected_chap: q_skill = q_skill.filter(SkillCurriculum.chapter == selected_chap)
+            
+            # 格式化選項：ID | 中文名稱
+            skills_raw = q_skill.order_by(SkillInfo.order_index).all()
+            skill_options = [f"{s.skill_id} | {s.skill_ch_name}" for s in skills_raw]
+            
+            if skill_options:
+                selected_skill_str = get_user_selection(skill_options, "請選擇單一技能 (Optional):")
+                if selected_skill_str:
+                    # 從字串中切分出 ID (例如 "jh_math_1 | 因數" -> "jh_math_1")
+                    selected_skill_id = selected_skill_str.split(' | ')[0].strip()
 
-        # --- 2. 查詢目標技能 ---
+        is_full_scan = all(x is None for x in [selected_curr, selected_grade, selected_vol, selected_chap, selected_skill_id])
+
+        # --- 2. 查詢目標技能 (套用所有篩選) ---
         print("\n🔍 正在查詢目標技能...")
         query = db.session.query(SkillInfo.skill_id).join(SkillCurriculum).filter(SkillInfo.is_active == True)
         
@@ -108,6 +150,7 @@ if __name__ == "__main__":
         if selected_grade: query = query.filter(SkillCurriculum.grade == selected_grade)
         if selected_vol: query = query.filter(SkillCurriculum.volume == selected_vol)
         if selected_chap: query = query.filter(SkillCurriculum.chapter == selected_chap)
+        if selected_skill_id: query = query.filter(SkillInfo.skill_id == selected_skill_id)
         
         target_skill_ids = set(r[0] for r in query.all())
 
@@ -144,6 +187,8 @@ if __name__ == "__main__":
         print("   [2] 強制重新生成範圍內所有檔案 (Overwrite All)")
         if to_delete:
             print("   [3] 清理孤兒檔案 (Delete Orphans)")
+        # 模式 4: 專家分工 (兩階段批次)
+        print("   [4] 專家分工模式 (Phase 1: Gemini 批次 Prompt -> Phase 2: Qwen 批次 Code)") 
         
         mode = input("👉 請輸入選項: ").strip()
         
@@ -162,6 +207,8 @@ if __name__ == "__main__":
                     print(f"   ❌ 刪除失敗: {e}")
             print("✅ 清理完成。")
             sys.exit(0)
+        elif mode == '4':
+            list_to_process = sorted(list(to_create.union(existing_in_scope)))
         else:
             print("❌ 無效選項或無操作。")
             sys.exit(0)
@@ -172,12 +219,17 @@ if __name__ == "__main__":
 
         # --- [警示] 耗時提醒 ---
         count = len(list_to_process)
-        # 如果是 7B 模型，估計 1 分鐘；如果是 14B，估計 3-5 分鐘
-        est_time_per_file = 0.5 if "7b" in current_model.lower() else 3.5 
-        total_est_min = count * est_time_per_file
+        base_time = 0.5 
+        if "14b" in current_model.lower(): base_time = 3.5
+        
+        if mode == '4':
+            print(f"\n⚠️  [專家模式] 將執行兩階段批次處理：")
+            print(f"   Phase 1: {arch_model} 產生所有教案")
+            print(f"   Phase 2: {current_model} 產生所有程式碼")
+        
+        total_est_min = count * base_time
         
         print(f"\n⚠️  [注意] 準備開始生成")
-        print(f"   模型: {current_model}")
         print(f"   數量: {count} 題")
         print(f"   預估總耗時: {total_est_min:.1f} 分鐘")
         confirm = input("   確定要繼續嗎? (y/n): ").strip().lower()
@@ -185,65 +237,114 @@ if __name__ == "__main__":
             print("已取消。")
             sys.exit(0)
 
-        # --- 6. 執行生成 (詳細資訊版) ---
-        print(f"\n🚀 開始生成任務... (Log 將顯示於下方)\n")
-        success_count = 0
-        fail_count = 0
+        # --- 6. 執行生成 (分流處理) ---
         
-        pbar = tqdm(list_to_process, desc="Progress", unit="file", ncols=100)
-        
-        for skill_id in pbar:
-            pbar.set_description(f"Processing: {skill_id}")
+        if mode == '4':
+            # ==========================================
+            # Mode 4: 兩階段批次處理 (Batch Architect -> Batch Coder)
+            # ==========================================
+            print("\n" + "="*50)
+            print(f"🧠 [Phase 1] 啟動架構師批次分析 ({arch_model})...")
+            print("="*50)
             
-            # 1. 準備顯示資訊
-            start_dt = datetime.now()
-            start_str = start_dt.strftime("%H:%M:%S")
+            arch_success_count = 0
+            pbar_arch = tqdm(list_to_process, desc="Phase 1 (Architect)", unit="file", ncols=100)
             
-            # 查詢例題數量 (模擬 Generator 內部的查詢)
-            rag_count = TextbookExample.query.filter_by(skill_id=skill_id).count()
+            for skill_id in pbar_arch:
+                pbar_arch.set_description(f"Planning: {skill_id}")
+                # 呼叫架構師生成 Prompt 並存入 DB
+                success = generate_design_prompt(skill_id)
+                if success:
+                    arch_success_count += 1
             
-            # 使用 tqdm.write 輸出，避免打斷進度條
-            tqdm.write("─" * 50)
-            tqdm.write(f"▶ 正在生成: \033[1;33m{skill_id}\033[0m") # 黃色
-            tqdm.write(f"  ├─ 🤖 模型: {current_model}")
-            tqdm.write(f"  ├─ 📚 RAG 例題數: {rag_count} (將取前 8-10 題)")
-            tqdm.write(f"  └─ ⏰ 開始時間: {start_str}")
+            print(f"\n✅ Phase 1 完成: {arch_success_count}/{len(list_to_process)} 份教案已生成。\n")
             
-            try:
-                # 2. 執行生成
-                # auto_generate_skill_code 內部會寫入 experiment_log
+            print("="*50)
+            print(f"💻 [Phase 2] 啟動工程師批次實作 ({current_model})...")
+            print("="*50)
+            
+            success_count = 0
+            fail_count = 0
+            
+            pbar_code = tqdm(list_to_process, desc="Phase 2 (Coder)", unit="file", ncols=100)
+            
+            for skill_id in pbar_code:
+                pbar_code.set_description(f"Coding: {skill_id}")
+                
+                # 執行 Code 生成 (code_generator 會自動讀取 Phase 1 存好的教案)
                 result = auto_generate_skill_code(skill_id, queue=None)
                 
+                is_ok = False
+                msg = ""
                 if isinstance(result, tuple):
                     is_ok, msg = result
                 else:
                     is_ok = result
-                    msg = ""
                 
-                # 3. 結算時間
-                end_dt = datetime.now()
-                duration = (end_dt - start_dt).total_seconds()
-                end_str = end_dt.strftime("%H:%M:%S")
-
                 if is_ok:
                     success_count += 1
-                    status_icon = "✅ 成功 [Clean Pass]"
+                    tqdm.write(f"   ✅ {skill_id}: Success")
                 else:
                     fail_count += 1
-                    status_icon = f"❌ 失敗: {msg}"
-                
-                tqdm.write(f"  └─ 🏁 結束時間: {end_str} (耗時 {duration:.2f}s) => {status_icon}")
-                tqdm.write(f"  (📝 已寫入 experiment_log)")
+                    tqdm.write(f"   ❌ {skill_id}: Failed ({msg})")
 
-            except KeyboardInterrupt:
-                print("\n⚠️  使用者強制中斷！")
-                break
-            except Exception as e:
-                fail_count += 1
-                tqdm.write(f"❌ 異常 {skill_id}: {e}")
-        
-        print("\n" + "=" * 50)
-        print(f"🎉 作業完成！")
-        print(f"   成功: {success_count}")
-        print(f"   失敗: {fail_count}")
-        print("=" * 50)
+            print("\n" + "=" * 50)
+            print(f"🎉 專家模式作業完成！")
+            print(f"   成功: {success_count}")
+            print(f"   失敗: {fail_count}")
+            print("=" * 50)
+
+        else:
+            # ==========================================
+            # Mode 1 & 2: 標準單階段處理 (Standard)
+            # ==========================================
+            print(f"\n🚀 開始生成任務... (Log 將顯示於下方)\n")
+            success_count = 0
+            fail_count = 0
+            
+            pbar = tqdm(list_to_process, desc="Progress", unit="file", ncols=100)
+            
+            for skill_id in pbar:
+                pbar.set_description(f"Processing: {skill_id}")
+                
+                start_dt = datetime.now()
+                start_str = start_dt.strftime("%H:%M:%S")
+                
+                tqdm.write("─" * 50)
+                tqdm.write(f"▶ 正在處理: \033[1;33m{skill_id}\033[0m")
+                tqdm.write(f"   ⏰ 開始時間: {start_str}")
+                
+                try:
+                    result = auto_generate_skill_code(skill_id, queue=None)
+                    
+                    if isinstance(result, tuple):
+                        is_ok, msg = result
+                    else:
+                        is_ok = result
+                        msg = ""
+                    
+                    end_dt = datetime.now()
+                    duration = (end_dt - start_dt).total_seconds()
+                    end_str = end_dt.strftime("%H:%M:%S")
+
+                    if is_ok:
+                        success_count += 1
+                        status_icon = "✅ 成功 [Clean Pass]"
+                    else:
+                        fail_count += 1
+                        status_icon = f"❌ 失敗: {msg}"
+                    
+                    tqdm.write(f"   └─ 🏁 結束時間: {end_str} (總耗時 {duration:.2f}s) => {status_icon}")
+
+                except KeyboardInterrupt:
+                    print("\n⚠️  使用者強制中斷！")
+                    break
+                except Exception as e:
+                    fail_count += 1
+                    tqdm.write(f"❌ 異常 {skill_id}: {e}")
+            
+            print("\n" + "=" * 50)
+            print(f"🎉 作業完成！")
+            print(f"   成功: {success_count}")
+            print(f"   失敗: {fail_count}")
+            print("=" * 50)

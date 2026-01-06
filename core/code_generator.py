@@ -1,3 +1,15 @@
+# -*- coding: utf-8 -*-
+# ==============================================================================
+# ID: code_generator.py
+# Version: v7.7.7 (Hybrid Perfect Ver.)
+# Description: 
+#   [Science Fair Final Build]
+#   結合了 v7.7.6 的「混合雲架構邏輯」與 v7.7.1 的「本地語法修復最強補丁」。
+#   1. Mode: 支援 Expert Mode (讀取 Gemini 教案) 與 Standard Mode.
+#   2. Repair: 包含完整的 LaTeX/Python 衝突修復 Regex (User Provided).
+#   3. Utils: 強制注入 Perfect Utils.
+# ==============================================================================
+
 import os
 import re
 import sys
@@ -13,29 +25,38 @@ from core.ai_wrapper import get_ai_client
 from models import db, SkillInfo, TextbookExample, ExperimentLog
 from config import Config
 
-# [v7.7.1] Universal Skeleton + Utils Injection + Full Syntax Repair
+# [v7.7.7] Universal Skeleton (Updated to Type A/B/C to match Architect Plan)
 UNIVERSAL_SKELETON = """
 import random
 import math
 from fractions import Fraction
 
 def generate(level=1):
-    # Dispatcher
-    problem_type = random.choice(['calc', 'app'])
-    if problem_type == 'calc': return generate_calc_problem()
-    else: return generate_app_problem()
+    # Dispatcher: Select a specific sub-type based on the skill's curriculum requirements
+    # The list below should contain semantic function names, e.g., ['find_factors', 'check_multiple']
+    problem_type = random.choice(['type_A', 'type_B', 'type_C'])
+    
+    if problem_type == 'type_A': return generate_type_A_problem()
+    elif problem_type == 'type_B': return generate_type_B_problem()
+    else: return generate_type_C_problem()
 
-def generate_calc_problem():
+def generate_type_A_problem():
+    # Implement logic for specific skill concept A
     return {"question_text": "...", "answer": "...", "correct_answer": "..."}
 
-def generate_app_problem():
+def generate_type_B_problem():
+    # Implement logic for specific skill concept B
+    return {"question_text": "...", "answer": "...", "correct_answer": "..."}
+
+def generate_type_C_problem():
+    # Implement logic for specific skill concept C
     return {"question_text": "...", "answer": "...", "correct_answer": "..."}
 
 def check(user_ans, correct_ans):
     return {"correct": user_ans.strip() == correct_ans.strip(), "result": f"Ans: {correct_ans}", "next_question": True}
 """
 
-# ★★★ 完美的工具函式 (將強制注入) ★★★
+# ★★★ 完美的工具函式 (來自您的上傳，強制注入) ★★★
 PERFECT_UTILS = r'''
 def to_latex(num):
     if isinstance(num, int): return str(num)
@@ -79,11 +100,9 @@ def inject_perfect_utils(code_str):
     [v7.7] 強制替換 AI 生成的工具函式，避免語法錯誤。
     """
     clean_code = code_str
-    # 清除 to_latex
+    # 清除 to_latex, fmt_num, draw_number_line
     clean_code = re.sub(r'def to_latex\(.*?\):(\n\s+.*)+', '', clean_code, flags=re.MULTILINE)
-    # 清除 fmt_num
     clean_code = re.sub(r'def fmt_num\(.*?\):(\n\s+.*)+', '', clean_code, flags=re.MULTILINE)
-    # 清除 draw_number_line
     clean_code = re.sub(r'def draw_number_line\(.*?\):(\n\s+.*)+', '', clean_code, flags=re.MULTILINE)
 
     # 找到 import 區塊的結尾，插入完美工具
@@ -101,7 +120,7 @@ def inject_perfect_utils(code_str):
 
 def fix_code_syntax(code_str, error_msg=""):
     """
-    [v7.6 完整復原版] 自動修復常見的 AI 生成語法錯誤 (含 LaTeX 衝突處理)
+    [v7.7.7 完整復原版] 包含您提供的所有最強 Regex 修復規則
     """
     fixed_code = code_str
 
@@ -200,34 +219,54 @@ def fix_logic_errors(code_str, error_log):
         fixed_code = "\n".join(imports_to_add) + "\n" + fixed_code
     return fixed_code
 
+# [v7.7.7] 整合邏輯：使用混合雲架構 (Architecture Plan) + 強力本地修復 (Syntax Repair)
 def auto_generate_skill_code(skill_id, queue=None):
     start_time = time.time()
     
-    # 1. Config
+    # 1. Config & Model Info
     role_config = Config.MODEL_ROLES.get('coder', Config.MODEL_ROLES.get('default'))
     current_model = role_config.get('model', 'Unknown')
     
-    strategy_name = "General Math Pedagogy v7.7.1 (Full Fix + Utils Inject)"
-    
-    if current_app: current_app.logger.info(f"Generating {skill_id} with {current_model}...")
-
-    # 2. RAG
+    # 2. RAG & Architect Plan Retrieval
     skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
-    target_logic = skill.gemini_prompt if (skill and skill.gemini_prompt) else f"Generate math: {skill_id}"
     
-    # 這裡稍微放寬 RAG 數量，讓 30B 讀多一點資料
+    # [Check] 是否有 Gemini 架構師的教案？
+    has_architect_plan = (skill and skill.gemini_prompt and len(skill.gemini_prompt) > 50)
+    
+    if has_architect_plan:
+        # Path A: 專家分工模式 (Expert Mode)
+        strategy_name = "Architect-Engineer Pipeline (Gemini Plan + Qwen Code)"
+        target_logic = skill.gemini_prompt 
+        
+        # 指令：強制遵守教案
+        task_instruction = (
+            "1. **IMPLEMENT the Logic Plan**: The `TARGET SKILL LOGIC` section contains a detailed design plan provided by the Architect.\n"
+            "2. **Strict Adherence**: You must implement `Type A`, `Type B`, and `Type C` exactly as described in the plan.\n"
+            "3. **Do NOT deviate**: Do not invent new types. Convert the plan's logic steps into Python code.\n"
+        )
+    else:
+        # Path B: 標準模式 (Standard Mode) - 當沒有教案時
+        strategy_name = "Standard Mode (Creative Generation)"
+        target_logic = f"Generate math: {skill_id}"
+        task_instruction = (
+            "1. **Define 3 distinct problem types** based on the `REFERENCE EXAMPLES` (RAG).\n"
+            "2. **Creative Adaptation**: Analyze the math concepts and design 3 variations.\n"
+        )
+
+    if current_app: current_app.logger.info(f"Generating {skill_id} with {current_model} | Mode: {'Architect' if has_architect_plan else 'Standard'}")
+
+    # RAG Examples
     examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(10).all()
     rag_count = len(examples)
-    
     example_text = ""
     if examples:
-        example_text = "### REFERENCE EXAMPLES:\n"
+        example_text = "### REFERENCE EXAMPLES (For context only):\n"
         for i, ex in enumerate(examples):
             q = getattr(ex, 'problem_text', 'N/A')
             a = getattr(ex, 'correct_answer', 'N/A')
             example_text += f"Ex {i+1}: {q} -> Ans: {a}\n"
 
-    # 3. Prompt
+    # 3. Constructing the System Prompt
     system_instruction = (
         "You are an expert Python Math Problem Generator for **Taiwan Junior High School** students.\n"
         "### CRITICAL RULES:\n"
@@ -235,24 +274,37 @@ def auto_generate_skill_code(skill_id, queue=None):
         "2. **Context Adaptation**: Adapt logic to `TARGET SKILL`.\n"
         "3. **No Ghost Options**: List options explicitly if asking 'Which one...'.\n"
         "4. **Tools**: usage of `to_latex`, `fmt_num` is expected.\n"
-        "5. **Return Keys**: `{'question_text', 'answer', 'correct_answer'}`.\n\n"
+        "5. **Return Keys**: `{'question_text', 'answer', 'correct_answer'}`.\n"
+        "6. **Double Braces**: When using f-strings with LaTeX, use DOUBLE BRACES `{{ }}` for LaTeX commands (e.g., `\\frac{{a}}{{b}}`).\n\n"
         
         "### MANDATORY STRUCTURE:\n"
+        f"{task_instruction}"
+        "4. **Skeleton Compliance**: Update the dispatcher logic:\n"
         "```python\n"
         "import random\n"
         "import math\n"
         "from fractions import Fraction\n\n"
-        "# ... (Utils will be injected automatically, but you can define them if you want)\n\n"
-        "def generate_calc_problem():\n"
-        "   # Logic here\n"
+        "# ... (Utils injected automatically)\n\n"
+        "def generate_type_A_problem():\n"
+        "   # Logic for Concept A\n"
+        "   return {...}\n\n"
+        "def generate_type_B_problem():\n"
+        "   # Logic for Concept B\n"
+        "   return {...}\n\n"
+        "def generate_type_C_problem():\n"
+        "   # Logic for Concept C\n"
         "   return {...}\n\n"
         "def generate(level=1):\n"
-        "   return generate_calc_problem()\n"
+        "   type = random.choice(['type_A', 'type_B', 'type_C'])\n"
+        "   if type == 'type_A': return generate_type_A_problem()\n"
+        "   elif type == 'type_B': return generate_type_B_problem()\n"
+        "   else: return generate_type_C_problem()\n"
         "```\n\n"
         f"### REQUIRED UTILS (For Reference):\n```python\n{PERFECT_UTILS}\n```\n\n"
-        "### REFERENCE EXAMPLES:\n" + example_text
+        f"{example_text}"
     )
-    full_prompt = system_instruction + "\n\n### TARGET SKILL LOGIC:\n" + target_logic + "\n\n### YOUR PYTHON CODE:\n```python\nimport random\n"
+    
+    full_prompt = system_instruction + "\n\n### TARGET SKILL LOGIC (ARCHITECT PLAN):\n" + target_logic + "\n\n### YOUR PYTHON CODE:\n```python\nimport random\n"
 
     # 4. Call AI
     try:
@@ -270,18 +322,17 @@ def auto_generate_skill_code(skill_id, queue=None):
             lines.pop()
         generated_code = '\n'.join(lines)
         
-        # [v7.7] 注入工具 (先做，保證工具是好的)
+        # [v7.7] 注入工具
         generated_code = inject_perfect_utils(generated_code)
         
         generated_code = re.sub(r'def generate\(\s*\):', r'def generate(level=1):', generated_code)
         generated_code = re.sub(r'def check\(\s*([^,)]+)\s*\):', r'def check(\1, correct_ans):', generated_code)
         
-        # [v7.6] 完整語法修復 (後做，修復 AI 生成的 latex 字串問題)
+        # [v7.7.7] 使用最強的修復邏輯 (User Provided)
         is_valid, syntax_error = validate_python_code(generated_code)
         repair_triggered = False
         if not is_valid:
             generated_code = fix_code_syntax(generated_code, syntax_error)
-            # 再驗證一次
             is_valid, syntax_error = validate_python_code(generated_code)
             repair_triggered = True
             

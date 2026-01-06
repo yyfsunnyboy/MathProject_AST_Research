@@ -1,13 +1,13 @@
 # ==============================================================================
 # ID: jh_數學1上_DistanceBetweenTwoPointsOnNumberLine
-# Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
-# Duration: 203.73s | RAG: 6 examples
-# Created At: 2025-12-31 22:58:34
-# Fix Status: [Clean Pass]
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
+# Duration: 154.52s | RAG: 6 examples
+# Created At: 2026-01-06 15:47:23
+# Fix Status: [Repaired]
 # ==============================================================================
 
-import random
 from fractions import Fraction
+import random
 
 def to_latex(num):
     if isinstance(num, int): return str(num)
@@ -45,56 +45,56 @@ def draw_number_line(points_map):
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-def generate_distance_problem():
-    # Generate two random points on the number line
-    point_a = random.randint(-20, 20)
-    point_b = random.randint(-20, 20)
-    
-    # Ensure the two points are different
-    while point_a == point_b:
-        point_b = random.randint(-20, 20)
-    
-    # Calculate the distance between the two points
-    distance = abs(point_a - point_b)
-    
-    # Format the question
-    question_text = f"數線上有 A ({fmt_num(point_a)})、B ({fmt_num(point_b)}) 兩點，則 A、B 兩點的距離 AB 為多少？"
-    
-    return {'question_text': question_text, 'answer': str(distance), 'correct_answer': str(distance)}
 
-def generate_distance_with_variable_problem():
-    # Generate one random point and a distance
-    point_a = random.randint(-20, 20)
-    distance = random.randint(1, 10)
-    
-    # Calculate the possible values for the second point
-    point_b1 = point_a + distance
-    point_b2 = point_a - distance
-    
-    # Format the question
-    question_text = f"數線上有 A ({fmt_num(point_a)})、B (b) 兩點，如果 AB={distance}，則 b 可能是多少？"
-    
-    return {'question_text': question_text, 'answer': f"{point_b1} 或 {point_b2}", 'correct_answer': f"{point_b1} 或 {point_b2}"}
 
-def generate_midpoint_problem():
-    # Generate two random points on the number line
-    point_a = random.randint(-20, 20)
-    point_b = random.randint(-20, 20)
+def generate_type_A_problem():
+    coord1 = random.randint(-20, 20)
+    coord2 = random.randint(-20, 20)
     
-    # Ensure the two points are different
-    while point_a == point_b:
-        point_b = random.randint(-20, 20)
+    while coord1 == coord2:
+        coord2 = random.randint(-20, 20)
     
-    # Calculate the midpoint
-    midpoint = (point_a + point_b) / 2
+    result = abs(coord1 - coord2)
     
-    # Format the question
-    question_text = f"數線上有 A ({fmt_num(point_a)})、B ({fmt_num(point_b)})、C (c) 三點，若 C 為 A、B 的中點，則 c 是多少？"
+    question_text = f"數線上有 A ({coord1})、B ({coord2}) 兩點，則 A、B 兩點的距離 AB 為多少？"
+    answer = to_latex(result)
+    correct_answer = str(result)
     
-    return {'question_text': question_text, 'answer': str(midpoint), 'correct_answer': str(midpoint)}
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+
+def generate_type_B_problem():
+    known_coord = random.randint(-20, 20)
+    distance = random.randint(1, 15)
+    unknown_char = random.choice(['a', 'b', 'c', 'x', 'y'])
+    
+    result1 = known_coord + distance
+    result2 = known_coord - distance
+    
+    question_text = f"數線上有 A ({unknown_char})、B ({known_coord}) 兩點，如果 AB={distance}，則 {unknown_char} 可能是多少？"
+    answer = to_latex(result1) + " 或 " + to_latex(result2)
+    correct_answer = str(result1) + " 或 " + str(result2)
+    
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+
+def generate_type_C_problem():
+    coord1 = random.randint(-20, 20)
+    coord2 = random.randint(-20, 20)
+    
+    while (coord1 + coord2) % 2 != 0:
+        coord2 = random.randint(-20, 20)
+    
+    unknown_char = random.choice(['c', 'm', 'x'])
+    
+    result = (coord1 + coord2) / 2
+    
+    question_text = f"數線上有 A ({coord1})、B ({coord2})、C ({unknown_char}) 三點，若 C 為 A、B 的中點，則 {unknown_char} 是多少？"
+    answer = to_latex(result)
+    correct_answer = str(result)
+    
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
 
 def generate(level=1):
-    type = random.choice(['distance', 'distance_with_variable', 'midpoint'])
-    if type == 'distance': return generate_distance_problem()
-    elif type == 'distance_with_variable': return generate_distance_with_variable_problem()
-    else: return generate_midpoint_problem()
+    type = random.choice(['type_A', 'type_B', 'type_C'])
+    if type == 'type_A': return generate_type_A_problem()
+    elif type == 'type_B': return generate_type_B_problem()
+    else: return generate_type_C_problem()

@@ -48,13 +48,25 @@ class Config:
     # ★ 關鍵修改：角色與模型的對照表
     # 格式：'角色': {'provider': '供應商', 'model': '模型名稱'}
     MODEL_ROLES = {
+        # [新增] 架構師角色：負責讀題、設計邏輯 (使用 Phi-4-mini 3.8B)
+        'architect': {
+            #'provider': 'local',
+            #'model': 'phi4-mini', 
+            'provider': 'google',
+            'model': 'gemini-2.5-flash',
+            'temperature': 0.7 # 稍微高一點，讓它能歸納出不同的題型變化
+            #'max_tokens': 2000  # 足夠寫出詳細的設計圖
+        },        
         # 1. 工程師：專門寫 Code (精準、強迫症)
         'coder': {
             'provider': 'local',
-            #'model': 'qwen2.5-coder:7b'
-            'model': 'qwen3-coder:30b'
+            'model': 'qwen2.5-coder:7b',
+            'temperature': 0.1
+            #'model': 'qwen3-coder:30b'
             #'model': 'qwen2.5-coder:14b'
-            #'model': 'freehuntx/qwen3-coder:14b' # rtx2060 跑不動
+            #'model': 'freehuntx/qwen3-coder:14b' # rtx2060 跑不動     
+            #'model': 'freehuntx/qwen3-coder:8b'
+            
         },
         
         # 2. 助教：專門解釋觀念 (溫柔、話多)

@@ -1,9 +1,9 @@
 # ==============================================================================
-# ID: jh_數學1上_NumberLine
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 361.72s | RAG: 4 examples
-# Created At: 2026-01-06 16:19:54
-# Fix Status: [Repaired]
+# ID: jh_數學1上_IntegerAdditionOperation
+# Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 301.25s | RAG: 4 examples
+# Created At: 2025-12-31 12:47:39
+# Fix Status: [Clean Pass]
 # ==============================================================================
 
 import random
@@ -45,7 +45,21 @@ def draw_number_line(points_map):
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
+def generate_calc_problem():
+    # 生成整數加法問題
+    val_a = random.randint(-10, -1)
+    val_b = random.randint(-10, -1)
+    ans = val_a + val_b
+    return {'question_text': f'請計算 ${fmt_num(val_a)} + {fmt_num(val_b)}$ 的值為何？', 'answer': str(ans), 'correct_answer': str(ans)}
 
+def generate_app_problem():
+    # 生成應用問題
+    val_a = random.randint(-10, -1)
+    val_b = random.randint(-10, -1)
+    ans = val_a + val_b
+    return {'question_text': f'小明在遊戲中先輸了 {abs(val_a)} 分，再輸了 {abs(val_b)} 分，總共輸了多少分？', 'answer': str(ans), 'correct_answer': str(ans)}
 
-
-problem = generate_problem()
+def generate(level=1):
+    type = random.choice(['calc', 'app'])
+    if type == 'calc': return generate_calc_problem()
+    else: return generate_app_problem()

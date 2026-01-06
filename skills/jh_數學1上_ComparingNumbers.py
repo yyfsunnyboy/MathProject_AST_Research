@@ -1,193 +1,59 @@
+# ==============================================================================
+# ID: jh_數學1上_ComparingNumbers
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
+# Duration: 379.68s | RAG: 3 examples
+# Created At: 2026-01-06 15:44:49
+# Fix Status: [Repaired]
+# ==============================================================================
+
 import random
 from fractions import Fraction
 
-# Helper function to format numbers into LaTeX strings
-def _to_latex(num):
-    """
-    Converts a number (int, float, Fraction) into a proper LaTeX string.
-    Handles mixed numbers and proper fractions.
-    """
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
-        if num.denominator == 1:
-            return str(num.numerator)
-        
-        sign = ""
-        if num < 0:
-            sign = "-"
-            num = -num
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
 
-        integer_part = num.numerator // num.denominator
-        frac_num = num.numerator % num.denominator
-        frac_den = num.denominator
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
 
-        if integer_part == 0:
-            return f"{sign}\\frac{{{frac_num}}}{{{frac_den}}}"
-        else:
-            if frac_num == 0:
-                 return f"{sign}{integer_part}"
-            else:
-                 return f"{sign}{integer_part}\\frac{{{frac_num}}}{{{frac_den}}}"
-
-    elif isinstance(num, float):
-        if num == int(num):
-            return str(int(num))
-        else:
-            return f"{num:.10g}" # Use general format to keep it clean and avoid trailing zeros
-    else: # int
-        return str(num)
-
-def generate(level=1):
-    """
-    生成「比較數的大小」相關題目 (國中數學1上)。
-    包含：
-    1. 兩數直接比較大小
-    2. 三一律應用題
-    3. 遞移律應用題
-    """
-    problem_type = random.choice(['direct_comparison', 'trichotomy', 'transitive'])
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
     
-    if problem_type == 'direct_comparison':
-        return generate_direct_comparison()
-    elif problem_type == 'trichotomy':
-        return generate_trichotomy_problem()
-    else: # transitive
-        return generate_transitive_problem()
-
-def generate_direct_comparison():
-    """
-    題型：直接比較兩個數的大小，填入 >、< 或 =。
-    對應課本例題 1。
-    """
-    num_types = [random.randint(-10, 10), round(random.uniform(-10, 10), 1), Fraction(random.randint(-20, 20), random.randint(2, 5))]
-    num1_val = random.choice(num_types)
-    num2_val = random.choice(num_types)
-
-    # 80% chance to ensure they are not equal
-    if random.random() < 0.8:
-        while num1_val == num2_val:
-            num2_val = random.choice([random.randint(-10, 10), round(random.uniform(-10, 10), 1)])
-    else:
-        num2_val = num1_val
-
-    num1_str = _to_latex(num1_val)
-    num2_str = _to_latex(num2_val)
-
-    if num1_val < num2_val:
-        correct_answer = '<'
-    elif num1_val > num2_val:
-        correct_answer = '>'
-    else:
-        correct_answer = '='
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
     
-    question_text = f"請在 __ 中填入 $ > $、$ < $ 或 $ = $：\n\n${num1_str}$ __ ${num2_str}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-def generate_trichotomy_problem():
-    """
-    題型：利用三一律，從「不比 a 大」且「不比 a 小」推斷出「等於 a」。
-    對應課本例題 2。
-    """
-    type_choice = random.choice(['int', 'decimal', 'fraction'])
-    
-    if type_choice == 'int':
-        val = random.randint(-20, 20)
-        val_str = _to_latex(val)
-        correct_answer = str(val)
-    elif type_choice == 'decimal':
-        val = round(random.randint(-19, 19) + random.choice([i/10 for i in range(1,10)]), 1)
-        val_str = _to_latex(val)
-        correct_answer = str(val)
-    else: # fraction
-        den = random.randint(3, 9)
-        num = random.randint(1, den - 1) * random.choice([-1, 1])
-        val = Fraction(num, den)
-        val_str = _to_latex(val)
-        correct_answer = f"{num}/{den}"
 
-    question_text = f"老師心中想了一個數 $a$，小翊猜說：「這個數比 ${val_str}$ 大。」小妍猜說：「這個數比 ${val_str}$ 小。」結果老師說兩個人都猜錯了，那麼 $a$ 應該是多少呢？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
 
-def generate_transitive_problem():
-    """
-    題型：利用遞移律，從 a < m 且 m < b 推斷出 a < b。
-    對應課本例題 3。
-    """
-    m = random.randint(-10, 10)
-    var1, var2 = random.sample(['a', 'b'], 2)
 
-    if random.random() < 0.5:
-        # Case: var1 < m < var2  (implies var1 < var2)
-        stmt1 = f"{var1} < {m}"
-        stmt2 = f"{m} < {var2}"
-        larger = var2
-        smaller = var1
-    else:
-        # Case: var1 > m > var2  (implies var1 > var2)
-        stmt1 = f"{var1} > {m}"
-        stmt2 = f"{m} > {var2}"
-        larger = var1
-        smaller = var2
+problem = generate_problem('A')
+print(problem['question_text'])
+print("Answer:", problem['answer'])
 
-    target_word, correct_answer = random.choice([('較大', larger), ('較小', smaller)])
-    statements = random.sample([stmt1, stmt2], 2)
-    
-    question_text = f"已知 $a$ 和 $b$ 分別代表一個數，若 ${statements[0]}$ 且 ${statements[1]}$，則 $a$ 和 $b$ 何者{target_word}？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+problem = generate_problem('B')
+print(problem['question_text'])
+print("Answer:", problem['answer'])
 
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    """
-    user_answer = user_answer.strip()
-    correct_answer_str = str(correct_answer).strip()
-    is_correct = False
-
-    # Case 1: Comparison operators
-    if correct_answer_str in ['<', '>', '=']:
-        user_answer = user_answer.replace('＞', '>').replace('＜', '<').replace('＝', '=')
-        is_correct = (user_answer == correct_answer_str)
-        display_answer = correct_answer_str
-        result_text = f"完全正確！答案是 {display_answer}。" if is_correct else f"答案不正確。正確答案應為：{display_answer}"
-
-    # Case 2: Alphabetic answer (e.g., 'a', 'b')
-    elif correct_answer_str.isalpha() and len(correct_answer_str) == 1:
-        is_correct = (user_answer.lower() == correct_answer_str.lower())
-        display_answer = f"${correct_answer_str}$"
-        result_text = f"完全正確！答案是 {display_answer}。" if is_correct else f"答案不正確。正確答案應為：{display_answer}"
-
-    # Case 3: Numerical answer
-    else:
-        try:
-            # Robust comparison using Fraction for inputs like '0.5' vs '1/2'
-            if Fraction(user_answer) == Fraction(correct_answer_str):
-                is_correct = True
-        except (ValueError, ZeroDivisionError):
-            # Fallback to string comparison if conversion fails
-            if user_answer == correct_answer_str:
-                is_correct = True
-        
-        # Format correct answer for display using LaTeX
-        try:
-            display_answer = _to_latex(Fraction(correct_answer_str))
-        except (ValueError, ZeroDivisionError):
-            display_answer = correct_answer_str
-        
-        display_answer = f"${display_answer}$"
-        result_text = f"完全正確！答案是 {display_answer}。" if is_correct else f"答案不正確。正確答案應為：{display_answer}"
-
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+problem = generate_problem('C')

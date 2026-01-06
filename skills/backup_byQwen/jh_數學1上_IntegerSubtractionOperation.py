@@ -1,9 +1,9 @@
 # ==============================================================================
-# ID: jh_數學1上_NumberLine
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 361.72s | RAG: 4 examples
-# Created At: 2026-01-06 16:19:54
-# Fix Status: [Repaired]
+# ID: jh_數學1上_IntegerSubtractionOperation
+# Model: freehuntx/qwen3-coder:14b | Strategy: General Math Pedagogy v7.6 (Expert 14B+)
+# Duration: 194.12s | RAG: 2 examples
+# Created At: 2025-12-31 22:41:14
+# Fix Status: [Clean Pass]
 # ==============================================================================
 
 import random
@@ -45,7 +45,48 @@ def draw_number_line(points_map):
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
+def generate_subtraction_problem():
+    # Generate two random integers for the problem
+    val_a = random.randint(-100, 100)
+    val_b = random.randint(-100, 100)
+    
+    # Ensure that the problem is not trivial (e.g., 0 - 0)
+    while val_a == val_b:
+        val_b = random.randint(-100, 100)
+    
+    # Calculate the answer
+    ans = val_a - val_b
+    
+    # Format the question
+    question_text = f"請計算 ${fmt_num(val_a)} - {fmt_num(val_b)}$ 的值為何？"
+    
+    return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
 
+def generate_app_problem():
+    # Word problem for integer subtraction
+    val_a = random.randint(-100, 100)
+    val_b = random.randint(-100, 100)
+    
+    # Ensure that the problem is not trivial (e.g., 0 - 0)
+    while val_a == val_b:
+        val_b = random.randint(-100, 100)
+    
+    # Calculate the answer
+    ans = val_a - val_b
+    
+    # Create a word problem
+    if val_a >= 0 and val_b >= 0:
+        question_text = f"小明有 {val_a} 元，他花了 {val_b} 元，請問他還剩下多少元？"
+    elif val_a < 0 and val_b < 0:
+        question_text = f"小明欠了 {abs(val_a)} 元，他又欠了 {abs(val_b)} 元，請問他總共欠了多少元？"
+    elif val_a < 0 and val_b >= 0:
+        question_text = f"小明欠了 {abs(val_a)} 元，他還了 {val_b} 元，請問他還欠多少元？"
+    else:
+        question_text = f"小明有 {val_a} 元，他花了 {abs(val_b)} 元，請問他還剩下多少元？"
+    
+    return {'question_text': question_text, 'answer': str(ans), 'correct_answer': str(ans)}
 
-
-problem = generate_problem()
+def generate(level=1):
+    type = random.choice(['calc', 'app'])
+    if type == 'calc': return generate_subtraction_problem()
+    else: return generate_app_problem()

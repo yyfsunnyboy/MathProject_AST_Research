@@ -1,139 +1,105 @@
+# ==============================================================================
+# ID: jh_數學1上_IntegerDivision
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
+# Duration: 143.81s | RAG: 2 examples
+# Created At: 2026-01-06 15:59:25
+# Fix Status: [Repaired]
+# ==============================================================================
+
+from fractions import Fraction
 import random
 
-def _make_divisible_pair(level):
-    """
-    生成一個可整除的數字對 (被除數, 除數, 商)，數字大小根據 level 決定。
-    """
-    if level == 1:
-        # 較小的數字，結果在 2~12 之間
-        quotient = random.randint(2, 12)
-        divisor = random.randint(2, 9)
-    elif level == 2:
-        # 中等數字，結果在 5~20 之間
-        quotient = random.randint(5, 20)
-        divisor = random.randint(2, 15)
-    else:  # level 3 或更高
-        # 較大的數字，結果在 10~30 之間
-        quotient = random.randint(10, 30)
-        divisor = random.randint(10, 25)
+def to_latex(num):
+    if isinstance(num, int): return str(num)
+    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
+    if isinstance(num, Fraction):
+        if num.denominator == 1: return str(num.numerator)
+        if abs(num.numerator) > num.denominator:
+            sign = "-" if num.numerator < 0 else ""
+            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+    return str(num)
 
-    dividend = quotient * divisor
-    return dividend, divisor, quotient
+def fmt_num(num):
+    """Formats negative numbers with parentheses for equations."""
+    if num < 0: return f"({num})"
+    return str(num)
 
-def generate_neg_div_pos_problem(level):
-    """
-    生成「負數 ÷ 正數」的題目。
-    範例: (-63) ÷ 7 = -9
-    """
-    dividend, divisor, quotient = _make_divisible_pair(level)
-
-    signed_dividend = -dividend
-    signed_divisor = divisor
-
-    question_text = f"計算 $({signed_dividend}) \\div {signed_divisor}$ 的值。"
-    correct_answer = str(-quotient)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_pos_div_neg_problem(level):
-    """
-    生成「正數 ÷ 負數」的題目。
-    範例: 256 ÷ (-16) = -16
-    """
-    dividend, divisor, quotient = _make_divisible_pair(level)
-
-    signed_dividend = dividend
-    signed_divisor = -divisor
-
-    question_text = f"計算 ${signed_dividend} \\div ({signed_divisor})$ 的值。"
-    correct_answer = str(-quotient)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_neg_div_neg_problem(level):
-    """
-    生成「負數 ÷ 負數」的題目。
-    範例: (-72) ÷ (-6) = 12
-    """
-    dividend, divisor, quotient = _make_divisible_pair(level)
-
-    signed_dividend = -dividend
-    signed_divisor = -divisor
-
-    question_text = f"計算 $({signed_dividend}) \\div ({signed_divisor})$ 的值。"
-    correct_answer = str(quotient)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_zero_div_problem(level):
-    """
-    生成「0 ÷ 非零數」的題目。
-    範例: 0 ÷ (-5) = 0
-    """
-    if level == 1:
-        divisor = random.randint(2, 20)
-    else:
-        divisor = random.randint(21, 99)
-
-    if random.random() < 0.5:
-        divisor = -divisor
-
-    # 確保除數為負數時被括號包圍
-    divisor_str = f"({divisor})" if divisor < 0 else str(divisor)
+def draw_number_line(points_map):
+    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
+    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    if not values: values = [0]
+    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
+    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
     
-    question_text = f"計算 $0 \\div {divisor_str}$ 的值。"
-    correct_answer = "0"
+    u_w = 5
+    l_n, l_a, l_l = "", "", ""
+    for i in range(r_min, r_max+1):
+        l_n += f"{str(i):^{u_w}}"
+        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
+        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
+    
+    content = f"{l_n}\n{l_a}\n{l_l}"
+    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+
+
+def generate_type_A_problem():
+    quotient_abs = random.randint(2, 12)
+    divisor_abs = random.randint(2, 9)
+    sign_dividend = random.choice([1, -1])
+    sign_divisor = random.choice([1, -1])
+    dividend = quotient_abs * divisor_abs * sign_dividend
+    divisor = divisor_abs * sign_divisor
+    question_text = f"計算 ({dividend}) ÷ ({divisor})"
+    answer = to_latex(dividend / divisor)
+    correct_answer = str(int(dividend / divisor))
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+
+def generate_type_B_problem():
+    quotient_abs = random.randint(5, 20)
+    divisor_abs = random.randint(4, 18)
+    sign_dividend = random.choice([1, -1])
+    sign_divisor = random.choice([1, -1])
+    dividend = quotient_abs * divisor_abs * sign_dividend
+    divisor = divisor_abs * sign_divisor
+    question_text = f"計算 ({dividend}) ÷ ({divisor})"
+    answer = to_latex(dividend / divisor)
+    correct_answer = str(int(dividend / divisor))
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+
+def generate_type_C_problem():
+    quotient1_abs = random.randint(2, 10)
+    divisor1_abs = random.randint(2, 8)
+    sign1_dividend = random.choice([1, -1])
+    sign1_divisor = random.choice([1, -1])
+    dividend1 = quotient1_abs * divisor1_abs * sign1_dividend
+    divisor1 = divisor1_abs * sign1_divisor
+    
+    quotient2_abs = random.randint(2, 10)
+    divisor2_abs = random.randint(2, 8)
+    sign2_dividend = random.choice([1, -1])
+    sign2_divisor = random.choice([1, -1])
+    dividend2 = quotient2_abs * divisor2_abs * sign2_dividend
+    divisor2 = divisor2_abs * sign2_divisor
+    
+    operator = random.choice(['+', '-'])
+    
+    question_text = f"計算 (({dividend1}) ÷ ({divisor1})) {operator} (({dividend2}) ÷ ({divisor2}))"
+    if operator == '+':
+        answer = to_latex((dividend1 / divisor1) + (dividend2 / divisor2))
+        correct_answer = str(int((dividend1 / divisor1) + (dividend2 / divisor2)))
+    else:
+        answer = to_latex((dividend1 / divisor1) - (dividend2 / divisor2))
+        correct_answer = str(int((dividend1 / divisor1) - (dividend2 / divisor2)))
+    
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
 
 def generate(level=1):
-    """
-    生成「整數的除法」相關題目。
-    技能：jh_數學1上_IntegerDivision
-    題型包含：
-    1. 負數 ÷ 正數 (同號數相除為負)
-    2. 正數 ÷ 負數 (異號數相除為負)
-    3. 負數 ÷ 負數 (同號數相除為正)
-    4. 0 的除法 (0 除以任何非零數為 0)
-    """
-    problem_generators = [
-        generate_neg_div_pos_problem,
-        generate_pos_div_neg_problem,
-        generate_neg_div_neg_problem,
-        generate_zero_div_problem
-    ]
-
-    chosen_generator = random.choice(problem_generators)
-    return chosen_generator(level)
-
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    """
-    user_answer = user_answer.strip()
-    correct_answer = correct_answer.strip()
-
-    is_correct = (user_answer == correct_answer)
-
-    if is_correct:
-        result_text = f"完全正確！答案是 ${correct_answer}$。"
-    else:
-        result_text = f"答案不正確。正確答案應為：${correct_answer}$。"
-
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    type = random.choice(['type_A', 'type_B', 'type_C'])
+    if type == 'type_A': return generate_type_A_problem()
+    elif type == 'type_B': return generate_type_B_problem()
+    else: return generate_type_C_problem()
