@@ -1,9 +1,9 @@
 # ==============================================================================
 # ID: jh_數學1上_ComparingNumbers
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 379.68s | RAG: 3 examples
-# Created At: 2026-01-06 15:44:49
-# Fix Status: [Repaired]
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
+# Duration: 29.47s | RAG: 3 examples
+# Created At: 2026-01-07 16:02:41
+# Fix Status: [Clean Pass]
 # ==============================================================================
 
 import random
@@ -47,13 +47,3 @@ def draw_number_line(points_map):
 
 
 
-
-problem = generate_problem('A')
-print(problem['question_text'])
-print("Answer:", problem['answer'])
-
-problem = generate_problem('B')
-print(problem['question_text'])
-print("Answer:", problem['answer'])
-
-problem = generate_problem('C')

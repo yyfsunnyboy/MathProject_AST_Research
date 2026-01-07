@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerDivision
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 143.81s | RAG: 2 examples
-# Created At: 2026-01-06 15:59:25
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
+# Duration: 13.62s | RAG: 2 examples
+# Created At: 2026-01-07 16:04:55
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -47,59 +47,42 @@ def draw_number_line(points_map):
 
 
 
-def generate_type_A_problem():
-    quotient_abs = random.randint(2, 12)
+def generate_type_1_problem():
     divisor_abs = random.randint(2, 9)
-    sign_dividend = random.choice([1, -1])
-    sign_divisor = random.choice([1, -1])
-    dividend = quotient_abs * divisor_abs * sign_dividend
-    divisor = divisor_abs * sign_divisor
-    question_text = f"計算 ({dividend}) ÷ ({divisor})"
-    answer = to_latex(dividend / divisor)
-    correct_answer = str(int(dividend / divisor))
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+    quotient_abs = random.randint(5, 15)
+    dividend_abs = divisor_abs * quotient_abs
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    num1 = sign1 * dividend_abs
+    num2 = sign2 * divisor_abs
+    num1_str = f"({num1})" if num1 < 0 else str(num1)
+    num2_str = f"({num2})" if num2 < 0 else str(num2)
+    answer = num1 // num2
+    question_text = f"計算 $ {{ {num1_str} \\div {num2_str} }} $ 的值。"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-def generate_type_B_problem():
-    quotient_abs = random.randint(5, 20)
-    divisor_abs = random.randint(4, 18)
-    sign_dividend = random.choice([1, -1])
-    sign_divisor = random.choice([1, -1])
-    dividend = quotient_abs * divisor_abs * sign_dividend
-    divisor = divisor_abs * sign_divisor
-    question_text = f"計算 ({dividend}) ÷ ({divisor})"
-    answer = to_latex(dividend / divisor)
-    correct_answer = str(int(dividend / divisor))
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+def generate_type_2_problem():
+    divisor_abs = random.randint(4, 20)
+    quotient_abs = random.randint(10, 30)
+    dividend_abs = divisor_abs * quotient_abs
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    num1 = sign1 * dividend_abs
+    num2 = sign2 * divisor_abs
+    num1_str = f"({num1})" if num1 < 0 else str(num1)
+    num2_str = f"({num2})" if num2 < 0 else str(num2)
+    answer = num1 // num2
+    question_text = f"計算 $ {{ {num1_str} \\div {num2_str} }} $ 的值。"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-def generate_type_C_problem():
-    quotient1_abs = random.randint(2, 10)
-    divisor1_abs = random.randint(2, 8)
-    sign1_dividend = random.choice([1, -1])
-    sign1_divisor = random.choice([1, -1])
-    dividend1 = quotient1_abs * divisor1_abs * sign1_dividend
-    divisor1 = divisor1_abs * sign1_divisor
-    
-    quotient2_abs = random.randint(2, 10)
-    divisor2_abs = random.randint(2, 8)
-    sign2_dividend = random.choice([1, -1])
-    sign2_divisor = random.choice([1, -1])
-    dividend2 = quotient2_abs * divisor2_abs * sign2_dividend
-    divisor2 = divisor2_abs * sign2_divisor
-    
-    operator = random.choice(['+', '-'])
-    
-    question_text = f"計算 (({dividend1}) ÷ ({divisor1})) {operator} (({dividend2}) ÷ ({divisor2}))"
-    if operator == '+':
-        answer = to_latex((dividend1 / divisor1) + (dividend2 / divisor2))
-        correct_answer = str(int((dividend1 / divisor1) + (dividend2 / divisor2)))
-    else:
-        answer = to_latex((dividend1 / divisor1) - (dividend2 / divisor2))
-        correct_answer = str(int((dividend1 / divisor1) - (dividend2 / divisor2)))
-    
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
-
+# [Auto-Injected Robust Dispatcher by v7.9.3]
 def generate(level=1):
-    type = random.choice(['type_A', 'type_B', 'type_C'])
-    if type == 'type_A': return generate_type_A_problem()
-    elif type == 'type_B': return generate_type_B_problem()
-    else: return generate_type_C_problem()
+    available_types = ['generate_type_1_problem', 'generate_type_2_problem']
+    selected_type = random.choice(available_types)
+    try:
+        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
+        elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
+        else: return generate_type_1_problem()
+    except TypeError:
+        # Fallback for functions requiring arguments
+        return generate_type_1_problem()

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 # ==============================================================================
 # ID: code_generator.py
-# Version: v7.7.7 (Hybrid Perfect Ver.)
+# Version: v8.0 (Golden Stable - Rollback & Stabilize)
 # Description: 
-#   [Science Fair Final Build]
-#   結合了 v7.7.6 的「混合雲架構邏輯」與 v7.7.1 的「本地語法修復最強補丁」。
-#   1. Mode: 支援 Expert Mode (讀取 Gemini 教案) 與 Standard Mode.
-#   2. Repair: 包含完整的 LaTeX/Python 衝突修復 Regex (User Provided).
-#   3. Utils: 強制注入 Perfect Utils.
+#   回到 v7.9.3 的穩定基礎，僅保留最安全的修復機制。
+#   1. Utils Injection: 強制注入工具函式。
+#   2. Return Fixer: 修復回傳格式。
+#   3. Global Cleaner: 移除外層測試碼 (解決 unpack error)。
+#   4. Auto-Dispatcher: 自動修復入口函式。
 # ==============================================================================
 
 import os
@@ -18,6 +18,7 @@ import json
 import ast
 import time
 import io
+import random
 from pyflakes.api import check as pyflakes_check
 from pyflakes.reporter import Reporter
 from flask import current_app
@@ -25,38 +26,9 @@ from core.ai_wrapper import get_ai_client
 from models import db, SkillInfo, TextbookExample, ExperimentLog
 from config import Config
 
-# [v7.7.7] Universal Skeleton (Updated to Type A/B/C to match Architect Plan)
-UNIVERSAL_SKELETON = """
-import random
-import math
-from fractions import Fraction
-
-def generate(level=1):
-    # Dispatcher: Select a specific sub-type based on the skill's curriculum requirements
-    # The list below should contain semantic function names, e.g., ['find_factors', 'check_multiple']
-    problem_type = random.choice(['type_A', 'type_B', 'type_C'])
-    
-    if problem_type == 'type_A': return generate_type_A_problem()
-    elif problem_type == 'type_B': return generate_type_B_problem()
-    else: return generate_type_C_problem()
-
-def generate_type_A_problem():
-    # Implement logic for specific skill concept A
-    return {"question_text": "...", "answer": "...", "correct_answer": "..."}
-
-def generate_type_B_problem():
-    # Implement logic for specific skill concept B
-    return {"question_text": "...", "answer": "...", "correct_answer": "..."}
-
-def generate_type_C_problem():
-    # Implement logic for specific skill concept C
-    return {"question_text": "...", "answer": "...", "correct_answer": "..."}
-
-def check(user_ans, correct_ans):
-    return {"correct": user_ans.strip() == correct_ans.strip(), "result": f"Ans: {correct_ans}", "next_question": True}
-"""
-
-# ★★★ 完美的工具函式 (來自您的上傳，強制注入) ★★★
+# ==============================================================================
+# 1. 完美的工具函式 (PERFECT_UTILS)
+# ==============================================================================
 PERFECT_UTILS = r'''
 def to_latex(num):
     if isinstance(num, int): return str(num)
@@ -96,53 +68,108 @@ def draw_number_line(points_map):
 '''
 
 def inject_perfect_utils(code_str):
-    """
-    [v7.7] 強制替換 AI 生成的工具函式，避免語法錯誤。
-    """
     clean_code = code_str
-    # 清除 to_latex, fmt_num, draw_number_line
     clean_code = re.sub(r'def to_latex\(.*?\):(\n\s+.*)+', '', clean_code, flags=re.MULTILINE)
     clean_code = re.sub(r'def fmt_num\(.*?\):(\n\s+.*)+', '', clean_code, flags=re.MULTILINE)
     clean_code = re.sub(r'def draw_number_line\(.*?\):(\n\s+.*)+', '', clean_code, flags=re.MULTILINE)
 
-    # 找到 import 區塊的結尾，插入完美工具
     match = re.search(r'^(import .*|from .*)$', clean_code, re.MULTILINE)
     if match:
         last_import_pos = 0
         for m in re.finditer(r'^(import .*|from .*)$', clean_code, re.MULTILINE):
             last_import_pos = m.end()
-        
         final_code = clean_code[:last_import_pos] + "\n" + PERFECT_UTILS + "\n" + clean_code[last_import_pos:]
     else:
         final_code = PERFECT_UTILS + "\n" + clean_code
-        
     return final_code
+
+def inject_robust_dispatcher(code_str):
+    candidates = re.findall(r'def\s+(generate_[a-zA-Z0-9_]+)\s*\(', code_str)
+    valid_funcs = []
+    for func in candidates:
+        if func not in ['generate', 'generate_design_prompt', 'auto_generate_skill_code', 'check', '_generate_scientific_coeff_str']:
+            valid_funcs.append(func)
+    
+    valid_funcs = sorted(list(set(valid_funcs)))
+    if not valid_funcs:
+        if "def generate_problem(" in code_str: valid_funcs = ["generate_problem"]
+        else: return code_str
+
+    dispatcher_code = "\n\n# [Auto-Injected Robust Dispatcher by v8.0]\n"
+    dispatcher_code += "def generate(level=1):\n"
+    dispatcher_code += f"    available_types = {str(valid_funcs)}\n"
+    dispatcher_code += "    selected_type = random.choice(available_types)\n"
+    dispatcher_code += "    try:\n"
+    for i, func in enumerate(valid_funcs):
+        if i == 0: dispatcher_code += f"        if selected_type == '{func}': return {func}()\n"
+        else: dispatcher_code += f"        elif selected_type == '{func}': return {func}()\n"
+    dispatcher_code += f"        else: return {valid_funcs[0]}()\n"
+    dispatcher_code += "    except TypeError:\n"
+    dispatcher_code += f"        return {valid_funcs[0]}()\n"
+
+    final_code = code_str + dispatcher_code
+    return final_code
+
+def fix_return_format(code_str):
+    fixed_code = code_str
+    # 支援 return q, a 或 return (q, a)
+    pattern_2 = r'(^\s*)return\s+(?:\(?)\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)]+?)\s*(?:\)?)\s*$'
+    def repl_2(m):
+        return f"{m.group(1)}return {{'question_text': {m.group(2).strip()}, 'answer': {m.group(3).strip()}, 'correct_answer': {m.group(3).strip()}}}"
+    fixed_code = re.sub(pattern_2, repl_2, fixed_code, flags=re.MULTILINE)
+
+    pattern_3 = r'(^\s*)return\s+(?:\(?)\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)]+?)\s*(?:\)?)\s*$'
+    def repl_3(m):
+        return f"{m.group(1)}return {{'question_text': {m.group(2).strip()}, 'answer': {m.group(3).strip()}, 'correct_answer': {m.group(4).strip()}}}"
+    fixed_code = re.sub(pattern_3, repl_3, fixed_code, flags=re.MULTILINE)
+    
+    return fixed_code
+
+def clean_global_scope_execution(code_str):
+    """
+    [v8.0] 移除全域範圍的執行碼 (解決 unpack error)
+    只移除 print 或 明顯的賦值測試，避免誤刪 import
+    """
+    lines = code_str.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # 移除 Qwen 雞婆寫的測試碼
+        if stripped.startswith("question, answer =") or \
+           stripped.startswith("q, a =") or \
+           (stripped.startswith("print(") and "def " not in code_str) or \
+           (stripped.startswith("generate(") and "def " not in stripped):
+            continue
+        cleaned_lines.append(line)
+    return '\n'.join(cleaned_lines)
 
 def fix_code_syntax(code_str, error_msg=""):
     """
-    [v7.7.7 完整復原版] 包含您提供的所有最強 Regex 修復規則
+    [Syntax Repair v8.0] 回歸穩定的 Regex，移除危險的實驗性規則
     """
     fixed_code = code_str
 
-    # --- [Step 0] 優先修復致命的 Escape Sequence 錯誤 ---
+    # --- Escape Sequence ---
     fixed_code = re.sub(r'(?<!\\)\\ ', r'\\\\ ', fixed_code)
     fixed_code = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', fixed_code)
-
-    # 1. 修復各種 invalid escape sequence
     fixed_code = re.sub(r'(?<!\\)\\e', r'\\\\e', fixed_code)
     fixed_code = re.sub(r'(?<!\\)\\q', r'\\\\q', fixed_code)
 
-    # 2. 修復 f-string: single '}' is not allowed
+    # --- F-String Braces (Safe Mode) ---
+    # 只修復 \right}，不亂動其他的 }
     fixed_code = re.sub(r'(f"[^"]*?\\right)\}([^"]*")', r'\1}}\2', fixed_code)
     fixed_code = re.sub(r"(f'[^']*?\\right)\}([^']*')", r'\1}}\2', fixed_code)
     
-    # 3. 修復 cases 環境 (LaTeX 的一大地雷)
+    # Scientific Notation / Superscripts (針對 {數字} 修復)
+    fixed_code = re.sub(r'\\(\^|_)\{', r'\\\1{{', fixed_code)
+    fixed_code = re.sub(r'\\(\^|_)\{(\d+)\}', r'\\\1{{\2}}', fixed_code)
+
+    # Cases Environment
     fixed_code = re.sub(r'(f"[^"]*?\\begin)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
     fixed_code = re.sub(r"(f'[^']*?\\begin)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
     fixed_code = re.sub(r'(f"[^"]*?\\end)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
     fixed_code = re.sub(r"(f'[^']*?\\end)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
     
-    # 補全漏掉的 \begin{cases}
     lines = fixed_code.split('\n')
     new_lines = []
     for line in lines:
@@ -151,7 +178,7 @@ def fix_code_syntax(code_str, error_msg=""):
         new_lines.append(line)
     fixed_code = '\n'.join(new_lines)
 
-    # 4. 修復一般 LaTeX 結構的雙大括號 (防止 f-string 解析錯誤)
+    # 一般 LaTeX 雙括號
     latex_patterns = [
         r'sqrt', r'frac', r'text', r'angle', r'overline', r'degree', 
         r'mathbf', r'mathrm', r'mathbb', r'mathcal', 
@@ -170,20 +197,14 @@ def fix_code_syntax(code_str, error_msg=""):
         else:
              fixed_code = re.sub(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
 
-    # 5. 暴力修法 (針對特定錯誤訊息)
-    if "single '}'" in error_msg or "single '{'" in error_msg or "invalid escape sequence" in error_msg:
+    # 暴力修復 (僅針對錯誤訊息)
+    if "single '}'" in error_msg or "single '{'" in error_msg:
         fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)
         fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
         fixed_code = re.sub(r'_\{(-?\w+)\}', r'_{{\1}}', fixed_code)
         fixed_code = re.sub(r'\^\{(-?\w+)\}', r'^{{\1}}', fixed_code)
-        fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code)
-        fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\^\{', r'\\\1^{{', fixed_code)
-        fixed_code = re.sub(r'(\d|\w|\))\}(?=\$)', r'\1}}', fixed_code)
-        fixed_code = re.sub(r'(\d|\w|\))\}(?=\s|\,|\.)', r'\1}}', fixed_code)
-        fixed_code = re.sub(r'(\d|\w|\))\}(?=\"|\')', r'\1}}', fixed_code)
-        fixed_code = re.sub(r'\\(sin|cos|tan|cot|sec|csc)\((.*?)\)', r'\\\1(\2)', fixed_code) 
 
-    # 6. Python 2 print
+    # Python 2 print 修復
     if "expected '('" in error_msg:
         fixed_code = re.sub(r'print\s+"(.*)"', r'print("\1")', fixed_code)
         fixed_code = re.sub(r'print\s+(.*)', r'print(\1)', fixed_code)
@@ -217,88 +238,69 @@ def fix_logic_errors(code_str, error_log):
             undefined_vars.remove(var)
     if imports_to_add:
         fixed_code = "\n".join(imports_to_add) + "\n" + fixed_code
+    
+    if "ValueError" in error_log or "empty range" in error_log:
+         wrapper = "\ndef safe_randint(a, b):\n    return random.randint(min(a, b), max(a, b))\n"
+         fixed_code = wrapper + fixed_code.replace("random.randint", "safe_randint")
+
     return fixed_code
 
-# [v7.7.7] 整合邏輯：使用混合雲架構 (Architecture Plan) + 強力本地修復 (Syntax Repair)
+# ==============================================================================
+# Main Generation Logic (v8.0)
+# ==============================================================================
 def auto_generate_skill_code(skill_id, queue=None):
     start_time = time.time()
     
-    # 1. Config & Model Info
     role_config = Config.MODEL_ROLES.get('coder', Config.MODEL_ROLES.get('default'))
     current_model = role_config.get('model', 'Unknown')
     
-    # 2. RAG & Architect Plan Retrieval
     skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
-    
-    # [Check] 是否有 Gemini 架構師的教案？
     has_architect_plan = (skill and skill.gemini_prompt and len(skill.gemini_prompt) > 50)
     
     if has_architect_plan:
-        # Path A: 專家分工模式 (Expert Mode)
-        strategy_name = "Architect-Engineer Pipeline (Gemini Plan + Qwen Code)"
+        strategy_name = "Architect-Engineer Pipeline (v8.0)"
         target_logic = skill.gemini_prompt 
-        
-        # 指令：強制遵守教案
         task_instruction = (
-            "1. **IMPLEMENT the Logic Plan**: The `TARGET SKILL LOGIC` section contains a detailed design plan provided by the Architect.\n"
-            "2. **Strict Adherence**: You must implement `Type A`, `Type B`, and `Type C` exactly as described in the plan.\n"
-            "3. **Do NOT deviate**: Do not invent new types. Convert the plan's logic steps into Python code.\n"
+            "1. **IMPLEMENT the Logic Plan**: The `TARGET SKILL LOGIC` section contains a detailed design plan.\n"
+            "2. **Dynamic Implementation**: Implement **ALL** types defined in the plan.\n"
+            "3. **Focus on Function Logic**: Ensure each `generate_type_X` function returns a valid dictionary.\n"
         )
     else:
-        # Path B: 標準模式 (Standard Mode) - 當沒有教案時
-        strategy_name = "Standard Mode (Creative Generation)"
+        strategy_name = "Standard Mode"
         target_logic = f"Generate math: {skill_id}"
         task_instruction = (
-            "1. **Define 3 distinct problem types** based on the `REFERENCE EXAMPLES` (RAG).\n"
-            "2. **Creative Adaptation**: Analyze the math concepts and design 3 variations.\n"
+            "1. **Define 3 distinct problem types** based on the `REFERENCE EXAMPLES`.\n"
         )
 
-    if current_app: current_app.logger.info(f"Generating {skill_id} with {current_model} | Mode: {'Architect' if has_architect_plan else 'Standard'}")
+    if current_app: current_app.logger.info(f"Generating {skill_id} with {current_model} | Mode: {strategy_name}")
 
-    # RAG Examples
     examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(10).all()
     rag_count = len(examples)
     example_text = ""
     if examples:
-        example_text = "### REFERENCE EXAMPLES (For context only):\n"
+        example_text = "### REFERENCE EXAMPLES:\n"
         for i, ex in enumerate(examples):
             q = getattr(ex, 'problem_text', 'N/A')
             a = getattr(ex, 'correct_answer', 'N/A')
             example_text += f"Ex {i+1}: {q} -> Ans: {a}\n"
 
-    # 3. Constructing the System Prompt
     system_instruction = (
-        "You are an expert Python Math Problem Generator for **Taiwan Junior High School** students.\n"
+        "You are an expert Python Math Problem Generator.\n"
         "### CRITICAL RULES:\n"
         "1. **Traditional Chinese**: Output in 繁體中文.\n"
-        "2. **Context Adaptation**: Adapt logic to `TARGET SKILL`.\n"
-        "3. **No Ghost Options**: List options explicitly if asking 'Which one...'.\n"
-        "4. **Tools**: usage of `to_latex`, `fmt_num` is expected.\n"
-        "5. **Return Keys**: `{'question_text', 'answer', 'correct_answer'}`.\n"
-        "6. **Double Braces**: When using f-strings with LaTeX, use DOUBLE BRACES `{{ }}` for LaTeX commands (e.g., `\\frac{{a}}{{b}}`).\n\n"
+        "2. **Tools**: usage of `to_latex`, `fmt_num` is expected.\n"
+        "3. **Return Keys**: `{'question_text', 'answer', 'correct_answer'}`.\n"
+        "4. **Double Braces**: In f-strings, use `{{ }}` for LaTeX.\n\n"
         
         "### MANDATORY STRUCTURE:\n"
         f"{task_instruction}"
-        "4. **Skeleton Compliance**: Update the dispatcher logic:\n"
         "```python\n"
         "import random\n"
         "import math\n"
         "from fractions import Fraction\n\n"
         "# ... (Utils injected automatically)\n\n"
-        "def generate_type_A_problem():\n"
-        "   # Logic for Concept A\n"
-        "   return {...}\n\n"
-        "def generate_type_B_problem():\n"
-        "   # Logic for Concept B\n"
-        "   return {...}\n\n"
-        "def generate_type_C_problem():\n"
-        "   # Logic for Concept C\n"
-        "   return {...}\n\n"
-        "def generate(level=1):\n"
-        "   type = random.choice(['type_A', 'type_B', 'type_C'])\n"
-        "   if type == 'type_A': return generate_type_A_problem()\n"
-        "   elif type == 'type_B': return generate_type_B_problem()\n"
-        "   else: return generate_type_C_problem()\n"
+        "def generate_type_1_problem(): ...\n"
+        "# ... Implement all types from the Architect Plan\n"
         "```\n\n"
         f"### REQUIRED UTILS (For Reference):\n```python\n{PERFECT_UTILS}\n```\n\n"
         f"{example_text}"
@@ -306,7 +308,6 @@ def auto_generate_skill_code(skill_id, queue=None):
     
     full_prompt = system_instruction + "\n\n### TARGET SKILL LOGIC (ARCHITECT PLAN):\n" + target_logic + "\n\n### YOUR PYTHON CODE:\n```python\nimport random\n"
 
-    # 4. Call AI
     try:
         client = get_ai_client(role='coder') 
         response = client.generate_content(full_prompt)
@@ -322,13 +323,21 @@ def auto_generate_skill_code(skill_id, queue=None):
             lines.pop()
         generated_code = '\n'.join(lines)
         
-        # [v7.7] 注入工具
+        # [Pipeline 1] 注入工具
         generated_code = inject_perfect_utils(generated_code)
+
+        # [Pipeline 2] 修復回傳格式
+        generated_code = fix_return_format(generated_code)
+
+        # [Pipeline 3] 清理雞婆的測試碼 (重要!)
+        generated_code = clean_global_scope_execution(generated_code)
+
+        # [Pipeline 4] 自動分派
+        generated_code = inject_robust_dispatcher(generated_code)
         
-        generated_code = re.sub(r'def generate\(\s*\):', r'def generate(level=1):', generated_code)
         generated_code = re.sub(r'def check\(\s*([^,)]+)\s*\):', r'def check(\1, correct_ans):', generated_code)
         
-        # [v7.7.7] 使用最強的修復邏輯 (User Provided)
+        # [Pipeline 5] 語法與邏輯修復
         is_valid, syntax_error = validate_python_code(generated_code)
         repair_triggered = False
         if not is_valid:

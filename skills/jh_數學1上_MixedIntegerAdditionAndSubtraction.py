@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 295.67s | RAG: 8 examples
-# Created At: 2026-01-06 16:13:53
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
+# Duration: 36.12s | RAG: 8 examples
+# Created At: 2026-01-07 16:06:56
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -47,87 +47,139 @@ def draw_number_line(points_map):
 
 
 
-def generate_type_A_problem():
-    # Generate two numbers a and b
-    a = random.randint(-10, 10)
-    b = random.randint(-10, 10)
-    
-    # Ensure a and b are not zero
-    while a == 0 or b == 0:
-        a = random.randint(-10, 10)
-        b = random.randint(-10, 10)
-    
-    # Create the expressions
-    expr1 = f"{a} + {b}"
-    expr2 = f"{a} - (-{b})"
-    
-    # Calculate the results
-    result1 = a + b
-    result2 = a - (-b)
-    
-    # Determine if they are equal
-    if result1 == result2:
-        answer = "相同"
-    else:
-        answer = "不相同"
-    
-    # Return the question and answer
-    return f"比較下列各題中，兩式的運算結果是否相同。\n⑴ {expr1} 和 {expr2}\n答案: {answer}"
+def generate_type_1_problem():
+    A = random.randint(20, 100)
+    B = random.randint(10, 90)
+    C = random.randint(-40, 40)
+    answer = -A + B + C
+    question_text = f"計算下列各式的值。 ${{ {{{A}}} + {{{B}}}| - {{{C}}} }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
 
-def generate_type_B_problem():
-    # Generate three numbers a, b, c
-    a = random.randint(-10, 10)
-    b = random.randint(-10, 10)
-    c = random.randint(-10, 10)
-    
-    # Ensure a, b, and c are not zero
-    while a == 0 or b == 0 or c == 0:
-        a = random.randint(-10, 10)
-        b = random.randint(-10, 10)
-        c = random.randint(-10, 10)
-    
-    # Create the expressions
-    expr1 = f"{c} - ({a} + {b})"
-    expr2 = f"{c} - {a} - {b}"
-    
-    # Calculate the results
-    result1 = c - (a + b)
-    result2 = c - a - b
-    
-    # Determine if they are equal
-    if result1 == result2:
-        answer = "相同"
-    else:
-        answer = "不相同"
-    
-    # Return the question and answer
-    return f"比較下列各題中，兩式的運算結果是否相同。\n⑴ {expr1} 和 {expr2}\n答案: {answer}"
+def generate_type_2_problem():
+    A = random.randint(10, 60)
+    B = random.randint(5, 30)
+    C = random.randint(10, 40)
+    D = random.randint(5, 20)
+    while C == D:
+        D = random.randint(5, 20)
+    inner_abs_val = -C + D
+    answer = abs(-A) + B - abs(inner_abs_val)
+    question_text = f"計算下列各式的值。 ${{ |-{{{A}}}| - (-{{{B}}}) - |-{{{C}}} + {{{D}}}| }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
 
-def generate_type_C_problem():
-    # Generate two numbers a and b
-    a = random.randint(-10, 10)
-    b = random.randint(-10, 10)
-    
-    # Ensure a and b are not zero
-    while a == 0 or b == 0:
-        a = random.randint(-10, 10)
-        b = random.randint(-10, 10)
-    
-    # Create the expressions
-    expr1 = f"{a} + {b}"
-    expr2 = f"{a} - (-{b})"
-    
-    # Calculate the results
-    result1 = a + b
-    result2 = a - (-b)
-    
-    # Determine if they are equal
-    if result1 == result2:
-        answer = "相同"
-    else:
-        answer = "不相同"
-    
-    # Return the question and answer
-    return f"比較下列各題中，兩式的運算結果是否相同。\n⑴ {expr1} 和 {expr2}\n答案: {answer}"
+def generate_type_3_problem():
+    X = random.randint(20, 60)
+    A = random.randint(30, 70)
+    B = random.randint(10, 40)
+    C = random.randint(5, 25)
+    inner_val = -A + B
+    answer = X + abs(inner_val) - C
+    question_text = f"計算下列各式的值。 ${{ {{{X}}} + |(-{{{A}}}) + {{{B}}}| - {{{C}}} }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
 
-# Example usage
+def generate_type_4_problem():
+    A = random.randint(10, 60)
+    B = random.randint(5, 30)
+    C = random.randint(10, 40)
+    D = random.randint(5, 20)
+    while C == D:
+        D = random.randint(5, 20)
+    inner_abs_val = -C + D
+    answer = abs(-A) + B - abs(inner_abs_val)
+    question_text = f"計算下列各式的值。 ${{ |-{{{A}}}| - (-{{{B}}}) - |-{{{C}}} + {{{D}}}| }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
+
+def generate_type_5_problem():
+    A = random.randint(2, 10)
+    B = random.randint(2, 10)
+    val1 = -(A + B)
+    val2 = -A - B
+    is_same = (val1 == val2)
+    answer = "相同" if is_same else "不相同"
+    question_text = f"比較下列各題中，兩式的運算結果是否相同。 ${{ -( {{{A}}} + {{{B}}} ) }}$ 和 ${{ -{{{A}}} - {{{B}}} }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
+
+def generate_type_6_problem():
+    A = random.randint(2, 8)
+    B = random.randint(2, 8)
+    val1 = -(-A - B)
+    val2 = A + B
+    is_same = (val1 == val2)
+    answer = "相同" if is_same else "不相同"
+    question_text = f"比較下列各題中，兩式的運算結果是否相同。 ${{ -(-{{{A}}} - {{{B}}} ) }}$ 和 ${{ {{{A}}} + {{{B}}} }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
+
+def generate_type_7_problem():
+    X = random.randint(1, 10)
+    A = random.randint(2, 8)
+    B = random.randint(2, 8)
+    val1 = -X - (-A + B)
+    val2 = -X + A - B
+    is_same = (val1 == val2)
+    answer = "相同" if is_same else "不相同"
+    question_text = f"比較下列各題中，兩式的運算結果是否相同。 ${{ (-{{{X}}}) - (-{{{A}}} + {{{B}}}) }}$ 和 ${{ (-{{{X}}}) + {{{A}}} - {{{B}}} }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
+
+def generate_type_8_problem():
+    A = random.randint(100, 900)
+    B = random.randint(10, 500)
+    answer = A - (B + A)
+    question_text = f"計算下列各式的值。 ${{ {{{A}}} - ( {{{B}}} + {{{A}}} ) }}$"
+    return {
+        "question": question_text,
+        "answer": answer
+    }
+
+# Dispatcher list
+problem_generators = [
+    generate_type_1_problem, 
+    generate_type_2_problem, 
+    generate_type_3_problem, 
+    generate_type_4_problem, 
+    generate_type_5_problem, 
+    generate_type_6_problem, 
+    generate_type_7_problem, 
+    generate_type_8_problem
+]
+
+# Example usage:
+problem = random.choice(problem_generators)()
+
+# [Auto-Injected Robust Dispatcher by v7.9.3]
+def generate(level=1):
+    available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem', 'generate_type_7_problem', 'generate_type_8_problem']
+    selected_type = random.choice(available_types)
+    try:
+        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
+        elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
+        elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
+        elif selected_type == 'generate_type_4_problem': return generate_type_4_problem()
+        elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
+        elif selected_type == 'generate_type_6_problem': return generate_type_6_problem()
+        elif selected_type == 'generate_type_7_problem': return generate_type_7_problem()
+        elif selected_type == 'generate_type_8_problem': return generate_type_8_problem()
+        else: return generate_type_1_problem()
+    except TypeError:
+        # Fallback for functions requiring arguments
+        return generate_type_1_problem()

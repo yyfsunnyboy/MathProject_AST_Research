@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_DistanceBetweenTwoPointsOnNumberLine
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 154.52s | RAG: 6 examples
-# Created At: 2026-01-06 15:47:23
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
+# Duration: 28.69s | RAG: 6 examples
+# Created At: 2026-01-07 16:03:09
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -47,54 +47,82 @@ def draw_number_line(points_map):
 
 
 
-def generate_type_A_problem():
-    coord1 = random.randint(-20, 20)
-    coord2 = random.randint(-20, 20)
-    
-    while coord1 == coord2:
-        coord2 = random.randint(-20, 20)
-    
-    result = abs(coord1 - coord2)
-    
-    question_text = f"數線上有 A ({coord1})、B ({coord2}) 兩點，則 A、B 兩點的距離 AB 為多少？"
-    answer = to_latex(result)
-    correct_answer = str(result)
-    
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+def generate_type_1_problem():
+    point_a = random.randint(-15, -1)
+    point_b = random.randint(1, 15)
+    answer = abs(point_b - point_a)
+    question_text = f"數線上有 A ({point_a})、B ({point_b}) 兩點，則 A、B 兩點的距離 AB 為多少？"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-def generate_type_B_problem():
-    known_coord = random.randint(-20, 20)
-    distance = random.randint(1, 15)
-    unknown_char = random.choice(['a', 'b', 'c', 'x', 'y'])
-    
-    result1 = known_coord + distance
-    result2 = known_coord - distance
-    
-    question_text = f"數線上有 A ({unknown_char})、B ({known_coord}) 兩點，如果 AB={distance}，則 {unknown_char} 可能是多少？"
-    answer = to_latex(result1) + " 或 " + to_latex(result2)
-    correct_answer = str(result1) + " 或 " + str(result2)
-    
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+def generate_type_2_problem():
+    val1 = random.randint(-15, -1)
+    val2 = random.randint(-15, -1)
+    while val1 == val2:
+        val2 = random.randint(-15, -1)
+    point_c = min(val1, val2)
+    point_d = max(val1, val2)
+    answer = abs(point_d - point_c)
+    question_text = f"數線上有 C ({point_c})、D ({point_d}) 兩點，則 C、D 兩點的距離 CD 為多少？"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-def generate_type_C_problem():
-    coord1 = random.randint(-20, 20)
-    coord2 = random.randint(-20, 20)
-    
-    while (coord1 + coord2) % 2 != 0:
-        coord2 = random.randint(-20, 20)
-    
-    unknown_char = random.choice(['c', 'm', 'x'])
-    
-    result = (coord1 + coord2) / 2
-    
-    question_text = f"數線上有 A ({coord1})、B ({coord2})、C ({unknown_char}) 三點，若 C 為 A、B 的中點，則 {unknown_char} 是多少？"
-    answer = to_latex(result)
-    correct_answer = str(result)
-    
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+def generate_type_3_problem():
+    point_b = random.randint(3, 15)
+    distance_ab = random.randint(1, min(5, point_b - 1))
+    answer1 = point_b + distance_ab
+    answer2 = point_b - distance_ab
+    answer = f"{answer1} 或 {answer2}"
+    question_text = f"數線上有 A ( a )、B ({point_b}) 兩點，如果 AB={distance_ab}，則 a 可能是多少？"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
+def generate_type_4_problem():
+    point_d = random.randint(1, 10)
+    distance_cd = random.randint(max(5, point_d + 1), 12)
+    answer1 = point_d + distance_cd
+    answer2 = point_d - distance_cd
+    answer = f"{answer1} 或 {answer2}"
+    question_text = f"數線上有 C ( c )、D ({point_d}) 兩點，如果 CD={distance_cd}，則 c 可能是多少？"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+
+def generate_type_5_problem():
+    point_a = random.randint(1, 10)
+    sum_target = random.randint(-10, -2) * 2
+    point_b = sum_target - point_a
+    while not (-15 <= point_b <= -1):
+        point_a = random.randint(1, 10)
+        sum_target = random.randint(-10, -2) * 2
+        point_b = sum_target - point_a
+    answer = (point_a + point_b) // 2
+    question_text = f"數線上有 A ({point_a})、B ({point_b})、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+
+def generate_type_6_problem():
+    point_a = random.randint(-10, -1)
+    sum_target = random.randint(2, 10) * 2
+    point_b = sum_target - point_a
+    while not (1 <= point_b <= 15):
+        point_a = random.randint(-10, -1)
+        sum_target = random.randint(2, 10) * 2
+        point_b = sum_target - point_a
+    answer = (point_a + point_b) // 2
+    question_text = f"數線上有 A ({point_a})、B ({point_b})、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+
+# Dispatcher list
+dispatcher_list = [generate_type_1_problem, generate_type_2_problem, generate_type_3_problem, 
+                   generate_type_4_problem, generate_type_5_problem, generate_type_6_problem]
+
+# [Auto-Injected Robust Dispatcher by v7.9.3]
 def generate(level=1):
-    type = random.choice(['type_A', 'type_B', 'type_C'])
-    if type == 'type_A': return generate_type_A_problem()
-    elif type == 'type_B': return generate_type_B_problem()
-    else: return generate_type_C_problem()
+    available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem']
+    selected_type = random.choice(available_types)
+    try:
+        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
+        elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
+        elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
+        elif selected_type == 'generate_type_4_problem': return generate_type_4_problem()
+        elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
+        elif selected_type == 'generate_type_6_problem': return generate_type_6_problem()
+        else: return generate_type_1_problem()
+    except TypeError:
+        # Fallback for functions requiring arguments
+        return generate_type_1_problem()

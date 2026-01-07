@@ -1,13 +1,12 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerMultiplication
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (Gemini Plan + Qwen Code)
-# Duration: 164.51s | RAG: 5 examples
-# Created At: 2026-01-06 16:06:32
+# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
+# Duration: 34.85s | RAG: 5 examples
+# Created At: 2026-01-07 16:06:06
 # Fix Status: [Repaired]
 # ==============================================================================
 
 from fractions import Fraction
-import math
 import random
 
 def to_latex(num):
@@ -48,57 +47,83 @@ def draw_number_line(points_map):
 
 
 
-def generate_type_A_problem():
-    num1 = random.choice([-12, -1] + list(range(1, 13)))
-    num2 = random.choice([-12, -1] + list(range(1, 13)))
-    result = num1 * num2
-    question_text = f"計算 {num1} × {num2} 的值。"
-    answer = to_latex(result)
-    correct_answer = str(result)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+def generate_type_1_problem():
+    num1 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
+    num2 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
+    answer = num1 * num2
+    num1_display = f"( {num1} )" if num1 < 0 else str(num1)
+    num2_display = f"( {num2} )" if num2 < 0 else str(num2)
+    question_text = f"計算下列各式的值。\n${{ {num1_display} \\times {num2_display} }}$"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-def generate_type_B_problem():
-    num_count = random.choice([3, 4])
-    factors = []
-    special_factors_pool = [-25, -125, -2, -4, -5, 2, 4, 5, 8, 25, 125]
-    
-    for _ in range(num_count):
-        if random.random() < 0.3:
-            factor = random.choice(special_factors_pool)
+def generate_type_2_problem():
+    num1 = random.choice(range(-15, 0)) if random.random() < 0.5 else random.choice(range(1, 16))
+    num2 = random.choice(range(-12, 0)) if random.random() < 0.5 else random.choice(range(1, 13))
+    answer = num1 * num2
+    num1_display = f"( {num1} )" if num1 < 0 else str(num1)
+    num2_display = f"( {num2} )" if num2 < 0 else str(num2)
+    question_text = f"計算下列各式的值。\n${{ {num1_display} \\times {num2_display} }}$"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+
+def generate_type_3_problem():
+    num1 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
+    num2 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
+    num3 = random.choice(range(-5, 0)) if random.random() < 0.5 else random.choice(range(1, 6))
+    answer = num1 * num2 * num3
+    num1_display = f"( {num1} )" if num1 < 0 else str(num1)
+    num2_display = f"( {num2} )" if num2 < 0 else str(num2)
+    num3_display = f"( {num3} )" if num3 < 0 else str(num3)
+    question_text = f"計算下列各式的值。\n${{ {num1_display} \\times {num2_display} \\times {num3_display} }}$"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+
+def generate_type_4_problem():
+    factor_pairs_list = [(2, 5), (4, 25), (5, 2), (8, 125), (25, 4), (50, 2)]
+    base, complement = random.choice(factor_pairs_list)
+    num_c = random.choice(range(-12, 0)) if random.random() < 0.5 else random.choice(range(1, 13))
+    raw_numbers = [base, complement, num_c]
+    for i in range(len(raw_numbers)):
+        if random.random() < 0.5:
+            raw_numbers[i] = -raw_numbers[i]
+    n1, n2, n3 = random.sample(raw_numbers, 3)
+    answer = n1 * n2 * n3
+    n1_display = f"( {n1} )" if n1 < 0 else str(n1)
+    n2_display = f"( {n2} )" if n2 < 0 else str(n2)
+    n3_display = f"( {n3} )" if n3 < 0 else str(n3)
+    question_text = f"計算 ${{ {n1_display} \\times {n2_display} \\times {n3_display} }}$ 的值。"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+
+def generate_type_5_problem():
+    num_factors = random.randint(4, 8)
+    factors_list = []
+    negative_count = 0
+    for _ in range(num_factors):
+        abs_value = random.randint(2, 20)
+        is_negative = random.choice([True, False])
+        if is_negative:
+            factor = -abs_value
+            negative_count += 1
         else:
-            factor = random.choice([-12, -1] + list(range(1, 13)))
-        factors.append(factor)
-    
-    random.shuffle(factors)
-    result = math.prod(factors)
-    factors_str = " × ".join([to_latex(f) for f in factors])
-    question_text = f"計算 {factors_str} 的值。"
-    answer = to_latex(result)
-    correct_answer = str(result)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+            factor = abs_value
+        factors_list.append(factor)
+    answer = "正數" if negative_count % 2 == 0 else "負數"
+    display_factors = [f"( {factor} )" if factor < 0 else str(factor) for factor in factors_list]
+    expression_latex = " \\times ".join(display_factors)
+    question_text = f"判斷 ${{ {expression_latex} }}$ 的計算結果是一個正數還是負數？說明你判斷的理由。"
+    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-def generate_type_C_problem():
-    num_factors = random.randint(5, 9)
-    negative_count = random.randint(1, num_factors)
-    factors = []
-    
-    for i in range(num_factors):
-        if i < negative_count:
-            factor = random.choice([-20, -1])
-        else:
-            factor = random.choice([1, 20])
-        factors.append(factor)
-    
-    random.shuffle(factors)
-    expected_sign_text = "負數" if negative_count % 2 != 0 else "正數"
-    factors_str = " × ".join([to_latex(f) for f in factors])
-    question_text = f"判斷 {factors_str} 的計算結果是一個正數還是負數？說明你判斷的理由。"
-    answer = expected_sign_text
-    correct_answer = expected_sign_text
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+dispatcher_list = [generate_type_1_problem, generate_type_2_problem, generate_type_3_problem, generate_type_4_problem, generate_type_5_problem]
 
+# [Auto-Injected Robust Dispatcher by v7.9.3]
 def generate(level=1):
-    type = random.choice(['type_A', 'type_B', 'type_C'])
-    if type == 'type_A': return generate_type_A_problem()
-    elif type == 'type_B': return generate_type_B_problem()
-    else: return generate_type_C_problem()
+    available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem']
+    selected_type = random.choice(available_types)
+    try:
+        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
+        elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
+        elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
+        elif selected_type == 'generate_type_4_problem': return generate_type_4_problem()
+        elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
+        else: return generate_type_1_problem()
+    except TypeError:
+        # Fallback for functions requiring arguments
+        return generate_type_1_problem()
