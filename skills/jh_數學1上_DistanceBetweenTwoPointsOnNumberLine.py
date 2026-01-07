@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_DistanceBetweenTwoPointsOnNumberLine
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 28.69s | RAG: 6 examples
-# Created At: 2026-01-07 16:03:09
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 212.58s | RAG: 6 examples
+# Created At: 2026-01-07 22:05:27
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -48,70 +48,72 @@ def draw_number_line(points_map):
 
 
 def generate_type_1_problem():
-    point_a = random.randint(-15, -1)
-    point_b = random.randint(1, 15)
-    answer = abs(point_b - point_a)
-    question_text = f"數線上有 A ({point_a})、B ({point_b}) 兩點，則 A、B 兩點的距離 AB 為多少？"
+    a_coord = random.randint(-15, -1)
+    b_coord = random.randint(1, 15)
+    while a_coord >= b_coord:
+        a_coord = random.randint(-15, -1)
+        b_coord = random.randint(1, 15)
+    
+    answer = abs(b_coord - a_coord)
+    question_text = f"數線上有 A ( {a_coord} )、B ( {b_coord} ) 兩點，則 A、B 兩點的距離 AB 為多少？"
     return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
 def generate_type_2_problem():
-    val1 = random.randint(-15, -1)
-    val2 = random.randint(-15, -1)
-    while val1 == val2:
-        val2 = random.randint(-15, -1)
-    point_c = min(val1, val2)
-    point_d = max(val1, val2)
-    answer = abs(point_d - point_c)
-    question_text = f"數線上有 C ({point_c})、D ({point_d}) 兩點，則 C、D 兩點的距離 CD 為多少？"
+    c_coord = random.randint(-20, -10)
+    d_coord = random.randint(-9, -1)
+    while c_coord >= d_coord:
+        c_coord = random.randint(-20, -10)
+        d_coord = random.randint(-9, -1)
+    
+    answer = abs(d_coord - c_coord)
+    question_text = f"數線上有 C ( {c_coord} )、D ( {d_coord} ) 兩點，則 C、D 兩點的距離 CD 為多少？"
     return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
 def generate_type_3_problem():
-    point_b = random.randint(3, 15)
-    distance_ab = random.randint(1, min(5, point_b - 1))
-    answer1 = point_b + distance_ab
-    answer2 = point_b - distance_ab
-    answer = f"{answer1} 或 {answer2}"
-    question_text = f"數線上有 A ( a )、B ({point_b}) 兩點，如果 AB={distance_ab}，則 a 可能是多少？"
+    b_coord = random.randint(2, 12)
+    distance = random.randint(2, 10)
+    
+    a1 = b_coord + distance
+    a2 = b_coord - distance
+    
+    answer = sorted([a1, a2])
+    question_text = f"數線上有 A ( a )、B ( {b_coord} ) 兩點，如果 AB={distance}，則 a 可能是多少？"
     return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
 def generate_type_4_problem():
-    point_d = random.randint(1, 10)
-    distance_cd = random.randint(max(5, point_d + 1), 12)
-    answer1 = point_d + distance_cd
-    answer2 = point_d - distance_cd
-    answer = f"{answer1} 或 {answer2}"
-    question_text = f"數線上有 C ( c )、D ({point_d}) 兩點，如果 CD={distance_cd}，則 c 可能是多少？"
+    d_coord = random.randint(5, 15)
+    distance = random.randint(3, 8)
+    
+    c1 = d_coord + distance
+    c2 = d_coord - distance
+    
+    answer = sorted([c1, c2])
+    question_text = f"數線上有 C ( c )、D ( {d_coord} ) 兩點，如果 CD={distance}，則 c 可能是多少？"
     return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
 def generate_type_5_problem():
-    point_a = random.randint(1, 10)
-    sum_target = random.randint(-10, -2) * 2
-    point_b = sum_target - point_a
-    while not (-15 <= point_b <= -1):
-        point_a = random.randint(1, 10)
-        sum_target = random.randint(-10, -2) * 2
-        point_b = sum_target - point_a
-    answer = (point_a + point_b) // 2
-    question_text = f"數線上有 A ({point_a})、B ({point_b})、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
+    a_coord = random.randint(5, 15)
+    b_coord = random.randint(-15, -5)
+    while (a_coord + b_coord) % 2 != 0:
+        a_coord = random.randint(5, 15)
+        b_coord = random.randint(-15, -5)
+    
+    answer = (a_coord + b_coord) // 2
+    question_text = f"數線上有 A ( {a_coord} )、B ( {b_coord} )、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
     return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
 def generate_type_6_problem():
-    point_a = random.randint(-10, -1)
-    sum_target = random.randint(2, 10) * 2
-    point_b = sum_target - point_a
-    while not (1 <= point_b <= 15):
-        point_a = random.randint(-10, -1)
-        sum_target = random.randint(2, 10) * 2
-        point_b = sum_target - point_a
-    answer = (point_a + point_b) // 2
-    question_text = f"數線上有 A ({point_a})、B ({point_b})、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
+    a_coord = random.randint(-15, -5)
+    b_coord = random.randint(5, 15)
+    while (a_coord + b_coord) % 2 != 0:
+        a_coord = random.randint(-15, -5)
+        b_coord = random.randint(5, 15)
+    
+    answer = (a_coord + b_coord) // 2
+    question_text = f"數線上有 A ( {a_coord} )、B ( {b_coord} )、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
     return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
 
-# Dispatcher list
-dispatcher_list = [generate_type_1_problem, generate_type_2_problem, generate_type_3_problem, 
-                   generate_type_4_problem, generate_type_5_problem, generate_type_6_problem]
-
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem']
     selected_type = random.choice(available_types)
@@ -124,5 +126,4 @@ def generate(level=1):
         elif selected_type == 'generate_type_6_problem': return generate_type_6_problem()
         else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_1_problem()

@@ -112,12 +112,51 @@ def inject_robust_dispatcher(code_str):
 
 def fix_return_format(code_str):
     fixed_code = code_str
-    # 支援 return q, a 或 return (q, a)
-    pattern_2 = r'(^\s*)return\s+(?:\(?)\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)]+?)\s*(?:\)?)\s*$'
+    
+    # ==============================================================================
+    # [Priority 1] DeepSeek Multi-Return Truncator (必須最先執行！)
+    # 專門對付：return f"...", [ans1], f"...", [ans2]
+    # 策略：抓取第一個 "f-string" 和緊接著的 "List"，並丟棄後面所有東西
+    # ==============================================================================
+    # 解說：
+    # 1. (^\s*)return\s+ : 抓 return 開頭
+    # 2. (f["\'].*?["\']) : 抓第一個 f-string (問題)
+    # 3. \s*,\s* : 中間的逗號
+    # 4. (\[.*?\]) : 抓第一個 List (答案)
+    # 5. \s*,.*$ : 抓後面跟著的逗號和任何東西 (這就是我們要切掉的部分)
+    pattern_truncator = r'(^\s*)return\s+(f["\'].*?["\'])\s*,\s*(\[.*?\])\s*,\s*.*$'
+    
+    def repl_truncator(m):
+        # 強制只保留第一組，並轉為 Dict
+        # 注意：我們加上 str() 包裹 list[0]
+        return f"{m.group(1)}return {{'question_text': {m.group(2)}, 'answer': str({m.group(3)}[0]), 'correct_answer': str({m.group(3)}[0])}}"
+    
+    fixed_code = re.sub(pattern_truncator, repl_truncator, fixed_code, flags=re.MULTILINE)
+
+    # ==============================================================================
+    # [Priority 2] DeepSeek Standard List Return
+    # 專門對付：return f"...", [ans]  (沒有後續，只有一組)
+    # ==============================================================================
+    pattern_list = r'(^\s*)return\s+(f["\'].*?["\'])\s*,\s*(\[.*?\])\s*$'
+    
+    def repl_list(m):
+        return f"{m.group(1)}return {{'question_text': {m.group(2)}, 'answer': str({m.group(3)}[0]), 'correct_answer': str({m.group(3)}[0])}}"
+    
+    fixed_code = re.sub(pattern_list, repl_list, fixed_code, flags=re.MULTILINE)
+
+    # ==============================================================================
+    # [Priority 3] Standard Tuple (Legacy Qwen Support)
+    # 對付：return q, a (最普通的 Tuple)
+    # ==============================================================================
+    # 注意：這裡排除掉以 [ 開頭的答案，避免誤傷上面的規則
+    pattern_2 = r'(^\s*)return\s+(?:\(?)\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)\[]+?)\s*(?:\)?)\s*$'
+    
     def repl_2(m):
         return f"{m.group(1)}return {{'question_text': {m.group(2).strip()}, 'answer': {m.group(3).strip()}, 'correct_answer': {m.group(3).strip()}}}"
+    
     fixed_code = re.sub(pattern_2, repl_2, fixed_code, flags=re.MULTILINE)
 
+    # [Priority 4] Tuple with 3 elements (q, a, ca)
     pattern_3 = r'(^\s*)return\s+(?:\(?)\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)]+?)\s*,\s*([^,\{\}\n#\)]+?)\s*(?:\)?)\s*$'
     def repl_3(m):
         return f"{m.group(1)}return {{'question_text': {m.group(2).strip()}, 'answer': {m.group(3).strip()}, 'correct_answer': {m.group(4).strip()}}}"
@@ -142,6 +181,22 @@ def clean_global_scope_execution(code_str):
             continue
         cleaned_lines.append(line)
     return '\n'.join(cleaned_lines)
+
+def sanitize_code(code_str):
+    """
+    [v8.0] 針對已知的 LLM 幻覺進行無條件的字串清理
+    """
+    fixed_code = code_str
+    
+    # 1. 修正 'from math import abs' 錯誤 (abs 是 built-in，無需 import)
+    # 將其替換為 'import math' 以防萬一它還需要 math 裡的其他東西
+    fixed_code = re.sub(r'^\s*from\s+math\s+import\s+abs\s*$', 'import math', fixed_code, flags=re.MULTILINE)
+    
+    # 2. 如果是混在其他 import 裡 (e.g., from math import sqrt, abs) -> 移除 abs
+    fixed_code = re.sub(r'(from\s+math\s+import\s+.*),\s*abs', r'\1', fixed_code)
+    fixed_code = re.sub(r'(from\s+math\s+import\s+.*)abs,\s*', r'\1', fixed_code)
+    
+    return fixed_code
 
 def fix_code_syntax(code_str, error_msg=""):
     """
@@ -199,8 +254,11 @@ def fix_code_syntax(code_str, error_msg=""):
 
     # 暴力修復 (僅針對錯誤訊息)
     if "single '}'" in error_msg or "single '{'" in error_msg:
-        fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)
-        fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
+        # [NEW] 新增這兩行：針對 LaTeX 的集合符號 \{ \} 在 f-string 中被誤判
+        fixed_code = fixed_code.replace(r"\}", r"\}}") 
+        fixed_code = fixed_code.replace(r"\{", r"\{{")
+        fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)        
+        fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)                
         fixed_code = re.sub(r'_\{(-?\w+)\}', r'_{{\1}}', fixed_code)
         fixed_code = re.sub(r'\^\{(-?\w+)\}', r'^{{\1}}', fixed_code)
 
@@ -312,6 +370,20 @@ def auto_generate_skill_code(skill_id, queue=None):
         client = get_ai_client(role='coder') 
         response = client.generate_content(full_prompt)
         generated_code = response.text
+
+        # [Token Tracking] Extract or Estimate Token Usage
+        prompt_tokens = 0
+        completion_tokens = 0
+        try:
+            if hasattr(response, 'usage_metadata'):
+                prompt_tokens = response.usage_metadata.prompt_token_count
+                completion_tokens = response.usage_metadata.candidates_token_count
+            else:
+                # Fallback estimate for Local LLM (approx 4 chars per token)
+                prompt_tokens = len(full_prompt) // 4
+                completion_tokens = len(generated_code) // 4
+        except Exception:
+            pass # Keep defaults (0) if extraction fails
         
         match = re.search(r'```(?:python)?\s*(.*?)```', generated_code, re.DOTALL | re.IGNORECASE)
         if match: generated_code = match.group(1)
@@ -331,6 +403,9 @@ def auto_generate_skill_code(skill_id, queue=None):
 
         # [Pipeline 3] 清理雞婆的測試碼 (重要!)
         generated_code = clean_global_scope_execution(generated_code)
+       
+        # [NEW] [Pipeline 3.5] 強制消毒 (修復 abs import 等幻覺)
+        generated_code = sanitize_code(generated_code)
 
         # [Pipeline 4] 自動分派
         generated_code = inject_robust_dispatcher(generated_code)
@@ -367,7 +442,7 @@ def auto_generate_skill_code(skill_id, queue=None):
         if module_name in sys.modules: importlib.reload(sys.modules[module_name])
         else: importlib.import_module(module_name)
         
-        log_experiment(skill_id, start_time, len(full_prompt), len(generated_code), True, syntax_error if not is_valid else "None", repair_triggered)
+        log_experiment(skill_id, start_time, len(full_prompt), len(generated_code), True, syntax_error if not is_valid else "None", repair_triggered, prompt_tokens, completion_tokens)
         return True, "Success"
 
     except Exception as e:
@@ -375,7 +450,7 @@ def auto_generate_skill_code(skill_id, queue=None):
         if current_app: current_app.logger.error(f"Gen Error: {e}")
         return False, str(e)
 
-def log_experiment(skill_id, start_time, input_len, output_len, success, error_msg, repaired):
+def log_experiment(skill_id, start_time, input_len, output_len, success, error_msg, repaired, prompt_tokens=0, completion_tokens=0):
     try:
         duration = time.time() - start_time
         log = ExperimentLog(
@@ -386,6 +461,8 @@ def log_experiment(skill_id, start_time, input_len, output_len, success, error_m
             input_length=input_len,
             output_length=output_len,
             is_success=success,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
             syntax_error_initial=error_msg,
             ast_repair_triggered=repaired,
             cpu_usage=50.0, ram_usage=90.0

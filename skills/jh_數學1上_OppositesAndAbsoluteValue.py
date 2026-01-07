@@ -1,14 +1,14 @@
 # ==============================================================================
 # ID: jh_數學1上_OppositesAndAbsoluteValue
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 53.74s | RAG: 7 examples
-# Created At: 2026-01-07 16:08:32
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 273.42s | RAG: 7 examples
+# Created At: 2026-01-07 23:06:33
 # Fix Status: [Repaired]
 # ==============================================================================
 
 from fractions import Fraction
 import random
-
+import math
 def to_latex(num):
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
@@ -48,109 +48,96 @@ def draw_number_line(points_map):
 
 
 def generate_type_1_problem():
-    num = random.randint(-20, -5)
-    answer_str = f"{num} 比較大"
-    return f"1. 分別寫出 \\( {num} \\) 與 \\( {num} \\) 的絕對值，並比較這兩數絕對值的大小。\\\\ 2. 承 1，判斷 \\( {num} \\) 與 \\( {num} \\) 哪一個比較大？", answer_str
-
+    num1 = -random.randint(2, 10)
+    num2 = -random.randint(2, 10)
+    while num2 == num1:
+        num2 = -random.randint(2, 10)
+    
+    abs_num1 = abs(num1)
+    abs_num2 = abs(num2)
+    if abs_num1 < abs_num2:
+        abs_op = "<"
+    else:
+        abs_op = ">"
+    
+    question = f"分別寫出 {num1} 和 {num2} 的絕對值，並比較這兩數絕對值的大小。"
+    answer = f"|{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{abs_op}|{num2}|"
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_2_problem():
-    num = random.randint(-20, -5)
-    answer_str = f"{abs(num)}"
-    return f"寫出下列各數的值。\\\\ (1) \\( |{num}| \\)", answer_str
-
+    num1 = -random.randint(2, 10)
+    num2 = -random.randint(2, 10)
+    while num2 == num1:
+        num2 = -random.randint(2, 10)
+    
+    abs_num1 = abs(num1)
+    abs_num2 = abs(num2)
+    if abs_num1 < abs_num2:
+        abs_op = "<"
+    else:
+        abs_op = ">"
+    
+    question = f"｜{num1}｜"
+    answer = f"{abs_num1}"
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_3_problem():
-    num1 = random.randint(-15, -2)
-    num2 = random.randint(-15, -2)
-    while num1 == num2:
-        num2 = random.randint(-15, -2)
+    num1 = -random.randint(2, 10)
+    num2 = -random.randint(2, 10)
+    while num2 == num1:
+        num2 = -random.randint(2, 10)
+    
     abs_num1 = abs(num1)
     abs_num2 = abs(num2)
-    comparison_sign = '<' if abs_num1 < abs_num2 else '>'
-    answer_str = f"|{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{comparison_sign}|{num2}|"
-    return f"分別寫出 \\( {num1} \\) 和 \\( {num2} \\) 的絕對值，並比較這兩數絕對值的大小。", answer_str
-
+    if abs_num1 < abs_num2:
+        abs_op = "<"
+    else:
+        abs_op = ">"
+    
+    question = f"分別寫出 {num1} 和 {num2} 的絕對值，並比較這兩數絕對值的大小。"
+    answer = f"|{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{abs_op}|{num2}|"
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_4_problem():
-    num1 = random.randint(-20, -5)
-    num2 = random.randint(-20, -5)
+    num1 = -random.randint(5, 20)
+    num2 = -random.randint(5, 20)
     while num1 == num2:
-        num2 = random.randint(-20, -5)
+        num2 = -random.randint(5, 20)
+    
     abs_num1 = abs(num1)
     abs_num2 = abs(num2)
-    abs_comparison_sign = '<' if abs_num1 < abs_num2 else '>'
-    answer_str = f"|{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{abs_comparison_sign}|{num2}|"
-    larger_num = max(num1, num2)
-    num_answer_str = f"{larger_num} 比較大"
-    return f"1. 分別寫出 \\( {num1} \\) 與 \\( {num2} \\) 的絕對值，並比較這兩數絕對值的大小。\\\\ 2. 承 1，判斷 \\( {num1} \\) 與 \\( {num2} \\) 哪一個比較大？", f"{answer_str}\n{num_answer_str}"
-
+    if abs_num1 < abs_num2:
+        abs_op = "<"
+    else:
+        abs_op = ">"
+    
+    question = f"1. 分別寫出 {num1} 與 {num2} 的絕對值，並比較這兩數絕對值的大小。 \\\\ 2. 承 1，判斷 {num1} 與 {num2} 哪一個比較大？"
+    if num1 > num2:
+        larger_num = num1
+    else:
+        larger_num = num2
+    
+    answer = f"1. |{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{abs_op}|{num2}|\\n2. {larger_num} 比較大"
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_5_problem():
-    abs_val = random.randint(3, 15)
-    answer_str = f"a = {abs_val} 或 a = {-abs_val}"
-    return f"在數線上，有一數 \\( a \\)，若 \\( |a|={abs_val} \\)，則 \\( a \\) 是多少？", answer_str
-
+    k = random.randint(2, 15)
+    
+    question = f"在數線上，有一數 a，若｜a｜={k}，則 a 是多少？"
+    answer = f"a = {k} 或 a = {-k}"
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_6_problem():
-    upper_bound = random.randint(4, 8)
-    integers_list = list(range(-(upper_bound - 1), upper_bound))
-    answer_str = "、".join(map(str, integers_list))
-    return f"寫出絕對值小於 \\( {upper_bound} \\) 的所有整數。", answer_str
-
+    k = random.randint(3, 8)
+    
+    integers = list(range(-(k-1), k))
+    question = f"寫出絕對值小於 {k} 的所有整數。"
+    answer = "、".join(map(str, integers))
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_7_problem():
-    upper_bound = random.randint(3, 7)
-    integers_list = list(range(-(upper_bound - 1), 0))
-    answer_str = "、".join(map(str, integers_list))
-    return f"已知 \\( c \\) 為負整數，且 \\( |c| < {upper_bound} \\)，則 \\( c \\) 可能是多少？", answer_str
-
-def generate_type_1_problem():
-    num = random.randint(-20, -5)
-    answer_str = f"{num} 比較大"
-    return f"1. 分別寫出 \\( {num} \\) 與 \\( {num} \\) 的絕對值，並比較這兩數絕對值的大小。\\\\ 2. 承 1，判斷 \\( {num} \\) 與 \\( {num} \\) 哪一個比較大？", answer_str
-
-def generate_type_2_problem():
-    num = random.randint(-20, -5)
-    answer_str = f"{abs(num)}"
-    return f"寫出下列各數的值。\\\\ (1) \\( |{num}| \\)", answer_str
-
-def generate_type_3_problem():
-    num1 = random.randint(-15, -2)
-    num2 = random.randint(-15, -2)
-    while num1 == num2:
-        num2 = random.randint(-15, -2)
-    abs_num1 = abs(num1)
-    abs_num2 = abs(num2)
-    comparison_sign = '<' if abs_num1 < abs_num2 else '>'
-    answer_str = f"|{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{comparison_sign}|{num2}|"
-    return f"分別寫出 \\( {num1} \\) 和 \\( {num2} \\) 的絕對值，並比較這兩數絕對值的大小。", answer_str
-
-def generate_type_4_problem():
-    num1 = random.randint(-20, -5)
-    num2 = random.randint(-20, -5)
-    while num1 == num2:
-        num2 = random.randint(-20, -5)
-    abs_num1 = abs(num1)
-    abs_num2 = abs(num2)
-    abs_comparison_sign = '<' if abs_num1 < abs_num2 else '>'
-    answer_str = f"|{num1}|={abs_num1}, |{num2}|={abs_num2}, |{num1}|{abs_comparison_sign}|{num2}|"
-    larger_num = max(num1, num2)
-    num_answer_str = f"{larger_num} 比較大"
-    return f"1. 分別寫出 \\( {num1} \\) 與 \\( {num2} \\) 的絕對值，並比較這兩數絕對值的大小。\\\\ 2. 承 1，判斷 \\( {num1} \\) 與 \\( {num2} \\) 哪一個比較大？", f"{answer_str}\n{num_answer_str}"
-
-def generate_type_5_problem():
-    abs_val = random.randint(3, 15)
-    answer_str = f"a = {abs_val} 或 a = {-abs_val}"
-    return f"在數線上，有一數 \\( a \\)，若 \\( |a|={abs_val} \\)，則 \\( a \\) 是多少？", answer_str
-
-def generate_type_6_problem():
-    upper_bound = random.randint(4, 8)
-    integers_list = list(range(-(upper_bound - 1), upper_bound))
-    answer_str = "、".join(map(str, integers_list))
-    return f"寫出絕對值小於 \\( {upper_bound} \\) 的所有整數。", answer_str
-
-def generate_type_7_problem():
-    upper_bound = random.randint(3, 7)
-    integers_list = list(range(-(upper_bound - 1), 0))
-    answer_str = "、".join(map(str, integers_list))
-    return f"已知 \\( c \\) 為負整數，且 \\( |c| < {upper_bound} \\)，則 \\( c \\) 可能是多少？", answer_str
-
+    k = random.randint(3, 8)
+    
+    negative_integers = list(range(-k+1, -1))
+    question = f"已知 c 為負整數，且｜c｜＜{k}，則 c 可能是多少？"
+    answer = "、".join(map(str, negative_integers))
+    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 # Dispatcher List
-dispatcher_list = [
+problem_generators = [
     generate_type_1_problem,
     generate_type_2_problem,
     generate_type_3_problem,
@@ -160,27 +147,18 @@ dispatcher_list = [
     generate_type_7_problem
 ]
 
-def generate_random_problem():
-    problem_func = random.choice(dispatcher_list)
-    return problem_func()
-
-# Example usage:
-problem, answer = generate_random_problem()
-
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
-    available_types = ['generate_random_problem', 'generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem', 'generate_type_7_problem']
+    available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem', 'generate_type_7_problem']
     selected_type = random.choice(available_types)
     try:
-        if selected_type == 'generate_random_problem': return generate_random_problem()
-        elif selected_type == 'generate_type_1_problem': return generate_type_1_problem()
+        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
         elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
         elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
         elif selected_type == 'generate_type_4_problem': return generate_type_4_problem()
         elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
         elif selected_type == 'generate_type_6_problem': return generate_type_6_problem()
         elif selected_type == 'generate_type_7_problem': return generate_type_7_problem()
-        else: return generate_random_problem()
+        else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
-        return generate_random_problem()
+        return generate_type_1_problem()

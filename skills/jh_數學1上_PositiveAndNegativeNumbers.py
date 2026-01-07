@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_PositiveAndNegativeNumbers
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 44.45s | RAG: 3 examples
-# Created At: 2026-01-07 16:09:16
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 228.62s | RAG: 3 examples
+# Created At: 2026-01-07 22:48:10
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -45,159 +45,75 @@ def draw_number_line(points_map):
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-
-
 def generate_type_1_problem():
-    # Generate a reference point and its LaTeX representation
-    ref_sign = random.choice([-1, 1])
-    ref_val_abs = round(random.uniform(1.0, 5.0), 1)
-    reference_num_value = ref_sign * ref_val_abs
-    reference_num_latex = f"{reference_num_value:.1f}"
+    pos_value_magnitude = random.randint(3, 15)
+    neg_value_magnitude = random.randint(3, 15)
+    unit = "公里"
+    positive_direction_description = "東邊"
+    negative_direction_description = "西邊"
+    reference_point = "學校的位置"
+    positive_example_item = "超市"
+    negative_target_item = "醫院"
+    
+    question_text = f"以{reference_point}為基準，{positive_direction_description}當作正向，{negative_direction_description}為負向。若{positive_example_item}位在{reference_point}的{positive_direction_description}{pos_value_magnitude}{unit}處，記為「＋{pos_value_magnitude}」{unit}，則{negative_target_item}位在{reference_point}的{negative_direction_description}{neg_value_magnitude}{unit}處，應該怎麼記錄？"
+    answer = f"-{neg_value_magnitude} {unit}"
+    
+    return {"question_text": question_text, "answer": answer, "correct_answer": answer}
 
-    # Generate a list of numbers and their LaTeX representations
-    num_data_list = []
-    for _ in range(6):
-        val = random.randint(-20, 20)
-        if val == 0:
-            continue
-        latex_str = str(val)
-        num_data_list.append((val, latex_str))
-
-    # Shuffle the list to randomize the order of numbers
-    random.shuffle(num_data_list)
-
-    # Construct the LaTeX string for the list of numbers
-    num_list_latex = "、".join([latex_str for _, latex_str in num_data_list])
-
-    # Classify numbers and build answer lists
-    negative_numbers_latex_list = []
-    same_sign_numbers_latex_list = []
-    for val, latex_str in num_data_list:
-        if val < 0:
-            negative_numbers_latex_list.append(latex_str)
-        if (val > 0 and reference_num_value > 0) or (val < 0 and reference_num_value < 0):
-            same_sign_numbers_latex_list.append(latex_str)
-
-    # Format the final answer strings
-    negative_numbers_latex = "、".join(negative_numbers_latex_list) if negative_numbers_latex_list else "無"
-    same_sign_numbers_latex = "、".join(same_sign_numbers_latex_list) if same_sign_numbers_latex_list else "無"
-
-    # Construct the question and answer
-    question = f"下列各數中，哪些是負數？哪些與${{{reference_num_latex}}}$是同號數？\n\n${{{num_list_latex}}}$"
-    answer = {
-        "負數": negative_numbers_latex,
-        f"${{{reference_num_latex}}}$的同號數": same_sign_numbers_latex
-    }
-
-    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_2_problem():
-    # Generate a reference point and its LaTeX representation
-    ref_sign = random.choice([-1, 1])
-    ref_val_abs = round(random.uniform(1.0, 5.0), 1)
-    reference_num_value = ref_sign * ref_val_abs
-    reference_num_latex = f"{reference_num_value:.1f}"
+    direct_loss_amount = random.randint(50, 290) * 10
+    cost = random.randint(250, 950) * 50
+    loss_diff = random.randint(10, 150) * 10
+    while loss_diff >= cost:
+        loss_diff = random.randint(10, 150) * 10
+    sell_price = cost - loss_diff
+    
+    question_text = f"商店老闆每賣出一件商品，就會記錄這筆交易的賺賠情形，他以「＋」表示賺錢，以「-」表示賠錢，例如：賺了 100 {unit}，就記為＋100 {unit}。試回答下列問題：\n⑴ 若賠了 {direct_loss_amount} {unit}，應該怎麼記錄？\n⑵ 若一件商品的成本是 {cost} {unit}，以 {sell_price} {unit} 售出，則老闆應該怎麼記錄？"
+    answer1 = f"-{direct_loss_amount} {unit}"
+    answer2 = f"-{loss_diff} {unit}"
+    
+    return {"question_text": question_text, "answer": (answer1, answer2), "correct_answer": (answer1, answer2)}
 
-    # Generate a list of numbers and their LaTeX representations
-    num_data_list = []
-    for _ in range(6):
-        val = round(random.uniform(-10.0, 10.0), 1)
-        if val == 0.0:
-            continue
-        latex_str = f"{val:.1f}"
-        num_data_list.append((val, latex_str))
-
-    # Shuffle the list to randomize the order of numbers
-    random.shuffle(num_data_list)
-
-    # Construct the LaTeX string for the list of numbers
-    num_list_latex = "、".join([latex_str for _, latex_str in num_data_list])
-
-    # Classify numbers and build answer lists
-    negative_numbers_latex_list = []
-    same_sign_numbers_latex_list = []
-    for val, latex_str in num_data_list:
-        if val < 0.0:
-            negative_numbers_latex_list.append(latex_str)
-        if (val > 0.0 and reference_num_value > 0) or (val < 0.0 and reference_num_value < 0):
-            same_sign_numbers_latex_list.append(latex_str)
-
-    # Format the final answer strings
-    negative_numbers_latex = "、".join(negative_numbers_latex_list) if negative_numbers_latex_list else "無"
-    same_sign_numbers_latex = "、".join(same_sign_numbers_latex_list) if same_sign_numbers_latex_list else "無"
-
-    # Construct the question and answer
-    question = f"下列各數中，哪些是負數？哪些與${{{reference_num_latex}}}$是同號數？\n\n${{{num_list_latex}}}$"
-    answer = {
-        "負數": negative_numbers_latex,
-        f"${{{reference_num_latex}}}$的同號數": same_sign_numbers_latex
-    }
-
-    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
 def generate_type_3_problem():
-    # Generate a reference point and its LaTeX representation
-    ref_sign = random.choice([-1, 1])
-    ref_val_abs = round(random.uniform(1.0, 5.0), 1)
-    reference_num_value = ref_sign * ref_val_abs
-    reference_num_latex = f"{reference_num_value:.1f}"
-
-    # Generate a list of numbers and their LaTeX representations
-    num_data_list = []
-    for _ in range(6):
-        val = random.randint(-20, 20)
-        if val == 0:
-            continue
-        latex_str = str(val)
-        num_data_list.append((val, latex_str))
-
-    # Shuffle the list to randomize the order of numbers
-    random.shuffle(num_data_list)
-
-    # Construct the LaTeX string for the list of numbers
-    num_list_latex = "、".join([latex_str for _, latex_str in num_data_list])
-
-    # Classify numbers and build answer lists
-    negative_numbers_latex_list = []
-    same_sign_numbers_latex_list = []
-    for val, latex_str in num_data_list:
-        if val < 0:
-            negative_numbers_latex_list.append(latex_str)
-        if (val > 0 and reference_num_value > 0) or (val < 0 and reference_num_value < 0):
-            same_sign_numbers_latex_list.append(latex_str)
-
-    # Format the final answer strings
-    negative_numbers_latex = "、".join(negative_numbers_latex_list) if negative_numbers_latex_list else "無"
-    same_sign_numbers_latex = "、".join(same_sign_numbers_latex_list) if same_sign_numbers_latex_list else "無"
-
-    # Construct the question and answer
-    question = f"下列各數中，哪些是負數？哪些與${{{reference_num_latex}}}$是同號數？\n\n${{{num_list_latex}}}$"
+    numbers_data = []
+    while len(numbers_data) < 6:
+        value = random.uniform(-9.9, 9.9)
+        if abs(value) > 0 and abs(value) <= 9.9 and not any(abs(num - abs(int(num))) < 1e-9 for num in numbers_data):
+            latex_str = str(value).replace(".", " \\frac{{}}")
+            if value < 0:
+                latex_str = "-" + latex_str.strip()
+            numbers_data.append((value, latex_str))
+    
+    random.shuffle(numbers_data)
+    display_numbers_str = " ".join([num[1] for num in numbers_data])
+    
+    reference_number_value = random.choice([num for num in [random.uniform(-9.9, 9.9) for _ in range(5)] if abs(num) > 0 and abs(num) <= 9.9])
+    reference_number_str = str(reference_number_value).replace(".", " \\frac{{}}")
+    if reference_number_value < 0:
+        reference_number_str = "-" + reference_number_str.strip()
+    
+    negative_numbers_list = [num[1] for num in numbers_data if num[0] < 0]
+    integers_list = [num[1] for num in numbers_data if abs(int(num[0])) == abs(num[0])]
+    same_sign_numbers_list = [num[1] for num in numbers_data if (num[0] > 0 and reference_number_value > 0) or (num[0] < 0 and reference_number_value < 0)]
+    
     answer = {
-        "負數": negative_numbers_latex,
-        f"${{{reference_num_latex}}}$的同號數": same_sign_numbers_latex
+        "負數": negative_numbers_list,
+        "整數": integers_list,
+        "同號數": same_sign_numbers_list
     }
+    
+    question_text = f"下列各數中，哪些是負數？哪些是整數？哪些與${{{reference_number_str}}}$是同號數？\n{display_numbers_str}"
+    
+    return {"question_text": question_text, "answer": answer, "correct_answer": answer}
 
-    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
-# Dispatcher list to select a problem type randomly
-dispatcher_list = [generate_type_1_problem, generate_type_2_problem, generate_type_3_problem]
-
-def generate_problem():
-    # Select a random problem generator from the dispatcher list
-    selected_generator = random.choice(dispatcher_list)
-    # Generate and return the problem and answer
-    question, answer = selected_generator()
-    return {'question_text': question, 'answer': answer, 'correct_answer': answer}
-# Example usage:
-question, answer = generate_problem()
-
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
-    available_types = ['generate_problem', 'generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem']
+    available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem']
     selected_type = random.choice(available_types)
     try:
-        if selected_type == 'generate_problem': return generate_problem()
-        elif selected_type == 'generate_type_1_problem': return generate_type_1_problem()
+        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
         elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
         elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
-        else: return generate_problem()
+        else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
-        return generate_problem()
+        return generate_type_1_problem()

@@ -582,6 +582,10 @@ class ExperimentLog(db.Model):
     syntax_error_initial = db.Column(db.Text, nullable=True, comment="原始語法錯誤訊息 (若無則空)")
     ast_repair_triggered = db.Column(db.Boolean, default=False, comment="是否觸發 AST 修復")
     
+    # --- Token Usage (Cost Analysis) ---
+    prompt_tokens = db.Column(db.Integer, default=0, comment="Prompt Token 數量")
+    completion_tokens = db.Column(db.Integer, default=0, comment="Completion Token 數量")
+
     # --- 系統資源 ---
     cpu_usage = db.Column(db.Float, nullable=True, comment="CPU 使用率 (%)")
     ram_usage = db.Column(db.Float, nullable=True, comment="RAM 使用率 (%)")

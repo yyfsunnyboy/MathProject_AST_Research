@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerExponentiation
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 35.99s | RAG: 7 examples
-# Created At: 2026-01-07 16:05:31
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 224.58s | RAG: 7 examples
+# Created At: 2026-01-07 22:20:37
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -49,92 +49,83 @@ def draw_number_line(points_map):
 
 def generate_type_1_problem():
     base = random.randint(2, 5)
-    exp = random.choice([2, 3])
-    ans_pos = base ** exp
-    ans_neg_base = -base ** exp
-    ans_neg_expr = -(base ** exp)
-    return f"計算下列各式的值。\n⑴ ${{ {ans_pos} }}$\n⑵ ${{ {ans_neg_base} }}$\n⑶ ${{ {ans_neg_expr} }}$", (ans_pos, ans_neg_base, ans_neg_expr)
+    exponent = random.choice([3, 4, 5])
+    ans = (-base) ** exponent if random.random() < 0.5 else base ** exponent
+    return f"⑴ ${{ ({-base})^{{ {exponent} }} }}$", [(-base) ** exponent]
 
 def generate_type_2_problem():
-    base = random.randint(2, 5)
-    exp = random.choice([2, 3])
-    divisor = base
-    ans = (-(base ** exp) // divisor) - (base ** exp)
-    return f"計算下列各式的值。\n⑴ ${{ (-{base}^{exp}) \\div {divisor} - {base}^{exp} }}$", (ans,)
+    a1 = random.randint(3, 7)
+    b1 = random.choice([f for f in range(2, 6) if (a1**2) % f == 0])
+    c1 = random.randint(2, 4)
+    ans = (-(a1**2)) // b1 - (c1**3)
+    return f"⑴ ${{ ({-a1}^{{2}}) \\div {b1} - {c1}^{{3}} }}$", [ans]
 
 def generate_type_3_problem():
     base = random.randint(2, 5)
-    exp = random.choice([2, 3])
-    ans_pos = base ** exp
-    ans_neg_base = -base ** exp
-    ans_neg_expr = -(base ** exp)
-    return f"計算下列各式的值。\n⑴ ${{ {ans_pos} }}$\n⑵ ${{ {ans_neg_base} }}$\n⑶ ${{ {ans_neg_expr} }}$", (ans_pos, ans_neg_base, ans_neg_expr)
+    exponent = 3
+    ans = (-base) ** exponent if random.random() < 0.5 else base ** exponent
+    return f"⑴ ${{ ({-base})^{{ {exponent} }} }}$", [ans]
 
 def generate_type_4_problem():
-    base = random.randint(2, 5)
-    exp = 3
-    divisor = base
-    ans = (-(base ** exp) // divisor) - (base ** exp)
-    return f"計算下列各式的值。\n⑴ ${{ (-{base}^{exp}) \\div {divisor} - {base}^{exp} }}$", (ans,)
+    base = random.randint(2, 4)
+    exponent = 3
+    ans = (-base) ** exponent if random.random() < 0.5 else base ** exponent
+    return f"⑴ ${{ ({-base})^{{ {exponent} }} }}$", [ans]
 
 def generate_type_5_problem():
     base = random.randint(2, 4)
-    exp = 5
-    divisor = base
-    ans = (-(base ** exp) // divisor) - (base ** exp)
-    return f"計算下列各式的值。\n⑴ ${{ (-{base}^{exp}) \\div {divisor} - {base}^{exp} }}$", (ans,)
+    exponent = 5
+    ans = (-base) ** exponent if random.random() < 0.5 else base ** exponent
+    return f"⑴ ${{ ({-base})^{{ {exponent} }} }}$", [ans]
 
 def generate_type_6_problem():
-    base1_a = random.randint(2, 5)
-    exp1_a = random.choice([2, 3])
-    divisor_a = base1_a
-    base2_a = random.randint(2, 4)
-    exp2_a = random.choice([2, 3])
+    a1 = random.randint(3, 7)
+    b1 = random.choice([f for f in range(2, 6) if (a1**2) % f == 0])
+    c1 = random.randint(2, 4)
+    ans1 = (-(a1**2)) // b1 - (c1**3)
     
-    ans_a = (-(base1_a ** exp1_a) // divisor_a) - (base2_a ** exp2_a)
-
-    val1_b = random.randint(5, 15)
-    base1_b = random.randint(2, 3)
-    exp1_b = random.choice([3, 4])
-    val2_b = random.randint(5, 15)
-    base2_b = random.randint(2, 4)
-    exp2_b = random.choice([2, 3])
-
-    inner_bracket_b = val2_b + (-(base2_b ** exp2_b))
-    ans_b = val1_b - ((base1_b ** exp1_b) * inner_bracket_b)
-
-    return f"計算下列各式的值。\n⑴ ${{ (-{base1_a}^{exp1_a}) \\div {divisor_a} - {base2_a}^{exp2_a} }}$\n⑵ ${{ {val1_b} - {base1_b}^{exp1_b} \\times [ {val2_b} + (-{base2_b}^{exp2_b}) ] }}$", (ans_a, ans_b)
+    a2 = random.randint(8, 15)
+    b2 = random.randint(2, 3)
+    d2 = random.randint(2, 4)
+    val_in_bracket = random.randint(2, 7)
+    c2 = val_in_bracket + d2**2
+    ans2 = a2 - (b2**3) * (c2 + (-(d2**2)))
+    
+    return f"⑴ ${{ ({-a1}^{{2}}) \\div {b1} - {c1}^{{3}} }}$", [ans1], \
+           f"⑵ ${{ {a2} - {b2}^{{3}} \\times [ {c2} + ({-d2}^{{2}}) ] }}$", [ans2]
 
 def generate_type_7_problem():
-    base_a = random.randint(2, 5)
-    exp_a = random.choice([2, 3])
-    add_val_a = random.randint(2, 6)
+    base1 = random.randint(2, 5)
+    add1 = random.randint(2, 7)
+    intermediate_val = -((-base1)**2) + add1
+    divisor1_options = [d for d in range(2, 11) if intermediate_val % d == 0]
+    if not divisor1_options: return "", []
+    divisor1 = random.choice(divisor1_options)
+    ans1 = intermediate_val // divisor1
     
-    while True:
-        divisor_a = random.randint(2, 6)
-        if (-((-base_a)**exp_a) + add_val_a) % divisor_a == 0:
-            break
+    start_num = random.randint(-150, -50)
+    base2 = random.randint(2, 5)
+    denominator_val = (-base2)**2
+    numerator2_options = [n for n in range(50, 101) if n % denominator_val == 0]
+    if not numerator2_options: return "", []
+    numerator2 = random.choice(numerator2_options)
+    ans2 = start_num - (-numerator2) // denominator_val
     
-    ans_a = (-((-base_a)**exp_a) + add_val_a) // divisor_a
+    return f"⑴ ${{ [ - ({-base1})^{{2}} + {add1} ] \\div {divisor1} }}$", [ans1], \
+           f"⑵ ${{ {start_num} - ({-numerator2}) \\div ({-base2})^{{2}} }}$", [ans2]
 
-    val1_b = random.choice([-100, -75, -50])
-    base_b = random.randint(2, 5)
-    exp_b = 2
-    divisor_val_b = (-base_b) ** exp_b
-    
-    while True:
-        val2_b_candidate = random.choice([-100, -75, -50])
-        if val2_b_candidate % divisor_val_b == 0:
-            break
-    
-    val2_b = val2_b_candidate
-    ans_b = val1_b - (val2_b // divisor_val_b)
+# Dispatcher List
+problem_generators = [
+    generate_type_1_problem,
+    generate_type_2_problem,
+    generate_type_3_problem,
+    generate_type_4_problem,
+    generate_type_5_problem,
+    generate_type_6_problem,
+    generate_type_7_problem
+]
 
-    return f"計算下列各式的值。\n⑴ ${{ [-(-{base_a})^{exp_a} + {add_val_a} ] \\div {divisor_a} }}$\n⑵ ${{ ({val1_b}) - ({val2_b}) \\div (-{base_b})^{exp_b} }}$", (ans_a, ans_b)
-
-dispatcher_list = [generate_type_1_problem, generate_type_2_problem, generate_type_3_problem, generate_type_4_problem, generate_type_5_problem, generate_type_6_problem, generate_type_7_problem]
-
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem', 'generate_type_7_problem']
     selected_type = random.choice(available_types)
@@ -148,5 +139,4 @@ def generate(level=1):
         elif selected_type == 'generate_type_7_problem': return generate_type_7_problem()
         else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_1_problem()

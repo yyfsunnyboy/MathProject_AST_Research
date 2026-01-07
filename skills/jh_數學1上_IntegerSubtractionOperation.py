@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerSubtractionOperation
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 13.39s | RAG: 2 examples
-# Created At: 2026-01-07 16:06:20
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 59.24s | RAG: 2 examples
+# Created At: 2026-01-07 22:30:12
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -48,44 +48,44 @@ def draw_number_line(points_map):
 
 
 def generate_type_1_problem():
-    val1 = random.randint(-150, 150)
-    val2_abs = random.randint(1, 150)
-    operation_type = random.choice([1, 2])
+    A = random.randint(-150, 150)
+    B = random.randint(-100, 100)
     
-    if operation_type == 1:
-        answer = val1 - val2_abs
-        display_val2_op = f"- {val2_abs}"
+    if B < 0:
+        operand_b_str = f"({B})"
     else:
-        answer = val1 + val2_abs
-        display_val2_op = f"- ({-val2_abs})"
+        operand_b_str = str(B)
     
-    display_val1 = f"({val1})" if val1 < 0 else f"{val1}"
+    answer = A - B
     
-    question_text = f"請計算 ${display_val1} {display_val2_op}$ 的值。"
-    correct_answer = answer
+    question_text = f"計算 ${{ {A} - {operand_b_str} }}$ 的值。"
     
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': answer
+    }
 
 def generate_type_2_problem():
-    val1 = random.randint(-50, 50)
-    val2_abs = random.randint(1, 50)
-    operation_type = random.choice([1, 2])
+    A = random.randint(-50, 50)
+    B = random.randint(-30, 30)
     
-    if operation_type == 1:
-        answer = val1 - val2_abs
-        display_val2_op = f"- {val2_abs}"
+    if B < 0:
+        operand_b_str = f"({B})"
     else:
-        answer = val1 + val2_abs
-        display_val2_op = f"- ({-val2_abs})"
+        operand_b_str = str(B)
     
-    display_val1 = f"({val1})" if val1 < 0 else f"{val1}"
+    answer = A - B
     
-    question_text = f"請計算 ${display_val1} {display_val2_op}$ 的值。"
-    correct_answer = answer
+    question_text = f"計算 ${{ {A} - {operand_b_str} }}$ 的值。"
     
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': correct_answer}
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': answer
+    }
 
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_1_problem', 'generate_type_2_problem']
     selected_type = random.choice(available_types)
@@ -94,5 +94,4 @@ def generate(level=1):
         elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
         else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_1_problem()

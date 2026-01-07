@@ -1,11 +1,12 @@
 # ==============================================================================
 # ID: jh_數學1上_FourArithmeticOperationsOfIntegers
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 45.05s | RAG: 10 examples
-# Created At: 2026-01-07 16:03:55
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 432.11s | RAG: 10 examples
+# Created At: 2026-01-07 22:12:40
 # Fix Status: [Repaired]
 # ==============================================================================
 
+from fractions import Fraction
 import random
 
 def to_latex(num):
@@ -16,8 +17,8 @@ def to_latex(num):
         if abs(num.numerator) > num.denominator:
             sign = "-" if num.numerator < 0 else ""
             rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{{rem.numerator}}}{{{rem.denominator}}}"
-        return f"\\frac{{{{num.numerator}}}{{{num.denominator}}}"
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
     return str(num)
 
 def fmt_num(num):
@@ -47,132 +48,146 @@ def draw_number_line(points_map):
 
 
 def generate_type_1_problem():
-    # Generate a simple addition problem with integers between 1 and 10
-    num1 = random.randint(1, 10)
-    num2 = random.randint(1, 10)
-    answer = num1 + num2
-    return f"{num1} + {num2} =", answer
+    num1 = random.randint(10, 99)
+    num2 = random.randint(10, 99)
+    result = num1 + num2
+    return f"What is the sum of {num1} and {num2}?"
 
 def generate_type_2_problem():
-    # Generate a simple subtraction problem with integers between 1 and 20
-    num1 = random.randint(1, 20)
-    num2 = random.randint(1, num1)  # Ensure the result is non-negative
-    answer = num1 - num2
-    return f"{num1} - {num2} =", answer
+    operand1 = random.randint(10, 99)
+    operand2 = random.randint(10, 99)
+    operation = random.choice(['+', '-', '*', '/'])
+    if operation == '+':
+        result = operand1 + operand2
+    elif operation == '-':
+        result = operand1 - operand2
+    elif operation == '*':
+        result = operand1 * operand2
+    else:
+        result = operand1 / operand2
+    return f"What is the result of {operand1} {operation} {operand2}?"
 
 def generate_type_3_problem():
-    # Generate a simple multiplication problem with integers between 1 and 5
-    num1 = random.randint(1, 5)
-    num2 = random.randint(1, 5)
-    answer = num1 * num2
-    return f"{num1} x {num2} =", answer
+    num1 = random.randint(10, 99)
+    num2 = random.randint(10, 99)
+    operation = random.choice(['+', '-', '*', '/'])
+    if operation == '+':
+        result = num1 + num2
+    elif operation == '-':
+        result = num1 - num2
+    elif operation == '*':
+        result = num1 * num2
+    else:
+        result = num1 / num2
+    return f"Calculate the result of {num1} {operation} {num2}"
 
 def generate_type_4_problem():
-    # Generate a simple division problem with integers between 1 and 10
-    num1 = random.randint(1, 10) * random.randint(1, 10)
-    num2 = random.randint(1, 10)
-    answer = num1 // num2
-    return f"{num1} ÷ {num2} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    equation = f"{a}x^2 + {b}x + {c}"
+    discriminant = b**2 - 4*a*c
+    if discriminant > 0:
+        roots = "real and different"
+    elif discriminant == 0:
+        roots = "real and equal"
+    else:
+        roots = "imaginary"
+    return f"Determine the nature of the roots for the quadratic equation {equation}."
 
 def generate_type_5_problem():
-    # Generate a problem involving parentheses and basic arithmetic
-    num1 = random.randint(1, 10)
-    num2 = random.randint(1, 10)
-    num3 = random.randint(1, 10)
-    operator1 = random.choice(['+', '-'])
-    operator2 = random.choice(['+', '-'])
-    answer = eval(f"{num1}{operator1}{num2}{operator2}{num3}")
-    return f"({num1} {operator1} {num2}) {operator2} {num3} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    discriminant = b**2 - 4*a*c
+    if discriminant >= 0:
+        x1 = (-b + (discriminant ** 0.5)) / (2*a)
+        x2 = (-b - (discriminant ** 0.5)) / (2*a)
+        return f"Find the roots of the quadratic equation {a}x^2 + {b}x + {c} = 0."
+    else:
+        return f"The quadratic equation {a}x^2 + {b}x + {c} = 0 has no real roots."
 
 def generate_type_6_problem():
-    # Generate a problem involving fractions and basic arithmetic
-    num1 = random.randint(1, 5)
-    num2 = random.randint(1, 5)
-    operator = random.choice(['+', '-'])
-    fraction1 = f"{num1}/{num2}"
-    fraction2 = f"{num2}/{num1}"
-    answer = eval(f"float({fraction1}) {operator} float({fraction2})"
-    return f"{fraction1} {operator} {fraction2} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    discriminant = b**2 - 4*a*c
+    if discriminant >= 0:
+        x1 = (-b + (discriminant ** 0.5)) / (2*a)
+        x2 = (-b - (discriminant ** 0.5)) / (2*a)
+        return f"Solve the quadratic equation {a}x^2 + {b}x + {c} = 0 using the quadratic formula."
+    else:
+        return f"The quadratic equation {a}x^2 + {b}x + {c} = 0 has no real roots, so it cannot be solved using the quadratic formula."
 
 def generate_type_7_problem():
-    # Generate a problem involving negative numbers and basic arithmetic
-    num1 = random.randint(1, 10)
-    num2 = random.randint(1, 10)
-    operator = random.choice(['+', '-'])
-    answer = eval(f"{num1}{operator}-{num2}")
-    return f"{num1} {operator} -{num2} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    discriminant = b**2 - 4*a*c
+    if discriminant >= 0:
+        x1 = (-b + (discriminant ** 0.5)) / (2*a)
+        x2 = (-b - (discriminant ** 0.5)) / (2*a)
+        return f"Solve the quadratic equation {a}x^2 + {b}x + {c} = 0 by factoring."
+    else:
+        return f"The quadratic equation {a}x^2 + {b}x + {c} = 0 cannot be solved by factoring because it has no real roots."
 
 def generate_type_8_problem():
-    # Generate a problem involving order of operations
-    num1 = random.randint(1, 5)
-    num2 = random.randint(1, 5)
-    num3 = random.randint(1, 5)
-    operator1 = random.choice(['+', '-'])
-    operator2 = random.choice(['*', '/'])
-    answer = eval(f"{num1}{operator1}{num2}{operator2}{num3}")
-    return f"({num1} {operator1} {num2}) {operator2} {num3} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    discriminant = b**2 - 4*a*c
+    if discriminant >= 0:
+        x1 = (-b + (discriminant ** 0.5)) / (2*a)
+        x2 = (-b - (discriminant ** 0.5)) / (2*a)
+        return f"Solve the quadratic equation {a}x^2 + {b}x + {c} = 0 by completing the square."
+    else:
+        return f"The quadratic equation {a}x^2 + {b}x + {c} = 0 cannot be solved by completing the square because it has no real roots."
 
 def generate_type_9_problem():
-    # Generate a problem involving exponents
-    base = random.randint(1, 5)
-    exponent = random.randint(1, 3)
-    answer = base ** exponent
-    return f"{base} ^ {exponent} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    discriminant = b**2 - 4*a*c
+    if discriminant >= 0:
+        x1 = (-b + (discriminant ** 0.5)) / (2*a)
+        x2 = (-b - (discriminant ** 0.5)) / (2*a)
+        return f"Solve the quadratic equation {a}x^2 + {b}x + {c} = 0 using any method of your choice."
+    else:
+        return f"The quadratic equation {a}x^2 + {b}x + {c} = 0 has no real roots, so it cannot be solved by any method provided here."
 
 def generate_type_10_problem():
-    # Generate a problem involving square roots
-    num = random.randint(1, 25)
-    answer = int(num ** 0.5)
-    return f"√{num} =", answer
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    c = random.randint(1, 9)
+    discriminant = b**2 - 4*a*c
+    if discriminant >= 0:
+        x1 = (-b + (discriminant ** 0.5)) / (2*a)
+        x2 = (-b - (discriminant ** 0.5)) / (2*a)
+        return f"Solve the quadratic equation {a}x^2 + {b}x + {c} = 0 using any method of your choice."
+    else:
+        return f"The quadratic equation {a}x^2 + {b}x + {c} = 0 has no real roots, so it cannot be solved by any method provided here."
 
 def generate_type_11_problem():
-    # Generate a word problem involving integer addition and multiplication
-    start_position = random.randint(-5, 5)
-    total_rolls = random.randint(8, 15)
-    even_move = random.randint(3, 7)
-    odd_move = random.randint(-7, -3)
-    even_count = random.randint(1, total_rolls - 1)
-    odd_count = total_rolls - even_count
-    abs_odd_move = abs(odd_move)
-    final_position = start_position + (even_count * even_move) + (odd_count * odd_move)
-    return f"已知小翊一開始將棋子放在坐標 {start_position}，共投擲了 {total_rolls} 次，其中出現 {even_count} 次偶數點，則棋子最後的位置在哪個坐標上？", final_position
+    initial_position = random.randint(-3, 3)
+    even_move_units = random.randint(4, 8)
+    odd_move_units = -random.randint(4, 8)
+    total_rolls = random.randint(10, 15)
+    num_even_rolls = random.randint(2, total_rolls - 2)
+    num_odd_rolls = total_rolls - num_even_rolls
+    final_position = initial_position + (num_even_rolls * even_move_units) + (num_odd_rolls * odd_move_units)
+    return f"Starting at position {initial_position}, move right by {even_move_units} for each even roll and left by {abs(odd_move_units)} for each odd roll. If you rolled the dice {total_rolls} times with {num_even_rolls} even rolls and {num_odd_rolls} odd rolls, what is your final position?"
 
 def generate_type_12_problem():
-    # Generate a word problem involving integer arithmetic for scoring
-    total_games = random.randint(7, 12)
-    win_points = random.randint(2, 4)
-    lose_points = random.randint(1, 3)
-    draw_points = random.randint(0, 2)
-    draws = random.randint(1, total_games - 2)
-    remaining_games = total_games - draws
-    player1_wins = random.randint(1, remaining_games - 1)
-    player2_wins = remaining_games - player1_wins
-    player1_losses = player2_wins
-    player2_losses = player1_wins
-    player1_score = (player1_wins * win_points) - (player1_losses * lose_points) + (draws * draw_points)
-    player2_score = (player2_wins * win_points) - (player2_losses * lose_points) + (draws * draw_points)
-    return f"小妍與小美玩猜拳遊戲，遊戲規則為贏的人得 {win_points} 分，輸的人扣 {lose_points} 分，平手則各得 {draw_points} 分。已知兩人共猜了 {total_games} 次拳，其中小妍贏 {player1_wins} 次，小美贏 {player2_wins} 次，平手 {draws} 次，分別求出兩人最後的分數為何？", f"小妍{player1_score}分，小美{player2_score}分"
-
-# Dispatcher list
-dispatcher_list = [
-    generate_type_1_problem,
-    generate_type_2_problem,
-    generate_type_3_problem,
-    generate_type_4_problem,
-    generate_type_5_problem,
-    generate_type_6_problem,
-    generate_type_7_problem,
-    generate_type_8_problem,
-    generate_type_9_problem,
-    generate_type_10_problem,
-    generate_type_11_problem,
-    generate_type_12_problem
-]
+    total_games = random.randint(9, 15)
+    player_win_score = random.randint(2, 4)
+    player_lose_score = -random.randint(2, 4)
+    num_wins = random.randint(0, total_games)
+    score = num_wins * player_win_score + (total_games - num_wins) * player_lose_score
+    return f"In a series of {total_games} games, you win {player_win_score} points and lose {abs(player_lose_score)} points for each loss. If you won {num_wins} games, what is your total score?"
 
 # Example usage:
-problem, answer = dispatcher_list[0]()
 
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_10_problem', 'generate_type_11_problem', 'generate_type_12_problem', 'generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem', 'generate_type_7_problem', 'generate_type_8_problem', 'generate_type_9_problem']
     selected_type = random.choice(available_types)
@@ -191,5 +206,4 @@ def generate(level=1):
         elif selected_type == 'generate_type_9_problem': return generate_type_9_problem()
         else: return generate_type_10_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_10_problem()

@@ -60,8 +60,10 @@ class Config:
         # 1. 工程師：專門寫 Code (精準、強迫症)
         'coder': {
             'provider': 'local',
-            'model': 'qwen2.5-coder:7b',
-            'temperature': 0.1
+            #'model': 'qwen2.5-coder:7b',
+            'model': 'deepseek-coder-v2:lite',
+            'temperature': 0.1,
+            'num_ctx': 8192     # [建議新增] 確保它讀得懂長長的教案    
             #'model': 'qwen3-coder:30b'
             #'model': 'qwen2.5-coder:14b'
             #'model': 'freehuntx/qwen3-coder:14b' # rtx2060 跑不動     

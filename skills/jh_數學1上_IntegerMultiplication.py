@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerMultiplication
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 34.85s | RAG: 5 examples
-# Created At: 2026-01-07 16:06:06
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 515.62s | RAG: 5 examples
+# Created At: 2026-01-07 22:29:13
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -47,73 +47,185 @@ def draw_number_line(points_map):
 
 
 
+def format_number(num):
+    return f"{num}" if num >= 0 else f"({num})"
+
 def generate_type_1_problem():
-    num1 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
-    num2 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
+    val1 = random.randint(-20, 20)
+    val2 = random.randint(-20, 20)
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    num1 = val1 * sign1
+    num2 = val2 * sign2
     answer = num1 * num2
-    num1_display = f"( {num1} )" if num1 < 0 else str(num1)
-    num2_display = f"( {num2} )" if num2 < 0 else str(num2)
-    question_text = f"計算下列各式的值。\n${{ {num1_display} \\times {num2_display} }}$"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
 
 def generate_type_2_problem():
-    num1 = random.choice(range(-15, 0)) if random.random() < 0.5 else random.choice(range(1, 16))
-    num2 = random.choice(range(-12, 0)) if random.random() < 0.5 else random.choice(range(1, 13))
-    answer = num1 * num2
-    num1_display = f"( {num1} )" if num1 < 0 else str(num1)
-    num2_display = f"( {num2} )" if num2 < 0 else str(num2)
-    question_text = f"計算下列各式的值。\n${{ {num1_display} \\times {num2_display} }}$"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    val1 = random.randint(-20, 20)
+    val2 = random.randint(-20, 20)
+    val3 = random.randint(-20, 20)
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    sign3 = random.choice([-1, 1])
+    num1 = val1 * sign1
+    num2 = val2 * sign2
+    num3 = val3 * sign3
+    answer = num1 * num2 * num3
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    num3_str = format_number(num3)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} \\times {num3_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
 
 def generate_type_3_problem():
-    num1 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
-    num2 = random.choice(range(-10, 0)) if random.random() < 0.5 else random.choice(range(1, 11))
-    num3 = random.choice(range(-5, 0)) if random.random() < 0.5 else random.choice(range(1, 6))
+    val1 = random.randint(-20, 20)
+    val2 = random.randint(-20, 20)
+    val3 = random.randint(-20, 20)
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    sign3 = random.choice([-1, 1])
+    num1 = val1 * sign1
+    num2 = val2 * sign2
+    num3 = val3 * sign3
     answer = num1 * num2 * num3
-    num1_display = f"( {num1} )" if num1 < 0 else str(num1)
-    num2_display = f"( {num2} )" if num2 < 0 else str(num2)
-    num3_display = f"( {num3} )" if num3 < 0 else str(num3)
-    question_text = f"計算下列各式的值。\n${{ {num1_display} \\times {num2_display} \\times {num3_display} }}$"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    num3_str = format_number(num3)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} \\times {num3_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
 
 def generate_type_4_problem():
-    factor_pairs_list = [(2, 5), (4, 25), (5, 2), (8, 125), (25, 4), (50, 2)]
-    base, complement = random.choice(factor_pairs_list)
-    num_c = random.choice(range(-12, 0)) if random.random() < 0.5 else random.choice(range(1, 13))
-    raw_numbers = [base, complement, num_c]
-    for i in range(len(raw_numbers)):
-        if random.random() < 0.5:
-            raw_numbers[i] = -raw_numbers[i]
-    n1, n2, n3 = random.sample(raw_numbers, 3)
-    answer = n1 * n2 * n3
-    n1_display = f"( {n1} )" if n1 < 0 else str(n1)
-    n2_display = f"( {n2} )" if n2 < 0 else str(n2)
-    n3_display = f"( {n3} )" if n3 < 0 else str(n3)
-    question_text = f"計算 ${{ {n1_display} \\times {n2_display} \\times {n3_display} }}$ 的值。"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    factor_25_val = random.choice([25, -25])
+    factor_4_val = random.choice([4, -4])
+    other_factor_abs = random.randint(5, 30)
+    while other_factor_abs in [10, 20]:
+        other_factor_abs = random.randint(5, 30)
+    other_factor_sign = random.choice([-1, 1])
+    num1 = factor_25_val
+    num2 = factor_4_val
+    num3 = other_factor_abs * other_factor_sign
+    factors = [num1, num2, num3]
+    random.shuffle(factors)
+    answer = factors[0] * factors[1] * factors[2]
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    num3_str = format_number(num3)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} \\times {num3_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
 
 def generate_type_5_problem():
-    num_factors = random.randint(4, 8)
-    factors_list = []
+    num_factors = random.randint(3, 7)
+    factors_raw = []
     negative_count = 0
     for _ in range(num_factors):
-        abs_value = random.randint(2, 20)
-        is_negative = random.choice([True, False])
-        if is_negative:
-            factor = -abs_value
+        abs_val = random.randint(2, 20)
+        sign = random.choice([-1, 1])
+        if sign == -1:
             negative_count += 1
-        else:
-            factor = abs_value
-        factors_list.append(factor)
-    answer = "正數" if negative_count % 2 == 0 else "負數"
-    display_factors = [f"( {factor} )" if factor < 0 else str(factor) for factor in factors_list]
-    expression_latex = " \\times ".join(display_factors)
-    question_text = f"判斷 ${{ {expression_latex} }}$ 的計算結果是一個正數還是負數？說明你判斷的理由。"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+        factors_raw.append(abs_val * sign)
+    product_sign_str = "正數" if negative_count % 2 == 0 else "負數"
+    factors_str = " \\times ".join([format_number(num) for num in factors_raw])
+    reasoning_str = f"因為算式中有 {negative_count} 個負數相乘，"
+    if negative_count % 2 == 0:
+        reasoning_str += "且 {negative_count} 是偶數，所以結果是正數。"
+    else:
+        reasoning_str += "且 {negative_count} 是奇數，所以結果是負數。"
+    question = f"判斷 ${{ {factors_str} }}$ 的計算結果是一個正數還是負數？說明你判斷的理由。"
+    return {"question": question, "answer": {"sign": product_sign_str, "reasoning": reasoning_str}}
 
-dispatcher_list = [generate_type_1_problem, generate_type_2_problem, generate_type_3_problem, generate_type_4_problem, generate_type_5_problem]
+def generate_type_1_problem():
+    val1 = random.randint(-20, 20)
+    val2 = random.randint(-20, 20)
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    num1 = val1 * sign1
+    num2 = val2 * sign2
+    answer = num1 * num2
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
 
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+def generate_type_2_problem():
+    val1 = random.randint(-20, 20)
+    val2 = random.randint(-20, 20)
+    val3 = random.randint(-20, 20)
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    sign3 = random.choice([-1, 1])
+    num1 = val1 * sign1
+    num2 = val2 * sign2
+    num3 = val3 * sign3
+    answer = num1 * num2 * num3
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    num3_str = format_number(num3)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} \\times {num3_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
+
+def generate_type_3_problem():
+    val1 = random.randint(-20, 20)
+    val2 = random.randint(-20, 20)
+    val3 = random.randint(-20, 20)
+    sign1 = random.choice([-1, 1])
+    sign2 = random.choice([-1, 1])
+    sign3 = random.choice([-1, 1])
+    num1 = val1 * sign1
+    num2 = val2 * sign2
+    num3 = val3 * sign3
+    answer = num1 * num2 * num3
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    num3_str = format_number(num3)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} \\times {num3_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
+
+def generate_type_4_problem():
+    factor_25_val = random.choice([25, -25])
+    factor_4_val = random.choice([4, -4])
+    other_factor_abs = random.randint(5, 30)
+    while other_factor_abs in [10, 20]:
+        other_factor_abs = random.randint(5, 30)
+    other_factor_sign = random.choice([-1, 1])
+    num1 = factor_25_val
+    num2 = factor_4_val
+    num3 = other_factor_abs * other_factor_sign
+    factors = [num1, num2, num3]
+    random.shuffle(factors)
+    answer = factors[0] * factors[1] * factors[2]
+    num1_str = format_number(num1)
+    num2_str = format_number(num2)
+    num3_str = format_number(num3)
+    question = f"計算 ${{ {num1_str} \\times {num2_str} \\times {num3_str} }}$ 的值。"
+    return {"question": question, "answer": answer}
+
+def generate_type_5_problem():
+    num_factors = random.randint(3, 7)
+    factors_raw = []
+    negative_count = 0
+    for _ in range(num_factors):
+        abs_val = random.randint(2, 20)
+        sign = random.choice([-1, 1])
+        if sign == -1:
+            negative_count += 1
+        factors_raw.append(abs_val * sign)
+    product_sign_str = "正數" if negative_count % 2 == 0 else "負數"
+    factors_str = " \\times ".join([format_number(num) for num in factors_raw])
+    reasoning_str = f"因為算式中有 {negative_count} 個負數相乘，"
+    if negative_count % 2 == 0:
+        reasoning_str += "且 {negative_count} 是偶數，所以結果是正數。"
+    else:
+        reasoning_str += "且 {negative_count} 是奇數，所以結果是負數。"
+    question = f"判斷 ${{ {factors_str} }}$ 的計算結果是一個正數還是負數？說明你判斷的理由。"
+    return {"question": question, "answer": {"sign": product_sign_str, "reasoning": reasoning_str}}
+
+# Example usage:
+problem = generate_type_1_problem()
+
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem']
     selected_type = random.choice(available_types)
@@ -125,5 +237,4 @@ def generate(level=1):
         elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
         else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_1_problem()

@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerDivision
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 13.62s | RAG: 2 examples
-# Created At: 2026-01-07 16:04:55
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 62.67s | RAG: 2 examples
+# Created At: 2026-01-07 22:16:53
 # Fix Status: [Repaired]
 # ==============================================================================
 
@@ -48,34 +48,42 @@ def draw_number_line(points_map):
 
 
 def generate_type_1_problem():
-    divisor_abs = random.randint(2, 9)
-    quotient_abs = random.randint(5, 15)
-    dividend_abs = divisor_abs * quotient_abs
-    sign1 = random.choice([-1, 1])
-    sign2 = random.choice([-1, 1])
-    num1 = sign1 * dividend_abs
-    num2 = sign2 * divisor_abs
-    num1_str = f"({num1})" if num1 < 0 else str(num1)
-    num2_str = f"({num2})" if num2 < 0 else str(num2)
-    answer = num1 // num2
-    question_text = f"計算 $ {{ {num1_str} \\div {num2_str} }} $ 的值。"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    abs_divisor = random.randint(2, 9)
+    abs_quotient = random.randint(2, 10)
+    dividend_sign = random.choice([-1, 1])
+    divisor_sign = random.choice([-1, 1])
+    
+    dividend = abs_divisor * abs_quotient * dividend_sign
+    divisor = abs_divisor * divisor_sign
+    
+    question_text = f"計算 ${{ ({dividend}) \\div ({divisor}) }}$ 的值。"
+    answer = dividend // divisor
+    
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': answer
+    }
 
 def generate_type_2_problem():
-    divisor_abs = random.randint(4, 20)
-    quotient_abs = random.randint(10, 30)
-    dividend_abs = divisor_abs * quotient_abs
-    sign1 = random.choice([-1, 1])
-    sign2 = random.choice([-1, 1])
-    num1 = sign1 * dividend_abs
-    num2 = sign2 * divisor_abs
-    num1_str = f"({num1})" if num1 < 0 else str(num1)
-    num2_str = f"({num2})" if num2 < 0 else str(num2)
-    answer = num1 // num2
-    question_text = f"計算 $ {{ {num1_str} \\div {num2_str} }} $ 的值。"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    abs_divisor = random.randint(2, 16)
+    abs_quotient = random.randint(5, 20)
+    dividend_sign = random.choice([-1, 1])
+    divisor_sign = random.choice([-1, 1])
+    
+    dividend = abs_divisor * abs_quotient * dividend_sign
+    divisor = abs_divisor * divisor_sign
+    
+    question_text = f"計算 ${{ ({dividend}) \\div ({divisor}) }}$ 的值。"
+    answer = dividend // divisor
+    
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': answer
+    }
 
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_1_problem', 'generate_type_2_problem']
     selected_type = random.choice(available_types)
@@ -84,5 +92,4 @@ def generate(level=1):
         elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
         else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_1_problem()

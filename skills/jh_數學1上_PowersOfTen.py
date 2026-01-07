@@ -1,11 +1,12 @@
 # ==============================================================================
 # ID: jh_數學1上_PowersOfTen
-# Model: qwen2.5-coder:7b | Strategy: Architect-Engineer Pipeline (v7.9.3)
-# Duration: 10.98s | RAG: 1 examples
-# Created At: 2026-01-07 16:09:27
+# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
+# Duration: 73.16s | RAG: 1 examples
+# Created At: 2026-01-07 22:49:24
 # Fix Status: [Repaired]
 # ==============================================================================
 
+from fractions import Fraction
 import random
 
 def to_latex(num):
@@ -16,8 +17,8 @@ def to_latex(num):
         if abs(num.numerator) > num.denominator:
             sign = "-" if num.numerator < 0 else ""
             rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            return f"{sign}}{{abs(num).numerator // abs(num).denominator} \\frac{{{{{rem.numerator}}}}{{{{rem.denominator}}}"
-        return f"\\frac{{{{{num.numerator}}}}{{{{num.denominator}}}"
+            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
     return str(num)
 
 def fmt_num(num):
@@ -35,36 +36,57 @@ def draw_number_line(points_map):
     u_w = 5
     l_n, l_a, l_l = "", "", ""
     for i in range(r_min, r_max+1):
-        l_n += f"{str(i):^{{u_w}}}"
+        l_n += f"{str(i):^{u_w}}"
         l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
         lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
-        l_l += f"{lbls[0]:^{{u_w}}}" if lbls else " "*u_w
+        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
     
     content = f"{l_n}\n{l_a}\n{l_l}"
     return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
             f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
 
-
-
 def generate_type_1_problem():
-    magnitude_n = random.randint(2, 8)
-    negative_exponent = -magnitude_n
-    fraction_ans_part1 = f"\\frac{{{{1}}}{{{{10**magnitude_n}}}"
-    decimal_ans_part1 = f"0.{'0' * (magnitude_n - 1)}1"
-    decimal_fill_in_val = decimal_ans_part1
-    fill_in_ans_1 = 10**magnitude_n
-    fill_in_ans_2 = magnitude_n
-    fill_in_ans_3 = negative_exponent
+    n = random.randint(2, 8)
+    m = random.randint(2, 8)
     
-    question_text = f"1. 分別以分數和小數表示 ${{10^{{{negative_exponent}}}}}}$。\n2. 在括號內填入適當的數。\n${{ {decimal_fill_in_val} = \\frac{{{{1}}}{{{(~~~)}} = \\frac{{{{1}}}{{{10^{{(~)}}}} = 10^{{(~)}} }}$"
-    answer = f"1. {fraction_ans_part1}, {decimal_ans_part1}\n2. {fill_in_ans_1}, {fill_in_ans_2}, {fill_in_ans_3}"
+    fraction_part1_denom = 10**n
+    part1_fraction_ans = f"1/{fraction_part1_denom}"
+    part1_decimal_ans = f"{1 / fraction_part1_denom:.{n}f}"
     
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    decimal_display_part2_zeros = '0' * (m - 1)
+    decimal_display_part2_str = f"0.{decimal_display_part2_zeros}1"
+    
+    part2_blank1_ans = 10**m
+    part2_blank2_ans = m
+    part2_blank3_ans = -m
+    
+    question_text = f"""
+    1. 分別以分數和小數表示 ${{10^{{-{n}}}}}$。
+    2. 在括號內填入適當的數。
+    ${{ {decimal_display_part2_str} = \\frac{{1}}{{(~)}} = \\frac{{1}}{{10^{{(~)}}}} = 10^{{(~)}} }}$
+    """
+    
+    answer = {
+        "part1_fraction": part1_fraction_ans,  # e.g., "1/10000000"
+        "part1_decimal": part1_decimal_ans,    # e.g., "0.0000001"
+        "part2_blank1": part2_blank1_ans,      # e.g., 1000000 (int)
+        "part2_blank2": part2_blank2_ans,      # e.g., 6 (int)
+        "part2_blank3": part2_blank3_ans       # e.g., -6 (int)
+    }
+    
+    return {
+        'question_text': question_text,
+        'answer': answer,
+        'correct_answer': {
+            "part1_fraction": f"1/{10**n}",
+            "part1_decimal": f"{1 / (10**n):.{n}f}",
+            "part2_blank1": 10**m,
+            "part2_blank2": m,
+            "part2_blank3": -m
+        }
+    }
 
-# Example usage
-problem = generate_type_1_problem()
-
-# [Auto-Injected Robust Dispatcher by v7.9.3]
+# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
     available_types = ['generate_type_1_problem']
     selected_type = random.choice(available_types)
@@ -72,5 +94,4 @@ def generate(level=1):
         if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
         else: return generate_type_1_problem()
     except TypeError:
-        # Fallback for functions requiring arguments
         return generate_type_1_problem()
