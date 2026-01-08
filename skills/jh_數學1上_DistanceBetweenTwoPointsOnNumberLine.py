@@ -1,15 +1,18 @@
 # ==============================================================================
 # ID: jh_數學1上_DistanceBetweenTwoPointsOnNumberLine
-# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
-# Duration: 212.58s | RAG: 6 examples
-# Created At: 2026-01-07 22:05:27
-# Fix Status: [Repaired]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
+# Duration: 47.22s | RAG: 6 examples
+# Created At: 2026-01-08 22:27:55
+# Fix Status: [Clean Pass]
+#==============================================================================
 
-from fractions import Fraction
+
 import random
+import math
+from fractions import Fraction
 
 def to_latex(num):
+    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
@@ -17,113 +20,224 @@ def to_latex(num):
         if abs(num.numerator) > num.denominator:
             sign = "-" if num.numerator < 0 else ""
             rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
             return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
         return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
     return str(num)
 
 def fmt_num(num):
-    """Formats negative numbers with parentheses for equations."""
-    if num < 0: return f"({num})"
-    return str(num)
+    """Format negative numbers with parentheses"""
+    if num < 0: return f"({to_latex(num)})"
+    return to_latex(num)
 
 def draw_number_line(points_map):
-    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
-    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    """[Advanced] Generate aligned ASCII number line with HTML container."""
+    if not points_map: return ""
+    values = []
+    for v in points_map.values():
+        if isinstance(v, (int, float)): values.append(float(v))
+        elif isinstance(v, Fraction): values.append(float(v))
+        else: values.append(0.0)
     if not values: values = [0]
-    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
-    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
-    
-    u_w = 5
-    l_n, l_a, l_l = "", "", ""
-    for i in range(r_min, r_max+1):
-        l_n += f"{str(i):^{u_w}}"
-        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
-        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
-        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
-    
-    content = f"{l_n}\n{l_a}\n{l_l}"
-    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
-            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
+    min_val = math.floor(min(values)) - 1
+    max_val = math.ceil(max(values)) + 1
+    if max_val - min_val > 15:
+        mid = (max_val + min_val) / 2
+        min_val = int(mid - 7); max_val = int(mid + 8)
+    unit_width = 6
+    line_str = ""; tick_str = ""
+    range_len = max_val - min_val + 1
+    label_slots = [[] for _ in range(range_len)]
+    for name, val in points_map.items():
+        if isinstance(val, Fraction): val = float(val)
+        idx = int(round(val - min_val))
+        if 0 <= idx < range_len: label_slots[idx].append(name)
+    for i in range(range_len):
+        val = min_val + i
+        line_str += "+" + "-" * (unit_width - 1)
+        tick_str += f"{str(val):<{unit_width}}"
+    final_label_str = ""
+    for labels in label_slots:
+        final_label_str += f"{labels[0]:<{unit_width}}" if labels else " " * unit_width
+    result = (
+        f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
+        f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
+    )
+    return result
 
 
 
 def generate_type_1_problem():
-    a_coord = random.randint(-15, -1)
-    b_coord = random.randint(1, 15)
-    while a_coord >= b_coord:
-        a_coord = random.randint(-15, -1)
-        b_coord = random.randint(1, 15)
+    """
+    Type 1: Calculate the distance between two points on a number line
+            where one coordinate is negative and the other is positive.
+    """
+    x1 = random.randint(-15, -1)
+    x2 = random.randint(1, 15)
+    ans = abs(x2 - x1)
     
-    answer = abs(b_coord - a_coord)
-    question_text = f"數線上有 A ( {a_coord} )、B ( {b_coord} ) 兩點，則 A、B 兩點的距離 AB 為多少？"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    question_text = f"數線上有 $A ( {x1} )$、$B ( {x2} )$ 兩點，則 $A$、$B$ 兩點的距離 $AB$ 為多少？"
+    correct_answer = str(ans)
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
 
 def generate_type_2_problem():
-    c_coord = random.randint(-20, -10)
-    d_coord = random.randint(-9, -1)
-    while c_coord >= d_coord:
-        c_coord = random.randint(-20, -10)
-        d_coord = random.randint(-9, -1)
+    """
+    Type 2: Calculate the distance between two points on a number line
+            where both coordinates are negative.
+    """
+    x1 = random.randint(-20, -10)
+    x2 = random.randint(-9, -1)
+    ans = abs(x2 - x1)
     
-    answer = abs(d_coord - c_coord)
-    question_text = f"數線上有 C ( {c_coord} )、D ( {d_coord} ) 兩點，則 C、D 兩點的距離 CD 為多少？"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    question_text = f"數線上有 $C ( {x1} )$、$D ( {x2} )$ 兩點，則 $C$、$D$ 兩點的距離 $CD$ 為多少？"
+    correct_answer = str(ans)
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
 
 def generate_type_3_problem():
-    b_coord = random.randint(2, 12)
-    distance = random.randint(2, 10)
+    """
+    Type 3: Find the possible coordinates of a point given another point and the distance between them.
+    """
+    x2 = random.randint(-10, 10)
+    dist = random.randint(2, 15)
     
-    a1 = b_coord + distance
-    a2 = b_coord - distance
+    ans1 = x2 + dist
+    ans2 = x2 - dist
     
-    answer = sorted([a1, a2])
-    question_text = f"數線上有 A ( a )、B ( {b_coord} ) 兩點，如果 AB={distance}，則 a 可能是多少？"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    # Ensure canonical order for the answer string: smaller_value 或 larger_value
+    if ans1 < ans2:
+        correct_answer = f"{ans1} 或 {ans2}"
+    else:
+        correct_answer = f"{ans2} 或 {ans1}"
+        
+    question_text = f"數線上有 $A ( a )$、$B ( {x2} )$ 兩點，如果 $AB={dist}$，則 $a$ 可能是多少？"
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
 
 def generate_type_4_problem():
-    d_coord = random.randint(5, 15)
-    distance = random.randint(3, 8)
+    """
+    Type 4: Find the possible coordinates of a point given another point and the distance between them (variant).
+    """
+    x2 = random.randint(-12, 12)
+    dist = random.randint(3, 18)
     
-    c1 = d_coord + distance
-    c2 = d_coord - distance
+    ans1 = x2 + dist
+    ans2 = x2 - dist
     
-    answer = sorted([c1, c2])
-    question_text = f"數線上有 C ( c )、D ( {d_coord} ) 兩點，如果 CD={distance}，則 c 可能是多少？"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    # Ensure canonical order for the answer string: smaller_value 或 larger_value
+    if ans1 < ans2:
+        correct_answer = f"{ans1} 或 {ans2}"
+    else:
+        correct_answer = f"{ans2} 或 {ans1}"
+        
+    question_text = f"數線上有 $C ( c )$、$D ( {x2} )$ 兩點，如果 $CD={dist}$，則 $c$ 可能是多少？"
+    
+    return {
+        "question_text": question_text,
+        "answer": correct_answer,
+        "correct_answer": correct_answer
+    }
 
 def generate_type_5_problem():
-    a_coord = random.randint(5, 15)
-    b_coord = random.randint(-15, -5)
-    while (a_coord + b_coord) % 2 != 0:
-        a_coord = random.randint(5, 15)
-        b_coord = random.randint(-15, -5)
-    
-    answer = (a_coord + b_coord) // 2
-    question_text = f"數線上有 A ( {a_coord} )、B ( {b_coord} )、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    """
+    Type 5: Calculate the midpoint of two points on a number line (integer midpoint).
+    Ensures x1 != x2 and (x1 + x2) is an even number.
+    """
+    while True:
+        x1 = random.randint(-10, 10)
+        
+        # Determine target parity for x2 to ensure (x1 + x2) is even
+        # If x1 is even, x2 must be even. If x1 is odd, x2 must be odd.
+        target_parity = x1 % 2
+        
+        # Generate candidates for x2 that are within range, have the correct parity, and are not equal to x1
+        valid_x2_candidates = [i for i in range(-10, 11) if i % 2 == target_parity and i != x1]
+        
+        if valid_x2_candidates:
+            x2 = random.choice(valid_x2_candidates)
+            ans = (x1 + x2) // 2
+            question_text = f"數線上有 $A ( {x1} )$、$B ( {x2} )$、$C ( c )$ 三點，若 $C$ 為 $A$、$B$ 的中點，則 $c$ 是多少？"
+            correct_answer = str(ans)
+            return {
+                "question_text": question_text,
+                "answer": correct_answer,
+                "correct_answer": correct_answer
+            }
+        # If no valid x2 candidates for this x1 (should not happen with given ranges),
+        # the loop will continue to regenerate x1.
 
 def generate_type_6_problem():
-    a_coord = random.randint(-15, -5)
-    b_coord = random.randint(5, 15)
-    while (a_coord + b_coord) % 2 != 0:
-        a_coord = random.randint(-15, -5)
-        b_coord = random.randint(5, 15)
-    
-    answer = (a_coord + b_coord) // 2
-    question_text = f"數線上有 A ( {a_coord} )、B ( {b_coord} )、C ( c ) 三點，若 C 為 A、B 的中點，則 c 是多少？"
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    """
+    Type 6: Calculate the midpoint of two points on a number line (variant, integer midpoint).
+    Ensures x1 != x2 and (x1 + x2) is an even number.
+    """
+    while True:
+        x1 = random.randint(-12, 12)
+        
+        target_parity = x1 % 2
+        
+        valid_x2_candidates = [i for i in range(-12, 13) if i % 2 == target_parity and i != x1]
+        
+        if valid_x2_candidates:
+            x2 = random.choice(valid_x2_candidates)
+            ans = (x1 + x2) // 2
+            question_text = f"數線上有 $A ( {x1} )$、$B ( {x2} )$、$C ( c )$ 三點，若 $C$ 為 $A$、$B$ 的中點，則 $c$ 是多少？"
+            correct_answer = str(ans)
+            return {
+                "question_text": question_text,
+                "answer": correct_answer,
+                "correct_answer": correct_answer
+            }
 
-# [Auto-Injected Robust Dispatcher by v8.0]
 def generate(level=1):
-    available_types = ['generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem']
-    selected_type = random.choice(available_types)
-    try:
-        if selected_type == 'generate_type_1_problem': return generate_type_1_problem()
-        elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
-        elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
-        elif selected_type == 'generate_type_4_problem': return generate_type_4_problem()
-        elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
-        elif selected_type == 'generate_type_6_problem': return generate_type_6_problem()
-        else: return generate_type_1_problem()
-    except TypeError:
-        return generate_type_1_problem()
+    """
+    Generates a random problem from the defined types.
+    The 'level' parameter is a placeholder for future complexity scaling
+    and is currently ignored.
+    
+    Returns:
+        dict: A dictionary containing 'question_text', 'answer', and 'correct_answer' for the generated problem.
+    """
+    problem_generators = [
+        generate_type_1_problem,
+        generate_type_2_problem,
+        generate_type_3_problem,
+        generate_type_4_problem,
+        generate_type_5_problem,
+        generate_type_6_problem,
+    ]
+    
+    selected_generator = random.choice(problem_generators)
+    return selected_generator()
+
+def check(user_answer, correct_answer):
+    """
+    檢查答案是否正確。
+    """
+    user_answer_processed = str(user_answer).strip().upper()
+    correct_answer_processed = str(correct_answer).strip().upper()
+    
+    is_correct = (user_answer_processed == correct_answer_processed)
+    
+    if not is_correct:
+        try:
+            if float(user_answer_processed) == float(correct_answer_processed):
+                is_correct = True
+        except ValueError:
+            pass
+
+    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
+    return {"correct": is_correct, "result": result_text, "next_question": True}

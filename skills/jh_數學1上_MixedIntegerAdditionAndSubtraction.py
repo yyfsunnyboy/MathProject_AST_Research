@@ -1,15 +1,18 @@
 # ==============================================================================
 # ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
-# Model: deepseek-coder-v2:lite | Strategy: Architect-Engineer Pipeline (v8.0)
-# Duration: 237.99s | RAG: 8 examples
-# Created At: 2026-01-07 22:34:10
-# Fix Status: [Repaired]
+# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
+# Duration: 46.17s | RAG: 8 examples
+# Created At: 2026-01-08 22:58:20
+# Fix Status: [Clean Pass]
 # ==============================================================================
 
-from fractions import Fraction
+
 import random
+import math
+from fractions import Fraction
 
 def to_latex(num):
+    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
@@ -17,127 +20,359 @@ def to_latex(num):
         if abs(num.numerator) > num.denominator:
             sign = "-" if num.numerator < 0 else ""
             rem = abs(num) - (abs(num).numerator // abs(num).denominator)
+            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
             return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
         return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
     return str(num)
 
 def fmt_num(num):
-    """Formats negative numbers with parentheses for equations."""
-    if num < 0: return f"({num})"
-    return str(num)
+    """Format negative numbers with parentheses"""
+    if num < 0: return f"({to_latex(num)})"
+    return to_latex(num)
 
 def draw_number_line(points_map):
-    """Generates aligned ASCII number line with HTML CSS (Scrollable)."""
-    values = [int(v) if isinstance(v, (int, float)) else int(v.numerator/v.denominator) for v in points_map.values()]
+    """[Advanced] Generate aligned ASCII number line with HTML container."""
+    if not points_map: return ""
+    values = []
+    for v in points_map.values():
+        if isinstance(v, (int, float)): values.append(float(v))
+        elif isinstance(v, Fraction): values.append(float(v))
+        else: values.append(0.0)
     if not values: values = [0]
-    r_min, r_max = min(min(values)-1, -5), max(max(values)+1, 5)
-    if r_max - r_min > 12: c=sum(values)//len(values); r_min, r_max = c-6, c+6
-    
-    u_w = 5
-    l_n, l_a, l_l = "", "", ""
-    for i in range(r_min, r_max+1):
-        l_n += f"{str(i):^{u_w}}"
-        l_a += ("+" + " "*(u_w-1)) if i == r_max else ("+" + "-"*(u_w-1))
-        lbls = [k for k,v in points_map.items() if (v==i if isinstance(v, int) else int(v)==i)]
-        l_l += f"{lbls[0]:^{u_w}}" if lbls else " "*u_w
-    
-    content = f"{l_n}\n{l_a}\n{l_l}"
-    return (f"<div style='width: 100%; overflow-x: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
-            f"<pre style='font-family: Consolas, monospace; line-height: 1.1; display: inline-block; margin: 0;'>{content}</pre></div>")
+    min_val = math.floor(min(values)) - 1
+    max_val = math.ceil(max(values)) + 1
+    if max_val - min_val > 15:
+        mid = (max_val + min_val) / 2
+        min_val = int(mid - 7); max_val = int(mid + 8)
+    unit_width = 6
+    line_str = ""; tick_str = ""
+    range_len = max_val - min_val + 1
+    label_slots = [[] for _ in range(range_len)]
+    for name, val in points_map.items():
+        if isinstance(val, Fraction): val = float(val)
+        idx = int(round(val - min_val))
+        if 0 <= idx < range_len: label_slots[idx].append(name)
+    for i in range(range_len):
+        val = min_val + i
+        line_str += "+" + "-" * (unit_width - 1)
+        tick_str += f"{str(val):<{unit_width}}"
+    final_label_str = ""
+    for labels in label_slots:
+        final_label_str += f"{labels[0]:<{unit_width}}" if labels else " " * unit_width
+    result = (
+        f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
+        f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
+    )
+    return result
 
 
+#  # Not needed for this skill
 
+# --- Type 1 Implementation ---
 def generate_type_1_problem():
-    a = random.randint(-100, 100)
-    b = random.randint(-100, 100)
-    expr1 = f"({a} + {b}) * ({a} - {b})"
-    expr2 = f"{a}^2 - {b}^2"
-    return {'question_text': expr1, 'answer': expr2, 'correct_answer': expr2}
+    """
+    Concept: Mixed addition and subtraction of three integers.
+    The problem involves evaluating an expression with three integers and two operations.
+    Template: (v1) - (v2) ＋ (v3)
+    """
+    max_retries = 100
+    
+    v1 = 0
+    retry_count = 0
+    while v1 == 0 and retry_count < max_retries:
+        v1 = random.randint(-100, 100)
+        retry_count += 1
+    
+    v2 = 0
+    retry_count = 0
+    while (v2 == v1 or v2 == 0) and retry_count < max_retries:
+        v2 = random.randint(-100, 100)
+        retry_count += 1
+    
+    v3 = 0
+    retry_count = 0
+    while (v3 == v1 or v3 == v2 or v3 == 0) and retry_count < max_retries:
+        v3 = random.randint(-100, 100)
+        retry_count += 1
+    
+    ans = v1 - v2 + v3
+    
+    question_text = f"計算下列各式的值。\n⑴ ({v1}) - ({v2}) ＋ ({v3})"
+    
+    return {
+        "question_text": question_text,
+        "answer": str(ans),
+        "correct_answer": str(ans)
+    }
+
+# --- Type 2 Implementation ---
 def generate_type_2_problem():
-    a = random.randint(-100, 100)
-    b = random.randint(-100, 100)
-    expr1 = f"{a} * {b}"
-    expr2 = f"({a} + {b}) * ({a} - {b})"
-    return {'question_text': expr1, 'answer': expr2, 'correct_answer': expr2}
+    """
+    Concept: Mixed addition and subtraction of three integers with a specific structure: a + b - c.
+    Template: (v1) ＋ (v2) - (v3)
+    """
+    max_retries = 100
+
+    v1 = 0
+    retry_count = 0
+    while v1 == 0 and retry_count < max_retries:
+        v1 = random.randint(-200, 200)
+        retry_count += 1
+
+    v2 = 0
+    retry_count = 0
+    while (v2 == v1 or v2 == 0) and retry_count < max_retries:
+        v2 = random.randint(-100, 100)
+        retry_count += 1
+
+    v3 = 0
+    retry_count = 0
+    while (v3 == v1 or v3 == v2 or v3 == 0) and retry_count < max_retries:
+        v3 = random.randint(-200, 200)
+        retry_count += 1
+
+    ans = v1 + v2 - v3
+    
+    question_text = f"計算下列各式的值。\n⑴ ({v1}) ＋ ({v2}) - ({v3})"
+    
+    return {
+        "question_text": question_text,
+        "answer": str(ans),
+        "correct_answer": str(ans)
+    }
+
+# --- Type 3 Implementation ---
 def generate_type_3_problem():
-    a = random.randint(-100, 100)
-    b = random.randint(-100, 100)
-    c = random.randint(-100, 100)
-    expr1 = f"({a} + {b}) * {c}"
-    expr2 = f"{a} * {c} + {b} * {c}"
-    return {'question_text': expr1, 'answer': expr2, 'correct_answer': expr2}
+    """
+    Concept: Mixed addition/subtraction with absolute values, specifically a + |b + c| - d.
+    Template: v1 ＋｜(v2) ＋ v3｜ - v4
+    """
+    max_retries = 100
+
+    v1 = 0
+    retry_count = 0
+    while v1 == 0 and retry_count < max_retries:
+        v1 = random.randint(-50, 50)
+        retry_count += 1
+
+    v4 = 0
+    retry_count = 0
+    while (v4 == v1 or v4 == 0) and retry_count < max_retries:
+        v4 = random.randint(-50, 50)
+        retry_count += 1
+
+    v2 = random.randint(-100, -10) # Must be negative
+
+    v3 = 0
+    retry_count = 0
+    while (v3 == 0 or v2 + v3 == 0) and retry_count < max_retries: # v3 must be positive, and v2+v3 != 0
+        v3 = random.randint(10, 100)
+        retry_count += 1
+
+    ans = v1 + abs(v2 + v3) - v4
+    
+    question_text = f"計算下列各式的值。\n⑴ {v1} ＋｜({v2}) ＋ {v3}｜ - {v4}"
+    
+    return {
+        "question_text": question_text,
+        "answer": str(ans),
+        "correct_answer": str(ans)
+    }
+
+# --- Type 4 Implementation ---
 def generate_type_4_problem():
-    a = random.randint(-100, 100)
-    b = random.randint(-100, 100)
-    c = random.randint(-100, 100)
-    expr1 = f"({a} + {b}) * ({c} - {d})"
-    expr2 = f"{a} * {c} - {a} * {d} + {b} * {c} - {b} * {d}"
-    return {'question_text': expr1, 'answer': expr2, 'correct_answer': expr2}
+    """
+    Concept: Mixed addition/subtraction with absolute values, specifically |a| - b - |c + d|.
+    Template: ｜(v1)｜ - (v2) - ｜(v3) ＋ v4｜
+    """
+    max_retries = 100
+
+    v1 = random.randint(-100, -10) # Must be negative
+    
+    v2 = 0
+    retry_count = 0
+    while v2 == 0 and retry_count < max_retries:
+        v2 = random.randint(-50, 50)
+        retry_count += 1
+    
+    v3 = random.randint(-100, -10) # Must be negative
+
+    v4 = 0
+    retry_count = 0
+    while (v4 == 0 or v3 + v4 == 0) and retry_count < max_retries: # v4 must be positive, and v3+v4 != 0
+        v4 = random.randint(10, 100)
+        retry_count += 1
+
+    ans = abs(v1) - v2 - abs(v3 + v4)
+    
+    question_text = f"計算下列各式的值。\n⑴ ｜({v1})｜ - ({v2}) - ｜({v3}) ＋ {v4}｜"
+    
+    return {
+        "question_text": question_text,
+        "answer": str(ans),
+        "correct_answer": str(ans)
+    }
+
+# --- Type 5 Implementation ---
 def generate_type_5_problem():
-    a = random.randint(1, 10)
-    b = random.randint(1, 10)
-    expr1_left = f"-({a} + {b})"
-    expr1_right = f"-{a} - {b}"
-    return {'question_text': expr1_left, 'answer': expr1_right, 'correct_answer': expr1_right}
+    """
+    Concept: Comparison of expressions demonstrating the distributive property of negation: -(a + b) vs -a - b.
+    Template: -(v1 ＋ v2) 和 -v1 - v2
+    """
+    max_retries = 100
+
+    v1 = random.randint(2, 15) # Must be positive
+    
+    v2 = 0
+    retry_count = 0
+    while (v2 == v1) and retry_count < max_retries:
+        v2 = random.randint(2, 15) # Must be positive
+        retry_count += 1
+
+    # val1 = -(v1 + v2) # Not strictly needed as answer is always "相同"
+    # val2 = -v1 - v2
+    ans = "相同" 
+
+    question_text = f"比較下列各題中，兩式的運算結果是否相同。\n⑴ -({v1} ＋ {v2}) 和 -{v1} - {v2}"
+    
+    return {
+        "question_text": question_text,
+        "answer": ans,
+        "correct_answer": ans
+    }
+
+# --- Type 6 Implementation ---
 def generate_type_6_problem():
-    a = random.randint(1, 10)
-    b = random.randint(1, 10)
-    expr1_left = f"-(-{a} + {b})"
-    expr1_right = f"{a} - {b}"
-    return {'question_text': expr1_left, 'answer': expr1_right, 'correct_answer': expr1_right}
+    """
+    Concept: Comparison of expressions demonstrating distributive property of negation with negative numbers: -(-a + b) vs a - b.
+    Template: -(-v1 ＋ v2) 和 v1 - v2
+    """
+    max_retries = 100
+
+    v1 = random.randint(2, 15) # Must be positive
+    
+    v2 = 0
+    retry_count = 0
+    while (v2 == v1) and retry_count < max_retries:
+        v2 = random.randint(2, 15) # Must be positive
+        retry_count += 1
+
+    # val1 = -(-v1 + v2) # Not strictly needed as answer is always "相同"
+    # val2 = v1 - v2
+    ans = "相同" 
+
+    question_text = f"比較下列各題中，兩式的運算結果是否相同。\n⑴ -(-{v1} ＋ {v2}) 和 {v1} - {v2}"
+    
+    return {
+        "question_text": question_text,
+        "answer": ans,
+        "correct_answer": ans
+    }
+
+# --- Type 7 Implementation ---
 def generate_type_7_problem():
-    a = random.randint(-10, 10)
-    b = random.randint(-10, 10)
-    c = random.randint(-10, 10)
-    expr1_left = f"{a} + ({b} + {c})"
-    expr1_right = f"{a} + {b} + {c}"
-    return {'question_text': expr1_left, 'answer': expr1_right, 'correct_answer': expr1_right}
+    """
+    Concept: Comparison of expressions demonstrating associativity/distributivity for subtraction: a - (b + c) vs a - b - c.
+    Template: (v1) - (v2 ＋ v3) 和 (v1) - v2 - v3
+    """
+    max_retries = 100
+
+    v1 = 0
+    retry_count = 0
+    while v1 == 0 and retry_count < max_retries:
+        v1 = random.randint(-15, 15)
+        retry_count += 1
+
+    v2 = 0
+    retry_count = 0
+    while (v2 == v1 or v2 == 0) and retry_count < max_retries:
+        v2 = random.randint(-15, 15)
+        retry_count += 1
+
+    v3 = 0
+    retry_count = 0
+    while (v3 == v1 or v3 == v2 or v3 == 0 or v2 + v3 == 0) and retry_count < max_retries:
+        v3 = random.randint(-15, 15)
+        retry_count += 1
+    
+    # val1 = v1 - (v2 + v3) # Not strictly needed as answer is always "相同"
+    # val2 = v1 - v2 - v3
+    ans = "相同" 
+
+    question_text = f"比較下列各題中，兩式的運算結果是否相同。\n⑴ ({v1}) - ({v2} ＋ {v3}) 和 ({v1}) - {v2} - {v3}"
+    
+    return {
+        "question_text": question_text,
+        "answer": ans,
+        "correct_answer": ans
+    }
+
+# --- Type 8 Implementation ---
 def generate_type_8_problem():
-    a = random.randint(100, 500)
-    b = random.randint(50, 200)
-    c = random.randint(100, 500)
-    d = random.randint(50, 200)
-    expr1 = f"{a} - ({b} + {a})"
-    expr2 = f"({a} + {b}) - ({a} - {d})"
-    return {'question_text': expr1, 'answer': expr2, 'correct_answer': expr2}
-# Dispatcher function to call the appropriate problem generator based on type
-def generate_problem(problem_type):
-    if problem_type == 1:
-        return generate_type_1_problem()
-    elif problem_type == 2:
-        return generate_type_2_problem()
-    elif problem_type == 3:
-        return generate_type_3_problem()
-    elif problem_type == 4:
-        return generate_type_4_problem()
-    elif problem_type == 5:
-        return generate_type_5_problem()
-    elif problem_type == 6:
-        return generate_type_6_problem()
-    elif problem_type == 7:
-        return generate_type_7_problem()
-    elif problem_type == 8:
-        return generate_type_8_problem()
-    else:
-        raise ValueError("Unknown problem type")
+    """
+    Concept: Subtraction involving parentheses, designed for simplification by reordering or cancellation, specifically a - (b + a).
+    Template: v1 - (v2 ＋ v1)
+    """
+    max_retries = 100
 
-# Example usage:
-# problem = generate_problem(1)
+    v1 = random.randint(100, 500)
+    
+    v2 = 0
+    retry_count = 0
+    while (v2 == v1) and retry_count < max_retries:
+        v2 = random.randint(10, 100)
+        retry_count += 1
 
-# [Auto-Injected Robust Dispatcher by v8.0]
+    ans = v1 - (v2 + v1) # This simplifies to -v2
+    
+    question_text = f"計算下列各式的值。\n⑴ {v1} - ({v2} ＋ {v1})"
+    
+    return {
+        "question_text": question_text,
+        "answer": str(ans),
+        "correct_answer": str(ans)
+    }
+
+
+def check(user_answer, correct_answer):
+    """
+    檢查答案是否正確。
+    """
+    user_answer_normalized = user_answer.strip().upper()
+    correct_answer_normalized = correct_answer.strip().upper()
+    
+    is_correct = (user_answer_normalized == correct_answer_normalized)
+    
+    if not is_correct:
+        try:
+            # Attempt numeric comparison if string comparison fails
+            user_float = float(user_answer_normalized)
+            correct_float = float(correct_answer_normalized)
+            if user_float == correct_float:
+                is_correct = True
+        except ValueError:
+            pass # One or both answers are not numeric, so stick to string comparison result.
+
+    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
+    return {"correct": is_correct, "result": result_text, "next_question": True}
+
+
 def generate(level=1):
-    available_types = ['generate_problem', 'generate_type_1_problem', 'generate_type_2_problem', 'generate_type_3_problem', 'generate_type_4_problem', 'generate_type_5_problem', 'generate_type_6_problem', 'generate_type_7_problem', 'generate_type_8_problem']
-    selected_type = random.choice(available_types)
-    try:
-        if selected_type == 'generate_problem': return generate_problem()
-        elif selected_type == 'generate_type_1_problem': return generate_type_1_problem()
-        elif selected_type == 'generate_type_2_problem': return generate_type_2_problem()
-        elif selected_type == 'generate_type_3_problem': return generate_type_3_problem()
-        elif selected_type == 'generate_type_4_problem': return generate_type_4_problem()
-        elif selected_type == 'generate_type_5_problem': return generate_type_5_problem()
-        elif selected_type == 'generate_type_6_problem': return generate_type_6_problem()
-        elif selected_type == 'generate_type_7_problem': return generate_type_7_problem()
-        elif selected_type == 'generate_type_8_problem': return generate_type_8_problem()
-        else: return generate_problem()
-    except TypeError:
-        return generate_problem()
+    """
+    Generates a mixed integer addition and subtraction problem based on the specified types.
+    The 'level' parameter is currently not used but can be extended to control problem difficulty.
+    """
+    problem_types = [
+        generate_type_1_problem,
+        generate_type_2_problem,
+        generate_type_3_problem,
+        generate_type_4_problem,
+        generate_type_5_problem,
+        generate_type_6_problem,
+        generate_type_7_problem,
+        generate_type_8_problem,
+    ]
+    
+    selected_generator = random.choice(problem_types)
+    return selected_generator()
+

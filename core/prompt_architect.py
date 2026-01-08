@@ -1,20 +1,16 @@
 # -*- coding: utf-8 -*-
 # ==============================================================================
 # Module: core/prompt_architect.py
-# Project: AI-Driven Math Problem Generator (Taiwan Junior High School Curriculum)
-# Version: v7.8 (Syntax Fixed & Dynamic Types)
-# Last Updated: 2026-01-07
+# Project: AI-Driven Math Problem Generator
+# Version: v8.6 (Strict Spec Engine - Safety First)
+# Last Updated: 2026-01-08
 # Description:
-#   [Science Fair Final Build]
-#   此模組執行「專家分工模式」的第一階段：【教案設計 (The Architect)】。
-#   利用高推理能力的模型 (Gemini) 深度分析教科書例題 (RAG)，
-#   產出給工程師 (Qwen) 閱讀的「嚴格工程規格書 (Strict Implementation Spec)」。
-#
-#   Core Logic:
-#   1. RAG Retrieval: 讀取 TextbookExample 中的數學例題 (Limit 12)。
-#   2. Dynamic Mapping: 根據例題數量 N，動態生成 Type 1 ~ Type N 的規格。
-#   3. Safety Guardrails: 強制定義變數範圍、數學防呆、LaTeX 語法規範。
-#   4. Syntax Fix: 使用 replace() 取代 f-string，避免 Prompt 中的 LaTeX 符號導致 Python 報錯。
+#   [Architect Engine]
+#   負責分析教科書例題並產出「工程規格書 (Implementation Spec)」。
+#   v8.6 重點更新：
+#   1. One-to-One Mapping: 讀取 N 個例題 -> 產出 N 個對應的 Type 函式。
+#   2. Safety First: 強制要求定義參數範圍 (Ranges) 與防止無窮迴圈 (Loop Limits)。
+#   3. Logic Validation: 確保數學式有意義 (避免分母為0、負數長度等)。
 # ==============================================================================
 
 import sys
@@ -25,86 +21,87 @@ from core.ai_wrapper import get_ai_client
 
 def generate_design_prompt(skill_id):
     """
-    使用架構師模型 (Gemini) 分析 RAG 例題，並將設計好的「動態且安全的規格書」存入資料庫。
+    [v8.6 Architect]
+    讀取該技能的所有例題，並要求 Gemini 2.5 Flash 為「每一題」設計一個專屬的生成函式。
+    重點在於產出包含邊界檢查與安全機制的規格書。
     """
-    print(f"--- [Architect] Starting analysis for {skill_id} ---")
+    print(f"--- [Architect v8.6] Starting analysis for {skill_id} ---")
     
     skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
     if not skill:
         print(f"❌ Error: Skill {skill_id} not found.")
         return False
 
-    # [Safety] 限制讀取最多 12 個例題，避免 Context Window 爆炸或 Qwen 寫到當機
-    examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(12).all()
+    # 1. 讀取所有例題 (1-to-1 Mapping)
+    examples = TextbookExample.query.filter_by(skill_id=skill_id).all()
+    
     if not examples:
         print(f"⚠️ Warning: No examples found for {skill_id}.")
         return False
     
-    # 建構 RAG 上下文
+    total_count = len(examples)
+    print(f"📊 Found {total_count} examples. Generating v8.6 Safety Spec...")
+
+    # 2. 建構 RAG 上下文
     rag_text = ""
     for i, ex in enumerate(examples):
-        q = getattr(ex, 'problem_text', 'N/A')
-        a = getattr(ex, 'correct_answer', 'N/A')
-        rag_text += f"Example {i+1}:\nQuestion: {q}\nAnswer: {a}\n\n"
+        q = getattr(ex, 'problem_text', 'N/A').strip()
+        a = getattr(ex, 'correct_answer', 'N/A').strip()
+        rag_text += f"### Reference Example {i+1}:\n- Question: {q}\n- Answer: {a}\n\n"
 
     # ==============================================================================
-    # 核心指令 (System Prompt)
-    # 使用純字串 (無 f-prefix) + replace，避免 Python 解析 LaTeX 中的 {} 導致 SyntaxError
+    # 核心指令 (System Prompt v8.6)
     # ==============================================================================
-    system_instruction = """You are a **Senior Math Curriculum Architect** for Taiwan Junior High School Education.
-Your task is to analyze the provided textbook examples and generate a **Strict Python Implementation Spec** for a Junior Engineer (Qwen-7B).
+    system_instruction = f"""You are the **Lead Math Architect** for an AI Education System.
+Your goal is to design a **Strict Python Implementation Spec** for the "Coder" (Gemini 2.5 Flash).
 
-The Engineer will blindly follow your spec. If you are vague, the code will crash. You must be precise.
+### 1. CORE TASK: ONE-TO-ONE MAPPING
+You have received **{total_count}** reference examples.
+You MUST design exactly **{total_count}** separate Python functions.
+- **Example 1** -> `def generate_type_1_problem():`
+- ...
+- **Example {total_count}** -> `def generate_type_{total_count}_problem():`
 
-### 1. DYNAMIC MAPPING RULE (Crucial)
-You must define a distinct `Problem Type` for **EACH** provided example.
-- Total Examples Provided: **__TOTAL_COUNT__**
-- You MUST define: **Type 1**, **Type 2**, ..., up to **Type __TOTAL_COUNT__**.
-- **Naming Convention**: Use function names `generate_type_1_problem`, `generate_type_2_problem`, etc.
+### 2. SAFETY & LOGIC GUARDRAILS (Non-Negotiable)
+For every function, you must define constraints to prevent runtime errors:
+- **Parameter Ranges**: Explicitly define ranges (e.g., `random.randint(2, 12)`). DO NOT allow "any random number".
+- **Prevent Infinite Loops**: If using `while` loops to generate distinct numbers, **YOU MUST** instruct the Coder to use a `retry_count` (max 100 attempts).
+- **Avoid Meaningless Math**:
+  - Denominators MUST NOT be 0.
+  - Lengths/Areas MUST be positive.
+  - Triangle inequality (a+b>c) MUST hold.
+  - If subtraction results in negative numbers, ensure the question allows it (or swap values).
 
-### 2. MATH & LOGIC SAFETY GUARDRAILS (Crucial)
-For each type, you must define **Constraints** to prevent meaningless or impossible math:
-- **Range Control**: Do NOT say "random number". Define specific ranges suitable for mental math (e.g., `random.randint(2, 12)`). Avoid huge numbers unless necessary.
-- **Divisibility**: If division is involved, ensure the result is an integer (e.g., "numerator must be a multiple of denominator").
-- **Geometry**: Ensure triangle inequality (a+b>c). Ensure positive lengths.
-- **Quadratic**: Ensure discriminant >= 0 for real roots.
+### 3. PYTHON & LATEX SYNTAX RULES
+- **F-String Escape**: 
+  - LaTeX commands need double backslashes: `\\\\frac`
+  - LaTeX braces need double curly braces: `{{ }}`
+  - Python variables need single braces: `{{var}}`
+  - **Correct Template**: `f"Calculate ${{ \\\\frac{{{{a}}}}{{{{b}}}} }}$"`
 
-### 3. PYTHON & LATEX SYNTAX RULES (Crucial)
-The Engineer uses Python f-strings. You MUST specify the template correctly:
-- **LaTeX Escape**: Backslashes must be escaped (e.g., `\\frac` not `\frac`).
-- **F-String Escape**: LaTeX curly braces `{}` must be DOUBLED `{{}}` inside f-strings.
-  - WRONG: `f"\\frac{a}{b}"`
-  - CORRECT: `f"\\frac{{a}}{{b}}"`
-- **Variable Injection**: Python variables use single braces `{var}`.
-  - EXAMPLE: `f"Calculate \\frac{{{num}}}{{{denom}}}"` (This renders as LaTeX fraction)
+### 4. OUTPUT FORMAT (Markdown):
 
-### OUTPUT FORMAT (Write this strictly):
-For each Type (1 to __TOTAL_COUNT__), output a block like this:
+# Implementation Plan for {skill_id}
 
----
-**Type {N}** (Function: `generate_type_{N}_problem`):
-- **Source**: Based on Example {N}
-- **Mathematical Goal**: (Short summary)
-- **Variables & Constraints**: 
-  * `var1`: int (range 1-10).
-  * `var2`: int (range 1-10, must be > var1).
-  * Logic: Ensure (`var1` + `var2`) is even.
+## Type 1 (Based on Example 1)
+- **Concept**: [Short Description]
+- **Variables & Constraints**:
+  - `v1`: int (range 2-9)
+  - `v2`: int (range 10-20), ensure `v2 % v1 == 0` (Divisibility check)
 - **Step-by-Step Logic**:
-  1. Generate `var1`, `var2`...
-  2. Compute `answer`...
-- **Question Template (Python f-string)**: 
-  * "請計算 ${{ \\frac{{{var1}}}{{{var2}}} }}$ 的值。" (Note the double braces for LaTeX)
-- **Answer Format**: (e.g., Integer, Fraction string)
----
+  1. Generate `v1`.
+  2. Generate `v2`. Loop max 100 times to ensure `v2 != v1`.
+  3. Calculate `ans`.
+- **Question Template**: `f"Question with LaTeX: ${{ \\\\frac{{{{v2}}}}{{{{v1}}}} }}$"`
+- **Answer**: `str(ans)`
 
-Finally, list the required dispatcher logic:
-**Dispatcher List**: [`generate_type_1_problem`, ..., `generate_type___TOTAL_COUNT___problem`]
+... (Repeat for all {total_count} types) ...
+
+## Main Dispatcher
+- Implement `def generate(level=1):` that randomly calls one of the {total_count} types.
 """
 
-    # [Safe Variable Injection] 使用 replace 填入例題數量
-    system_instruction = system_instruction.replace("__TOTAL_COUNT__", str(len(examples)))
-
-    user_prompt = f"### TEXTBOOK EXAMPLES to Analyze:\n{rag_text}\n\n### YOUR IMPLEMENTATION SPEC:"
+    user_prompt = f"### REFERENCE EXAMPLES:\n{rag_text}\n\n### ARCHITECT, PLEASE GENERATE THE SPEC:"
 
     try:
         # 呼叫架構師 (Gemini)
@@ -112,7 +109,7 @@ Finally, list the required dispatcher logic:
         response = client.generate_content(system_instruction + "\n" + user_prompt)
         design_plan = response.text.strip()
 
-        # 簡單驗證輸出品質
+        # 簡單驗證
         if "Type 1" not in design_plan:
             print(f"⚠️ Warning: Architect response might be malformed.\n{design_plan[:200]}")
         
@@ -122,7 +119,7 @@ Finally, list the required dispatcher logic:
         skill.gemini_prompt = design_plan
         db.session.commit()
         
-        print(f"✅ Success! Design plan (v7.8) saved for {skill_id}.")
+        print(f"✅ Success! Design plan (v8.6) saved for {skill_id}.")
         return True
 
     except Exception as e:
