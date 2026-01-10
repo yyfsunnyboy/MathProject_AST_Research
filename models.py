@@ -212,6 +212,7 @@ def init_db(engine):
         CREATE TABLE IF NOT EXISTS skill_gencode_prompt (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             skill_id TEXT NOT NULL,
+            architect_model TEXT DEFAULT 'human',
             model_tag TEXT DEFAULT 'default' NOT NULL,
             prompt_strategy TEXT DEFAULT 'standard',
             system_prompt TEXT,
@@ -289,6 +290,9 @@ def init_db(engine):
     ]
     for col, definition in new_log_cols:
         add_column_if_not_exists('experiment_log', col, definition)
+
+    # [v9.0 補丁] Skill GenCode Prompt 新增 architect_model
+    add_column_if_not_exists('skill_gencode_prompt', 'architect_model', "TEXT DEFAULT 'human'")
 
     conn.commit()
     conn.close()
@@ -368,6 +372,9 @@ class SkillGenCodePrompt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     skill_id = db.Column(db.String(50), db.ForeignKey('skills_info.skill_id'), nullable=False)
     
+    # [新增] 記錄這段 Prompt 是由誰設計的 (例如: 'human', 'gpt-4o', 'gemini-1.5-pro')
+    architect_model = db.Column(db.String(50), default='human', nullable=False)
+
     # [模型分級策略]
     # 值範例: 'category:teacher', 'category:cloud_tutor', 'category:local_edge'
     model_tag = db.Column(db.String(50), default='default', nullable=False)
@@ -680,3 +687,28 @@ class ExperimentLog(db.Model):
 
     def __repr__(self):
         return f"<Log {self.model_name}: {self.duration_seconds}s, Success={self.is_success}>"
+
+# [補上缺漏] 練習歷程紀錄相關表格
+class Question(db.Model):
+    __tablename__ = 'questions'
+    id = db.Column(db.Integer, primary_key=True)
+    skill_id = db.Column(db.String(50), nullable=False)
+    content = db.Column(db.JSON, nullable=False)  # 儲存題目內容、選項、答案等
+    difficulty_level = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 關聯
+    attempts = db.relationship('QuizAttempt', backref='question', lazy=True)
+
+class QuizAttempt(db.Model):
+    __tablename__ = 'quiz_attempts'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)
+    user_answer = db.Column(db.String, nullable=True)
+    is_correct = db.Column(db.Boolean, default=False)
+    duration_seconds = db.Column(db.Float, nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 關聯 (方便從 User 反查)
+    user = db.relationship('User', backref=db.backref('quiz_attempts', lazy=True))

@@ -2,7 +2,24 @@
 import pandas as pd
 import re
 from sqlalchemy.orm import aliased
+import sys
 import os
+# =========================================================
+# [新增] 強制路徑修正：解決 No module named 'core'
+# 這段程式碼必須放在所有 'from core ...' 之前
+# =========================================================
+# 取得 app.py 所在的絕對路徑 (即專案根目錄)
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+# 如果這個路徑不在 Python 的搜尋清單中，將其插入到第一順位
+if basedir not in sys.path:
+    sys.path.insert(0, basedir)
+
+# 確認 core 資料夾路徑也被加入 (雙重保險)
+core_dir = os.path.join(basedir, 'core')
+if os.path.exists(core_dir) and basedir not in sys.path:
+     sys.path.insert(0, basedir)
+# =========================================================
 from dotenv import load_dotenv
 
 # 載入 .env 檔案中的環境變數
