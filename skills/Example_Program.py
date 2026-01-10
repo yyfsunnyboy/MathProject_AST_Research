@@ -1,152 +1,161 @@
 import random
+import math
 from fractions import Fraction
+
+# ==============================================================================
+# GOLD STANDARD TEMPLATE v8.7 (Universal)
+# ==============================================================================
+# Rules for AI Coder:
+# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands. 
+#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
+#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
+# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
+# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
+# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer'.
+# ==============================================================================
 
 def generate(level=1):
     """
-    生成「數線」相關題目 (標準 LaTeX 範本)。
-    包含：
-    1. 相對位置
-    2. 座標大小比較
-    3. 中點座標
-    4. 數線讀值
+    Main Dispatcher:
+    - Level 1: Basic concepts, direct calculations, simple definitions.
+    - Level 2: Advanced applications, multi-step problems, word problems.
     """
-    problem_type = random.choice(['relative_pos', 'comparison', 'midpoint', 'ascii_read'])
-    
-    if problem_type == 'relative_pos':
-        return generate_relative_pos_problem()
-    elif problem_type == 'comparison':
-        return generate_comparison_problem()
-    elif problem_type == 'midpoint':
-        return generate_midpoint_problem()
+    if level == 1:
+        # 基礎題型池：概念定義、單步驟運算
+        problem_type = random.choice([
+            'type_basic_calc', 
+            'type_concept_check'
+        ])
     else:
-        return generate_ascii_read_problem()
+        # 進階題型池：應用題、混合運算、逆向思考
+        problem_type = random.choice([
+            'type_advanced_app', 
+            'type_reverse_logic'
+        ])
+    
+    # Dynamic Dispatch
+    if problem_type == 'type_basic_calc': return generate_basic_calculation()
+    if problem_type == 'type_concept_check': return generate_concept_check()
+    if problem_type == 'type_advanced_app': return generate_advanced_application()
+    if problem_type == 'type_reverse_logic': return generate_reverse_logic()
+    
+    # Fallback
+    return generate_basic_calculation()
 
-def generate_relative_pos_problem():
-    # 題型：數線上 A 點座標為 val_a，B 點在 A 點的 [方向] val_diff 單位處
-    val_a = random.randint(-10, 10)
-    val_diff = random.randint(1, 10)
-    direction = random.choice(['左', '右'])
+def fmt_num(num):
+    """Helper: Format negative numbers with parentheses for display."""
+    if num < 0:
+        return f"({num})"
+    return str(num)
+
+def generate_basic_calculation():
+    """
+    Level 1 Example: Basic Integer/Fraction Operation
+    Demonstrates: Simple f-string LaTeX.
+    """
+    a = random.randint(-10, 10)
+    b = random.randint(2, 9)
+    # Ensure no division by zero logic inside generation
     
-    if direction == '右':
-        val_b = val_a + val_diff
-        op_str = "+"
-    else:
-        val_b = val_a - val_diff
-        op_str = "-"
-        
-    # [教學示範] 注意：數學符號與數字都用 $ 包裹
-    # 這裡示範了如何正確嵌入變數： ${val_a}$
-    question_text = f"數線上 $A$ 點座標為 ${val_a}$，$B$ 點在 $A$ 點的{direction}邊 ${val_diff}$ 單位處，請問 $B$ 點座標為何？"
-    correct_answer = str(val_b)
+    ans_val = a * b
+    
+    # LaTeX Rule: Use double braces for LaTeX syntax inside f-strings
+    # Example: exponents x^{2} should be x^{{2}}
+    question_text = f"計算下列各式的值： $ {fmt_num(a)} \\times {b} $"
     
     return {
         "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
+        "answer": str(ans_val),
+        "correct_answer": str(ans_val),
+        "difficulty": 1
     }
 
-def generate_comparison_problem():
-    # 題型：已知 A(a), B(b), C(c)...
-    points = {}
-    labels = ['A', 'B', 'C', 'D']
-    num_points = random.choice([3, 4])
-    used_labels = labels[:num_points]
+def generate_concept_check():
+    """
+    Level 1 Example: Concept Definition (Matrices/Sets/Logic)
+    Demonstrates: Complex LaTeX structures (Matrices).
+    """
+    # Example: Matrix determinant concept
+    a, b, c, d = random.sample(range(1, 10), 4)
     
-    coords = random.sample(range(-20, 21), num_points)
+    # High Risk LaTeX Area: Matrix
+    # Use \\begin{{bmatrix}} ... \\end{{bmatrix}}
+    matrix_latex = f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
     
-    points_desc = []
-    for i, label in enumerate(used_labels):
-        points[label] = coords[i]
-        # [教學示範] 座標表示法：$A(-5)$
-        # 同時示範下標正確寫法 (雖然這裡沒用到，但給 AI 看)：$P_{i}$ (必須有大括號)
-        points_desc.append(f"${label}({coords[i]})$")
-        
-    target = random.choice(['左', '右'])
+    det = a*d - b*c
     
-    if target == '右':
-        correct_label = max(points, key=points.get)
-    else:
-        correct_label = min(points, key=points.get)
-        
-    # [教學示範] 列表串接
-    question_text = f"已知數線上 {', '.join(points_desc)}，請問哪一點在最{target}邊？(請填代號)"
-    correct_answer = correct_label
+    question_text = f"求二階行列式的值： $ {matrix_latex} $"
     
     return {
         "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
+        "answer": str(det),
+        "correct_answer": str(det),
+        "difficulty": 1
     }
 
-def generate_midpoint_problem():
-    val_a = random.randint(-15, 15)
-    diff = random.randint(1, 10) * 2 
+def generate_advanced_application():
+    """
+    Level 2 Example: Word Problem / Geometry
+    Demonstrates: Text processing and multi-variable logic.
+    """
+    # Context: Scientific Notation or Geometry Application
+    base = random.randint(100, 999)
+    exp = random.randint(5, 9)
     
-    if random.random() < 0.3:
-        diff = random.randint(1, 10) * 2 + 1
-        
-    val_b = val_a + diff
-    midpoint = (val_a + val_b) / 2
+    # Generating a story context
+    question_text = (
+        f"已知某星球距離地球約 ${base} \\times 10^{{{exp}}}$ 公里。"
+        f"若太空船以每小時 $10^{4}$ 公里的速度飛行，"
+        f"大約需要多少小時才能到達？(以科學記號表示，係數保留整數)"
+    )
     
-    if midpoint.is_integer():
-        midpoint_str = str(int(midpoint))
-    else:
-        midpoint_str = str(midpoint)
-        
-    # [教學示範] 兩點座標與中點公式暗示
-    question_text = f"數線上兩點 $A({val_a})$、$B({val_b})$，請問 $A$、$B$ 兩點的中點座標為何？"
-    correct_answer = midpoint_str
+    # Logic
+    time_val = base * (10**(exp - 4))
+    # Formatting result back to sci-notation manually for the answer key
+    # (In Phase 4, we will use SymPy here)
+    ans_str = f"{base} \\times 10^{{{exp-4}}}"
     
     return {
         "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
+        "answer": ans_str,
+        "correct_answer": ans_str,
+        "difficulty": 2
     }
 
-def generate_ascii_read_problem():
-    # ASCII 圖形通常保持原樣，不需要加 $，但在描述文字中可以使用 LaTeX
-    start = random.randint(-10, 5)
-    step = random.randint(1, 3)
-    length = 5
+def generate_reverse_logic():
+    """
+    Level 2 Example: Reverse Engineering (Find x given y)
+    Demonstrates: Algebra and Equation solving.
+    """
+    x = random.randint(1, 10)
+    # Equation: 2x + b = c
+    b = random.randint(1, 20)
+    c = 2 * x + b
     
-    sequence = [start + i*step for i in range(length)]
-    missing_idx = random.randint(1, length-2)
-    missing_val = sequence[missing_idx]
-    
-    display_seq = []
-    for i, val in enumerate(sequence):
-        if i == missing_idx:
-            display_seq.append("( ? )")
-        else:
-            display_seq.append(str(val))
-            
-    ascii_art = " -- ".join(display_seq)
-    
-    question_text = f"請觀察下列數線上的刻度變化，填入括號中的數字：\n{ascii_art}"
-    correct_answer = str(missing_val)
+    question_text = f"已知方程式 $2x + {b} = {c}$，求 $x$ 的值。"
     
     return {
         "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
+        "answer": str(x),
+        "correct_answer": str(x),
+        "difficulty": 2
     }
 
 def check(user_answer, correct_answer):
     """
-    檢查答案是否正確。
+    Standard Answer Checker
+    Handles float tolerance and string normalization.
     """
-    user_answer = user_answer.strip().upper()
-    correct_answer = correct_answer.strip().upper()
+    user = user_answer.strip().replace(" ", "")
+    correct = correct_answer.strip().replace(" ", "")
     
-    is_correct = (user_answer == correct_answer)
-    
-    if not is_correct:
-        try:
-            if float(user_answer) == float(correct_answer):
-                is_correct = True
-        except ValueError:
-            pass
-
-    # [教學示範] 回傳結果中也可以包含 LaTeX
-    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    if user == correct:
+        return {"correct": True, "result": "Correct!"}
+        
+    try:
+        if abs(float(user) - float(correct)) < 1e-6:
+            return {"correct": True, "result": "Correct!"}
+    except:
+        pass
+        
+    return {"correct": False, "result": f"Incorrect. The answer is {correct_answer}."}
