@@ -1,3 +1,23 @@
+# -*- coding: utf-8 -*-
+# ==============================================================================
+# ID: models.py
+# Version: v9.0 (Science Fair Data-Driven Edition)
+# Last Updated: 2026-01-10
+# Author: Math-Master AI Dev Team
+#
+# Description:
+#   Database models definition for the Math-Master AI Platform.
+#   This module defines the schema for Users, Skills, Curriculum, and Logging.
+#
+#   [v9.0 Upgrade Highlights]:
+#   1. Prompt Versioning: Introduced `SkillGenCodePrompt` table to manage 
+#      and track different versions of prompts (Architect Phase).
+#   2. Science Fair Analytics: Expanded `ExperimentLog` to capture granular
+#      metrics like Token Usage (Cost), AST Repair Counts (Self-Healing),
+#      and Error Categories for scientific analysis.
+#   3. Cost Tracking: Added fields to track API costs for both Prompt Generation
+#      (Architect) and Code Generation (Coder) phases.
+# ==============================================================================
 import sqlite3
 import json
 import secrets
@@ -11,58 +31,25 @@ db = SQLAlchemy()
 
 def init_db(engine):
     """
-    初始化資料庫結構。
-    使用 raw SQL 確保所有表格建立，並包含簡單的遷移邏輯以支援現有資料庫升級。
+    初始化資料庫結構 (v9.0 Update)。
+    包含新表格 skill_gencode_prompt 與 experiment_log 的新欄位。
     """
-    # 使用傳入的 SQLAlchemy engine 來建立連線
     conn = engine.raw_connection()
     c = conn.cursor()
 
-    # 1. 建立所有基礎表格 (包含新版 Schema 的所有表格)
+    # --------------------------------------------------------
+    # 1. 建立所有基礎表格
+    # --------------------------------------------------------
     
-    # Users 表格 (包含 role 欄位)
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            email TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            role TEXT DEFAULT 'student' 
-        )
-    ''')
-
-    # Progress 表格
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS progress (
-            user_id INTEGER,
-            skill_id TEXT,
-            consecutive_correct INTEGER DEFAULT 0,
-            consecutive_wrong INTEGER DEFAULT 0,
-            current_level INTEGER DEFAULT 1, 
-            questions_solved INTEGER DEFAULT 0,
-            last_practiced DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (user_id, skill_id),
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-
-    # Skills Info 表格
+    # Users, Progress, Skills Info ... (保持不變)
+    c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, email TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, role TEXT DEFAULT 'student')''')
+    c.execute('''CREATE TABLE IF NOT EXISTS progress (user_id INTEGER, skill_id TEXT, consecutive_correct INTEGER DEFAULT 0, consecutive_wrong INTEGER DEFAULT 0, current_level INTEGER DEFAULT 1, questions_solved INTEGER DEFAULT 0, last_practiced DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user_id, skill_id), FOREIGN KEY (user_id) REFERENCES users (id))''')
+    
+    # Skills Info (包含 suggested_prompts)
     c.execute('''
         CREATE TABLE IF NOT EXISTS skills_info (
-            skill_id TEXT PRIMARY KEY,
-            skill_en_name TEXT NOT NULL,
-            skill_ch_name TEXT NOT NULL,
-            category TEXT,
-            description TEXT NOT NULL,
-            input_type TEXT DEFAULT 'text',
-            gemini_prompt TEXT NOT NULL,
-            consecutive_correct_required INTEGER DEFAULT 10,
-            is_active BOOLEAN DEFAULT TRUE,
-            order_index INTEGER DEFAULT 0,
-            suggested_prompt_1 TEXT, -- 新增欄位
-            suggested_prompt_2 TEXT, -- 新增欄位
-            suggested_prompt_3 TEXT  -- 新增欄位
+            skill_id TEXT PRIMARY KEY, skill_en_name TEXT NOT NULL, skill_ch_name TEXT NOT NULL, category TEXT, description TEXT NOT NULL, input_type TEXT DEFAULT 'text', gemini_prompt TEXT NOT NULL, consecutive_correct_required INTEGER DEFAULT 10, is_active BOOLEAN DEFAULT TRUE, order_index INTEGER DEFAULT 0,
+            suggested_prompt_1 TEXT, suggested_prompt_2 TEXT, suggested_prompt_3 TEXT
         )
     ''')
 
@@ -220,7 +207,27 @@ def init_db(engine):
         )
     ''')
 
-    # [新增] Experiment Log 表格 (科展實驗數據專用)
+    # [v9.0 新增] Skill GenCode Prompt 表格
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS skill_gencode_prompt (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            skill_id TEXT NOT NULL,
+            model_tag TEXT DEFAULT 'default' NOT NULL,
+            prompt_strategy TEXT DEFAULT 'standard',
+            system_prompt TEXT,
+            user_prompt_template TEXT,
+            creation_prompt_tokens INTEGER DEFAULT 0,
+            creation_completion_tokens INTEGER DEFAULT 0,
+            creation_total_tokens INTEGER DEFAULT 0,
+            version INTEGER DEFAULT 1,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            success_rate FLOAT DEFAULT 0.0,
+            FOREIGN KEY (skill_id) REFERENCES skills_info (skill_id)
+        )
+    ''')
+
+    # [v9.0 更新] Experiment Log 表格 (包含所有新欄位)
     c.execute('''
         CREATE TABLE IF NOT EXISTS experiment_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -235,37 +242,57 @@ def init_db(engine):
             syntax_error_initial TEXT,
             ast_repair_triggered BOOLEAN DEFAULT 0,
             cpu_usage REAL,
-            ram_usage REAL
+            ram_usage REAL,
+            experiment_batch TEXT,
+            prompt_strategy TEXT,
+            prompt_version INTEGER,
+            error_category TEXT,
+            regex_fix_count INTEGER DEFAULT 0,
+            logic_fix_count INTEGER DEFAULT 0,
+            ast_repair_count INTEGER DEFAULT 0,
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            total_tokens INTEGER DEFAULT 0,
+            code_complexity INTEGER DEFAULT 0
         )
     ''')
 
-    # 2. 自動升級邏輯：安全地為已存在的舊表格新增欄位
+    # --------------------------------------------------------
+    # 2. 自動升級邏輯：為舊資料庫補上新欄位
+    # --------------------------------------------------------
     def add_column_if_not_exists(table, column, definition):
         try:
-            # 檢查表格是否存在
             c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
-            if not c.fetchone():
-                return # 表格不存在則跳過
-
+            if not c.fetchone(): return
             c.execute(f"PRAGMA table_info({table})")
             columns = [row[1] for row in c.fetchall()]
             if column not in columns:
                 print(f"自動升級資料庫: 正在為 {table} 新增欄位 {column}")
                 c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-        except sqlite3.OperationalError as e:
-            print(f"檢查欄位時發生錯誤 ({table}.{column}): {e}")
+        except sqlite3.OperationalError: pass
 
-    # 為 users 表確保有 role 欄位 (舊版升級用)
+    # Users
     add_column_if_not_exists('users', 'role', 'TEXT DEFAULT "student"')
 
-    # 為 skills_info 表確保有新的 prompt 欄位 (舊版升級用)
+    # Skills Info
     add_column_if_not_exists('skills_info', 'suggested_prompt_1', 'TEXT')
     add_column_if_not_exists('skills_info', 'suggested_prompt_2', 'TEXT')
     add_column_if_not_exists('skills_info', 'suggested_prompt_3', 'TEXT')
 
+    # Experiment Log (v9.0 補丁)
+    new_log_cols = [
+        ('experiment_batch', 'TEXT'), ('prompt_strategy', 'TEXT'), ('prompt_version', 'INTEGER'),
+        ('error_category', 'TEXT'),
+        ('regex_fix_count', 'INTEGER DEFAULT 0'), ('logic_fix_count', 'INTEGER DEFAULT 0'), ('ast_repair_count', 'INTEGER DEFAULT 0'),
+        ('prompt_tokens', 'INTEGER DEFAULT 0'), ('completion_tokens', 'INTEGER DEFAULT 0'), ('total_tokens', 'INTEGER DEFAULT 0'),
+        ('code_complexity', 'INTEGER DEFAULT 0')
+    ]
+    for col, definition in new_log_cols:
+        add_column_if_not_exists('experiment_log', col, definition)
+
     conn.commit()
     conn.close()
-    print("資料庫結構初始化與檢查完成！")
+    print("資料庫結構初始化與檢查完成 (v9.0)！")
 
 # --- 以下為 ORM 模型定義 (對應上述所有表格) ---
 
@@ -333,6 +360,50 @@ class SkillInfo(db.Model):
             'suggested_prompt_1': self.suggested_prompt_1,
             'suggested_prompt_2': self.suggested_prompt_2,
             'suggested_prompt_3': self.suggested_prompt_3
+        }
+
+class SkillGenCodePrompt(db.Model):
+    __tablename__ = 'skill_gencode_prompt'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    skill_id = db.Column(db.String(50), db.ForeignKey('skills_info.skill_id'), nullable=False)
+    
+    # [模型分級策略]
+    # 值範例: 'category:teacher', 'category:cloud_tutor', 'category:local_edge'
+    model_tag = db.Column(db.String(50), default='default', nullable=False)
+    
+    # [提示策略]
+    # 值範例: 'Architect-Engineer', 'CoT_Decomposed'
+    prompt_strategy = db.Column(db.String(50), default='standard')
+    
+    # [內容核心]
+    system_prompt = db.Column(db.Text)          # 系統角色設定
+    user_prompt_template = db.Column(db.Text)   # 使用者指令模板 (架構師生成的 Spec)
+    
+    # [成本追蹤 - Architect Phase] (記錄生成此 Prompt 花費的 tokens)
+    creation_prompt_tokens = db.Column(db.Integer, default=0)      # 輸入
+    creation_completion_tokens = db.Column(db.Integer, default=0)  # 輸出
+    creation_total_tokens = db.Column(db.Integer, default=0)       # 總計
+    
+    # [版本控制]
+    version = db.Column(db.Integer, default=1)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # [效能追蹤]
+    success_rate = db.Column(db.Float, default=0.0)
+
+    # 建立關聯
+    skill = db.relationship('SkillInfo', backref=db.backref('gencode_prompts', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'skill_id': self.skill_id,
+            'model_tag': self.model_tag,
+            'prompt_strategy': self.prompt_strategy,
+            'version': self.version,
+            'is_active': self.is_active
         }
 
 class SkillCurriculum(db.Model):
@@ -582,13 +653,30 @@ class ExperimentLog(db.Model):
     syntax_error_initial = db.Column(db.Text, nullable=True, comment="原始語法錯誤訊息 (若無則空)")
     ast_repair_triggered = db.Column(db.Boolean, default=False, comment="是否觸發 AST 修復")
     
-    # --- Token Usage (Cost Analysis) ---
-    prompt_tokens = db.Column(db.Integer, default=0, comment="Prompt Token 數量")
-    completion_tokens = db.Column(db.Integer, default=0, comment="Completion Token 數量")
+
 
     # --- 系統資源 ---
     cpu_usage = db.Column(db.Float, nullable=True, comment="CPU 使用率 (%)")
     ram_usage = db.Column(db.Float, nullable=True, comment="RAM 使用率 (%)")
+
+    # [v9.0 新增 - 實驗設定]
+    experiment_batch = db.Column(db.String(50))    # 批次標籤 (如 'YS_Run_1')
+    prompt_strategy = db.Column(db.String(50))     # 使用策略
+    prompt_version = db.Column(db.Integer)         # 使用的 Prompt 版本 ID
+    
+    # [v9.0 新增 - 錯誤分析]
+    error_category = db.Column(db.String(100))     # 錯誤分類 (SyntaxError, Timeout, etc.)
+    
+    # [v9.0 新增 - 自癒機制成效]
+    regex_fix_count = db.Column(db.Integer, default=0)   # Regex 修復次數
+    logic_fix_count = db.Column(db.Integer, default=0)   # Import 修復次數
+    ast_repair_count = db.Column(db.Integer, default=0)  # AST 重構次數
+    
+    # [v9.0 新增 - 成本與複雜度 - Coder Phase]
+    prompt_tokens = db.Column(db.Integer, default=0)      # 輸入 (Cost)
+    completion_tokens = db.Column(db.Integer, default=0)  # 輸出 (Richness)
+    total_tokens = db.Column(db.Integer, default=0)       # 總計
+    code_complexity = db.Column(db.Integer, default=0)    # 生成程式碼的行數
 
     def __repr__(self):
         return f"<Log {self.model_name}: {self.duration_seconds}s, Success={self.is_success}>"

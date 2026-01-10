@@ -5,7 +5,8 @@ from models import (
     db, User, Class, ClassStudent, SkillInfo, 
     SkillPrerequisites, TextbookExample, Progress, 
     MistakeLog, ExamAnalysis, SystemSetting, ExperimentLog,
-    LearningDiagnosis, MistakeNotebookEntry, SkillCurriculum
+    LearningDiagnosis, MistakeNotebookEntry, SkillCurriculum,
+    Question, QuizAttempt  # <--- 新增這兩個
 )
 
 # 建立 Sheet 名稱到 Model 的對照表 (Map Sheet Name -> DB Model)
@@ -27,7 +28,11 @@ def get_model_mapping():
         'experiment_log': ExperimentLog,
         'learning_diagnosis': LearningDiagnosis,
         'mistake_notebook_entries': MistakeNotebookEntry,
-        'skill_curriculum': SkillCurriculum
+        'skill_curriculum': SkillCurriculum,
+        
+        # 👇 新增這兩行，讓匯入程式認得它們
+        'questions': Question,
+        'quiz_attempts': QuizAttempt
     }
 
 def import_excel_to_db(filepath):

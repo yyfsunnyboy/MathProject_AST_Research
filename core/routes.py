@@ -1719,9 +1719,10 @@ def db_maintenance():
         # GET request
         inspector = db.inspect(db.engine)
         all_tables = inspector.get_table_names()
-        # 允許顯示的表格，加入 textbook_examples
-        allowed_tables = ['skills_info', 'skill_prerequisites', 'skill_curriculum', 'textbook_examples']
-        tables = [t for t in all_tables if t in allowed_tables]
+        
+        # 修改：不再過濾，直接顯示資料庫內所有表格，並按字母排序
+        tables = sorted(all_tables)
+        
         return render_template('db_maintenance.html', tables=tables)
     except Exception as e:
         current_app.logger.error(f"Error in db_maintenance: {e}\n{traceback.format_exc()}")
