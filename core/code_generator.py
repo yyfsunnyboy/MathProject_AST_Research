@@ -28,7 +28,7 @@ from pyflakes.api import check as pyflakes_check
 from pyflakes.reporter import Reporter
 from flask import current_app
 from core.ai_wrapper import get_ai_client
-from models import db, SkillInfo, TextbookExample, ExperimentLog
+from models import db, SkillInfo, TextbookExample, ExperimentLog, SkillGenCodePrompt
 from config import Config
 
 # ==============================================================================
@@ -226,6 +226,29 @@ def inject_perfect_utils(code_str):
     return PERFECT_UTILS + "\n" + clean
 
 
+def infer_model_tag(model_name):
+    """
+    根據模型名稱自動判斷 V9 架構師的分級 (Model Tag)。
+    支援 Qwen, DeepSeek, Phi, Llama 等常見模型。
+    """
+    name = model_name.lower()
+    
+    # 1. Cloud Models
+    if any(x in name for x in ['gemini', 'gpt', 'claude']): return 'cloud_pro'
+    
+    # 2. Local Large/Medium (>= 10B)
+    # DeepSeek 默認視為強邏輯模型，歸類在 local_14b (除非顯式標註 7b/8b)
+    if '70b' in name or '32b' in name or '14b' in name: return 'local_14b'
+    if 'deepseek' in name and not any(x in name for x in ['1.5b', '7b', '8b']): return 'local_14b'
+    if 'qwen' in name and not any(x in name for x in ['0.5b', '1.5b', '3b', '7b']): return 'local_14b'
+    
+    # 3. Local Small/Edge (< 10B)
+    if 'phi' in name or '7b' in name or '8b' in name: return 'edge_7b'
+    
+    # Default Fallback
+    return 'local_14b'
+
+
 # ==============================================================================
 # --- Dispatcher Injection (v8.7 Level-Aware) ---
 # ==============================================================================
@@ -291,6 +314,48 @@ def load_gold_standard_example():
     except Exception as e:
         print(f"⚠️ Warning: Could not load Example_Program.py: {e}")
     return "def generate_type_1_problem(): return {}"
+
+
+def fix_missing_answer_key(code_str):
+    """
+    Auto-patch the generated code to ensure 'answer' key exists in the return dict.
+    It injects a decorator that copies 'correct_answer' to 'answer' at runtime.
+    [V9.2 Update]: Now patches ALL functions starting with 'generate'.
+    """
+    patch_code = """
+# [Auto-Injected Patch v9.2] Universal Return Fixer
+# 1. Ensures 'answer' key exists (copies from 'correct_answer')
+# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
+def _patch_return_dict(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        if isinstance(res, dict):
+            # Fix 1: Answer Key
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            
+            # Fix 2: Image Key (Flatten visuals for legacy frontend)
+            if 'image_base64' not in res and 'visuals' in res:
+                try:
+                    # Extract first image value from visuals list
+                    for item in res['visuals']:
+                        if item.get('type') == 'image/png':
+                            res['image_base64'] = item.get('value')
+                            break
+                except: pass
+        return res
+    return wrapper
+
+# Apply patch to ALL generator functions in scope
+import sys
+# Iterate over a copy of globals keys to avoid modification issues
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
+        globals()[_name] = _patch_return_dict(_func)
+"""
+    return code_str + patch_code
 
 # ==============================================================================
 # --- THE REGEX ARMOR (v8.7.3 - Full Math Protection) ---
@@ -418,16 +483,27 @@ def log_experiment(skill_id, start_time, input_len, output_len, success, error_m
 
 def auto_generate_skill_code(skill_id, queue=None):
     start_time = time.time()
-    skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
     
+    # 1. Determine Target Tag based on Config
     role_config = Config.MODEL_ROLES.get('coder', Config.MODEL_ROLES.get('default'))
     current_model = role_config.get('model', 'Unknown')
-    has_architect_plan = (skill and skill.gemini_prompt and len(skill.gemini_prompt) > 50)
-    target_logic = skill.gemini_prompt if has_architect_plan else f"Math logic for {skill_id}"
-    strategy_name = "Architect-Engineer (v8.7)" if has_architect_plan else "Standard Mode"
+    target_tag = infer_model_tag(current_model)
+
+    # 2. [Strict Mode] Fetch ONLY the matching Architect Spec
+    active_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, model_tag=target_tag, is_active=True).first()
+    
+    # 3. Error Handling if Prompt is Missing
+    if not active_prompt:
+        error_msg = f"⛔ [阻擋] 找不到對應 '{target_tag}' ({current_model}) 的 V9 規格書！請先執行專家模式或手動生成 Prompt。"
+        if current_app: current_app.logger.error(f"{skill_id}: {error_msg}")
+        return False, error_msg
+
+    # Pre-fetch skill info (needed for fallback or logging)
+    skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
+
 
     gold_standard_code = load_gold_standard_example()
-    examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(10).all()
+    examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(5).all()
     rag_count = len(examples)
     example_text = ""
     if examples:
@@ -435,8 +511,52 @@ def auto_generate_skill_code(skill_id, queue=None):
         for i, ex in enumerate(examples):
             example_text += f"Ex {i+1}: {getattr(ex, 'problem_text', '')} -> {getattr(ex, 'correct_answer', '')}\n"
 
-    # [v8.7.3 Upgrade]: Prompt Optimization - No Helpers Output
-    prompt = f"""
+    if active_prompt:
+        # --- Mode A: V9 Architect Mode (High Precision) ---
+        strategy_name = f"V9 Architect ({active_prompt.model_tag})"
+        target_logic = active_prompt.user_prompt_template
+        
+        # V9 Specialized Prompt: Hybrid Logic (Algebra + Geometry)
+        prompt = f"""
+You are a Senior Python Engineer for a K-12 Math System.
+### MISSION
+Execute the Architect's Implementation Plan with **ADAPTIVE LOGIC**.
+
+### 🧠 1. DOMAIN ADAPTATION (CRITICAL)
+Analyze the Architect's Spec and Reference Examples to determine the domain:
+
+#### 👉 IF ALGEBRA (Equations, Functions, Calculus):
+1.  **Structural Diversity**: You MUST implement `random.choice` to select between at least **3 different Equation Structures** (e.g., Standard Form `ax+by=c`, Slope Form `y=mx+b`, Rearranged `ax=by+c`). **DO NOT** hardcode a single template.
+2.  **Visualization**: Use `ax.plot` for lines/curves. Show intersections if they exist.
+3.  **Format Hint**: Append `\\n(答案格式：x=_, y=_)` (or specific vars) to `question_text`.
+
+#### 👉 IF GEOMETRY (Shapes, Angles, Symmetry):
+1.  **Visual Accuracy**: Use `matplotlib.patches` (Polygon, Circle). Ensure `ax.set_aspect('equal')` so shapes aren't distorted.
+2.  **Scenario**: Vary the orientation (rotation), size, or missing parameters.
+3.  **Format Hint**: Append `\\n(答案格式：長度=_)` or `\\n(答案格式：角度=_)` or `\\n(答案格式：選A/B/C)`.
+
+### 📝 2. GENERAL RULES
+1.  **Clean Answer**: `correct_answer` must be a clean string matching the format hint (e.g., "x=3, y=5" or "50"). NO LaTeX symbols in the value.
+2.  **Language**: All text must be **Traditional Chinese (Taiwan)**.
+
+### ARCHITECT'S SPECIFICATION:
+{target_logic}
+
+### ENVIRONMENT TOOLS (Already Injected):
+- to_latex(n), fmt_num(n)
+- matplotlib.pyplot as plt, numpy as np, io, base64, matplotlib.patches as patches
+
+### FINAL CHECKLIST:
+1. Output pure Python code. Start with `import random`.
+2. Return dict keys: 'question_text', 'correct_answer', 'visuals' (or 'visual_aids').
+"""
+    else:
+        # --- Mode B: Legacy V8 Mode (Fallback) ---
+        strategy_name = "Standard Mode"
+        target_logic = skill.gemini_prompt if (skill and skill.gemini_prompt) else f"Math logic for {skill_id}"
+        
+        # [v8.7.3 Upgrade]: Prompt Optimization - No Helpers Output
+        prompt = f"""
 You are a Senior Python Engineer for a Math Education System.
 
 ### MISSION:
@@ -500,11 +620,20 @@ OUTPUT: Return ONLY the Python code. Start with import random. """
         if match: code = match.group(1)
         elif "import random" in code: code = code[code.find("import random"):]
         
+        # [V9.5 Check] Integrity Validation
+        if "def generate" not in code:
+            # If critical function is missing, it implies truncation.
+            # We attempt a naive fix by appending a default dispatcher if at least generate_problem exists.
+            if "def generate_problem" in code:
+                code += "\n\n# [Auto-Recovered Dispatcher]\ndef generate(level=1):\n    return generate_problem()"
+            else:
+                return False, "Critical Error: Generated code is incomplete (missing 'generate' function)."
+        
         code = inject_perfect_utils(code)
         code = fix_return_format(code)
         code = clean_global_scope_execution(code)
         code = inject_robust_dispatcher(code) 
-
+        code = fix_missing_answer_key(code)
         is_valid, syntax_err = validate_python_code(code)
         repaired = False
         if not is_valid:

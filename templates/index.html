@@ -46,7 +46,7 @@
         /* [Surface Pro 繪圖修正] */
         canvas {
             /* 關鍵：告訴瀏覽器在 Canvas 上禁止預設的捲動行為 */
-            touch-action: none !important; 
+            touch-action: none !important;
             /* 確保游標在畫布上是十字線，方便對準 */
             cursor: crosshair;
             /* 防止選取到畫布時出現藍色框框 */
@@ -1123,16 +1123,16 @@
                     <input type="text" id="chat-input" placeholder="問我觀念...">
                     <button id="chat-send-button">送出</button>
                 </div>
-                <div class="symbol-buttons" id="math-toolbar"><button class="symbol-button" data-symbol="π">π</button><button
-                        class="symbol-button" data-symbol="√">√</button><button class="symbol-button"
-                        data-symbol="²">²</button><button class="symbol-button" data-symbol="³">³</button><button
-                        class="symbol-button" data-symbol="°">°</button><button class="symbol-button"
-                        data-symbol="θ">θ</button><button class="symbol-button" data-symbol="∞">∞</button><button
-                        class="symbol-button" data-symbol="±">±</button><button class="symbol-button"
-                        data-symbol="≠">≠</button><button class="symbol-button" data-symbol="≤">≤</button><button
-                        class="symbol-button" data-symbol="≥">≥</button><button class="symbol-button"
-                        data-symbol="≈">≈</button><button class="symbol-button" data-symbol="∑">∑</button><button
-                        class="symbol-button" data-symbol="∫">∫</button></div>
+                <div class="symbol-buttons" id="math-toolbar"><button class="symbol-button"
+                        data-symbol="π">π</button><button class="symbol-button" data-symbol="√">√</button><button
+                        class="symbol-button" data-symbol="²">²</button><button class="symbol-button"
+                        data-symbol="³">³</button><button class="symbol-button" data-symbol="°">°</button><button
+                        class="symbol-button" data-symbol="θ">θ</button><button class="symbol-button"
+                        data-symbol="∞">∞</button><button class="symbol-button" data-symbol="±">±</button><button
+                        class="symbol-button" data-symbol="≠">≠</button><button class="symbol-button"
+                        data-symbol="≤">≤</button><button class="symbol-button" data-symbol="≥">≥</button><button
+                        class="symbol-button" data-symbol="≈">≈</button><button class="symbol-button"
+                        data-symbol="∑">∑</button><button class="symbol-button" data-symbol="∫">∫</button></div>
                 <!-- 新增：隱藏的圖片上傳 input --><input type="file" id="image-uploader" accept="image/*" style="display: none;">
             </div>
         </div>
@@ -1571,7 +1571,7 @@
         // [1:1 精準座標]
         function getMousePos(canvas, evt) {
             const rect = canvas.getBoundingClientRect();
-            
+
             let clientX, clientY;
             if (evt.touches && evt.touches.length > 0) {
                 clientX = evt.touches[0].clientX;
@@ -1601,12 +1601,12 @@
             canvas.addEventListener('pointermove', draw);
             canvas.addEventListener('pointerup', stopDraw);
             canvas.addEventListener('pointerout', stopDraw);
-            
+
             // [Surface Pro] 防止畫圖時捲動頁面
-            canvas.addEventListener('touchstart', function(e) {
+            canvas.addEventListener('touchstart', function (e) {
                 if (e.target === canvas) e.preventDefault();
             }, { passive: false });
-            canvas.addEventListener('touchmove', function(e) {
+            canvas.addEventListener('touchmove', function (e) {
                 if (e.target === canvas) e.preventDefault();
             }, { passive: false });
 
@@ -2005,64 +2005,120 @@
 
         function loadQuestion() {
             const skill = getSkillId();
-            updateSuggestedPrompts(skill); // Call the new function
-            fetch(`/get_next_question?skill=${skill}&level=${selectedLevel}`) // 修改：帶上 level 參數
+            updateSuggestedPrompts(skill);
+
+            // 顯示載入中...
+            if (questionText) questionText.style.opacity = '0.5';
+
+            fetch(`/get_next_question?skill=${skill}&level=${selectedLevel}`)
                 .then(r => r.json())
                 .then(data => {
+                    if (questionText) questionText.style.opacity = '1';
+
                     if (data.error) {
                         questionText.textContent = `錯誤：${data.error}`;
                         return;
                     }
 
-                    // 顯示題目
+                    // 1. 顯示題目文字
                     questionText.innerHTML = data.new_question_text;
-                    isInitialQuestionLoaded = true; // 標記為已載入
+                    isInitialQuestionLoaded = true;
 
-                    // 修正：將排版任務推入 MathJax 佇列，並在完成後調整字體大小
+                    // [V9.5 Debug] 印出後端回傳的所有資料，讓我們看看有沒有圖片
+                    console.log("🔍 Backend Data Received:", data);
+
+                    const diagramImg = document.getElementById('diagram-image');
+                    const diagramContainer = document.querySelector('.diagram-container');
+
+                    // 1. 嘗試抓取圖片資料 (支援多種欄位名稱)
+                    let rawImage = data.image_base64;
+
+                    // 備用方案：如果 image_base64 是空的，試試看 visual_aids
+                    if (!rawImage && data.visual_aids) {
+                        console.log("Found visual_aids, trying to extract image...");
+                        if (typeof data.visual_aids === 'string') {
+                            rawImage = data.visual_aids;
+                        } else if (Array.isArray(data.visual_aids)) {
+                            // 如果是陣列，找裡面 type='image/png' 的
+                            const imgObj = data.visual_aids.find(x => x.type === 'image/png');
+                            if (imgObj) rawImage = imgObj.value;
+                        } else if (data.visual_aids.plot_base64) {
+                            rawImage = data.visual_aids.plot_base64;
+                        }
+                    }
+
+                    // 2. 顯示圖片邏輯
+                    if (rawImage && rawImage.trim() !== "") {
+                        console.log("✅ Found image data! Length:", rawImage.length);
+
+                        // 確保有 Base64 前綴
+                        let imgSource = rawImage;
+                        if (!imgSource.startsWith('data:image')) {
+                            imgSource = "data:image/png;base64," + imgSource;
+                        }
+
+                        if (diagramImg) {
+                            diagramImg.src = imgSource;
+                            diagramImg.style.display = 'block';
+                            diagramImg.style.maxWidth = '100%';
+                            diagramImg.alt = "幾何示意圖";
+
+                            // 點擊放大功能
+                            diagramImg.style.cursor = 'zoom-in';
+                            diagramImg.onclick = function () {
+                                const modal = document.getElementById("imageModal");
+                                const modalImg = document.getElementById("modalImg");
+                                const captionText = document.getElementById("caption");
+                                if (modal && modalImg) {
+                                    modal.style.display = "block";
+                                    modalImg.src = this.src;
+                                    if (captionText) captionText.innerHTML = this.alt;
+                                }
+                            };
+                        }
+
+                        if (diagramContainer) {
+                            diagramContainer.style.display = 'flex';
+                            diagramContainer.style.visibility = 'visible';
+                        }
+                    } else {
+                        console.log("⚠️ No image data found in this question response.");
+                        if (diagramImg) {
+                            diagramImg.style.display = 'none';
+                            diagramImg.src = "";
+                        }
+                    }
+
+                    // 3. MathJax 排版
                     const typesetPromise = () => {
                         return new Promise((resolve) => {
                             if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
                                 window.MathJax.typesetPromise([questionText])
                                     .then(() => resolve())
-                                    .catch((err) => {
-                                        console.log('MathJax typeset failed: ' + err.message);
-                                        resolve(); // 即使失敗也繼續
-                                    });
-                            } else if (window.MathJax && window.MathJax.startup) {
-                                window.MathJax.startup.promise.then(() => {
-                                    window.MathJax.typesetPromise([questionText])
-                                        .then(() => resolve())
-                                        .catch(err => {
-                                            console.log('MathJax typeset failed after startup: ' + err.message);
-                                            resolve();
-                                        });
-                                });
+                                    .catch((err) => resolve());
                             } else {
-                                resolve(); // 如果沒有 MathJax，直接繼續
+                                resolve();
                             }
                         });
                     };
 
-                    // 執行排版並在之後調整字體
                     typesetPromise().then(() => {
                         autoResizeQuestionFont();
                     });
 
-                    // ⭐ 從後端同步連續答對數
-                    if (data.consecutive_correct !== undefined && selectedLevel === 1) { // 只在等級1時顯示連續答對
+                    // 4. 更新連續答對數
+                    if (data.consecutive_correct !== undefined && selectedLevel === 1) {
                         currentStreak = data.consecutive_correct;
                         streakCounter.textContent = `連續答對：${currentStreak}`;
                         streakCounter.style.display = 'inline-block';
                     } else {
-                        streakCounter.style.display = 'none'; // 其他等級隱藏
+                        streakCounter.style.display = 'none';
                     }
 
                     levelIndicator.textContent = `等級：${data.current_level}`;
-
-                    // 統一儲存 context
                     currentContext = data.context_string || data.inequality_string || "";
 
-                    // 根據題目類型調整 UI
+                    // 5. 調整輸入框狀態
                     if (data.answer_type === 'handwriting') {
                         answerInput.disabled = true;
                         answerInput.placeholder = '請在計算紙區域作答';
@@ -2073,7 +2129,7 @@
                         submitBtn.disabled = false;
                     }
 
-                    // 清除畫布、輸入框等
+                    // 6. 重置介面
                     answerInput.value = '';
                     resultDisplay.textContent = '';
                     resultDisplay.className = '';
@@ -2086,6 +2142,7 @@
                 .catch(err => {
                     console.error('出題失敗:', err);
                     questionText.textContent = '出題失敗，請重新整理';
+                    if (questionText) questionText.style.opacity = '1';
                 });
         }
 

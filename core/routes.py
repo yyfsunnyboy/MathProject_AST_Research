@@ -306,6 +306,8 @@ def next_question():
             "inequality_string": data.get("inequality_string", ""),
             "consecutive_correct": consecutive, 
             "current_level": difficulty_level, 
+            "image_base64": data.get("image_base64", ""), 
+            "visual_aids": data.get("visual_aids", []),
             "answer_type": skill_info.get("input_type", "text") 
         })
     except Exception as e:
@@ -3151,3 +3153,99 @@ def analyze_weakness():
             'error': f'系統發生錯誤: {str(e)}'
         }), 500
 
+# ==========================================
+# [新增] V9 Prompt 管理 API (routes.py)
+# ==========================================
+
+@core_bp.route('/api/skills/<skill_id>/prompts', methods=['GET'])
+@login_required
+def api_get_skill_prompts(skill_id):
+    """取得指定技能的所有 Prompt 設定"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    
+    try:
+        from models import SkillGenCodePrompt
+        prompts = SkillGenCodePrompt.query.filter_by(skill_id=skill_id).order_by(SkillGenCodePrompt.model_tag).all()
+        
+        data = []
+        for p in prompts:
+            data.append({
+                'id': p.id,
+                'model_tag': p.model_tag,
+                'system_prompt': p.system_prompt,
+                'user_prompt_template': p.user_prompt_template,
+                'version': p.version,
+                'is_active': p.is_active,
+                'updated_at': p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else ''
+            })
+            
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        current_app.logger.error(f"Get Prompts Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@core_bp.route('/api/skills/<skill_id>/prompts/save', methods=['POST'])
+@login_required
+def api_save_skill_prompt(skill_id):
+    """新增或更新 Prompt (Upsert 邏輯)"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+        
+    try:
+        from models import SkillGenCodePrompt
+        data = request.get_json()
+        model_tag = data.get('model_tag')
+        
+        if not model_tag:
+            return jsonify({'success': False, 'message': '缺少 Model Tag'}), 400
+
+        # Upsert Logic: 尋找既有的
+        prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, model_tag=model_tag).first()
+        
+        if prompt:
+            # 更新
+            prompt.user_prompt_template = data.get('user_prompt_template')
+            prompt.system_prompt = data.get('system_prompt')
+            prompt.is_active = data.get('is_active', True)
+            prompt.version += 1 # 版本號 +1
+            action = "updated"
+        else:
+            # 新增
+            prompt = SkillGenCodePrompt(
+                skill_id=skill_id,
+                model_tag=model_tag,
+                user_prompt_template=data.get('user_prompt_template'),
+                system_prompt=data.get('system_prompt'),
+                is_active=data.get('is_active', True),
+                version=1,
+                architect_model='admin_ui'
+            )
+            db.session.add(prompt)
+            action = "created"
+            
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Prompt {action} successfully!', 'version': prompt.version})
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Save Prompt Error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@core_bp.route('/api/prompts/<int:prompt_id>', methods=['DELETE'])
+@login_required
+def api_delete_skill_prompt(prompt_id):
+    """刪除指定的 Prompt"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+        
+    try:
+        from models import SkillGenCodePrompt
+        prompt = db.session.get(SkillGenCodePrompt, prompt_id)
+        if prompt:
+            db.session.delete(prompt)
+            db.session.commit()
+        return jsonify({'success': True, 'message': '刪除成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

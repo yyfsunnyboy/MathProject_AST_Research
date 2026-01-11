@@ -35,7 +35,7 @@ if project_root not in sys.path:
 from app import create_app
 from models import db, SkillInfo, SkillCurriculum, TextbookExample
 from core.code_generator import auto_generate_skill_code
-from core.prompt_architect import generate_design_prompt
+from core.prompt_architect import generate_v9_spec
 from config import Config
 
 PROTECTED_FILES = {
@@ -90,16 +90,34 @@ def run_expert_pipeline(skill_ids, arch_model, current_model):
     reset_skill_prompts(skill_ids)
 
     # Step 1: Architect
-    print("\n" + "="*50)
-    print(f"🧠 [Step 1] 啟動架構師批次分析 ({arch_model})...")
-    print("="*50)
+    # --- Smart Tag Detection (Replicated logic for consistency) ---
+    c_model = current_model.lower()
+    target_tag = 'local_14b' # Default
+    
+    if any(x in c_model for x in ['gemini', 'gpt', 'claude']): target_tag = 'cloud_pro'
+    elif '70b' in c_model or '32b' in c_model or '14b' in c_model: target_tag = 'local_14b'
+    elif 'deepseek' in c_model and not any(x in c_model for x in ['1.5b', '7b', '8b']): target_tag = 'local_14b'
+    elif 'phi' in c_model or '7b' in c_model or '8b' in c_model: target_tag = 'edge_7b'
+    
+    print("\n" + "="*60)
+    print(f"🧠 [Phase 1] V9 Architect Analysis (Model: {arch_model})")
+    print(f"   Target Strategy: '{target_tag}' (Detected from Coder: {current_model})")
+    print("="*60)
     
     arch_success_count = 0
     pbar_arch = tqdm(skill_ids, desc="Phase 1 (Architect)", unit="file", ncols=100)
     
     for skill_id in pbar_arch:
         pbar_arch.set_description(f"Planning: {skill_id}")
-        success = generate_design_prompt(skill_id)
+        
+        # [V9.0 Upgrade] Use generate_v9_spec with target_tag strategy
+        try:
+            result = generate_v9_spec(skill_id, model_tag=target_tag, architect_model=arch_model)
+            success = result.get('success', False)
+        except Exception as e:
+            tqdm.write(f"   ❌ {skill_id} Architect Error: {e}")
+            success = False
+
         if success:
             arch_success_count += 1
     
@@ -243,10 +261,10 @@ if __name__ == "__main__":
             sys.exit(0)
 
         print("\n請選擇操作模式:")
-        print("   [1] 僅生成缺失檔案 (Safe Mode - 僅 Phase 2)")
-        print("   [2] 強制重新生成範圍內所有檔案 (Overwrite All - Phase 2)")
-        print("   [3] 補考模式：針對缺失檔案執行完整重建 (Fill Missing - Full Pipeline)")
-        print("   [4] 專家分工模式：全部重跑 (Auto-Reset Spec - Full Pipeline)") 
+        print("   [1] 僅生成缺失檔案 (Safe Mode - 僅 Phase2生成Code)")
+        print("   [2] 強制重新生成範圍內所有檔案 (Overwrite All - Phase2生成Code)")
+        print("   [3] 補考模式：針對缺失檔案執行完整重建 (Fill Missing - Full Pipeline重新生成Prompt與Code)")
+        print("   [4] 專家分工模式：全部重跑 (Auto-Reset Spec - Full Pipeline重新生成Prompt與Code)") 
         if to_delete:
             print("   [5] 清理孤兒檔案 (Delete Orphans)")
         

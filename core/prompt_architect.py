@@ -1,130 +1,155 @@
 # -*- coding: utf-8 -*-
 # ==============================================================================
 # ID: prompt_architect.py
-# Version: v8.7.3 (Level-Aware & Clean Answers Edition)
-# Last Updated: 2026-01-09
-# Author: Math-Master AI Dev Team
-# 
-# Description: 
-#   The "Brain" of the operation. This module analyzes raw textbook examples
-#   and generates a precise "Architect's Specification" for the Coder model.
-#
-#   [v8.7.2 Upgrade]:
-#   1. Clean Answer Enforcement: Explicitly forbids '$' in answer keys.
-#   2. Universal Math Syntax: Added Matrix, Calculus, Probability rules.
-#   3. Tool Awareness: Tells Coder to use built-in helpers.
+# Version: v9.2.2 (Traditional Chinese Enforcement)
+# Last Updated: 2026-01-11
+# Description:
+#   Upgrade from v9.2.1:
+#   1. Enforce "Traditional Chinese (Taiwan)" for ALL output content.
+#   2. Architect MUST write the `tutor_guide` in Chinese.
+#   3. Architect MUST instruct Coder to generate Chinese question text.
 # ==============================================================================
 
-import sys
-import os
-from flask import current_app
-from models import db, SkillInfo, TextbookExample
+import json, re, ast
+from models import db, SkillInfo, TextbookExample, SkillGenCodePrompt
 from core.ai_wrapper import get_ai_client
 
-def generate_design_prompt(skill_id):
-    """
-    Retrieves examples for a skill and generates a structured design spec (Prompt).
-    The output is stored in `SkillInfo.gemini_prompt` and used by the Coder.
-    """
-    print(f"--- [Architect v8.7.2] Starting analysis for {skill_id} ---")
-    
+def generate_v9_spec(skill_id, model_tag='cloud_pro', prompt_strategy='standard', architect_model='human'):
+    print(f"--- [Architect v9.2.2] Analyzing {skill_id} for '{model_tag}' (Chinese Mode) ---")
     skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
-    if not skill:
-        print(f"❌ Error: Skill {skill_id} not found.")
-        return False
+    if not skill: return {'success': False, 'message': 'Skill not found'}
 
-    # Retrieve RAG examples (Up to 12 to ensure variety)
-    examples = TextbookExample.query.filter_by(skill_id=skill_id).limit(12).all()
-    if not examples:
-        print(f"⚠️ Warning: No examples found for {skill_id}.")
-        return False
-    
-    # Construct RAG Context
-    rag_text = ""
-    for i, ex in enumerate(examples):
-        q = getattr(ex, 'problem_text', 'N/A')
-        a = getattr(ex, 'correct_answer', 'N/A')
-        rag_text += f"Example {i+1}:\nQuestion: {q}\nAnswer: {a}\n\n"
+    # 1. 抓取全量例題
+    all_examples = TextbookExample.query.filter_by(skill_id=skill_id).order_by(TextbookExample.id).all()
+    if not all_examples: return {'success': False, 'message': 'No examples found'}
+    selected_examples = all_examples[:12]
+    rag_text = "".join([f"Example {i+1}:\nQ: {getattr(ex, 'problem_text', 'N/A')}\nA: {getattr(ex, 'correct_answer', 'N/A')}\n\n" for i, ex in enumerate(selected_examples)])
 
-    # ==========================================================================
-    # --- The Architect's System Instruction (v8.7.2) ---
-    # ==========================================================================
-    system_instruction = """You are a **Senior Math Curriculum Architect**.
-Your goal is to design a Python implementation plan for a specific math skill.
+    # 2. 定義分級策略
+    if model_tag == 'edge_7b':
+        tier_scope = "Consolidate all examples into ONE single, highly representative function. Keep logic flat and simple."
+    elif model_tag == 'local_14b':
+        tier_scope = "Consolidate examples into MAX 3 distinct problem types (e.g., Calculation, Concept, Application)."
+    else: # cloud_pro
+        tier_scope = "Create a rich variety of problem types covering all nuances of the examples."
 
-### 1. ANALYSIS & LEVELING (CRITICAL)
-Analyze the provided examples and group them by difficulty:
-- **Level 1 (Basic)**: Direct calculations, definitions, simple properties, single-step logic.
-- **Level 2 (Advanced)**: Word problems, multi-step logic, inverse problems, mixed operations.
+    # 3. 系統指令 (升級版：加入語言衛兵)
+    system_instruction = f"""You are an **Elite Math Architect & Engineering Lead**.
+Your goal is to design a Python implementation plan (`coder_spec`) for a Junior Coder AI.
 
-### 2. PYTHON MAPPING RULE
-- Create a distinct function `generate_type_N_problem` for **EACH** example.
-- **Total Functions**: Must match the number of provided examples.
-- **Dispatcher**: You MUST instruct the Coder to implement `def generate(level=1):` that routes to the correct types based on your Level 1/2 classification.
+### 🌐 GOAL 0: LANGUAGE ENFORCEMENT (CRITICAL)
+1.  **Output Language**: All generated content (Questions, Stories, Explanations, Tutor Guides) MUST be in **Traditional Chinese (Taiwan)** (繁體中文).
+2.  **Terminology**: Use standard Taiwan math terminology (e.g., use "座標" not "坐標", "矩陣" not "行列式" context dependent).
+3.  **Coder Instructions**: You MUST explicitly tell the Coder AI: "Generate the `question_text` and `correct_answer` in Traditional Chinese."
 
-### 3. UNIVERSAL MATH SYNTAX & TOOLS (STRICT)
-- **Built-in Helpers (DO NOT RE-IMPLEMENT):**
-  - `to_latex(val)`: Converts int/float/fraction to LaTeX string.
-  - `fmt_num(val)`: Formats negative numbers with `()`.
-  - `get_positive_factors(n)`: Returns sorted list of factors (e.g., `[1, 2, 4]`).
-  - `is_prime(n)`: Returns True/False.
-  - `get_prime_factorization(n)`: Returns dict `{prime: exp}`.
-  - `gcd(a, b)` and `lcm(a, b)`: Math helpers.
-  - `get_random_fraction(min, max)`: Returns `Fraction`.
+### 🎯 GOAL 1: ADAPTIVE SCENARIO (Context vs. Pure Math)
+Analyze the INPUT DATA (Textbook Examples) first.
+1.  **If examples are Word Problems**: You MUST wrap math in **Real-world Scenarios** (e.g., Shopping, Temperature, Geometry Design).
+2.  **If examples are Pure Calculations** (e.g., "Solve x+y=5"):
+    - **DO NOT** force a story. Keep it abstract and clean.
+    - Focus on **Structural Diversity** (e.g., vary equation forms, use fractions/integers mix).
+    - Visuals should be technical plots (e.g., "Geometric Solution").
 
-- **Syntax Rules**:
-  - **General**: Use `fmt_num(n)` for negative numbers.
-  - **Fractions**: Use `\\frac{{a}}{{b}}` (Double braces for f-strings).
-  - **Matrices**: Use `\\begin{{bmatrix}} ... \\end{{bmatrix}}`.
-  - **Question Text**: MUST use `$` for math expressions (e.g., f"Calculate ${a} + {b}$").
-  - **Answer Format**: **DO NOT** use `$` for `answer` or `correct_answer`. Keep it clean (e.g., "5", "\\frac{1}{2}").
+*Instruction to Coder*: Explicitly tell the Coder to match the *style* of the reference examples (Story vs. Pure Math).
 
-### 4. OUTPUT FORMAT (The Spec)
-Produce a structured plan for the Coder. Do NOT write the full code, but write the **Logic & Template** for each type.
+### 🛠️ GOAL 2: ENGINEERING ROBUSTNESS (Strict Rules)
+1.  **NO File I/O**: NEVER use `savefig`. Use `io.BytesIO` and return **Base64** string.
+2.  **Return Format**: MUST return a Dictionary:
+    {{
+        "question_text": "Story (in Chinese)...", 
+        "correct_answer": "Solution (in Chinese)...", 
+        "image_base64": "...", 
+        "problem_type": "..."
+    }}
+3.  **Visuals**: Use `matplotlib`. **CRITICAL**: Set Chinese font: `plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial']`.
+4.  **Randomization**: Never hardcode numbers. Use `random`.
 
-#### Format Template:
---------------------------------------------------------------------------------
-**[Level 1: Basic Types]**
-- **Type 1** (Based on Ex 1):
-  - **Concept**: ...
-  - **Variables**: `a = random(-10, 10)`, ...
-  - **Question**: f"Calculate ${a} + {b}$"
-  - **Answer**: str(a+b)
+### 🛡️ GOAL 3: NUMERICAL GUARDRAILS (Feasibility & Logic)
+You MUST instruct the Coder to enforce these mathematical constraints:
+1.  **Reasonable Ranges**: Lengths > 0, Angles sum to 180, etc.
+2.  **Clean Answers (Reverse Engineering)**:
+    - **DO NOT** generate random operands first.
+    - **DO** generate the *Answer* first (integers), then calculate operands.
+3.  **Logic Checks**: No division by zero, etc.
 
-... (More Level 1 Types) ...
+### 📝 INPUT DATA (Textbook Examples)
+{rag_text}
 
-**[Level 2: Advanced Types]**
-- **Type X** (Based on Ex X):
-  - **Concept**: Word problem involving ...
-  - **Variables**: ...
-  - **Question**: f"If John has {x} apples..."
-  - **Answer**: ...
+### 📦 OUTPUT FORMAT (JSON ONLY)
+Return a valid JSON object with:
+1. `coder_spec`: A detailed MARKDOWN prompt for the Coder AI. **Ensure the prompt instructions explicitly demand Traditional Chinese output.**
+2. `tutor_guide`: A concise cheat sheet in **Traditional Chinese**.
 
-**[Dispatcher Logic]**
-- `if level == 1`: random.choice([Type 1, Type 2, ...])
-- `if level == 2`: random.choice([Type X, Type Y, ...])
---------------------------------------------------------------------------------
+### ⛔ SYSTEM SAFETY
+- Escape all double quotes in JSON.
+- NO conversational text. START WITH `{{`.
 """
-    
-    # Inject Total Count to ensure coverage
-    total_count = len(examples)
-    system_instruction += f"\n**Total Examples to Map: {total_count}**\n"
 
-    # User Prompt combining RAG data
-    user_prompt = f"### SKILL ID: {skill_id}\n\n### TEXTBOOK EXAMPLES:\n{rag_text}\n\n### YOUR ARCHITECT SPEC:"
+    user_prompt = f"### SKILL: {skill.skill_ch_name} ({skill.skill_id})\n### STRATEGY: {tier_scope}\n### EXECUTE:"
 
     try:
-        # Call AI (Gemini 2.5 Flash Recommended for speed/logic balance)
         client = get_ai_client(role='architect')
-        response = client.generate_content(system_instruction + "\n" + user_prompt)
-        design_plan = response.text.strip()
+        try:
+            response = client.generate_content(
+                system_instruction + "\n" + user_prompt,
+                generation_config={"response_mime_type": "application/json"}
+            )
+        except:
+            response = client.generate_content(system_instruction + "\n" + user_prompt)
+            
+        response_text = response.text.strip()
+        
+        # --- JSON 解析與容錯 ---
+        clean_json = re.sub(r'^```json\s*|```$', '', response_text, flags=re.MULTILINE).strip()
+        data = {}
+        try:
+            data = json.loads(clean_json)
+        except json.JSONDecodeError:
+            print(f"   ⚠️ JSON Standard Parse Failed. Trying AST...")
+            try:
+                data = ast.literal_eval(clean_json)
+            except:
+                print(f"   🚨 Parsing FAILED. Fallback to Raw.")
+                data = {"coder_spec": clean_json, "tutor_guide": "Parsing Failed."}
 
-        # Save the plan to DB
-        skill.gemini_prompt = design_plan
+        # Stringify
+        coder_spec = data.get('coder_spec', '')
+        if isinstance(coder_spec, (dict, list)): coder_spec = json.dumps(coder_spec, indent=2, ensure_ascii=False)
+        else: coder_spec = str(coder_spec)
+
+        tutor_guide = data.get('tutor_guide', '')
+        if isinstance(tutor_guide, (dict, list)): tutor_guide = json.dumps(tutor_guide, indent=2, ensure_ascii=False)
+        else: tutor_guide = str(tutor_guide)
+
+        # 4. Upsert DB
+        existing_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, model_tag=model_tag).first()
+        
+        final_version = 1
+        if existing_prompt:
+            existing_prompt.user_prompt_template = coder_spec
+            existing_prompt.system_prompt = system_instruction
+            existing_prompt.version += 1
+            final_version = existing_prompt.version
+            print(f"   🔄 [Upsert] Updated existing prompt (Ver: {final_version})")
+        else:
+            new_prompt = SkillGenCodePrompt(
+                skill_id=skill_id, model_tag=model_tag, user_prompt_template=coder_spec, 
+                system_prompt=system_instruction, version=1, is_active=True, 
+                architect_model=architect_model
+            )
+            db.session.add(new_prompt)
+            print(f"   🆕 [Upsert] Inserted new prompt entry.")
+
+        if model_tag == 'cloud_pro':
+            skill.gemini_prompt = tutor_guide
+            print("   📢 [Tutor Guide] Updated (TC).")
+        else:
+            print(f"   🔒 [Tutor Guide] Locked.")
+        
         db.session.commit()
-        print(f"✅ [v8.7.2] Architect Spec generated for {skill_id}. (Length: {len(design_plan)})")
-        return True
+        return {'success': True, 'version': final_version}
 
     except Exception as e:
-        print(f"❌ Architect Error: {e}")
-        return False
+        db.session.rollback()
+        print(f"❌ Error in generate_v9_spec: {str(e)}")
+        return {'success': False, 'message': str(e)}
