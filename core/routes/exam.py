@@ -1,9 +1,18 @@
-# === 考卷診斷與分析 API ===
-# 新增於 core/routes.py 末尾
+# -*- coding: utf-8 -*-
+"""
+Module Name: exam.py
+Description: 考卷診斷與分析路由 (Refactored)
+             處理考卷上傳、分析、歷史紀錄查詢與顯示
+"""
 
-from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_flattened_unit_paths
-from models import ExamAnalysis
+from flask import request, jsonify, current_app, redirect, url_for, render_template, flash
+from flask_login import login_required, current_user
+from models import db, ExamAnalysis
+from . import core_bp
+from core.exam_analyzer import analyze_exam_image, save_analysis_result
+import os
 import uuid
+import traceback
 
 # 允許的圖片格式
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}

@@ -108,6 +108,9 @@ def create_app():
     # 而 admin 頁面路由已經在 routes.py 中定義為 /admin/...
     app.register_blueprint(core_bp)
     app.register_blueprint(practice_bp) # 註冊練習用的 blueprint，沒有前綴
+    
+    print("--- 目前系統註冊的所有路由清單 ---")
+    print(app.url_map)
 
     # === 路由定義 ===
     # 將所有路由定義移至工廠函式內部
