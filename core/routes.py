@@ -131,6 +131,9 @@ def update_progress(user_id, skill_id, is_correct):
     # 使用 ORM 查詢進度記錄
     progress = db.session.query(Progress).filter_by(user_id=user_id, skill_id=skill_id).first()
 
+    # [Fix] 確保取得當前時間物件
+    now_time = datetime.now()
+
     if not progress:
         # 如果沒有記錄，建立新的 Progress 物件
         progress = Progress(
@@ -139,12 +142,14 @@ def update_progress(user_id, skill_id, is_correct):
             consecutive_correct=1 if is_correct else 0,
             consecutive_wrong=0 if is_correct else 1,
             questions_solved=1,
-            current_level=1 # 此欄位已不再用於決定題目難度，僅為保留欄位
+            current_level=1, # 此欄位已不再用於決定題目難度，僅為保留欄位
+            last_practiced=now_time  # [Fix] 明確賦值時間物件
         )
         db.session.add(progress)
     else:
         # 如果有記錄，更新現有物件
         progress.questions_solved += 1
+        progress.last_practiced = now_time # [Fix] 更新最後練習時間
         
         # 讀取技能的晉級/降級門檻
         skill_info = db.session.get(SkillInfo, skill_id)
@@ -217,7 +222,7 @@ def practice(skill_id):
         SkillPrerequisites, SkillInfo.skill_id == SkillPrerequisites.prerequisite_id
     ).filter(
         SkillPrerequisites.skill_id == skill_id,
-        SkillInfo.is_active == True  # 只顯示啟用的技能
+        SkillInfo.is_active.is_(True)  # [Fix] 使用 .is_(True)
     ).order_by(SkillInfo.skill_ch_name).all()
 
     # 將查詢結果轉換為字典列表，方便模板使用
@@ -263,7 +268,7 @@ def next_question():
             SkillPrerequisites, SkillInfo.skill_id == SkillPrerequisites.prerequisite_id
         ).filter(
             SkillPrerequisites.skill_id == skill_id,
-            SkillInfo.is_active == True
+            SkillInfo.is_active.is_(True) # [Fix] 使用 .is_(True)
         ).order_by(SkillInfo.skill_ch_name).all()
         
         prereq_info_for_ai = [{'id': p.skill_id, 'name': p.skill_ch_name} for p in prereq_query]
@@ -295,10 +300,23 @@ def next_question():
         
         # ----------------------------------------------
 
+        # ----------------------------------------------
+
         # 加入 context_string 給 AI
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
         data['prereq_skills'] = prereq_info_for_ai
-        set_current(skill_id, data) 
+        
+        # [Fix] 防止 Session 撐爆：過濾掉巨大的圖片資料
+        session_data = data.copy()
+        if 'image_base64' in session_data:
+            del session_data['image_base64']
+        if 'visuals' in session_data:
+            del session_data['visuals']
+        # 額外過濾 visual_aids (因為它也可能包含圖片路徑或資料)
+        if 'visual_aids' in session_data:
+            del session_data['visual_aids']
+            
+        set_current(skill_id, session_data)
         
         return jsonify({
             "new_question_text": data["question_text"],
@@ -318,8 +336,17 @@ def next_question():
 def check_answer():
     user = request.json.get('answer', '').strip()
     current = get_current()
+
+    # [Fix] 安全檢查：如果伺服器重啟導致 Session 遺失
+    if not current or 'skill' not in current:
+        return jsonify({
+            "correct": False,
+            "result": "連線逾時或伺服器已重啟，請重新整理頁面再試。",
+            "state_lost": True  # 讓前端知道是狀態遺失
+        }), 400
+
     skill = current['skill']
-    correct_answer = current['correct_answer']
+    correct_answer = current.get('correct_answer') # 使用 .get 避免錯誤
 
     mod = get_skill(skill)
     if not mod:
@@ -758,7 +785,7 @@ def admin_prerequisites():
         # 2. 建構查詢 - Join SkillInfo 與 SkillCurriculum
         query = db.session.query(SkillInfo, SkillCurriculum).join(
             SkillCurriculum, SkillInfo.skill_id == SkillCurriculum.skill_id
-        ).filter(SkillInfo.is_active == True)
+        ).filter(SkillInfo.is_active.is_(True))
         
         # 3. 應用篩選條件
         if f_curriculum != 'all':
@@ -797,7 +824,7 @@ def admin_prerequisites():
         # 基礎查詢
         base_query = db.session.query(SkillCurriculum).filter(
             SkillCurriculum.skill_id.in_(
-                db.session.query(SkillInfo.skill_id).filter(SkillInfo.is_active == True)
+                db.session.query(SkillInfo.skill_id).filter(SkillInfo.is_active.is_(True))
             )
         )
         
@@ -995,7 +1022,7 @@ def api_search_skills():
         
         # 模糊搜尋 skill_id 或 skill_ch_name
         query = db.session.query(SkillInfo).filter(
-            SkillInfo.is_active == True,
+            SkillInfo.is_active.is_(True),
             db.or_(
                 SkillInfo.skill_id.like(f'%{term}%'),
                 SkillInfo.skill_ch_name.like(f'%{term}%')

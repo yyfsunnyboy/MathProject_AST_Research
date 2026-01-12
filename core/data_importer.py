@@ -74,19 +74,28 @@ def get_model_mapping():
 
 def clean_excel_row(row_dict):
     """
-    [V9.8.1 Fix] 強力清洗 Excel 匯入資料：
+    [V9.8.2 Fix] 強力清洗 Excel 匯入資料：
     1. 修正日期欄位變成 True/False 或數字的問題。
     2. 將 NaN/NaT 轉為 None。
+    3. [Fix] 支援微秒格式 (.%f) 的時間字串。
+    4. [Fix] 加入 last_practiced, review_date 等所有時間欄位檢查。
     """
     cleaned = {}
+    
+    # 定義所有需要被視為時間的欄位名稱
+    date_columns = [
+        'timestamp', 'created_at', 'updated_at', 
+        'last_practiced', 'review_date', 'login_time'
+    ]
+
     for key, value in row_dict.items():
         # 1. 處理空值
         if pd.isna(value) or value == "":
             cleaned[key] = None
             continue
 
-        # 2. 針對日期欄位 (timestamp, created_at, updated_at) 的特殊處理
-        if key in ['timestamp', 'created_at', 'updated_at']:
+        # 2. 針對日期欄位 (包含 last_practiced 等) 的特殊處理
+        if key in date_columns:
             # [Fix] 如果原本是 None，保持 None
             if value is None:
                 cleaned[key] = None
@@ -94,7 +103,7 @@ def clean_excel_row(row_dict):
             
             # [Fix] 攔截布林值 (兇手就是它！created_at: True)
             if isinstance(value, bool):
-                print(f"⚠️ [Data Fix] 欄位 {key} 異常 (值為 {value})，已自動修正為當前時間。")
+                # print(f"⚠️ [Data Fix] 欄位 {key} 異常 (值為 {value})，已自動修正為當前時間。")
                 cleaned[key] = datetime.now()
                 continue
                 
@@ -106,12 +115,24 @@ def clean_excel_row(row_dict):
                 # 情況 B: 已經是 datetime 物件
                 elif isinstance(value, datetime):
                     cleaned[key] = value
-                # 情況 C: 字串格式
+                # 情況 C: 字串格式 (最容易出錯的地方)
                 elif isinstance(value, str):
+                    value = value.strip()
                     try:
-                        cleaned[key] = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-                    except:
-                        cleaned[key] = datetime.strptime(value, '%Y-%m-%d')
+                        # 嘗試格式 1: 含微秒 (2025-12-30 06:44:49.532000)
+                        cleaned[key] = datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+                    except ValueError:
+                        try:
+                            # 嘗試格式 2: 一般時間 (2025-12-30 06:44:49)
+                            cleaned[key] = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            try:
+                                # 嘗試格式 3: 只有日期 (2025-12-30)
+                                cleaned[key] = datetime.strptime(value, '%Y-%m-%d')
+                            except:
+                                # 真的沒救了，設為 None
+                                print(f"⚠️ 無法解析的時間字串 [{key}]: {value}")
+                                cleaned[key] = None
                 else:
                     # 其他怪異格式，給當下時間或 None
                     cleaned[key] = datetime.now()

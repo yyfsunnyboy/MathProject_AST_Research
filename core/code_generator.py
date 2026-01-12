@@ -234,49 +234,71 @@ def inject_perfect_utils(code_str):
     return PERFECT_UTILS + "\n" + clean
 
 
-# [New Robust Prompt Template]
-# Use r""" (Raw String) to avoid NameError
-V9_CODE_GENERATOR_PROMPT = r"""
-You are an Elite Python Math Architect for a Junior High School Math System.
-Your goal is to generate a HIGH-QUALITY, ROBUST Python skill file.
+# ==============================================================================
+# UNIVERSAL SYSTEM PROMPT (v9.2 Optimized - Lean & Powerful)
+# 結合了「規則防護」與「範例引導」，用最少的 Token 達到最強的約束力
+# ==============================================================================
 
-### 🎯 1. Question Diversity (CRITICAL)
-The `generate` function MUST randomly select from multiple problem types to prevent monotony:
-- **Type A**: Identify coordinates of points on a number line.
-- **Type B**: Calculate distance between two points (e.g., dist(A, B)).
-- **Type C**: Find the midpoint of a segment.
-- **Type D**: Point movement (e.g., Point P moves right by 3 units).
-- **Type E**: Opposite numbers (相反數) concept.
+UNIVERSAL_GEN_CODE_PROMPT = """
+You are a Senior Python Developer for a Math Web App.
+Your task is to generate a Python module based on a math skill.
 
-### 🛑 2. Syntax Safety Rules (DO NOT VIOLATE)
-1. **NO F-Strings for LaTeX**:
-   - Python f-strings FAIL with nested LaTeX braces like `\frac`.
-   - **MUST USE `.format()`** for LaTeX.
-   - ❌ BAD: `f"{sign}\frac{{{num}}}{{{den}}}"` (Causes Syntax Error)
-   - ✅ GOOD: `r"{}\frac{{{}}}{{{}}}".format(sign, num, den)`
-2. **Standard Entry Point**:
-   - Define: `def generate(level=1, **kwargs):`
-   - Define: `def check(user_answer, state):`
-3. **Indentation**:
-   - Never leave `except:` blocks empty. Use `pass`.
+### ⛔ CRITICAL PROHIBITIONS (Instant Server Crash if violated):
+1. **NO `import matplotlib.pyplot as plt`**.
+2. **NO `plt.subplots()`, `plt.show()`, or `plt.close()`**.
+3. **NO Single Braces `{}` in f-strings for LaTeX**.
 
-### 🎨 3. Visual & Output Requirements
-1. **Matplotlib**:
-   - Draw a clear number line.
-   - Use `plt.savefig` to `io.BytesIO`.
-   - Return base64 string in `image_base64` key.
-2. **Fraction Format**:
-   - Integers: `5`
-   - Fractions: `\frac{1}{2}`
-   - Mixed: `5\frac{1}{2}` (No space!)
+### ✅ GOLDEN CODE TEMPLATE (Follow this Pattern EXACTLY):
 
-### ✅ 4. Robust Checking Logic
-The `check(user_answer, state)` function MUST:
-- **Handle `0` correctly**: Do NOT use `if not user_answer:`. Use `if user_answer is None or str(user_answer).strip() == "":`.
-- **Formatting**: Strip spaces and commas from user input before comparison.
-- **Feedback**: If incorrect, return the correct answer in the result message.
+```python
+import random
+import io
+import base64
+from matplotlib.figure import Figure  # [Safety] Use Object-Oriented Interface
 
-Generate the complete Python code now.
+def get_base64_image(fig):
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode('utf-8')
+
+def generate(level=1):
+    # 1. Logic & Calculation
+    a = random.randint(1, 10)
+    ans = a + 5
+
+    # 2. Thread-Safe Plotting (No pyplot)
+    fig = Figure(figsize=(8, 2))
+    ax = fig.subplots()
+    ax.plot([0, a], [0, 0], 'b-')
+    ax.text(a/2, -0.1, f"{{a}}") # [LaTeX] Use double braces if needed
+    ax.axis('off')
+    
+    img_str = get_base64_image(fig)
+
+    # 3. Output Format
+    # [LaTeX] f-string MUST use double braces {{ }} for LaTeX commands
+    question = f"What is the result of $\\frac{{{a}}}{{2}}$?" 
+
+    return {
+        "question_text": question,
+        "answer": str(ans),
+        "correct_answer": str(ans),
+        "image_base64": img_str,
+        "difficulty": level
+    }
+
+def check(user, correct):
+    # 4. Robust Checking (String first, then Float)
+    u = user.strip().replace(" ", "")
+    c = correct.strip().replace(" ", "")
+    if u == c: return {"correct": True, "result": "Correct!"}
+    try:
+        if abs(float(u) - float(c)) < 1e-6:
+            return {"correct": True, "result": "Correct!"}
+    except:
+        pass
+    return {"correct": False, "result": f"Incorrect. Answer: {correct}"}
 """
 
 
@@ -672,14 +694,15 @@ Analyze the Architect's Spec and Reference Examples to determine the domain:
 3.  **Format Hint**: Append `\\n(答案格式：長度=_)` or `\\n(答案格式：角度=_)` or `\\n(答案格式：選A/B/C)`.
 
 ### 📝 2. GENERAL RULES
-{V9_CODE_GENERATOR_PROMPT}
+{UNIVERSAL_GEN_CODE_PROMPT}
 
 ### ARCHITECT'S SPECIFICATION:
 {target_logic}
 
 ### ENVIRONMENT TOOLS (Already Injected):
 - to_latex(n), fmt_num(n)
-- matplotlib.pyplot as plt, numpy as np, io, base64, matplotlib.patches as patches
+- from matplotlib.figure import Figure
+- io, base64
 
 ### FINAL CHECKLIST:
 1. Output pure Python code. Start with `import random`.

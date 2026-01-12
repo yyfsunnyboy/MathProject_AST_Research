@@ -5,35 +5,30 @@ from flask import session
 
 def set_current(skill, data):
     """
-    安全儲存當前題目資料，支援圖形題（answer=None）
+    安全儲存當前題目資料，將所有資料整合到一個字典中
     """
-    session['current_skill'] = skill
-    session['current_question'] = data["question_text"]
+    # 建立副本以確保不影響原始資料
+    saved_data = data.copy()
     
-    # 安全取值：圖形題沒有 answer，用 None
-    session['current_answer'] = data.get("answer")
+    # 確保寫入 skill_id
+    saved_data['skill'] = skill
+    
+    # 兼容性處理：舊版代碼可能預期 'question' 鍵
+    if 'question_text' in saved_data:
+        saved_data['question'] = saved_data['question_text']
+        
+    # 兼容性處理：舊版代碼可能預期 'inequality' 鍵
+    if 'inequality_string' in saved_data:
+        saved_data['inequality'] = saved_data['inequality_string']
 
-    # 新增：儲存前置技能資訊
-    session['current_prereq_skills'] = data.get('prereq_skills', [])
-    
-    # 安全取 inequality_string
-    session['current_inequality'] = data.get("inequality_string", "")
-    
-    # 額外儲存 correct_answer（供 check_answer 判斷題型）
-    session['current_correct_answer'] = data.get("correct_answer", "text")
+    # 將整個字典存入 Session (注意：routes.py 已經先過濾掉圖片了)
+    session['current_data'] = saved_data
 
 def get_current():
     """
-    安全取得當前題目資料
+    安全取得當前題目資料，直接回傳整合的字典
     """
-    return {
-        "skill": session.get('current_skill'),
-        "question": session.get('current_question'),
-        "answer": session.get('current_answer'),
-        "prereq_skills": session.get('current_prereq_skills', []), # 新增：讀取前置技能
-        "inequality": session.get('current_inequality'),
-        "correct_answer": session.get('current_correct_answer', "text")
-    }
+    return session.get('current_data', {})
 
 def clear():
     """
