@@ -46,7 +46,8 @@ PROTECTED_FILES = {
 
 def get_user_selection(options, prompt_text):
     if not options: return None
-    options = sorted([o for o in options if o is not None])
+    # [Fix] 移除 sorted()，保留外部傳入的正確順序 (display_order)
+    options = [o for o in options if o is not None]
     
     print(f"\n{prompt_text}")
     print("   [0] ALL (全部/跳過)")
@@ -77,6 +78,42 @@ def reset_skill_prompts(skill_ids):
         tqdm.write(f"⚠️ 清空舊規格失敗: {e}")
         db.session.rollback()
 
+def auto_patch_missing_functions(code_content, skill_id):
+    """
+    [V9.8.3 防呆補丁] 自動檢查並修復缺失的關鍵函式
+    """
+    # 1. 萬能轉接頭：如果 AI 寫了無參數的 generate()，強制改為支援參數
+    if "def generate():" in code_content or "def generate() " in code_content:
+        # 簡單字串替換，解決最常見的錯誤
+        code_content = code_content.replace("def generate():", "def generate(level=1, **kwargs):")
+        code_content = code_content.replace("def generate() ", "def generate(level=1, **kwargs) ")
+    
+    patches = []
+    
+    # 2. 檢查 generate 進入點 (若完全沒有 generate)
+    if "def generate" not in code_content:
+        # 尋找是否有類似 generate_number_line 這樣的變體
+        import re
+        alt_gen = re.findall(r'def (generate_[a-zA-Z0-9_]+)\(', code_content)
+        if alt_gen:
+            patches.append(f"\n# [Auto-Fix] Alias {alt_gen[0]} to generate")
+            patches.append(f"generate = {alt_gen[0]}")
+        else:
+            # 如果真的什麼都沒寫
+            patches.append("\n# [Auto-Fix] Emergency Fallback Generate")
+            patches.append("def generate(level=1, **kwargs): return {'question_text': '題目生成失敗，請重新整理', 'correct_answer': 'N/A'}")
+
+    # 3. 檢查 check 函式
+    if "def check" not in code_content:
+        patches.append("\n# [Auto-Fix] Emergency Fallback Check")
+        patches.append("def check(u, c): return {'correct': False, 'result': '評分系統異常'}")
+
+    if patches:
+        tqdm.write(f"⚠️  {skill_id}: 偵測到函式缺失或簽章錯誤，已自動注入補丁代碼。")
+        return code_content + "\n" + "\n".join(patches)
+    
+    return code_content
+
 def run_expert_pipeline(skill_ids, arch_model, current_model):
     """
     執行完整的專家分工流程 (Phase 1 + Phase 2)
@@ -90,14 +127,16 @@ def run_expert_pipeline(skill_ids, arch_model, current_model):
     reset_skill_prompts(skill_ids)
 
     # Step 1: Architect
-    # --- Smart Tag Detection (Replicated logic for consistency) ---
+    # --- Smart Tag Detection ---
     c_model = current_model.lower()
-    target_tag = 'local_14b' # Default
+    target_tag = 'local_14b' # 預設標籤
     
-    if any(x in c_model for x in ['gemini', 'gpt', 'claude']): target_tag = 'cloud_pro'
-    elif '70b' in c_model or '32b' in c_model or '14b' in c_model: target_tag = 'local_14b'
-    elif 'deepseek' in c_model and not any(x in c_model for x in ['1.5b', '7b', '8b']): target_tag = 'local_14b'
-    elif 'phi' in c_model or '7b' in c_model or '8b' in c_model: target_tag = 'edge_7b'
+    if any(x in c_model for x in ['gemini', 'gpt', 'claude']): 
+        target_tag = 'cloud_pro' # 雲端強大模型使用此標籤
+    elif '70b' in c_model or '32b' in c_model or '14b' in c_model: 
+        target_tag = 'local_14b'
+    elif 'phi' in c_model or '7b' in c_model or '8b' in c_model: 
+        target_tag = 'edge_7b'
     
     print("\n" + "="*60)
     print(f"🧠 [Phase 1] V9 Architect Analysis (Model: {arch_model})")
@@ -112,6 +151,7 @@ def run_expert_pipeline(skill_ids, arch_model, current_model):
         
         # [V9.0 Upgrade] Use generate_v9_spec with target_tag strategy
         try:
+            # [Fix] 確保 model_tag 傳入 target_tag (如 'cloud_pro')，architect_model 傳入實際模型名稱
             result = generate_v9_spec(skill_id, model_tag=target_tag, architect_model=arch_model)
             success = result.get('success', False)
         except Exception as e:
@@ -148,6 +188,26 @@ def run_expert_pipeline(skill_ids, arch_model, current_model):
         if is_ok:
             success_count += 1
             tqdm.write(f"   ✅ {skill_id}: Success")
+            
+            # [V9.8.2] Post-Validation Patching
+            # 因為 auto_generate_skill_code 已經寫入檔案，我們必須讀出來檢查並修補
+            try:
+                # 假設 SKILLS_DIR 與 app.py 同層級的 skills 資料夾
+                # 這裡使用 project_root (全域變數) 組合路徑
+                skill_path = os.path.join(project_root, 'skills', f"{skill_id}.py")
+                if os.path.exists(skill_path):
+                    with open(skill_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    patched_content = auto_patch_missing_functions(content, skill_id)
+                    
+                    if patched_content != content:
+                        with open(skill_path, 'w', encoding='utf-8') as f:
+                            f.write(patched_content)
+                        tqdm.write(f"   🔧 {skill_id}: Patched successfully.")
+            except Exception as e:
+                 tqdm.write(f"   ❌ {skill_id} Patching Error: {e}")
+
         else:
             fail_count += 1
             tqdm.write(f"   ❌ {skill_id}: Failed ({msg})")

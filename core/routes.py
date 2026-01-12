@@ -30,7 +30,7 @@ from core.exam_analyzer import analyze_exam_image, save_analysis_result, get_fla
 from core.data_importer import import_excel_to_db
 from . import textbook_processor
 from werkzeug.utils import secure_filename
-from sqlalchemy import distinct
+from sqlalchemy import distinct, text
 from sqlalchemy.exc import OperationalError
 import time
 import uuid
@@ -1453,23 +1453,46 @@ def db_maintenance():
             if action == 'export_db':
                 # 匯出整個資料庫為 Excel
                 output = io.BytesIO()
+                # [Optimization] 使用更穩定的引擎
                 writer = pd.ExcelWriter(output, engine='xlsxwriter')
                 
                 inspector = db.inspect(db.engine)
                 all_tables = inspector.get_table_names()
                 
-                for table in all_tables:
+                for table_name in all_tables:
                     try:
-                        df = pd.read_sql_table(table, db.engine)
-                        df.to_excel(writer, sheet_name=table[:31], index=False) # Sheet name limit 31 chars
+                        # 1. 嘗試讀取原始資料
+                        df = pd.read_sql_table(table_name, db.engine)
+                        
+                        # 2. 強制安全性處理：針對每一欄
+                        for col in df.columns:
+                            # 如果這一欄看起來應該是文字，或導致匯出出錯，我們強制將其轉為字串
+                            try:
+                                # 先轉為字串，避免 int() 轉換失敗
+                                df[col] = df[col].astype(str)
+                                
+                                # 移除 Excel 不支援的控制字元
+                                df[col] = df[col].apply(lambda x: re.sub(r'[\x00-\x1f\x7f-\x9f]', '', x) if x != 'None' else "")
+                                
+                                # 針對長文本進行 200 字截斷，保護 Excel 儲存格
+                                if any(key in col.lower() for key in ['prompt', 'template', 'log', 'plan']):
+                                    df[col] = df[col].apply(lambda x: x[:200] + "..." if len(x) > 200 else x)
+                            except:
+                                continue # 如果某一欄真的壞了，跳過該欄處理
+                        
+                        # 3. 寫入 Excel
+                        df.to_excel(writer, sheet_name=table_name[:31], index=False)
+                        current_app.logger.info(f"成功匯出表格（已強制轉型）: {table_name}")
+                        
                     except Exception as e:
-                        current_app.logger.error(f"Error exporting table {table}: {e}")
+                        # 最終防線：如果連表格都讀不出來
+                        current_app.logger.error(f"匯出 {table_name} 失敗: {str(e)}")
+                        pd.DataFrame({"Fatal_Error": [str(e)]}).to_excel(writer, sheet_name=f"ERR_{table_name[:20]}", index=False)
                 
                 writer.close()
                 output.seek(0)
                 
-                filename = f"kumon_math_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-
+                filename = f"kumon_math_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
                 return send_file(
                     output,
                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1562,41 +1585,39 @@ def db_maintenance():
 
             elif action == 'clear_all_data':
                 # 清空所有資料（保留 admin 帳號）
-                # 1. 強制釋放舊連線，避免因先前操作佔用而導致鎖定
                 db.session.remove()
-
-                try:
-                    meta = db.metadata
-
-                    # 2. 在一個事務中處理所有表格
-                    for table in reversed(meta.sorted_tables):
-                        table_name = table.name
-
-                        # 特殊處理 users 表：保留 admin 帳號
+                
+                meta = db.metadata
+                success_count = 0
+                skipped_count = 0
+                
+                # 遍歷所有表格
+                for table in reversed(meta.sorted_tables):
+                    table_name = table.name
+                    try:
+                        # 特殊處理 users 表
                         if table_name == 'users':
-                            # 改用 ORM 語法並停用 session 同步以提升效率
                             db.session.query(User).filter(User.username != 'admin').delete(synchronize_session=False)
                             current_app.logger.info("Cleared non-admin users from 'users' table.")
                         else:
-                            # 其他表格：完全清空
-                            db.session.execute(table.delete())
+                            # [Safe Clear] 使用 text() 執行 SQL，並捕捉錯誤
+                            db.session.execute(text(f"DELETE FROM {table_name}"))
                             current_app.logger.info(f"Cleared all data from '{table_name}' table.")
+                        
+                        # [關鍵] 每個表刪除後立即提交，隔離錯誤
+                        db.session.commit()
+                        success_count += 1
+                        
+                    except Exception as e:
+                        db.session.rollback()
+                        # 優雅地處理表不存在的情況
+                        if "no such table" in str(e):
+                            skipped_count += 1
+                            current_app.logger.warning(f"Skipped {table_name} (Table not found)")
+                        else:
+                            current_app.logger.error(f"Failed to clear {table_name}: {e}")
 
-                    # 3. 所有操作完成後，一次性提交
-                    db.session.commit()
-                    flash('所有資料已清空！（已保留 admin 管理員帳號）', 'success')
-
-                except OperationalError as e:
-                    db.session.rollback()
-                    if "locked" in str(e).lower():
-                        flash('資料庫忙碌中 (Locked)，請稍後再試。', 'danger')
-                    else:
-                        flash(f'資料庫操作錯誤: {str(e)}', 'danger')
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f'清空失敗: {str(e)}', 'danger')
-                    current_app.logger.error(f"Clear all data error: {e}\n{traceback.format_exc()}")
-                return redirect(url_for('core.db_maintenance'))
+                flash(f'全站資料清空完成！(成功: {success_count}, 跳過: {skipped_count})，Admin 帳號已保留。', 'success')
 
             # === 批次匯入操作 ===
             elif action == 'batch_import_folder':
@@ -1697,9 +1718,17 @@ def db_maintenance():
                 return redirect(url_for('core.db_maintenance'))
 
             if action == 'clear_data':
-                db.session.execute(table.delete())
-                db.session.commit()
-                flash(f'表格 "{table_name}" 的所有資料已成功清除。', 'success')
+                try:
+                    # [Safe Clear] 使用安全寫法
+                    db.session.execute(text(f"DELETE FROM {table_name}"))
+                    db.session.commit()
+                    flash(f'表格 "{table_name}" 的資料已成功清除。', 'success')
+                except Exception as e:
+                    db.session.rollback()
+                    if "no such table" in str(e):
+                        flash(f'清除失敗：表格 "{table_name}" 尚未建立。', 'warning')
+                    else:
+                        flash(f'清除失敗: {str(e)}', 'danger')
             elif action == 'drop_table':
                 table.drop(db.engine)
                 flash(f'表格 "{table_name}" 已成功刪除。', 'success')

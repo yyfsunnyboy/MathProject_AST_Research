@@ -26,6 +26,8 @@ import os
 import logging
 import traceback
 from models import db
+from datetime import datetime, timedelta
+import numpy as np
 
 # 設定 Logger
 logger = logging.getLogger(__name__)
@@ -69,6 +71,58 @@ def get_model_mapping():
         logger.error(f"Error generating model mapping: {e}")
         
     return mapping
+
+def clean_excel_row(row_dict):
+    """
+    [V9.8.1 Fix] 強力清洗 Excel 匯入資料：
+    1. 修正日期欄位變成 True/False 或數字的問題。
+    2. 將 NaN/NaT 轉為 None。
+    """
+    cleaned = {}
+    for key, value in row_dict.items():
+        # 1. 處理空值
+        if pd.isna(value) or value == "":
+            cleaned[key] = None
+            continue
+
+        # 2. 針對日期欄位 (timestamp, created_at, updated_at) 的特殊處理
+        if key in ['timestamp', 'created_at', 'updated_at']:
+            # [Fix] 如果原本是 None，保持 None
+            if value is None:
+                cleaned[key] = None
+                continue
+            
+            # [Fix] 攔截布林值 (兇手就是它！created_at: True)
+            if isinstance(value, bool):
+                print(f"⚠️ [Data Fix] 欄位 {key} 異常 (值為 {value})，已自動修正為當前時間。")
+                cleaned[key] = datetime.now()
+                continue
+                
+            try:
+                # 情況 A: Excel 序列數字 (float/int)，例如 46034.08
+                if isinstance(value, (float, int)):
+                    base_date = datetime(1899, 12, 30)
+                    cleaned[key] = base_date + timedelta(days=value)
+                # 情況 B: 已經是 datetime 物件
+                elif isinstance(value, datetime):
+                    cleaned[key] = value
+                # 情況 C: 字串格式
+                elif isinstance(value, str):
+                    try:
+                        cleaned[key] = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+                    except:
+                        cleaned[key] = datetime.strptime(value, '%Y-%m-%d')
+                else:
+                    # 其他怪異格式，給當下時間或 None
+                    cleaned[key] = datetime.now()
+            except Exception as e:
+                print(f"⚠️ 日期轉換失敗 [{key}]: {value} -> {e}")
+                cleaned[key] = None 
+        else:
+            # 非日期欄位
+            cleaned[key] = value
+            
+    return cleaned
 
 def import_excel_to_db(filepath):
     """
@@ -144,6 +198,9 @@ def import_excel_to_db(filepath):
                     if not data:
                         skipped_count += 1
                         continue
+
+                    # 🔥 [關鍵修改] 呼叫清洗函式，把 Excel 格式轉為 Python 格式
+                    data = clean_excel_row(data)
 
                     # 使用 merge (UPSERT): 有 Primary Key 就更新，沒有就新增
                     instance = model(**data)

@@ -1,315 +1,262 @@
-# ==============================================================================
-# ID: jh_數學1上_NumberLine
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
-# Duration: 44.33s | RAG: 4 examples
-# Created At: 2026-01-08 22:59:04
-# Fix Status: [Clean Pass]
-# ==============================================================================
-
-
 import random
 import math
+import io
+import base64
+import re
+import json
+import matplotlib.pyplot as plt
 from fractions import Fraction
 
+# ==========================================
+# 核心工具：格式化與繪圖
+# ==========================================
+
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    將數字轉換為 LaTeX 格式
+    """
     if isinstance(num, int): return str(num)
-    if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
-    if isinstance(num, Fraction):
-        if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
-    return str(num)
+    val = Fraction(num).limit_denominator(100)
+    if val.denominator == 1: return str(val.numerator)
+    
+    sign = "-" if val < 0 else ""
+    abs_val = abs(val)
+    whole = abs_val.numerator // abs_val.denominator
+    rem_num = abs_val.numerator % abs_val.denominator
+    
+    if whole == 0:
+        return r"{}\frac{{{}}}{{{}}}".format(sign, rem_num, abs_val.denominator)
+    return r"{}{}\frac{{{}}}{{{}}}".format(sign, whole, rem_num, abs_val.denominator)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def draw_number_line(draw_points, arrows=[]):
+    """
+    繪製數線圖形
+    """
+    plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial']
+    plt.rcParams['axes.unicode_minus'] = False 
 
-def draw_number_line(points_map):
-    """[Advanced] Generate aligned ASCII number line with HTML container."""
-    if not points_map: return ""
-    values = []
-    for v in points_map.values():
-        if isinstance(v, (int, float)): values.append(float(v))
-        elif isinstance(v, Fraction): values.append(float(v))
-        else: values.append(0.0)
-    if not values: values = [0]
-    min_val = math.floor(min(values)) - 1
-    max_val = math.ceil(max(values)) + 1
-    if max_val - min_val > 15:
+    fig, ax = plt.subplots(figsize=(10, 2.5))
+    
+    all_vals = [p[1] for p in draw_points] + [0]
+    for start, end, _ in arrows:
+        all_vals.extend([start, end])
+        
+    min_val = math.floor(min(all_vals)) - 1
+    max_val = math.ceil(max(all_vals)) + 1
+    
+    if max_val - min_val < 8:
         mid = (max_val + min_val) / 2
-        min_val = int(mid - 7); max_val = int(mid + 8)
-    unit_width = 6
-    line_str = ""; tick_str = ""
-    range_len = max_val - min_val + 1
-    label_slots = [[] for _ in range(range_len)]
-    for name, val in points_map.items():
-        if isinstance(val, Fraction): val = float(val)
-        idx = int(round(val - min_val))
-        if 0 <= idx < range_len: label_slots[idx].append(name)
-    for i in range(range_len):
-        val = min_val + i
-        line_str += "+" + "-" * (unit_width - 1)
-        tick_str += f"{str(val):<{unit_width}}"
-    final_label_str = ""
-    for labels in label_slots:
-        final_label_str += f"{labels[0]:<{unit_width}}" if labels else " " * unit_width
-    result = (
-        f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
-        f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
-    )
-    return result
-
-
-
-
-# Helper functions for Type 3 and Type 4 problem generation
-# These are defined locally within their respective generate functions as per spec,
-# but for clarity and potential reusability if moved, they are outlined here.
-
-def generate_type_1_problem():
-    """
-    Generates a Type 1 problem: Plotting two integer points (one positive, one negative).
-    """
-    point_a_val = random.randint(1, 10)
-    point_b_val = random.randint(-10, -1)
-    
-    question_text = f"畫一條數線，並標記 A ( {point_a_val} )、B ( {point_b_val} ) 的位置。"
-    correct_answer = f"圖示標示 A 點在 {point_a_val}，B 點在 {point_b_val}"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer, # As per gold standard, provide 'answer' key too
-        "correct_answer": correct_answer
-    }
-
-def generate_type_2_problem():
-    """
-    Generates a Type 2 problem: Plotting two integer points and identifying three integer points.
-    """
-    used_values = set()
-    
-    # Generate plot_c_val
-    plot_c_val = random.randint(1, 10)
-    used_values.add(plot_c_val)
-    
-    # Generate plot_d_val
-    retry_count = 0
-    while True:
-        plot_d_val = random.randint(-10, -1)
-        if plot_d_val not in used_values:
-            used_values.add(plot_d_val)
-            break
-        retry_count += 1
-        if retry_count > 100:
-            raise RuntimeError("Failed to generate unique plot_d_val for Type 2")
-    
-    # Generate id_e_val, id_f_val, id_g_val
-    id_points = []
-    for _ in range(3):
-        retry_count = 0
-        while True:
-            val = random.randint(-10, 10)
-            if val != 0 and val not in used_values: # Avoid 0 and already used values
-                id_points.append(val)
-                used_values.add(val)
-                break
-            retry_count += 1
-            if retry_count > 100:
-                raise RuntimeError(f"Failed to generate unique id_point {_} for Type 2")
-    
-    id_e_val, id_f_val, id_g_val = id_points
-    
-    question_text = (
-        f"1. 畫一條數線，並標記 C ( {plot_c_val} )、D ( {plot_d_val} ) 的位置。\n"
-        f"2. 寫出數線上 E({id_e_val})、F({id_f_val})、G({id_g_val}) 三點的坐標。"
-    )
-    correct_answer = (
-        f"1. 圖示標示 C 在 {plot_c_val}，D 在 {plot_d_val}\n"
-        f"2. E({id_e_val}), F({id_f_val}), G({id_g_val})"
-    )
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_3_problem():
-    """
-    Generates a Type 3 problem: Plotting one decimal point and one mixed fraction point.
-    """
-    def format_mixed_fraction_latex(sign, whole, num, den):
-        if sign == -1:
-            return f"$-{whole} \\frac{{{num}}}{{{den}}}$"
-        return f"${whole} \\frac{{{num}}}{{{den}}}$"
-
-    def format_mixed_fraction_answer(sign, whole, num, den):
-        if sign == -1:
-            return f"-{whole} 又 {num}/{den}"
-        return f"{whole} 又 {num}/{den}"
+        min_val = int(mid - 4)
+        max_val = int(mid + 4)
         
-    # Generate dec_val
-    retry_count = 0
-    dec_val = 0.0 # Initialize to ensure loop runs
-    while abs(dec_val) < 0.001 or dec_val == int(dec_val): # Avoid 0 and integers
-        int_part = random.randint(-5, 5)
-        dec_part = random.randint(1, 9) / 10
-        # Randomly choose positive or negative for the decimal part
-        dec_val = int_part + dec_part if random.choice([True, False]) else int_part - dec_part
-        
-        retry_count += 1
-        if retry_count > 100:
-            raise RuntimeError("Failed to generate unique dec_val for Type 3")
-
-    # Generate mixed fraction components
-    mixed_val_numerical = 0.0 # Initialize
-    retry_count = 0
-    # Ensure distinctness from dec_val and not zero itself
-    while abs(mixed_val_numerical - dec_val) < 0.001 or abs(mixed_val_numerical) < 0.001: 
-        mixed_sign = random.choice([1, -1])
-        mixed_whole = random.randint(1, 4)
-        mixed_den = random.randint(2, 5)
-        
-        inner_retry = 0
-        mixed_num = 0 # Initialize
-        while True:
-            mixed_num = random.randint(1, mixed_den - 1) # num < den
-            if mixed_num > 0: # Ensure numerator is positive
-                break
-            inner_retry += 1
-            if inner_retry > 100:
-                raise RuntimeError("Failed to generate valid mixed_num for Type 3")
-
-        mixed_val_numerical = mixed_sign * (mixed_whole + mixed_num / mixed_den)
-        
-        retry_count += 1
-        if retry_count > 100:
-            raise RuntimeError("Failed to generate distinct mixed_fraction_val for Type 3")
-
-    mixed_val_latex = format_mixed_fraction_latex(mixed_sign, mixed_whole, mixed_num, mixed_den)
-    mixed_val_answer = format_mixed_fraction_answer(mixed_sign, mixed_whole, mixed_num, mixed_den)
+    ax.set_xlim(min_val - 0.5, max_val + 0.5)
+    ax.set_ylim(-0.5, 0.8)
     
-    question_text = f"畫一條數線，並標記 A ( ${dec_val}$ )、B ( {mixed_val_latex} ) 的位置。"
-    correct_answer = f"圖示標示 A 點在 {dec_val}，B 點在 {mixed_val_answer}"
+    ax.axhline(0, color='black', linewidth=1.5)
+    ax.axis('off')
     
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+    ticks = range(min_val, max_val + 1)
+    for t in ticks:
+        ax.plot([t, t], [-0.05, 0.05], 'k-', lw=1)
+        ax.text(t, -0.2, str(t), ha='center', va='top', fontsize=10)
+        
+    for label, val, color in draw_points:
+        ax.plot(val, 0, 'o', color=color, markersize=8, zorder=5)
+        y_pos = 0.25
+        ax.text(val, y_pos, label, ha='center', va='bottom', color=color, fontsize=12, fontweight='bold')
 
-def generate_type_4_problem():
-    """
-    Generates a Type 4 problem: Plotting three points (mixed fraction, mixed fraction/decimal, decimal)
-    and identifying two points (mixed fraction, mixed fraction/decimal).
-    """
-    def _generate_mixed_fraction_internal():
-        sign = random.choice([1, -1])
-        whole = random.randint(1, 4)
-        den = random.randint(2, 5)
-        num = random.randint(1, den - 1)
-        numerical_val = sign * (whole + num / den)
-        latex = f"$-{whole} \\frac{{{num}}}{{{den}}}$" if sign == -1 else f"${whole} \\frac{{{num}}}{{{den}}}$"
-        answer_str = f"{sign * whole} 又 {num}/{den}"
-        return numerical_val, latex, answer_str
+    for start, end, color in arrows:
+        ax.annotate('', xy=(end, 0.15), xytext=(start, 0.15),
+                    arrowprops=dict(arrowstyle='->', color=color, lw=2))
 
-    def _generate_decimal_internal():
-        sign = random.choice([1, -1])
-        int_part = random.randint(0, 4) # Allow 0 for decimal like 0.3
-        dec_part = random.randint(1, 9) / 10
-        numerical_val = sign * (int_part + dec_part)
-        latex = f"${numerical_val}$"
-        answer_str = f"{numerical_val}"
-        return numerical_val, latex, answer_str
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
 
-    used_values_numerical = set()
+# ==========================================
+# 主程式：題目生成
+# ==========================================
+
+def generate(level=1, **kwargs):
+    prob_type = random.choice(['identify', 'distance', 'movement'])
     
-    def get_unique_value(generator_func, max_attempts=100):
-        for _ in range(max_attempts):
-            num_val, latex_str, ans_str = generator_func()
-            if abs(num_val) < 0.001: continue # Avoid generating 0
-            is_unique = True
-            for existing_val in used_values_numerical:
-                if abs(num_val - existing_val) < 0.001: # Check for approximate equality
-                    is_unique = False
+    denom_choices = [2, 3, 4] if str(level) == '1' else [2, 3, 4, 5, 6, 8]
+    range_limit = 5 if str(level) == '1' else 8
+    
+    img_b64 = ""
+    state = {}
+    
+    if prob_type == 'identify':
+        count = random.randint(2, 3)
+        labels = random.sample(['A', 'B', 'C', 'D', 'E'], count)
+        points_data = []
+        
+        used_vals = set()
+        for label in labels:
+            for _ in range(10):
+                den = random.choice(denom_choices)
+                val = Fraction(random.randint(-range_limit*den, range_limit*den), den)
+                if val not in used_vals:
+                    used_vals.add(val)
+                    points_data.append((label, val))
                     break
-            if is_unique:
-                used_values_numerical.add(num_val)
-                return num_val, latex_str, ans_str
-        raise RuntimeError(f"Failed to generate unique value after {max_attempts} attempts for Type 4.")
+        
+        points_data.sort(key=lambda x: x[1])
+        label_str = ", ".join([p[0] for p in points_data])
+        question_text = f"請觀察數線，寫出 {label_str} 各點的座標。<br>(答案格式範例：A(2), B(-1 1/2))"
+        
+        ans_parts = [f"{l}({to_latex(v)})" for l, v in points_data]
+        correct_answer = ", ".join(ans_parts)
+        
+        draw_points = [(l, float(v), 'blue') for l, v in points_data]
+        img_b64 = draw_number_line(draw_points)
+        
+        state = {
+            "type": "identify",
+            "targets": {l: float(v) for l, v in points_data},
+            "display_ans": correct_answer
+        }
 
-    # Generate plot points
-    plot_c_num, plot_c_latex, plot_c_ans = get_unique_value(_generate_mixed_fraction_internal)
-    
-    plot_d_generator = random.choice([_generate_mixed_fraction_internal, _generate_decimal_internal])
-    plot_d_num, plot_d_latex, plot_d_ans = get_unique_value(plot_d_generator)
+    elif prob_type == 'distance':
+        den = random.choice([1, 2])
+        v1 = Fraction(random.randint(-range_limit, range_limit), den)
+        v2 = Fraction(random.randint(-range_limit, range_limit), den)
+        while v1 == v2: v2 = Fraction(random.randint(-range_limit, range_limit), den)
+        
+        dist = abs(v1 - v2)
+        question_text = f"數線上兩點 A(${to_latex(v1)}$)、B(${to_latex(v2)}$)，求 A、B 兩點的距離。"
+        correct_answer = to_latex(dist)
+        
+        draw_points = [('A', float(v1), 'black'), ('B', float(v2), 'black')]
+        img_b64 = draw_number_line(draw_points)
+        
+        state = {
+            "type": "value",
+            "ans": float(dist),
+            "display_ans": str(dist)
+        }
 
-    plot_e_num, plot_e_latex, plot_e_ans = get_unique_value(_generate_decimal_internal)
+    elif prob_type == 'movement':
+        start_val = random.randint(-5, 2)
+        move = random.randint(2, 6)
+        direction = random.choice(['right', 'left'])
+        
+        if direction == 'right':
+            end_val = start_val + move
+            dir_text = "向右"
+            color = 'red'
+        else:
+            end_val = start_val - move
+            dir_text = "向左"
+            color = 'blue'
+            
+        question_text = f"數線上有一點 P，座標為 {start_val}。若將 P 點{dir_text}移動 {move} 個單位長到達 Q 點，則 Q 點座標為何？"
+        correct_answer = str(end_val)
+        
+        draw_points = [('P', start_val, 'black'), ('Q', end_val, color)]
+        arrows = [(start_val, end_val, color)]
+        img_b64 = draw_number_line(draw_points, arrows)
+        
+        state = {
+            "type": "value",
+            "ans": float(end_val),
+            "display_ans": str(end_val)
+        }
 
-    # Generate identify points
-    id_f_num, id_f_latex, id_f_ans = get_unique_value(_generate_mixed_fraction_internal)
-
-    id_g_generator = random.choice([_generate_mixed_fraction_internal, _generate_decimal_internal])
-    id_g_num, id_g_latex, id_g_ans = get_unique_value(id_g_generator)
-    
-    question_text = (
-        f"1. 在數線上分別標記 C ( {plot_c_latex} )、D ( {plot_d_latex} ) 與 E ( {plot_e_latex} ) 的位置。\n"
-        f"2. 寫出數線上 F ( {id_f_latex} )、G ( {id_g_latex} ) 兩點的坐標。"
-    )
-    correct_answer = (
-        f"1. 圖示標示 C({plot_c_ans}), D({plot_d_ans}), E({plot_e_ans})\n"
-        f"2. F({id_f_ans}), G({id_g_ans})"
-    )
     return {
         "question_text": question_text,
+        "correct_answer": correct_answer,
         "answer": correct_answer,
-        "correct_answer": correct_answer
+        "image_base64": img_b64,
+        "state": state
     }
 
-def generate(level=1):
-    """
-    Main dispatcher for generating NumberLine problems based on the Architect's Spec.
-    Randomly selects and generates a problem from one of the defined types (Type 1-4).
-    """
-    problem_generators = [
-        generate_type_1_problem,
-        generate_type_2_problem,
-        generate_type_3_problem,
-        generate_type_4_problem,
-    ]
-    
-    # Select a generator randomly as per the Architect's Spec.
-    selected_generator = random.choice(problem_generators)
-    
-    return selected_generator()
+# ==========================================
+# 驗證函數 (Ver 10.3 終極防呆版)
+# ==========================================
 
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    (Mimicking the gold standard check function structure)
-    """
-    user_answer = user_answer.strip().upper()
-    correct_answer = correct_answer.strip().upper()
-    
-    is_correct = (user_answer == correct_answer)
-    
-    if not is_correct:
+def check(user_answer, state):
+    # [Robust Check]
+    # 1. 如果 state 是字串，嘗試解碼
+    if isinstance(state, str):
         try:
-            # For numerical answers, allow float comparison
-            # Note: This part might not be ideal for the multi-line descriptive answers
-            # generated by the new problem types, which require exact string matching.
-            if float(user_answer) == float(correct_answer):
-                is_correct = True
-        except ValueError:
-            pass
+            state = json.loads(state)
+        except:
+            pass # 解碼失敗先不管，往下檢查是否為 dict
+    
+    # 2. [關鍵修正] 檢查 state 是否真的為字典
+    # 這行能擋下 'int', 'NoneType', 'list' 等所有怪異輸入
+    if not isinstance(state, dict):
+        return {"correct": False, "result": "系統狀態異常 (State Lost)，請重新整理頁面試試。"}
 
-    # [教學示範] 回傳結果中也可以包含 LaTeX
-    # Note: For descriptive answers from new problem types, wrapping in $ will likely break LaTeX.
-    # Following the gold standard structure exactly for the check function.
-    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+    # 3. 檢查使用者輸入
+    if user_answer is None:
+        return {"correct": False, "result": "請輸入答案"}
+    
+    u_str = str(user_answer).strip()
+    if not u_str:
+        return {"correct": False, "result": "請輸入答案"}
+
+    try:
+        if state.get('type') == 'identify': # 使用 .get 防止 key 不存在
+            u_clean = u_str.replace(" ", "").replace("，", ",").replace("（", "(").replace("）", ")")
+            targets = state.get('targets', {})
+            
+            for label, true_val in targets.items():
+                pattern = f"{label}[=(]([-0-9./ ]+)[)]?"
+                match = re.search(pattern, u_clean, re.IGNORECASE)
+                
+                if not match:
+                    return {"correct": False, "result": f"找不到點 {label} 的答案"}
+                
+                user_val_str = match.group(1)
+                try:
+                    if "/" in user_val_str:
+                        parts = user_val_str.split()
+                        if len(parts) == 2:
+                            val = float(Fraction(parts[1]))
+                            val = float(parts[0]) + val if float(parts[0]) > 0 else float(parts[0]) - val
+                        else:
+                            val = float(Fraction(user_val_str))
+                    else:
+                        val = float(user_val_str)
+                        
+                    if abs(val - true_val) > 0.01:
+                        return {"correct": False, "result": f"點 {label} 的座標不正確"}
+                except:
+                    return {"correct": False, "result": f"無法辨識點 {label} 的數值格式"}
+
+            return {"correct": True, "result": "完全正確！"}
+
+        elif state.get('type') == 'value':
+            nums = re.findall(r"[-+]?\d*\.?\d+(?:[ ]\d+/\d+)?(?:/\d+)?", u_str)
+            if not nums:
+                return {"correct": False, "result": "無法辨識數字"}
+            
+            ans_val = state.get('ans', 0)
+            correct_display = state.get('display_ans', str(ans_val))
+
+            for n_str in nums:
+                try:
+                    if "/" in n_str:
+                        parts = n_str.split()
+                        if len(parts) == 2:
+                             val = float(Fraction(parts[1]))
+                             val = float(parts[0]) + val if float(parts[0]) > 0 else float(parts[0]) - val
+                        else:
+                             val = float(Fraction(n_str))
+                    else:
+                        val = float(n_str)
+                        
+                    if abs(val - ans_val) < 0.01:
+                        return {"correct": True, "result": "答對了！"}
+                except:
+                    pass
+            
+            return {"correct": False, "result": f"答案錯誤。正確答案是 {correct_display}"}
+
+    except Exception as e:
+        return {"correct": False, "result": f"批改錯誤：{str(e)}"}
+
+    return {"correct": False, "result": f"答案錯誤。"}

@@ -89,6 +89,17 @@ Return a valid JSON object with:
 
     try:
         client = get_ai_client(role='architect')
+        
+        # [Fix] 自動更新 architect_model 為實際使用的 AI 模型名稱
+        # 如果是 cloud_pro，通常對應到 Config 裡的 GEMINI_MODEL_NAME
+        # 這裡做一個簡單的對應，或是直接從 Config 讀取
+        from config import Config
+        from config import Config
+        # [Fix] 強行覆蓋預設值 (User Request)
+        if model_tag == 'cloud_pro':
+            architect_model = Config.GEMINI_MODEL_NAME
+        elif model_tag == 'local_14b':
+            architect_model = Config.LOCAL_MODEL_NAME
         try:
             response = client.generate_content(
                 system_instruction + "\n" + user_prompt,

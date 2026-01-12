@@ -183,32 +183,40 @@ def draw_number_line(points_map):
 # --- 4. Standard Answer Checker (Auto-Injected) ---
 def check(user_answer, correct_answer):
     """
-    Standard Answer Checker
-    Handles float tolerance and string normalization (LaTeX spaces).
+    Standard Answer Checker [V9.8.1 Enhanced]
+    1. Handles float tolerance.
+    2. Normalizes strings (removes spaces, supports Chinese commas).
+    3. Returns user-friendly Chinese error messages.
     """
-    if user_answer is None: return {"correct": False, "result": "No answer provided."}
+    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
     
-    # 1. Normalize strings (remove spaces, LaTeX commas, etc.)
+    # 1. Normalize strings (字串正規化)
     def normalize(s):
-        return str(s).strip().replace(" ", "").replace("\\,", "").replace("\\;", "")
+        s = str(s).strip()
+        # 移除空格、LaTeX間距
+        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
+        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
+        s = s.replace("，", ",") 
+        return s
     
     user_norm = normalize(user_answer)
     correct_norm = normalize(correct_answer)
     
-    # 2. Exact Match Strategy
+    # 2. Exact Match Strategy (精確比對)
     if user_norm == correct_norm:
         return {"correct": True, "result": "Correct!"}
         
-    # 3. Float Match Strategy (for numerical answers)
+    # 3. Float Match Strategy (數值容錯比對)
     try:
-        # If both can be parsed as floats and are close enough
+        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
         if abs(float(user_norm) - float(correct_norm)) < 1e-6:
             return {"correct": True, "result": "Correct!"}
     except ValueError:
-        pass # If parsing to float fails, it's not a simple numerical answer.
+        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
         
-    return {"correct": False, "result": f"Incorrect. The answer is {correct_answer}."}    
-    return result
+    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
+    # 這裡回傳的 result 會直接顯示在前端 Result 區域
+    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{correct_answer}"}
 '''
 
 def inject_perfect_utils(code_str):
@@ -224,6 +232,52 @@ def inject_perfect_utils(code_str):
     clean = clean.replace("import random", "").replace("import math", "").replace("from fractions import Fraction", "").replace("from functools import reduce", "")
     
     return PERFECT_UTILS + "\n" + clean
+
+
+# [New Robust Prompt Template]
+# Use r""" (Raw String) to avoid NameError
+V9_CODE_GENERATOR_PROMPT = r"""
+You are an Elite Python Math Architect for a Junior High School Math System.
+Your goal is to generate a HIGH-QUALITY, ROBUST Python skill file.
+
+### 🎯 1. Question Diversity (CRITICAL)
+The `generate` function MUST randomly select from multiple problem types to prevent monotony:
+- **Type A**: Identify coordinates of points on a number line.
+- **Type B**: Calculate distance between two points (e.g., dist(A, B)).
+- **Type C**: Find the midpoint of a segment.
+- **Type D**: Point movement (e.g., Point P moves right by 3 units).
+- **Type E**: Opposite numbers (相反數) concept.
+
+### 🛑 2. Syntax Safety Rules (DO NOT VIOLATE)
+1. **NO F-Strings for LaTeX**:
+   - Python f-strings FAIL with nested LaTeX braces like `\frac`.
+   - **MUST USE `.format()`** for LaTeX.
+   - ❌ BAD: `f"{sign}\frac{{{num}}}{{{den}}}"` (Causes Syntax Error)
+   - ✅ GOOD: `r"{}\frac{{{}}}{{{}}}".format(sign, num, den)`
+2. **Standard Entry Point**:
+   - Define: `def generate(level=1, **kwargs):`
+   - Define: `def check(user_answer, state):`
+3. **Indentation**:
+   - Never leave `except:` blocks empty. Use `pass`.
+
+### 🎨 3. Visual & Output Requirements
+1. **Matplotlib**:
+   - Draw a clear number line.
+   - Use `plt.savefig` to `io.BytesIO`.
+   - Return base64 string in `image_base64` key.
+2. **Fraction Format**:
+   - Integers: `5`
+   - Fractions: `\frac{1}{2}`
+   - Mixed: `5\frac{1}{2}` (No space!)
+
+### ✅ 4. Robust Checking Logic
+The `check(user_answer, state)` function MUST:
+- **Handle `0` correctly**: Do NOT use `if not user_answer:`. Use `if user_answer is None or str(user_answer).strip() == "":`.
+- **Formatting**: Strip spaces and commas from user input before comparison.
+- **Feedback**: If incorrect, return the correct answer in the result message.
+
+Generate the complete Python code now.
+"""
 
 
 def infer_model_tag(model_name):
@@ -361,36 +415,67 @@ for _name, _func in list(globals().items()):
 # --- THE REGEX ARMOR (v8.7.3 - Full Math Protection) ---
 # ==============================================================================
 def fix_code_syntax(code_str, error_msg=""):
+    """
+    [V9.8 Upgrade] Returns (fixed_code, fix_count)
+    保留 v8.8 Omni-Fix 的所有邏輯，並加入修復次數統計。
+    """
     fixed_code = code_str
+    total_fixes = 0
     
-    # Step 0: Critical Escape Fixes
-    fixed_code = re.sub(r'(?<!\\)\\ ', r'\\\\ ', fixed_code)
-    fixed_code = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', fixed_code)
+    # 輔助函式：執行置換並回傳次數
+    def apply_fix(pattern, replacement, code):
+        new_code, count = re.subn(pattern, replacement, code, flags=re.MULTILINE)
+        return new_code, count
 
-    # 1. Invalid escapes common in DeepSeek outputs
-    fixed_code = re.sub(r'(?<!\\)\\e', r'\\\\e', fixed_code)
-    fixed_code = re.sub(r'(?<!\\)\\q', r'\\\\q', fixed_code)
+    # Step 0: Critical Escape Fixes (反斜線修復)
+    fixed_code, c = apply_fix(r'(?<!\\)\\ ', r'\\\\ ', fixed_code)
+    total_fixes += c
+    fixed_code, c = apply_fix(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', fixed_code)
+    total_fixes += c
 
-    # 2. f-string single brace fixes (Protect LaTeX commands inside f-strings)
-    fixed_code = re.sub(r'(f"[^"]*?\\right)\}([^"]*")', r'\1}}\2', fixed_code)
-    fixed_code = re.sub(r"(f'[^']*?\\right)\}([^']*')", r'\1}}\2', fixed_code)
+    # 1. Invalid escapes (常見錯誤)
+    fixed_code, c = apply_fix(r'(?<!\\)\\e', r'\\\\e', fixed_code)
+    total_fixes += c
+    fixed_code, c = apply_fix(r'(?<!\\)\\q', r'\\\\q', fixed_code)
+    total_fixes += c
+
+    # 2. f-string single brace fixes (保護 LaTeX 指令不被 f-string 吃掉)
+    fixed_code, c = apply_fix(r'(f"[^"]*?\\right)\}([^"]*")', r'\1}}\2', fixed_code)
+    total_fixes += c
+    fixed_code, c = apply_fix(r"(f'[^']*?\\right)\}([^']*')", r'\1}}\2', fixed_code)
+    total_fixes += c
     
     # 3. cases environment fixes (The "Smart Board" Issue)
-    fixed_code = re.sub(r'(f"[^"]*?\\begin)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
-    fixed_code = re.sub(r"(f'[^']*?\\begin)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
-    fixed_code = re.sub(r'(f"[^"]*?\\end)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
-    fixed_code = re.sub(r"(f'[^']*?\\end)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
+    # 3.1 針對 f-string 內的 cases 修復
+    fixed_code, c = apply_fix(r'(f"[^"]*?\\begin)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
+    total_fixes += c
+    fixed_code, c = apply_fix(r"(f'[^']*?\\begin)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
+    total_fixes += c
+    fixed_code, c = apply_fix(r'(f"[^"]*?\\end)\{cases\}([^"]*")', r'\1{{cases}}\2', fixed_code)
+    total_fixes += c
+    fixed_code, c = apply_fix(r"(f'[^']*?\\end)\{cases\}([^']*')", r'\1{{cases}}\2', fixed_code)
+    total_fixes += c
     
-    # Manual line-by-line check for cases without f-string context
+    # 3.2 [關鍵恢復] 手動逐行檢查 (Manual line-by-line check)
+    # 這是為了修復不在 f-string 內，但被寫成 {cases} 的情況，且避免誤傷 f-string
     lines = fixed_code.split('\n')
     new_lines = []
+    cases_manual_fixes = 0
+    
     for line in lines:
+        # 如果這一行沒有 f-string 的特徵 (f" 或 f')，才進行暴力修復
         if not re.search(r'f["\']', line): 
-            line = re.sub(r'(?<!\\begin)\{cases\}', r'\\\\begin{cases}', line)
+            new_line, c = re.subn(r'(?<!\\begin)\{cases\}', r'\\\\begin{cases}', line)
+            if c > 0:
+                cases_manual_fixes += c
+                line = new_line
         new_lines.append(line)
-    fixed_code = '\n'.join(new_lines)
+    
+    if cases_manual_fixes > 0:
+        fixed_code = '\n'.join(new_lines)
+        total_fixes += cases_manual_fixes
 
-    # 4. General LaTeX double brace enforcement for common math commands
+    # 4. General LaTeX double brace enforcement (通用數學指令保護)
     latex_patterns = [
         r'sqrt', r'frac', r'text', r'angle', r'overline', r'degree', 
         r'mathbf', r'mathrm', r'mathbb', r'mathcal', 
@@ -403,35 +488,45 @@ def fix_code_syntax(code_str, error_msg=""):
         r'%' 
     ]
     for pat in latex_patterns:
-        if pat == r'%': fixed_code = re.sub(r'\\%\{', r'\\%{{', fixed_code)
-        else: fixed_code = re.sub(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
+        if pat == r'%': 
+            fixed_code, c = apply_fix(r'\\%\{', r'\\%{{', fixed_code)
+            total_fixes += c
+        else: 
+            fixed_code, c = apply_fix(rf'\\{pat}\{{', rf'\\{pat}{{{{', fixed_code)
+            total_fixes += c
 
     # v8.7.2: Exponent Protection (指數保護)
-    fixed_code = re.sub(r'\^\{(?!\{)(.*?)\}(?!\})', r'^{{{\1}}}', fixed_code)
+    fixed_code, c = apply_fix(r'\^\{(?!\{)(.*?)\}(?!\})', r'^{{{\1}}}', fixed_code)
+    total_fixes += c
 
-    # 5. Brute force fallback for stubborn errors
+    # 5. Brute force fallback (暴力救援模式 - 僅在錯誤訊息吻合時觸發)
     if any(k in error_msg for k in ["single '}'", "single '{'", "invalid escape sequence"]):
-        fixed_code = re.sub(r'\\frac\{', r'\\frac{{', fixed_code)
-        fixed_code = re.sub(r'\}\{', r'}}{{', fixed_code)
-        fixed_code = re.sub(r'_\{(-?\w+)\}', r'_{{\1}}', fixed_code)
-        fixed_code = re.sub(r'\^\{(-?\w+)\}', r'^{{{\1}}}', fixed_code) # Aggressive exponent fix
+        fallback_fixes = 0
+        fixed_code, c = apply_fix(r'\\frac\{', r'\\frac{{', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'\}\{', r'}}{{', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'_\{(-?\w+)\}', r'_{{\1}}', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'\^\{(-?\w+)\}', r'^{{{\1}}}', fixed_code); fallback_fixes += c # Aggressive exponent fix
         
-        # [v8.7.3 Fix] 針對高中數學 \sum_{...}, \prod^{...} 的修復
-        fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code)
-        fixed_code = re.sub(r'\\(sum|prod|binom|sigma)\^\{', r'\\\1^{{', fixed_code)
+        # [v8.7.3 Fix] 高中數學符號修復
+        fixed_code, c = apply_fix(r'\\(sum|prod|binom|sigma)\_\{', r'\\\1_{{', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'\\(sum|prod|binom|sigma)\^\{', r'\\\1^{{', fixed_code); fallback_fixes += c
 
-        # Protect single char subscripts/superscripts at end of string or before punctuation
-        fixed_code = re.sub(r'(\d|\w|\))\}(?=\$)', r'\1}}', fixed_code)
-        fixed_code = re.sub(r'(\d|\w|\))\}(?=\s|\,|\.)', r'\1}}', fixed_code)
-        fixed_code = re.sub(r'(\d|\w|\))\}(?=\"|\')', r'\1}}', fixed_code)
-        fixed_code = re.sub(r'\\(sin|cos|tan|cot|sec|csc)\((.*?)\)', r'\\\1(\2)', fixed_code) 
+        # Protect single char subscripts
+        fixed_code, c = apply_fix(r'(\d|\w|\))\}(?=\$)', r'\1}}', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'(\d|\w|\))\}(?=\s|\,|\.)', r'\1}}', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'(\d|\w|\))\}(?=\"|\')', r'\1}}', fixed_code); fallback_fixes += c
+        fixed_code, c = apply_fix(r'\\(sin|cos|tan|cot|sec|csc)\((.*?)\)', r'\\\1(\2)', fixed_code); fallback_fixes += c
+        
+        total_fixes += fallback_fixes
 
     # 6. Python 2 print statement fix (Legacy model compatibility)
     if "expected '('" in error_msg:
-        fixed_code = re.sub(r'print\s+"(.*)"', r'print("\1")', fixed_code)
-        fixed_code = re.sub(r'print\s+(.*)', r'print(\1)', fixed_code)
+        fixed_code, c = apply_fix(r'print\s+"(.*)"', r'print("\1")', fixed_code)
+        total_fixes += c
+        fixed_code, c = apply_fix(r'print\s+(.*)', r'print(\1)', fixed_code)
+        total_fixes += c
 
-    return fixed_code
+    return fixed_code, total_fixes
 
 
 # ==============================================================================
@@ -451,34 +546,75 @@ def validate_logic_with_pyflakes(code_str):
 
 
 def fix_logic_errors(code_str, error_log):
+    """
+    [V9.8 Upgrade] Returns (fixed_code, fix_count)
+    """
     fixed_code = code_str
     undefined_vars = set(re.findall(r"undefined name ['\"](\w+)['\"]", error_log))
+    
     imports = []
+    fix_count = 0
+    
     for var in undefined_vars:
-        if var in ['random', 'math']: imports.append(f"import {var}")
-        if var == 'Fraction': imports.append("from fractions import Fraction")
-    if imports: fixed_code = "\n".join(imports) + "\n" + fixed_code
-    return fixed_code
+        if var in ['random', 'math']: 
+            imports.append(f"import {var}")
+            fix_count += 1
+        if var == 'Fraction': 
+            imports.append("from fractions import Fraction")
+            fix_count += 1
+            
+    if imports: 
+        fixed_code = "\n".join(imports) + "\n" + fixed_code
+        
+    return fixed_code, fix_count
 
 
-def log_experiment(skill_id, start_time, input_len, output_len, success, error_msg, repaired):
+def log_experiment(skill_id, start_time, input_len, output_len, success, error_msg, repaired, actual_model_name="Unknown", regex_fixes=0, logic_fixes=0, prompt_tokens=0, completion_tokens=0):
+    """
+    [V9.8 Data Upgrade] 紀錄詳細的修復次數與 Token 用量
+    """
     try:
         duration = time.time() - start_time
+        safe_error_msg = str(error_msg)[:500] if error_msg else "None"
+        
+        # 建立 Log 物件 (加入新欄位)
         log = ExperimentLog(
             skill_id=skill_id,
             ai_provider=Config.AI_PROVIDER,
-            model_name=Config.LOCAL_MODEL_NAME if Config.AI_PROVIDER == 'local' else Config.GEMINI_MODEL_NAME,
+            model_name=actual_model_name,
             duration_seconds=round(duration, 2),
             input_length=input_len,
             output_length=output_len,
             is_success=success,
-            syntax_error_initial=error_msg,
+            syntax_error_initial=safe_error_msg,
             ast_repair_triggered=repaired,
-            cpu_usage=50.0, ram_usage=90.0
+            
+            # [New Data Points]
+            regex_fix_count=regex_fixes,
+            logic_fix_count=logic_fixes,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            
+            cpu_usage=50.0, 
+            ram_usage=90.0
         )
+        
         db.session.add(log)
         db.session.commit()
-    except Exception: pass
+        
+        status = "✅ Success" if success else "❌ Failed"
+        # 顯示更詳細的 Log
+        repair_info = f" | Fixes: {regex_fixes+logic_fixes} (R:{regex_fixes}/L:{logic_fixes})" if repaired else ""
+        token_info = f" | Tokens: {prompt_tokens}+{completion_tokens}" if prompt_tokens else ""
+        
+        print(f"📊 [DB Log] {status}: {skill_id} | Time: {duration:.2f}s{repair_info}{token_info}")
+        
+    except Exception as e:
+        db.session.rollback() # [Critical] 失敗時必須回滾，不然下一次寫入也會死
+        # 6. [關鍵] 印出失敗原因 (紅色火焰)
+        print(f"\\n🔥🔥🔥 [DB Error] 資料庫寫入炸裂！🔥🔥🔥")
+        print(f"錯誤原因: {e}")
+        print(f"嘗試寫入的資料: Skill={skill_id}, Model={actual_model_name}, ErrMsg={safe_error_msg}\\n")
 
 
 def auto_generate_skill_code(skill_id, queue=None):
@@ -536,8 +672,7 @@ Analyze the Architect's Spec and Reference Examples to determine the domain:
 3.  **Format Hint**: Append `\\n(答案格式：長度=_)` or `\\n(答案格式：角度=_)` or `\\n(答案格式：選A/B/C)`.
 
 ### 📝 2. GENERAL RULES
-1.  **Clean Answer**: `correct_answer` must be a clean string matching the format hint (e.g., "x=3, y=5" or "50"). NO LaTeX symbols in the value.
-2.  **Language**: All text must be **Traditional Chinese (Taiwan)**.
+{V9_CODE_GENERATOR_PROMPT}
 
 ### ARCHITECT'S SPECIFICATION:
 {target_logic}
@@ -548,7 +683,7 @@ Analyze the Architect's Spec and Reference Examples to determine the domain:
 
 ### FINAL CHECKLIST:
 1. Output pure Python code. Start with `import random`.
-2. Return dict keys: 'question_text', 'correct_answer', 'visuals' (or 'visual_aids').
+2. Ensure you followed the Return Structure in the Core Rules.
 """
     else:
         # --- Mode B: Legacy V8 Mode (Fallback) ---
@@ -591,23 +726,50 @@ ARCHITECT'S SPECIFICATION: {target_logic}
 
 CODING RULES:
 
-NO HELPERS: Do NOT define to_latex, fmt_num, is_prime, etc.
+CODING RULES:
 
-One-to-One Mapping: Write generate_type_1_problem ... generate_type_N_problem.
+1. **NO HELPERS**: Do NOT define `to_latex`, `fmt_num`, `check`, etc. They are auto-injected. Use them directly.
 
-Smart Dispatcher: Implement def generate(level=1):.
+2. **Smart Dispatcher**: Implement `def generate(level=1):` to handle difficulty levels.
+   - **[重要：函式命名規範]** 不論題目類型為何，主生成函式必須統一命名為 `generate()`。
+   - 禁止使用 `generate_number_line()` 或 `generate_logic()` 等自定義名稱。
+   - 如果有繪圖輔助函式（如 `draw_graph`），請在 `generate()` 函式內部呼叫它。
+   - 必須確保檔案中存在 `def generate():` 和 `def check(user_answer, correct_answer):`。
 
-LaTeX Safety: Use double braces {{ }} for LaTeX commands in f-strings: f"\\frac{{{{a}}}}{{{{b}}}}".
+3. **LaTeX Formatting (CRITICAL)**: 
+   - All mathematical expressions (integers, fractions, equations) in `question_text` MUST be wrapped in single dollar signs `$`.
+   - Example: `f"計算 ${fmt_num(a)} + {fmt_num(b)}$ 的值"` -> "計算 $3 + 5$ 的值".
+   - **NO BACKTICKS**: Never use backticks (`) to wrap numbers or lists. BAD: `[1, 2]`. GOOD: $1, 2$.
 
-Return Keys: Return dict with keys: 'question_text', 'answer', 'correct_answer'.
+4. **Answer Format Hint (CRITICAL)**:
+   - You **MUST** append a clear format hint at the very end of `question_text`.
+   - Format: `\\n(答案格式：...)`.
+   - Example 1 (Values): `... \\n(答案格式：請填寫整數)` or `... \\n(答案格式：最簡分數)`.
+   - Example 2 (Variables): `... \\n(答案格式：x=_, y=_)` (This ensures specific ordering).
+   - Example 3 (Coordinates): `... \\n(答案格式：(x,y))`.
 
-Clean Answers: answer and correct_answer MUST NOT contain $ signs.
+5. **Return Keys**: Return dict with keys: `'question_text'`, `'answer'`, `'correct_answer'`.
+   - `correct_answer`: Must be a clean string for checking (e.g., "-5", "3/4", "x=2, y=3"). 
+   - Do NOT use LaTeX (`$`) in `correct_answer` or `answer` keys, as this makes user input matching difficult. Keep it raw text.
 
-LANGUAGE CONSTRAINT: Traditional Chinese (繁體中文) ONLY. Translate all word problems and context.
+6. **Language**: Traditional Chinese (Taiwan) ONLY (繁體中文). Use local terminology (e.g., 座標, 聯立方程式).
 
-LEVEL COMPLETENESS: You MUST implement content for BOTH Level 1 and Level 2. If RAG examples are missing for a level, invent a simplified or advanced variant. Do NOT raise "No Level X" errors.
+7. **Level Completeness**: Implement both Level 1 (Basic) and Level 2 (Advanced/Applied).
 
-OUTPUT: Return ONLY the Python code. Start with import random. """
+OUTPUT: Return ONLY the Python code. Start with `import random`.
+
+[防呆輸出要求] 在 Python 檔案的最末尾，請務必包含以下代碼，確保進入點相容性：
+```python
+# 確保主進入點存在 (別名掛載)
+if 'generate' not in globals() and any(k.startswith('generate_') for k in globals()):
+    generate = next(v for k, v in globals().items() if k.startswith('generate_'))
+``` """
+
+    # 初始化計數器
+    regex_fixes = 0
+    logic_fixes = 0
+    prompt_tokens = 0
+    completion_tokens = 0
 
     try:
         if current_app: current_app.logger.info(f"Generating {skill_id} with {current_model}")
@@ -615,6 +777,16 @@ OUTPUT: Return ONLY the Python code. Start with import random. """
         client = get_ai_client(role='coder') 
         response = client.generate_content(prompt)
         code = response.text
+        
+        # [V9.8] 嘗試獲取 Token 用量 (視 API 而定)
+        try:
+            # 適用於 Google Gemini / Vertex AI
+            if hasattr(response, 'usage_metadata'):
+                prompt_tokens = response.usage_metadata.prompt_token_count
+                completion_tokens = response.usage_metadata.candidates_token_count
+            # 如果是其他 API，可能需要調整這裡
+        except:
+            pass # 取不到就算了，保持 0
         
         match = re.search(r'```(?:python)?\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
         if match: code = match.group(1)
@@ -634,16 +806,24 @@ OUTPUT: Return ONLY the Python code. Start with import random. """
         code = clean_global_scope_execution(code)
         code = inject_robust_dispatcher(code) 
         code = fix_missing_answer_key(code)
+        
+        # [V9.8] 驗證與修復 (使用新版函式)
         is_valid, syntax_err = validate_python_code(code)
         repaired = False
+        
         if not is_valid:
-            code = fix_code_syntax(code, syntax_err)
+            # 呼叫新版 fix_code_syntax，接收次數
+            code, r_count = fix_code_syntax(code, syntax_err)
+            regex_fixes += r_count # 累加
+            
             is_valid, syntax_err = validate_python_code(code)
             repaired = True
             
         is_valid_log, logic_err = validate_logic_with_pyflakes(code)
         if not is_valid_log:
-            code = fix_logic_errors(code, logic_err)
+            # 呼叫新版 fix_logic_errors，接收次數
+            code, l_count = fix_logic_errors(code, logic_err)
+            logic_fixes += l_count # 累加
             repaired = True
 
         duration = time.time() - start_time
@@ -655,14 +835,29 @@ OUTPUT: Return ONLY the Python code. Start with import random. """
 # Duration: {duration:.2f}s | RAG: {rag_count} examples
 # Created At: {created_at}
 # Fix Status: {'[Repaired]' if repaired else '[Clean Pass]'}
+# Fixes: Regex={regex_fixes}, Logic={logic_fixes}
 #==============================================================================\n\n'''
         path = os.path.join(current_app.root_path, 'skills', f'{skill_id}.py')
         with open(path, 'w', encoding='utf-8') as f:
             f.write(header + code)
             
-        log_experiment(skill_id, start_time, len(prompt), len(code), True, syntax_err if not is_valid else "None", repaired)
+        # [V9.8] 呼叫 Log，傳入完整數據
+        log_experiment(
+            skill_id, start_time, len(prompt), len(code), True, 
+            syntax_err if not is_valid else "None", repaired,
+            current_model,
+            regex_fixes=regex_fixes,      # New
+            logic_fixes=logic_fixes,      # New
+            prompt_tokens=prompt_tokens,  # New
+            completion_tokens=completion_tokens # New
+        )
         return True, "Success"
 
     except Exception as e:
-        log_experiment(skill_id, start_time, len(prompt), 0, False, str(e), False)
+        log_experiment(
+            skill_id, start_time, len(prompt) if 'prompt' in locals() else 0, 0, False, 
+            str(e), False,
+            current_model if 'current_model' in locals() else "Unknown",
+            regex_fixes=regex_fixes, logic_fixes=logic_fixes # 即使失敗也記錄已嘗試的修復
+        )
         return False, str(e)
