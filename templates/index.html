@@ -1020,10 +1020,6 @@
                 <!-- 修改後的版面：問題和示意圖並排 -->
                 <div class="question-content" id="question-container">
                     <div id="question-text"></div>
-                    <div class="diagram-container">
-                        <div id="diagram-loading" style="display: none; color: #2c3e50;">
-                            正在繪製圖形...</div><img id="diagram-image" src="" alt="Diagram" style="display: none;" />
-                    </div>
                 </div>
                 <div class="input-group"><input type="text" id="answer-input" placeholder="輸入答案..."><button
                         id="submit-button">提交</button></div>
@@ -1396,6 +1392,12 @@
         let blankCanvas = null;
         let currentContext = "";  // 儲存題目 context，用於 AI 助教
 
+        // [V9.6 新增] 用來儲存當前題目的圖片物件
+        let currentQuestionImage = null;
+
+        // [V9.7 新增] 紀錄題目圖片在畫布上的確切位置與大小，給橡皮擦用
+        let imgDestX = 0, imgDestY = 0, imgDestW = 0, imgDestH = 0;
+
         // === 通用函式：呼叫 MathJax 渲染指定元素 ===
         function renderMathContent(element) {
             if (!element) return;
@@ -1592,6 +1594,40 @@
             };
         }
 
+        // [V9.6 新增] 將題目圖片繪製到畫布上 (佔據約 1/2)
+        function drawQuestionImage() {
+            if (!currentQuestionImage || !ctx || !canvas) return;
+
+            // 1. 計算縮放比例：目標是讓圖片寬度佔畫布的 40%~50%，且高度不超過畫布
+            const targetWidth = canvas.width * 0.45;
+            const maxHeight = canvas.height * 0.9;
+
+            let scale = targetWidth / currentQuestionImage.width;
+
+            // 如果高度會爆掉，就改用高度當基準
+            if (currentQuestionImage.height * scale > maxHeight) {
+                scale = maxHeight / currentQuestionImage.height;
+            }
+
+            const drawWidth = currentQuestionImage.width * scale;
+            const drawHeight = currentQuestionImage.height * scale;
+
+            // 2. 決定位置：放在畫布左側，垂直置中 (留一點邊距)
+            const padding = 20;
+            const x = padding;
+            const y = (canvas.height - drawHeight) / 2;
+
+            // === [V9.7 新增] 儲存座標資訊給橡皮擦使用 ===
+            imgDestX = x;
+            imgDestY = y;
+            imgDestW = drawWidth;
+            imgDestH = drawHeight;
+
+            // 3. 繪製圖片
+            // 注意：我們畫在最底層，不會蓋掉學生的筆跡，除非這是剛載入時
+            ctx.drawImage(currentQuestionImage, x, y, drawWidth, drawHeight);
+        }
+
         // === 初始化畫布 ===
         function initCanvas() {
             resizeCanvas();
@@ -1639,13 +1675,29 @@
             // 重置畫筆樣式 (resize 會清除 context)
             setPenStyle();
 
+            // [V9.6 修改] 重繪邏輯：先畫背景圖，再畫筆跡
+
+            // 1. 如果有題目圖，先畫題目圖
+            if (currentQuestionImage) {
+                drawQuestionImage();
+            }
+
+            // 2. 如果有筆跡歷史，疊加上去 (注意：UndoStack 通常存的是整張圖的快照)
+            // 如果我們想保留"圖片在底層"的特性，理想上 UndoStack 應該只存筆跡層，
+            // 但為了簡單相容現有架構，直接重繪 UndoStack 裡的最後一張快照通常最穩。
+            // 不過，因為 resize 會清空畫布，我們這裡選擇：
+            // 如果有 UndoStack，直接畫 UndoStack (因為那裡面已經包含當時的圖片了)
+            // 如果沒有 UndoStack (剛載入)，才畫 currentQuestionImage
+
             if (undoStack.length > 0) {
                 const img = new Image();
                 img.onload = () => {
-                    // 1:1 繪製
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 };
                 img.src = undoStack[undoStack.length - 1];
+            } else if (currentQuestionImage) {
+                // 如果沒有筆跡歷史，至少把題目圖畫回去
+                drawQuestionImage();
             }
         }
 
@@ -1672,8 +1724,34 @@
         function draw(e) {
             if (!isDrawing || isProcessing) return;
             const pos = getMousePos(canvas, e);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
+
+            if (isErasing) {
+                // === [V9.7 智慧橡皮擦邏輯] ===
+                // 使用圓形蓋章的方式進行擦除，並還原背景圖
+                const eraserRadius = 15; // 橡皮擦半徑 (對應 lineWidth 30)
+
+                ctx.save(); // 儲存畫布狀態
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, eraserRadius, 0, Math.PI * 2);
+                ctx.clip(); // 【關鍵】限制接下來的繪圖只發生在這個圓圈內
+
+                // 1. 先塗白 (清除筆跡)
+                ctx.fillStyle = 'white';
+                ctx.fill();
+
+                // 2. 如果這裡原本有圖片，把圖片的這一塊「補」回去
+                if (currentQuestionImage) {
+                    // 只會畫出圓圈範圍內的圖片，產生「穿透」效果
+                    ctx.drawImage(currentQuestionImage, imgDestX, imgDestY, imgDestW, imgDestH);
+                }
+
+                ctx.restore(); // 還原畫布狀態 (取消 clip)
+
+            } else {
+                // === 普通畫筆邏輯 (維持不變) ===
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+            }
         }
 
         function stopDraw() {
@@ -1684,16 +1762,13 @@
         }
 
         function setPenStyle() {
-            ctx.lineWidth = isErasing ? 20 : currentWidth;
+            // 設定線條寬度 (橡皮擦固定較粗)
+            ctx.lineWidth = isErasing ? 30 : currentWidth; // Adjust lineWidth to match eraser radius * 2
             ctx.strokeStyle = isErasing ? 'white' : currentColor;
             ctx.lineCap = 'round';
 
-            // [新增] 擦除時的筆跡漸隱效果
-            if (isErasing) {
-                ctx.globalAlpha = 0.2; // 多次疊加產生漸隱效果
-            } else {
-                ctx.globalAlpha = 1.0; // 恢復正常不透明
-            }
+            // [V9.7 修改] 強制不透明，確保擦除乾淨且圖片還原清晰
+            ctx.globalAlpha = 1.0;
         }
 
         // === 工具 ===
@@ -1798,8 +1873,16 @@
 
         function clearCanvas() {
             showCustomConfirm('確定要清除所有計算步驟？', () => {
+                // 1. 清空畫布
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // 2. [V9.6 新增] 如果這題有圖片，把圖片畫回去
+                if (currentQuestionImage) {
+                    drawQuestionImage();
+                }
+
+                // 3. 重置歷史紀錄
                 undoStack = [];
                 redoStack = [];
                 saveState();
@@ -2027,66 +2110,43 @@
                     // [V9.5 Debug] 印出後端回傳的所有資料，讓我們看看有沒有圖片
                     console.log("🔍 Backend Data Received:", data);
 
-                    const diagramImg = document.getElementById('diagram-image');
-                    const diagramContainer = document.querySelector('.diagram-container');
+                    // === [V9.6 修改] 圖片處理邏輯：畫到 Canvas 上 ===
 
-                    // 1. 嘗試抓取圖片資料 (支援多種欄位名稱)
+                    // 1. 先重置畫布與圖片變數
+                    currentQuestionImage = null;
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    undoStack = [];
+                    redoStack = [];
+
+                    // 2. 抓取圖片資料
                     let rawImage = data.image_base64;
-
-                    // 備用方案：如果 image_base64 是空的，試試看 visual_aids
                     if (!rawImage && data.visual_aids) {
-                        console.log("Found visual_aids, trying to extract image...");
-                        if (typeof data.visual_aids === 'string') {
-                            rawImage = data.visual_aids;
-                        } else if (Array.isArray(data.visual_aids)) {
-                            // 如果是陣列，找裡面 type='image/png' 的
+                        if (typeof data.visual_aids === 'string') rawImage = data.visual_aids;
+                        else if (data.visual_aids.plot_base64) rawImage = data.visual_aids.plot_base64;
+                        else if (Array.isArray(data.visual_aids)) {
                             const imgObj = data.visual_aids.find(x => x.type === 'image/png');
                             if (imgObj) rawImage = imgObj.value;
-                        } else if (data.visual_aids.plot_base64) {
-                            rawImage = data.visual_aids.plot_base64;
                         }
                     }
 
-                    // 2. 顯示圖片邏輯
+                    // 3. 如果有圖片，載入並繪製
                     if (rawImage && rawImage.trim() !== "") {
-                        console.log("✅ Found image data! Length:", rawImage.length);
-
-                        // 確保有 Base64 前綴
                         let imgSource = rawImage;
                         if (!imgSource.startsWith('data:image')) {
                             imgSource = "data:image/png;base64," + imgSource;
                         }
 
-                        if (diagramImg) {
-                            diagramImg.src = imgSource;
-                            diagramImg.style.display = 'block';
-                            diagramImg.style.maxWidth = '100%';
-                            diagramImg.alt = "幾何示意圖";
-
-                            // 點擊放大功能
-                            diagramImg.style.cursor = 'zoom-in';
-                            diagramImg.onclick = function () {
-                                const modal = document.getElementById("imageModal");
-                                const modalImg = document.getElementById("modalImg");
-                                const captionText = document.getElementById("caption");
-                                if (modal && modalImg) {
-                                    modal.style.display = "block";
-                                    modalImg.src = this.src;
-                                    if (captionText) captionText.innerHTML = this.alt;
-                                }
-                            };
-                        }
-
-                        if (diagramContainer) {
-                            diagramContainer.style.display = 'flex';
-                            diagramContainer.style.visibility = 'visible';
-                        }
+                        // 建立新的 Image 物件
+                        const img = new Image();
+                        img.onload = function () {
+                            currentQuestionImage = img; // 存起來，方便 resize 或 clear 時重畫
+                            drawQuestionImage(); // 畫上去
+                            saveState(); // 存入 Undo 歷史紀錄
+                        };
+                        img.src = imgSource;
                     } else {
-                        console.log("⚠️ No image data found in this question response.");
-                        if (diagramImg) {
-                            diagramImg.style.display = 'none';
-                            diagramImg.src = "";
-                        }
+                        saveState(); // 沒圖片也要存初始狀態
                     }
 
                     // 3. MathJax 排版
@@ -2134,10 +2194,13 @@
                     resultDisplay.textContent = '';
                     resultDisplay.className = '';
                     ctx.fillStyle = 'white';
+                    /* 移除重複的清空與重置邏輯，避免蓋掉剛畫好的圖 */
+                    /*
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     undoStack = [];
                     redoStack = [];
-                    saveState();
+                    saveState(); 
+                    */
                 })
                 .catch(err => {
                     console.error('出題失敗:', err);
