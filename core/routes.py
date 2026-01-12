@@ -236,12 +236,31 @@ def practice(skill_id):
 @practice_bp.route('/get_next_question')
 def next_question():
     skill_id = request.args.get('skill', 'remainder')
-    requested_level = request.args.get('level', type=int) 
+    requested_level = request.args.get('level', type=int) # 新增：從前端獲取請求的難度等級
+
+    # === 特殊處理：自訂上傳題目 ===
+    # 如果是 custom_upload 且 session 中已經有非預設的題目，則直接回傳 Session 中的資料，不重新生成
+    if skill_id == 'custom_upload':
+        current_data = get_current()
+        # 檢查是否為有效的自訂題目 (排除預設 placeholder)
+        if current_data and current_data.get('skill') == 'custom_upload' and "請上傳題目" not in current_data.get('question_text', ''):
+            # 補上 context_string 與前置技能資訊 (如果缺失)
+            current_data['context_string'] = current_data.get('context_string', '')
+            current_data['prereq_skills'] = [] # 自訂題目無關聯前置技能
+            # 關鍵修正: 前端 loadQuestion 預期欄位是 new_question_text
+            current_data['new_question_text'] = current_data.get('question_text', '')
+            # 確保 current_level 存在
+            current_data['current_level'] = current_data.get('level', '自訂')
+            return jsonify(current_data)
     
-    # 從 DB 驗證 skill 是否存在
-    skill_info = get_skill_info(skill_id)
-    if not skill_info:
-        return jsonify({"error": f"技能 {skill_id} 不存在或未啟用"}), 404
+    # 從 DB 驗證 skill 是否存在 (custom_upload 除外)
+    if skill_id != 'custom_upload':
+        skill_info = get_skill_info(skill_id)
+        if not skill_info:
+            return jsonify({"error": f"技能 {skill_id} 不存在或未啟用"}), 404
+    else:
+        # custom_upload 虛擬技能，使用預設值
+        skill_info = None 
     
     try:
         mod = importlib.import_module(f"skills.{skill_id}")
@@ -396,6 +415,42 @@ def check_answer():
     
     return jsonify(result)
 
+@practice_bp.route('/upload_question_image', methods=['POST'])
+@login_required # Ensure user is logged in
+def upload_question_image():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file:
+        try:
+            from core.ai_analyzer import analyze_question_image
+            result = analyze_question_image(file)
+            
+            if "error" in result:
+                return jsonify({"error": result["error"]}), 500
+
+            # Store in session so check_answer can verify it
+            # We use a special skill ID 'custom_upload'
+            set_current("custom_upload", 
+                        {"question_text": result["question_text"], 
+                         "correct_answer": result["correct_answer"],
+                         "answer": result["correct_answer"], # Store answer for check_answer
+                         "answer_type": "text",
+                         "level": 1})
+
+            return jsonify({
+                "question_text": result["question_text"],
+                "success": True
+            })
+
+        except Exception as e:
+            current_app.logger.error(f"Image upload failed: {e}")
+            return jsonify({"error": str(e)}), 500
+
 @practice_bp.route('/analyze_handwriting', methods=['POST'])
 @login_required
 def analyze_handwriting():
@@ -486,7 +541,23 @@ def chat_ai():
         prereq_skills=prereq_skills
     )
     
-    result = get_chat_response(full_prompt)
+    # 處理圖片 (如果有的話)
+    image_obj = None
+    image_data = data.get('image_data')  # 預期是 base64 string
+    if image_data and 'base64,' in image_data:
+        try:
+            from PIL import Image
+            import io
+            import base64
+            
+            header, encoded = image_data.split('base64,', 1)
+            image_bytes = base64.b64decode(encoded)
+            image_obj = Image.open(io.BytesIO(image_bytes))
+        except Exception as e:
+            print(f"Chat AI Image Decode Error: {e}")
+            # fall through, just don't use image
+
+    result = get_chat_response(full_prompt, image=image_obj)
     return jsonify(result)
 
 @practice_bp.route('/draw_diagram', methods=['POST'])

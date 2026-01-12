@@ -987,7 +987,7 @@
 <body>
     <!-- Navbar -->
     <div class="navbar">
-        <div class="logo">自適應性教學系統練習</div>
+        <div class="logo">功文數學練習</div>
         <a href="/dashboard">返回儀表板</a>
     </div>
     <!-- 主容器 -->
@@ -1026,6 +1026,14 @@
                             style="background-color: #f39c12; color: white;">練習</button>
                     </div>
                     {% endif %}
+
+                    <!-- NEW: Upload Question Button -->
+                    <button id="upload-question-btn" class="level-button"
+                        style="background-color: #9b59b6; color: white; margin-left: 10px;">
+                        <i class="fas fa-camera"></i> 上傳題目
+                    </button>
+                    <input type="file" id="question-image-uploader" accept="image/*" style="display: none;">
+
                 </div>
                 <!-- 修改後的版面：問題和示意圖並排 -->
                 <!-- 修改後的版面：問題和示意圖並排 -->
@@ -2639,12 +2647,25 @@
                     // 嘗試獲取上下文，避免變數未定義錯誤
                     const contextPayload = (typeof currentContext !== 'undefined') ? currentContext : "";
 
+                    // 獲取當前畫布內容 (如果存在)
+                    let imgData = null;
+                    const canvas = document.getElementById('handwriting-canvas');
+                    if (canvas) {
+                        imgData = canvas.toDataURL('image/png');
+                    }
+
+                    // 獲取當前題目文字
+                    const questionDiv = document.getElementById('question-text');
+                    const questionText = questionDiv ? questionDiv.innerText : "";
+
                     const response = await fetch('/chat_ai', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             question: question,
-                            context: contextPayload
+                            context: contextPayload,
+                            question_text: questionText,
+                            image_data: imgData
                         })
                     });
 
@@ -2683,7 +2704,11 @@
                     }
 
                     // 1. 顯示老師的對話 (移除制式標題)
-                    const cleanedReply = (finalData.reply || "").replace(/(思考|選項|建議|回覆|解析|步驟|回答)[：:\d\s]*/g, "");
+                    // [修復] 將後端過度轉義的 \\ 轉回 \ 以讓 MathJax 識別
+                    let rawReply = finalData.reply || "";
+                    rawReply = rawReply.replace(/\\\\/g, '\\');
+
+                    const cleanedReply = rawReply.replace(/(思考|選項|建議|回覆|解析|步驟|回答)[：:\d\s]*/g, "");
 
                     // 移除思考中訊息
                     if (thinkingDiv && thinkingDiv.parentNode) {
@@ -2695,7 +2720,14 @@
 
                     // 2. 更新動態思考泡泡 (若 JSON 斷了就隱藏，不報錯)
                     console.log("Updating dynamic prompts with:", finalData.follow_up_prompts);
-                    showDynamicSuggestions(finalData.follow_up_prompts || []);
+
+                    // [修復] 提示詞也需要清洗反斜線
+                    let safePrompts = finalData.follow_up_prompts || [];
+                    if (Array.isArray(safePrompts)) {
+                        safePrompts = safePrompts.map(p => p.replace(/\\\\/g, '\\'));
+                    }
+
+                    showDynamicSuggestions(safePrompts);
 
                     // 如果有需要處理 correct/incorrect 邏輯，這裡可以繼續 (但目前 finalData 可能缺這些欄位)
                     // 若需要維持原有邏輯，需確保 backend 回傳正確結構或在此補上預設值
@@ -2728,6 +2760,13 @@
         // ============================================================
         // 全域函式 (Global Functions) - 放在最外層確保括號平衡
         // ============================================================
+
+        // [New] 格式化數學文字：修復反斜線問題
+        function formatMathText(text) {
+            if (!text) return "";
+            // 將過度轉義的 \\ 轉回 \
+            return text.replace(/\\\\/g, '\\');
+        }
 
         function addBotMessage(text) {
             const chatHistory = document.getElementById('chat-history');
@@ -2852,6 +2891,90 @@
                     forceRender();
                 }
             }, 1000);
+        });
+    </script>
+    </script>
+    <script>
+        // === 新增：題目上傳功能 ===
+        function setupQuestionUpload() {
+            const uploadBtn = document.getElementById('upload-question-btn');
+            const fileInput = document.getElementById('question-image-uploader');
+            const questionTextDiv = document.getElementById('question-text');
+            const resultDisplay = document.getElementById('result-display');
+            const canvas = document.getElementById('handwriting-canvas'); // 確保 canvas 變數存在
+
+            if (!uploadBtn || !fileInput) return;
+
+            uploadBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // 顯示載入中
+                questionTextDiv.innerHTML = '<div style="text-align:center; padding: 20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><br>正在分析題目圖片...</div>';
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/upload_question_image', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            alert('上傳失敗: ' + data.error);
+                            questionTextDiv.textContent = '題目分析失敗，請重試。';
+                            return;
+                        }
+
+                        if (data.success && data.question_text) {
+                            // 更新題目
+                            questionTextDiv.innerHTML = data.question_text;
+
+                            // 重置介面
+                            const answerInput = document.getElementById('answer-input');
+                            if (answerInput) answerInput.value = '';
+
+                            if (resultDisplay) {
+                                resultDisplay.textContent = '';
+                                resultDisplay.className = '';
+                            }
+
+                            if (canvas) {
+                                const ctx = canvas.getContext('2d');
+                                ctx.fillStyle = 'white';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height); // 清空畫布
+                                // 重置 undo/redo
+                                if (typeof undoStack !== 'undefined') undoStack = [];
+                                if (typeof redoStack !== 'undefined') redoStack = [];
+                                if (typeof saveState === 'function') saveState();
+                            }
+
+                            // 更新等級顯示為 "自訂"
+                            const levelIndicator = document.getElementById('level-indicator');
+                            if (levelIndicator) levelIndicator.textContent = '等級：自訂';
+
+                            // 觸發 MathJax 渲染
+                            if (window.MathJax && window.MathJax.typesetPromise) {
+                                window.MathJax.typesetPromise([questionTextDiv]);
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error:', err);
+                        questionTextDiv.textContent = '發生錯誤，請稍後再試。';
+                        alert('發生錯誤: ' + err);
+                    });
+            });
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            setupQuestionUpload();
         });
     </script>
 </body>
