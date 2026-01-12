@@ -551,6 +551,56 @@ def fix_code_syntax(code_str, error_msg=""):
     return fixed_code, total_fixes
 
 
+def validate_and_fix_code(code_content):
+    """
+    不管模型多笨，這道防線會強制清洗程式碼。
+    適用對象：包含 7B 小模型在內的所有模型。
+    """
+    
+    # =========================================================
+    # 防線 1：強制移除 matplotlib.pyplot (針對 7B 常犯錯誤)
+    # =========================================================
+    if "import matplotlib.pyplot" in code_content:
+        # 強制替換為物件導向寫法
+        code_content = code_content.replace("import matplotlib.pyplot as plt", "from matplotlib.figure import Figure")
+        code_content = code_content.replace("import matplotlib.pyplot", "from matplotlib.figure import Figure")
+        
+        # 修正 7B 常寫的 plt.subplots()
+        code_content = code_content.replace("plt.subplots(", "Figure(") 
+        code_content = code_content.replace("fig, ax = Figure(", "fig = Figure(); ax = fig.subplots(")
+        
+        # 移除危險指令
+        code_content = code_content.replace("plt.show()", "# plt.show() removed by system")
+        code_content = code_content.replace("plt.close()", "# plt.close() removed by system")
+        code_content = code_content.replace("plt.clf()", "# plt.clf() removed by system")
+
+    # =========================================================
+    # 防線 2：強制修復 LaTeX 單大括號 (7B 容易忘記雙括號)
+    # =========================================================
+    # 這是一個簡單的 Regex，用來抓 f-string 裡的 LaTeX 指令
+    import re
+    def fix_latex_braces(match):
+        content = match.group(1)
+        # 如果發現有 \frac{a}{b} 這種單括號，強制改成雙括號
+        if "\\" in content and "{" in content and "{{" not in content:
+            content = content.replace("{", "{{").replace("}", "}}")
+        return f'f"{content}"'
+
+    # 針對 f"..." 內容進行掃描與修復
+    code_content = re.sub(r'f"(.*?)"', fix_latex_braces, code_content)
+
+    # =========================================================
+    # 防線 3：變數名稱防呆 (防止 Target_val 錯誤)
+    # =========================================================
+    # 7B 很喜歡用 target_val，我們強制檢查 return 裡面的變數
+    if "return {" in code_content and "target_val" in code_content:
+         # 檢查是否有 target_val = ... 的定義，如果沒有，嘗試用 ans 取代
+         if "target_val =" not in code_content and "ans =" in code_content:
+             code_content = code_content.replace("str(target_val)", "str(ans)")
+
+    return code_content
+
+
 # ==============================================================================
 # --- Generator Pipeline ---
 # ==============================================================================
@@ -825,6 +875,10 @@ if 'generate' not in globals() and any(k.startswith('generate_') for k in global
                 return False, "Critical Error: Generated code is incomplete (missing 'generate' function)."
         
         code = inject_perfect_utils(code)
+        
+        # [V9.8.2 Defense] Hard Validation for 7B Models
+        code = validate_and_fix_code(code)
+        
         code = fix_return_format(code)
         code = clean_global_scope_execution(code)
         code = inject_robust_dispatcher(code) 
