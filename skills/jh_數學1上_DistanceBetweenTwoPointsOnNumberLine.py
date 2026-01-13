@@ -152,6 +152,7 @@ def draw_number_line(points_map):
         f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
         f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
     )
+    return result # [必須補上這行]    
 
 # --- 4. High-Level Math Objects (Vector/Matrix/Calculus) ---
 class Vector3:
@@ -321,6 +322,7 @@ def generate(level=1):
     # 視覺化工具規範: question_text 必須由「文字題目 + <br> + 視覺化 HTML」組成。
     visual_html = draw_number_line(points_for_visual)
     final_question_text = question_text_part + "<br>" + visual_html
+
 
     # 數據與欄位 (Standard Fields): 返回字典必須且僅能包含指定欄位
     return {
