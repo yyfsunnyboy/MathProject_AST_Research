@@ -13,6 +13,7 @@
 from flask import Blueprint, request, jsonify, current_app, render_template, session, url_for
 from flask_login import login_required, current_user
 import importlib
+import sys # [修正 2] 導入 sys 以便檢查模組狀態
 import numpy as np
 import matplotlib
 # [CRITICAL] 設定 Matplotlib 為非互動模式，避免 Server 端 GUI 錯誤
@@ -99,6 +100,7 @@ def practice(skill_id):
                            prereq_skills=prereq_skills)
 
 @practice_bp.route('/get_next_question')
+@login_required  # [修正 1] 強制檢查登入，解決 AnonymousUserMixin 報錯
 def next_question():
     """API: 生成下一題"""
     skill_id = request.args.get('skill', 'remainder')
@@ -109,7 +111,12 @@ def next_question():
         return jsonify({"error": f"技能 {skill_id} 不存在或未啟用"}), 404
     
     try:
-        mod = importlib.import_module(f"skills.{skill_id}")
+        # [修正 2] 強制重新載入模組，解決「改了沒反應」的問題
+        module_path = f"skills.{skill_id}"
+        if module_path in sys.modules:
+            mod = importlib.reload(sys.modules[module_path])
+        else:
+            mod = importlib.import_module(module_path)
         
         # 決定難度等級
         current_curriculum_context = session.get('current_curriculum', 'general')
@@ -144,7 +151,15 @@ def next_question():
         
         for attempt in range(max_retries):
             try:
+                # [修正 3] 強化自動修復與欄位檢查
                 data = mod.generate(level=difficulty_level)
+                
+                # [核心修正] 欄位雙重自動校正 (對齊金標準)
+                if "question" in data and "question_text" not in data:
+                    data["question_text"] = data["question"]
+                if "answer" in data and "correct_answer" not in data:
+                    data["correct_answer"] = data["answer"] # 確保批改時找得到答案
+
                 if data and "question_text" in data and "correct_answer" in data:
                     break
             except Exception as e:
@@ -155,11 +170,12 @@ def next_question():
         data['context_string'] = data.get('context_string', data.get('inequality_string', ''))
         data['prereq_skills'] = prereq_info_for_ai
         
-        # 清理 Session (移除圖片大檔)
+        # [核心防禦] 清理 Session，確保所有存入內容皆可 JSON 序列化
         session_data = data.copy()
-        for k in ['image_base64', 'visuals', 'visual_aids']:
+        # 務必包含 'image' 與 'Figure' 相關鍵值
+        for k in ['image', 'fig', 'figure', 'image_base64', 'visuals']:
             if k in session_data: del session_data[k]
-            
+        
         set_current(skill_id, session_data)
         
         return jsonify({

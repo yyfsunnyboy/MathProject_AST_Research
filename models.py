@@ -278,7 +278,9 @@ def init_db(engine):
         ('error_category', 'TEXT'),
         ('regex_fix_count', 'INTEGER DEFAULT 0'), ('logic_fix_count', 'INTEGER DEFAULT 0'), ('ast_repair_count', 'INTEGER DEFAULT 0'),
         ('prompt_tokens', 'INTEGER DEFAULT 0'), ('completion_tokens', 'INTEGER DEFAULT 0'), ('total_tokens', 'INTEGER DEFAULT 0'),
-        ('code_complexity', 'INTEGER DEFAULT 0')
+        ('code_complexity', 'INTEGER DEFAULT 0'),
+        ('gpu_usage', 'REAL DEFAULT 0'), ('gpuram_usage', 'REAL DEFAULT 0'),
+        ('raw_output_length', 'INTEGER DEFAULT 0'), ('perfect_utils_length', 'INTEGER DEFAULT 0')
     ]
     for col, definition in new_log_cols:
         add_column_if_not_exists('experiment_log', col, definition)
@@ -645,9 +647,9 @@ class ExperimentLog(db.Model):
     # --- 效能指標 ---
     duration_seconds = db.Column(db.Float, comment="生成耗時 (秒)")
     input_length = db.Column(db.Integer, comment="Prompt 字數")
-    output_length = db.Column(db.Integer, comment="生成代碼字數")
-    
-    # --- 科學驗證指標 (關鍵!) ---
+    output_length = db.Column(db.Integer, comment="總 Code 字數 (含 Utils)")
+    raw_output_length = db.Column(db.Integer, default=0, comment="AI 原始字數")
+    perfect_utils_length = db.Column(db.Integer, default=0, comment="工具庫字數")
     is_success = db.Column(db.Boolean, default=False, comment="最終是否可用")
     syntax_error_initial = db.Column(db.Text, nullable=True, comment="原始語法錯誤訊息 (若無則空)")
     ast_repair_triggered = db.Column(db.Boolean, default=False, comment="是否觸發 AST 修復")
@@ -657,6 +659,8 @@ class ExperimentLog(db.Model):
     # --- 系統資源 ---
     cpu_usage = db.Column(db.Float, nullable=True, comment="CPU 使用率 (%)")
     ram_usage = db.Column(db.Float, nullable=True, comment="RAM 使用率 (%)")
+    gpu_usage = db.Column(db.Float, default=0.0, comment="GPU 使用率 (%)")
+    gpuram_usage = db.Column(db.Float, default=0.0, comment="GPU RAM 使用率 (%)")
 
     # [v9.0 新增 - 實驗設定]
     experiment_batch = db.Column(db.String(50))    # 批次標籤 (如 'YS_Run_1')

@@ -1,6 +1,6 @@
-# 資料庫 Table Schema 詳細資料 (2026-01-11)
+# 資料庫 Table Schema 詳細資料 (2026-01-13)
 
-本文件詳細列出 Math-Master 專案目前 (v9.0) 所有資料庫表格的 Schema、功能說明、Primary Key 及主要關聯程式。
+本文件詳細列出 Math-Master 專案目前 (v9.8.8) 所有資料庫表格的 Schema、功能說明、Primary Key 及主要關聯程式。
 
 ---
 
@@ -193,7 +193,11 @@
 | feedback | TEXT | 回饋與評語 | |
 | image_path | TEXT | 題目圖片路徑 | Not Null |
 | created_at | DATETIME | 分析時間 | |
-| (其他欄位) | ... | 包含 curriculum, grade 等元數據 | |
+| curriculum | TEXT | 課綱 | |
+| grade | INTEGER | 年級 | |
+| volume | TEXT | 冊別 | |
+| chapter | TEXT | 章節 | |
+| section | TEXT | 小節 | |
 
 ---
 
@@ -229,7 +233,12 @@
 | correct_answer | TEXT | 正確答案 | |
 | detailed_solution | TEXT | 詳細詳解 | |
 | difficulty_level | INTEGER | 難度 | Default: 1 |
-| (來源欄位) | ... | source_curriculum, source_volume 等 | 標示出處 |
+| source_curriculum | TEXT | 來源課綱 | |
+| source_volume | TEXT | 來源冊別 | |
+| source_chapter | TEXT | 來源章節 | |
+| source_section | TEXT | 來源小節 | |
+| source_description | TEXT | 來源描述 | |
+| source_paragraph | TEXT | 來源段落 | |
 
 ---
 
@@ -267,7 +276,7 @@
 ---
 
 ## 15. experiment_log (實驗日誌)
-- **功能說明**: [v9.0 新增] 用於科展或開發測試，詳細記錄程式碼生成的效能、Token 消耗與修復過程。
+- **功能說明**: [v9.0 新增] 用於科展或開發測試，詳細記錄程式碼生成的效能指標、Token 消耗與修復過程。
 - **Primary Key**: `id`
 - **主要使用程式**: `core/code_generator.py`
 - **Schema**:
@@ -278,11 +287,26 @@
 | timestamp | DATETIME | 實驗時間 | |
 | skill_id | TEXT | 測試技能 | |
 | ai_provider | TEXT | AI 提供者 | e.g. 'gemini' |
-| is_success | BOOLEAN | 是否成功 | |
+| model_name | TEXT | 模型名稱 | e.g. 'gemini-1.5-pro' |
+| duration_seconds | FLOAT | 生成耗時 (秒) | |
+| input_length | INTEGER | Prompt 字數 | Source Metric |
+| output_length | INTEGER | 代碼字數 | Source Metric |
+| is_success | BOOLEAN | 是否成功 | 最終可用性 |
+| syntax_error_initial | TEXT | 原始錯誤訊息 | 若無則為 NULL |
 | ast_repair_triggered | BOOLEAN | 是否觸發修復 | |
-| prompt_tokens | INTEGER | 提示詞 Token 數 | Cost |
-| completion_tokens | INTEGER | 生成 Token 數 | Cost |
-| (其他欄位) | ... | input_length, output_length 等 | 效能指標 |
+| experiment_batch | TEXT | 實驗批次 | e.g. 'Run_V1' |
+| prompt_strategy | TEXT | 提示策略 | |
+| prompt_version | INTEGER | Prompt 版本 ID | |
+| error_category | TEXT | 錯誤分類 | e.g. 'SyntaxError' |
+| regex_fix_count | INTEGER | Regex 修復次數 | Self-Healing Metric |
+| logic_fix_count | INTEGER | 邏輯修復次數 | Self-Healing Metric |
+| ast_repair_count | INTEGER | AST 修復次數 | Self-Healing Metric |
+| prompt_tokens | INTEGER | 輸入 Tokens | Cost |
+| completion_tokens | INTEGER | 輸出 Tokens | Cost |
+| total_tokens | INTEGER | 總 Tokens | Cost |
+| code_complexity | INTEGER | 程式碼複雜度 | Lines of Code |
+| cpu_usage | FLOAT | CPU 使用率 | System Metric |
+| ram_usage | FLOAT | RAM 使用率 | System Metric |
 
 ---
 

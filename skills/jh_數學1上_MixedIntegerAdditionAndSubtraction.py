@@ -1,34 +1,123 @@
 # ==============================================================================
 # ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
-# Duration: 46.17s | RAG: 8 examples
-# Created At: 2026-01-08 22:58:20
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 71.08s | RAG: 5 examples
+# Created At: 2026-01-13 21:57:40
 # Fix Status: [Clean Pass]
-# ==============================================================================
+# Fixes: Regex=0, Logic=0
+#==============================================================================
 
 
 import random
 import math
 from fractions import Fraction
+from functools import reduce
 
+# --- 1. Formatting Helpers ---
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    Convert int/float/Fraction to LaTeX.
+    Handles mixed numbers automatically for Fractions.
+    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
         if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        # Logic for negative fractions
+        sign = "-" if num < 0 else ""
+        abs_num = abs(num)
+        
+        if abs_num.numerator > abs_num.denominator:
+            whole = abs_num.numerator // abs_num.denominator
+            rem_num = abs_num.numerator % abs_num.denominator
+            if rem_num == 0: return f"{sign}{whole}"
+            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
         return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX.
+    
+    Args:
+        num: The number to format.
+        signed (bool): If True, always show sign (e.g., "+3", "-5").
+        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_val = to_latex(abs(num))
+    
+    if op:
+        # e.g., " + 3", " - 3"
+        return f" - {abs_val}" if is_neg else f" + {abs_val}"
+    
+    if signed:
+        # e.g., "+3", "-3"
+        return f"-{abs_val}" if is_neg else f"+{abs_val}"
+        
+    # Default behavior (parentheses for negative)
+    if is_neg: return f"({latex_val})"
+    return latex_val
+
+# Alias for AI habits
+fmt_fraction_latex = to_latex 
+
+# --- 2. Number Theory Helpers ---
+def get_positive_factors(n):
+    """Return a sorted list of positive factors of n."""
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
+def is_prime(n):
+    """Check primality."""
+    if n <= 1: return False
+    if n <= 3: return True
+    if n % 2 == 0 or n % 3 == 0: return False
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return False
+        i += 6
+    return True
+
+def get_prime_factorization(n):
+    """Return dict {prime: exponent}."""
+    factors = {}
+    d = 2
+    temp = n
+    while d * d <= temp:
+        while temp % d == 0:
+            factors[d] = factors.get(d, 0) + 1
+            temp //= d
+        d += 1
+    if temp > 1:
+        factors[temp] = factors.get(temp, 0) + 1
+    return factors
+
+def gcd(a, b): return math.gcd(a, b)
+def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+
+# --- 3. Fraction Generator Helper ---
+def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
+    """
+    Generate a random Fraction within range.
+    simple=True ensures it's not an integer.
+    """
+    for _ in range(100):
+        den = random.randint(2, denominator_limit)
+        num = random.randint(min_val * den, max_val * den)
+        if den == 0: continue
+        val = Fraction(num, den)
+        if simple and val.denominator == 1: continue # Skip integers
+        if val == 0: continue
+        return val
+    return Fraction(1, 2) # Fallback
 
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
@@ -63,316 +152,411 @@ def draw_number_line(points_map):
         f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
         f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
     )
-    return result
 
+# --- 4. High-Level Math Objects (Vector/Matrix/Calculus) ---
+class Vector3:
+    """Simple 3D Vector Class for Geometry."""
+    def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
+    def __add__(self, o): return Vector3(self.x+o.x, self.y+o.y, self.z+o.z)
+    def __sub__(self, o): return Vector3(self.x-o.x, self.y-o.y, self.z-o.z)
+    def dot(self, o): return self.x*o.x + self.y*o.y + self.z*o.z
+    def cross(self, o): return Vector3(self.y*o.z-self.z*o.y, self.z*o.x-self.x*o.z, self.x*o.y-self.y*o.x)
+    def mag(self): return math.sqrt(self.x**2 + self.y**2 + self.z**2)
+    def __repr__(self): return f"({self.x}, {self.y}, {self.z})"
 
-#  # Not needed for this skill
+class Matrix:
+    """Simple Matrix (2x2 or 3x3) for transformations."""
+    def __init__(self, rows): self.rows = rows
+    def det(self):
+        if len(self.rows) == 2: return self.rows[0][0]*self.rows[1][1] - self.rows[0][1]*self.rows[1][0]
+        return 0 # Placeholder for 3x3
+    def mv(self, v): # Matrix-Vector multiplication
+        return Vector3(
+            self.rows[0][0]*v.x + self.rows[0][1]*v.y,
+            self.rows[1][0]*v.x + self.rows[1][1]*v.y, 0
+        )
 
-# --- Type 1 Implementation ---
-def generate_type_1_problem():
+def draw_integral_area(func_lambda, x_range, color='blue', alpha=0.3):
     """
-    Concept: Mixed addition and subtraction of three integers.
-    The problem involves evaluating an expression with three integers and two operations.
-    Template: (v1) - (v2) ＋ (v3)
+    [Visual] Helper to plot area under curve. 
+    Usage: In generate(), ax.fill_between(x, y, ...).
+    Actually, this is just a placeholder to remind AI to use fill_between.
     """
-    max_retries = 100
-    
-    v1 = 0
-    retry_count = 0
-    while v1 == 0 and retry_count < max_retries:
-        v1 = random.randint(-100, 100)
-        retry_count += 1
-    
-    v2 = 0
-    retry_count = 0
-    while (v2 == v1 or v2 == 0) and retry_count < max_retries:
-        v2 = random.randint(-100, 100)
-        retry_count += 1
-    
-    v3 = 0
-    retry_count = 0
-    while (v3 == v1 or v3 == v2 or v3 == 0) and retry_count < max_retries:
-        v3 = random.randint(-100, 100)
-        retry_count += 1
-    
-    ans = v1 - v2 + v3
-    
-    question_text = f"計算下列各式的值。\n⑴ ({v1}) - ({v2}) ＋ ({v3})"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans),
-        "correct_answer": str(ans)
-    }
+    pass
 
-# --- Type 2 Implementation ---
-def generate_type_2_problem():
-    """
-    Concept: Mixed addition and subtraction of three integers with a specific structure: a + b - c.
-    Template: (v1) ＋ (v2) - (v3)
-    """
-    max_retries = 100
-
-    v1 = 0
-    retry_count = 0
-    while v1 == 0 and retry_count < max_retries:
-        v1 = random.randint(-200, 200)
-        retry_count += 1
-
-    v2 = 0
-    retry_count = 0
-    while (v2 == v1 or v2 == 0) and retry_count < max_retries:
-        v2 = random.randint(-100, 100)
-        retry_count += 1
-
-    v3 = 0
-    retry_count = 0
-    while (v3 == v1 or v3 == v2 or v3 == 0) and retry_count < max_retries:
-        v3 = random.randint(-200, 200)
-        retry_count += 1
-
-    ans = v1 + v2 - v3
-    
-    question_text = f"計算下列各式的值。\n⑴ ({v1}) ＋ ({v2}) - ({v3})"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans),
-        "correct_answer": str(ans)
-    }
-
-# --- Type 3 Implementation ---
-def generate_type_3_problem():
-    """
-    Concept: Mixed addition/subtraction with absolute values, specifically a + |b + c| - d.
-    Template: v1 ＋｜(v2) ＋ v3｜ - v4
-    """
-    max_retries = 100
-
-    v1 = 0
-    retry_count = 0
-    while v1 == 0 and retry_count < max_retries:
-        v1 = random.randint(-50, 50)
-        retry_count += 1
-
-    v4 = 0
-    retry_count = 0
-    while (v4 == v1 or v4 == 0) and retry_count < max_retries:
-        v4 = random.randint(-50, 50)
-        retry_count += 1
-
-    v2 = random.randint(-100, -10) # Must be negative
-
-    v3 = 0
-    retry_count = 0
-    while (v3 == 0 or v2 + v3 == 0) and retry_count < max_retries: # v3 must be positive, and v2+v3 != 0
-        v3 = random.randint(10, 100)
-        retry_count += 1
-
-    ans = v1 + abs(v2 + v3) - v4
-    
-    question_text = f"計算下列各式的值。\n⑴ {v1} ＋｜({v2}) ＋ {v3}｜ - {v4}"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans),
-        "correct_answer": str(ans)
-    }
-
-# --- Type 4 Implementation ---
-def generate_type_4_problem():
-    """
-    Concept: Mixed addition/subtraction with absolute values, specifically |a| - b - |c + d|.
-    Template: ｜(v1)｜ - (v2) - ｜(v3) ＋ v4｜
-    """
-    max_retries = 100
-
-    v1 = random.randint(-100, -10) # Must be negative
-    
-    v2 = 0
-    retry_count = 0
-    while v2 == 0 and retry_count < max_retries:
-        v2 = random.randint(-50, 50)
-        retry_count += 1
-    
-    v3 = random.randint(-100, -10) # Must be negative
-
-    v4 = 0
-    retry_count = 0
-    while (v4 == 0 or v3 + v4 == 0) and retry_count < max_retries: # v4 must be positive, and v3+v4 != 0
-        v4 = random.randint(10, 100)
-        retry_count += 1
-
-    ans = abs(v1) - v2 - abs(v3 + v4)
-    
-    question_text = f"計算下列各式的值。\n⑴ ｜({v1})｜ - ({v2}) - ｜({v3}) ＋ {v4}｜"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans),
-        "correct_answer": str(ans)
-    }
-
-# --- Type 5 Implementation ---
-def generate_type_5_problem():
-    """
-    Concept: Comparison of expressions demonstrating the distributive property of negation: -(a + b) vs -a - b.
-    Template: -(v1 ＋ v2) 和 -v1 - v2
-    """
-    max_retries = 100
-
-    v1 = random.randint(2, 15) # Must be positive
-    
-    v2 = 0
-    retry_count = 0
-    while (v2 == v1) and retry_count < max_retries:
-        v2 = random.randint(2, 15) # Must be positive
-        retry_count += 1
-
-    # val1 = -(v1 + v2) # Not strictly needed as answer is always "相同"
-    # val2 = -v1 - v2
-    ans = "相同" 
-
-    question_text = f"比較下列各題中，兩式的運算結果是否相同。\n⑴ -({v1} ＋ {v2}) 和 -{v1} - {v2}"
-    
-    return {
-        "question_text": question_text,
-        "answer": ans,
-        "correct_answer": ans
-    }
-
-# --- Type 6 Implementation ---
-def generate_type_6_problem():
-    """
-    Concept: Comparison of expressions demonstrating distributive property of negation with negative numbers: -(-a + b) vs a - b.
-    Template: -(-v1 ＋ v2) 和 v1 - v2
-    """
-    max_retries = 100
-
-    v1 = random.randint(2, 15) # Must be positive
-    
-    v2 = 0
-    retry_count = 0
-    while (v2 == v1) and retry_count < max_retries:
-        v2 = random.randint(2, 15) # Must be positive
-        retry_count += 1
-
-    # val1 = -(-v1 + v2) # Not strictly needed as answer is always "相同"
-    # val2 = v1 - v2
-    ans = "相同" 
-
-    question_text = f"比較下列各題中，兩式的運算結果是否相同。\n⑴ -(-{v1} ＋ {v2}) 和 {v1} - {v2}"
-    
-    return {
-        "question_text": question_text,
-        "answer": ans,
-        "correct_answer": ans
-    }
-
-# --- Type 7 Implementation ---
-def generate_type_7_problem():
-    """
-    Concept: Comparison of expressions demonstrating associativity/distributivity for subtraction: a - (b + c) vs a - b - c.
-    Template: (v1) - (v2 ＋ v3) 和 (v1) - v2 - v3
-    """
-    max_retries = 100
-
-    v1 = 0
-    retry_count = 0
-    while v1 == 0 and retry_count < max_retries:
-        v1 = random.randint(-15, 15)
-        retry_count += 1
-
-    v2 = 0
-    retry_count = 0
-    while (v2 == v1 or v2 == 0) and retry_count < max_retries:
-        v2 = random.randint(-15, 15)
-        retry_count += 1
-
-    v3 = 0
-    retry_count = 0
-    while (v3 == v1 or v3 == v2 or v3 == 0 or v2 + v3 == 0) and retry_count < max_retries:
-        v3 = random.randint(-15, 15)
-        retry_count += 1
-    
-    # val1 = v1 - (v2 + v3) # Not strictly needed as answer is always "相同"
-    # val2 = v1 - v2 - v3
-    ans = "相同" 
-
-    question_text = f"比較下列各題中，兩式的運算結果是否相同。\n⑴ ({v1}) - ({v2} ＋ {v3}) 和 ({v1}) - {v2} - {v3}"
-    
-    return {
-        "question_text": question_text,
-        "answer": ans,
-        "correct_answer": ans
-    }
-
-# --- Type 8 Implementation ---
-def generate_type_8_problem():
-    """
-    Concept: Subtraction involving parentheses, designed for simplification by reordering or cancellation, specifically a - (b + a).
-    Template: v1 - (v2 ＋ v1)
-    """
-    max_retries = 100
-
-    v1 = random.randint(100, 500)
-    
-    v2 = 0
-    retry_count = 0
-    while (v2 == v1) and retry_count < max_retries:
-        v2 = random.randint(10, 100)
-        retry_count += 1
-
-    ans = v1 - (v2 + v1) # This simplifies to -v2
-    
-    question_text = f"計算下列各式的值。\n⑴ {v1} - ({v2} ＋ {v1})"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans),
-        "correct_answer": str(ans)
-    }
-
-
+# --- 5. Standard Answer Checker (Auto-Injected) ---
 def check(user_answer, correct_answer):
     """
-    檢查答案是否正確。
+    Standard Answer Checker [V9.8.1 Enhanced]
+    1. Handles float tolerance.
+    2. Normalizes strings (removes spaces, supports Chinese commas).
+    3. Returns user-friendly Chinese error messages.
     """
-    user_answer_normalized = user_answer.strip().upper()
-    correct_answer_normalized = correct_answer.strip().upper()
+    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
     
-    is_correct = (user_answer_normalized == correct_answer_normalized)
+    # 1. Normalize strings (字串正規化)
+    def normalize(s):
+        s = str(s).strip()
+        # 移除空格、LaTeX間距
+        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
+        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
+        s = s.replace("，", ",") 
+        return s
     
-    if not is_correct:
-        try:
-            # Attempt numeric comparison if string comparison fails
-            user_float = float(user_answer_normalized)
-            correct_float = float(correct_answer_normalized)
-            if user_float == correct_float:
-                is_correct = True
-        except ValueError:
-            pass # One or both answers are not numeric, so stick to string comparison result.
+    user_norm = normalize(user_answer)
+    correct_norm = normalize(correct_answer)
+    
+    # 2. Exact Match Strategy (精確比對)
+    if user_norm == correct_norm:
+        return {"correct": True, "result": "Correct!"}
+        
+    # 3. Float Match Strategy (數值容錯比對)
+    try:
+        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
+        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
+            return {"correct": True, "result": "Correct!"}
+    except ValueError:
+        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
+        
+    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
+    # 這裡回傳的 result 會直接顯示在前端 Result 區域
+    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{correct_answer}"}
 
-    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
 
+# import io # Not needed for calculation problems
+# import base64 # Not needed for calculation problems
+# from matplotlib.figure import Figure # Not needed for calculation problems
+
+# Environment tool: to_latex(n)
+# This function formats numbers for LaTeX display, especially handling negative numbers.
+
+# def get_base64_image(fig):
+#     buf = io.BytesIO()
+#     fig.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+#     buf.seek(0)
+#     return base64.b64encode(buf.read()).decode('utf-8')
+
+def generate_type_1():
+    """
+    Generates a multiple-term mixed addition and subtraction problem.
+    Example: (-60) - (-42) + 18
+    """
+    num_terms = random.randint(3, 5)
+    terms = [random.randint(-100, 100) for _ in range(num_terms)]
+    
+    question_parts = []
+    expression_for_eval = []
+    
+    # First term
+    question_parts.append(to_latex(terms[0]))
+    expression_for_eval.append(str(terms[0]))
+    
+    # Remaining terms with random operators
+    for i in range(1, num_terms):
+        op_symbol = random.choice(['+', '-'])
+        term_val = terms[i]
+        
+        question_parts.append(f" {op_symbol} ") # Add space for readability in LaTeX
+        question_parts.append(to_latex(term_val))
+        
+        expression_for_eval.append(f"{op_symbol}{term_val}") # For eval, just +/- directly
+            
+    question_text = f"計算：${''.join(question_parts)}$"
+    ans = eval(''.join(expression_for_eval)) 
+    
+    return question_text, str(ans)
+
+def generate_type_2():
+    """
+    Generates an integer operation problem involving absolute values.
+    Example: | -25 | - | -75 | - 18
+    """
+    structure_type = random.randint(1, 4)
+    
+    question_latex_parts = []
+    eval_expression_parts = []
+    
+    if structure_type == 1: # |a| op1 |b| op2 c
+        a = random.randint(-50, 50)
+        b = random.randint(-50, 50)
+        c = random.randint(-100, 100)
+        
+        op1 = random.choice([' + ', ' - '])
+        op2 = random.choice([' + ', ' - '])
+        
+        question_latex_parts.append(f"|{to_latex(a)}|")
+        question_latex_parts.append(op1)
+        question_latex_parts.append(f"|{to_latex(b)}|")
+        question_latex_parts.append(op2)
+        question_latex_parts.append(to_latex(c))
+        
+        eval_expression_parts.append(f"abs({a})")
+        eval_expression_parts.append(op1)
+        eval_expression_parts.append(f"abs({b})")
+        eval_expression_parts.append(op2)
+        eval_expression_parts.append(str(c))
+        
+    elif structure_type == 2: # c op1 |a inner_op b| op2 d
+        a = random.randint(-50, 50)
+        b = random.randint(-50, 50)
+        c = random.randint(-100, 100)
+        d = random.randint(-100, 100)
+        
+        op1 = random.choice([' + ', ' - '])
+        inner_op = random.choice(['+', '-'])
+        op2 = random.choice([' + ', ' - '])
+        
+        question_latex_parts.append(to_latex(c))
+        question_latex_parts.append(op1)
+        question_latex_parts.append(f"|{to_latex(a)}{inner_op}{to_latex(b)}|")
+        question_latex_parts.append(op2)
+        question_latex_parts.append(to_latex(d))
+        
+        eval_expression_parts.append(str(c))
+        eval_expression_parts.append(op1)
+        eval_expression_parts.append(f"abs({a}{inner_op}{b})")
+        eval_expression_parts.append(op2)
+        eval_expression_parts.append(str(d))
+        
+    elif structure_type == 3: # |a| op1 b op2 |c|
+        a = random.randint(-50, 50)
+        b = random.randint(-100, 100)
+        c = random.randint(-50, 50)
+        
+        op1 = random.choice([' + ', ' - '])
+        op2 = random.choice([' + ', ' - '])
+        
+        question_latex_parts.append(f"|{to_latex(a)}|")
+        question_latex_parts.append(op1)
+        question_latex_parts.append(to_latex(b))
+        question_latex_parts.append(op2)
+        question_latex_parts.append(f"|{to_latex(c)}|")
+        
+        eval_expression_parts.append(f"abs({a})")
+        eval_expression_parts.append(op1)
+        eval_expression_parts.append(str(b))
+        eval_expression_parts.append(op2)
+        eval_expression_parts.append(f"abs({c})")
+        
+    else: # structure_type == 4: |a inner_op b| op1 c op2 d
+        a = random.randint(-50, 50)
+        b = random.randint(-50, 50)
+        c = random.randint(-100, 100)
+        d = random.randint(-100, 100)
+        
+        inner_op = random.choice(['+', '-'])
+        op1 = random.choice([' + ', ' - '])
+        op2 = random.choice([' + ', ' - '])
+        
+        question_latex_parts.append(f"|{to_latex(a)}{inner_op}{to_latex(b)}|")
+        question_latex_parts.append(op1)
+        question_latex_parts.append(to_latex(c))
+        question_latex_parts.append(op2)
+        question_latex_parts.append(to_latex(d))
+        
+        eval_expression_parts.append(f"abs({a}{inner_op}{b})")
+        eval_expression_parts.append(op1)
+        eval_expression_parts.append(str(c))
+        eval_expression_parts.append(op2)
+        eval_expression_parts.append(str(d))
+        
+    question_text = f"計算：${''.join(question_latex_parts)}$"
+    ans = eval(''.join(eval_expression_parts))
+    
+    return question_text, str(ans)
+
+def generate_type_3():
+    """
+    Generates a problem comparing two expressions for equality, always resulting in "相同".
+    Example: -( 6 + 3 ) 和 -6 - 3
+    """
+    structure_type = random.randint(1, 5)
+    
+    expr1_latex = ""
+    expr2_latex = ""
+    expr1_eval = ""
+    expr2_eval = ""
+    
+    if structure_type == 1: # -(a + b) vs -a - b
+        a = random.randint(1, 50)
+        b = random.randint(1, 50)
+        
+        expr1_latex = f"-({to_latex(a)} + {to_latex(b)})"
+        expr2_latex = f"{to_latex(-a)} - {to_latex(b)}"
+        
+        expr1_eval = f"-({a} + {b})"
+        expr2_eval = f"{-a} - {b}"
+        
+    elif structure_type == 2: # -(a - b) vs -a + b
+        a = random.randint(1, 50)
+        b = random.randint(1, 50)
+        
+        expr1_latex = f"-({to_latex(a)} - {to_latex(b)})"
+        expr2_latex = f"{to_latex(-a)} + {to_latex(b)}"
+        
+        expr1_eval = f"-({a} - {b})"
+        expr2_eval = f"{-a} + {b}"
+
+    elif structure_type == 3: # x + (y + z) vs x + y + z
+        x = random.randint(-50, 50)
+        y = random.randint(-50, 50)
+        z = random.randint(-50, 50)
+        
+        y_latex = to_latex(y)
+        z_latex = to_latex(z)
+        
+        expr1_latex = f"{to_latex(x)} + ({y_latex} + {z_latex})"
+        expr2_latex = f"{to_latex(x)} + {y_latex} + {z_latex}"
+        
+        expr1_eval = f"{x} + ({y} + {z})"
+        expr2_eval = f"{x} + {y} + {z}"
+        
+    elif structure_type == 4: # x - (y + z) vs x - y - z
+        x = random.randint(-50, 50)
+        y = random.randint(-50, 50)
+        z = random.randint(-50, 50)
+        
+        y_latex = to_latex(y)
+        z_latex = to_latex(z)
+        
+        expr1_latex = f"{to_latex(x)} - ({y_latex} + {z_latex})"
+        expr2_latex = f"{to_latex(x)} - {y_latex} - {z_latex}"
+        
+        expr1_eval = f"{x} - ({y} + {z})"
+        expr2_eval = f"{x} - {y} - {z}"
+        
+    else: # structure_type == 5: x - (y - z) vs x - y + z
+        x = random.randint(-50, 50)
+        y = random.randint(-50, 50)
+        z = random.randint(-50, 50)
+        
+        y_latex = to_latex(y)
+        z_latex = to_latex(z)
+        
+        expr1_latex = f"{to_latex(x)} - ({y_latex} - {z_latex})"
+        expr2_latex = f"{to_latex(x)} - {y_latex} + {z_latex}"
+        
+        expr1_eval = f"{x} - ({y} - {z})"
+        expr2_eval = f"{x} - {y} + {z}"
+        
+    question_text = f"判斷下列兩式運算結果是否相同：${expr1_latex}$ 和 ${expr2_latex}$"
+    
+    val1 = eval(expr1_eval)
+    val2 = eval(expr2_eval)
+    
+    if val1 != val2:
+        # This should not happen if structures are correctly designed for equality
+        raise ValueError(f"Comparison expressions did not result in the same value! Expr1: {expr1_eval}={val1}, Expr2: {expr2_eval}={val2}")
+    
+    return question_text, "相同"
+
+def generate_type_4():
+    """
+    Generates a problem with parentheses designed for simplification using
+    distributive or associative properties (reverse engineered).
+    Example: 299 - (396 + 299)
+    """
+    structure_type = random.randint(1, 3)
+    
+    question_latex = ""
+    ans = 0
+    
+    # Generate A (100-900, not 0)
+    A = random.randint(100, 900)
+    # Generate B (-200 to 200, not 0)
+    B = random.choice([x for x in range(-200, 201) if x != 0])
+    
+    if structure_type == 1: # A - (B + A) -> -B
+        question_latex = f"${to_latex(A)} - ({to_latex(B)} + {to_latex(A)})$"
+        ans = -B
+    elif structure_type == 2: # A - (B - A) -> 2A - B
+        question_latex = f"${to_latex(A)} - ({to_latex(B)} - {to_latex(A)})$"
+        ans = 2 * A - B
+    else: # structure_type == 3: (-A) - (B - A) -> -B
+        question_latex = f"${to_latex(-A)} - ({to_latex(B)} - {to_latex(A)})$"
+        ans = -B
+        
+    question_text = f"計算：{question_latex}"
+    
+    return question_text, str(ans)
 
 def generate(level=1):
     """
-    Generates a mixed integer addition and subtraction problem based on the specified types.
-    The 'level' parameter is currently not used but can be extended to control problem difficulty.
+    Generates an integer addition and subtraction problem based on selected type.
     """
-    problem_types = [
-        generate_type_1_problem,
-        generate_type_2_problem,
-        generate_type_3_problem,
-        generate_type_4_problem,
-        generate_type_5_problem,
-        generate_type_6_problem,
-        generate_type_7_problem,
-        generate_type_8_problem,
-    ]
+    problem_type_choice = random.randint(1, 4)
     
-    selected_generator = random.choice(problem_types)
-    return selected_generator()
+    question_text = ""
+    correct_answer = ""
 
+    if problem_type_choice == 1:
+        question_text, correct_answer = generate_type_1()
+    elif problem_type_choice == 2:
+        question_text, correct_answer = generate_type_2()
+    elif problem_type_choice == 3:
+        question_text, correct_answer = generate_type_3()
+    else: # problem_type_choice == 4
+        question_text, correct_answer = generate_type_4()
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "image_base64": "",  # CRITICAL: No image for calculation problems as per spec
+        "problem_type": "純計算題",
+        "difficulty": level
+    }
+
+def check(user, correct):
+    """
+    Checks the user's answer against the correct answer.
+    Handles both direct string comparison and float comparison for numerical answers.
+    """
+    u = user.strip().replace(" ", "")
+    c = correct.strip().replace(" ", "")
+    
+    # Direct string comparison for answers like "相同" or exact matches
+    if u == c: 
+        return {"correct": True, "result": "Correct!"}
+    
+    # Try float comparison for numerical answers
+    try:
+        if abs(float(u) - float(c)) < 1e-6:
+            return {"correct": True, "result": "Correct!"}
+    except ValueError:
+        # If conversion to float fails, it's not a numerical answer or malformed
+        pass
+        
+    return {"correct": False, "result": f"Incorrect. Answer: {correct}"}
+
+
+# [Auto-Injected Patch v9.2] Universal Return Fixer
+# 1. Ensures 'answer' key exists (copies from 'correct_answer')
+# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
+def _patch_return_dict(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        if isinstance(res, dict):
+            # Fix 1: Answer Key
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            
+            # Fix 2: Image Key (Flatten visuals for legacy frontend)
+            if 'image_base64' not in res and 'visuals' in res:
+                try:
+                    # Extract first image value from visuals list
+                    for item in res['visuals']:
+                        if item.get('type') == 'image/png':
+                            res['image_base64'] = item.get('value')
+                            break
+                except: pass
+        return res
+    return wrapper
+
+# Apply patch to ALL generator functions in scope
+import sys
+# Iterate over a copy of globals keys to avoid modification issues
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
+        globals()[_name] = _patch_return_dict(_func)

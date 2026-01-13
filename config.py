@@ -115,3 +115,6 @@ class Config:
     GEMINI_MODEL_NAME = "gemini-2.5-flash"
     #LOCAL_MODEL_NAME = "qwen2.5-coder:3b"
     LOCAL_MODEL_NAME = "qwen2.5-coder:7b"
+    
+    # [V2.5 Data Enhancement] Experiment Batch Tag
+    EXPERIMENT_BATCH = 'Run_V2.5_Elite'

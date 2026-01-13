@@ -1,34 +1,123 @@
 # ==============================================================================
 # ID: jh_數學1上_DistanceBetweenTwoPointsOnNumberLine
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
-# Duration: 47.22s | RAG: 6 examples
-# Created At: 2026-01-08 22:27:55
-# Fix Status: [Clean Pass]
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 20.77s | RAG: 5 examples
+# Created At: 2026-01-14 00:22:21
+# Fix Status: [Repaired]
+# Fixes: Regex=1, Logic=0
 #==============================================================================
 
 
 import random
 import math
 from fractions import Fraction
+from functools import reduce
 
+# --- 1. Formatting Helpers ---
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    Convert int/float/Fraction to LaTeX.
+    Handles mixed numbers automatically for Fractions.
+    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
         if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
+        # Logic for negative fractions
+        sign = "-" if num < 0 else ""
+        abs_num = abs(num)
+        
+        if abs_num.numerator > abs_num.denominator:
+            whole = abs_num.numerator // abs_num.denominator
+            rem_num = abs_num.numerator % abs_num.denominator
+            if rem_num == 0: return f"{sign}{whole}"
+            return f"{sign}{whole} \\frac{{rem_num}}{{abs_num.denominator}}"
         return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX.
+    
+    Args:
+        num: The number to format.
+        signed (bool): If True, always show sign (e.g., "+3", "-5").
+        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_val = to_latex(abs(num))
+    
+    if op:
+        # e.g., " + 3", " - 3"
+        return f" - {abs_val}" if is_neg else f" + {abs_val}"
+    
+    if signed:
+        # e.g., "+3", "-3"
+        return f"-{abs_val}" if is_neg else f"+{abs_val}"
+        
+    # Default behavior (parentheses for negative)
+    if is_neg: return f"({latex_val})"
+    return latex_val
+
+# Alias for AI habits
+fmt_fraction_latex = to_latex 
+
+# --- 2. Number Theory Helpers ---
+def get_positive_factors(n):
+    """Return a sorted list of positive factors of n."""
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
+def is_prime(n):
+    """Check primality."""
+    if n <= 1: return False
+    if n <= 3: return True
+    if n % 2 == 0 or n % 3 == 0: return False
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return False
+        i += 6
+    return True
+
+def get_prime_factorization(n):
+    """Return dict {prime: exponent}."""
+    factors = {}
+    d = 2
+    temp = n
+    while d * d <= temp:
+        while temp % d == 0:
+            factors[d] = factors.get(d, 0) + 1
+            temp //= d
+        d += 1
+    if temp > 1:
+        factors[temp] = factors.get(temp, 0) + 1
+    return factors
+
+def gcd(a, b): return math.gcd(a, b)
+def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+
+# --- 3. Fraction Generator Helper ---
+def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
+    """
+    Generate a random Fraction within range.
+    simple=True ensures it's not an integer.
+    """
+    for _ in range(100):
+        den = random.randint(2, denominator_limit)
+        num = random.randint(min_val * den, max_val * den)
+        if den == 0: continue
+        val = Fraction(num, den)
+        if simple and val.denominator == 1: continue # Skip integers
+        if val == 0: continue
+        return val
+    return Fraction(1, 2) # Fallback
 
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
@@ -63,181 +152,231 @@ def draw_number_line(points_map):
         f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
         f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
     )
-    return result
+
+# --- 4. High-Level Math Objects (Vector/Matrix/Calculus) ---
+class Vector3:
+    """Simple 3D Vector Class for Geometry."""
+    def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
+    def __add__(self, o): return Vector3(self.x+o.x, self.y+o.y, self.z+o.z)
+    def __sub__(self, o): return Vector3(self.x-o.x, self.y-o.y, self.z-o.z)
+    def dot(self, o): return self.x*o.x + self.y*o.y + self.z*o.z
+    def cross(self, o): return Vector3(self.y*o.z-self.z*o.y, self.z*o.x-self.x*o.z, self.x*o.y-self.y*o.x)
+    def mag(self): return math.sqrt(self.x**2 + self.y**2 + self.z**2)
+    def __repr__(self): return f"({self.x}, {self.y}, {self.z})"
+
+class Matrix:
+    """Simple Matrix (2x2 or 3x3) for transformations."""
+    def __init__(self, rows): self.rows = rows
+    def det(self):
+        if len(self.rows) == 2: return self.rows[0][0]*self.rows[1][1] - self.rows[0][1]*self.rows[1][0]
+        return 0 # Placeholder for 3x3
+    def mv(self, v): # Matrix-Vector multiplication
+        return Vector3(
+            self.rows[0][0]*v.x + self.rows[0][1]*v.y,
+            self.rows[1][0]*v.x + self.rows[1][1]*v.y, 0
+        )
+
+def draw_integral_area(func_lambda, x_range, color='blue', alpha=0.3):
+    """
+    [Visual] Helper to plot area under curve. 
+    Usage: In generate(), ax.fill_between(x, y, ...).
+    Actually, this is just a placeholder to remind AI to use fill_between.
+    """
+    pass
+
+# --- 5. Standard Answer Checker (Auto-Injected) ---
+def check(user_answer, correct_answer):
+    """
+    Standard Answer Checker [V9.8.1 Enhanced]
+    1. Handles float tolerance.
+    2. Normalizes strings (removes spaces, supports Chinese commas).
+    3. Returns user-friendly Chinese error messages.
+    """
+    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
+    
+    # 1. Normalize strings (字串正規化)
+    def normalize(s):
+        s = str(s).strip()
+        # 移除空格、LaTeX間距
+        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
+        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
+        s = s.replace("，", ",") 
+        return s
+    
+    user_norm = normalize(user_answer)
+    correct_norm = normalize(correct_answer)
+    
+    # 2. Exact Match Strategy (精確比對)
+    if user_norm == correct_norm:
+        return {"correct": True, "result": "Correct!"}
+        
+    # 3. Float Match Strategy (數值容錯比對)
+    try:
+        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
+        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
+            return {"correct": True, "result": "Correct!"}
+    except ValueError:
+        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
+        
+    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
+    # 這裡回傳的 result 會直接顯示在前端 Result 區域
+    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{correct_answer}"}
 
 
 
-def generate_type_1_problem():
-    """
-    Type 1: Calculate the distance between two points on a number line
-            where one coordinate is negative and the other is positive.
-    """
-    x1 = random.randint(-15, -1)
-    x2 = random.randint(1, 15)
-    ans = abs(x2 - x1)
-    
-    question_text = f"數線上有 $A ( {x1} )$、$B ( {x2} )$ 兩點，則 $A$、$B$ 兩點的距離 $AB$ 為多少？"
-    correct_answer = str(ans)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+from datetime import datetime
+import base64 # 雖然本實現中 image_base64 為 None，但依規範保留此 import。
 
-def generate_type_2_problem():
-    """
-    Type 2: Calculate the distance between two points on a number line
-            where both coordinates are negative.
-    """
-    x1 = random.randint(-20, -10)
-    x2 = random.randint(-9, -1)
-    ans = abs(x2 - x1)
-    
-    question_text = f"數線上有 $C ( {x1} )$、$D ( {x2} )$ 兩點，則 $C$、$D$ 兩點的距離 $CD$ 為多少？"
-    correct_answer = str(ans)
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_3_problem():
-    """
-    Type 3: Find the possible coordinates of a point given another point and the distance between them.
-    """
-    x2 = random.randint(-10, 10)
-    dist = random.randint(2, 15)
-    
-    ans1 = x2 + dist
-    ans2 = x2 - dist
-    
-    # Ensure canonical order for the answer string: smaller_value 或 larger_value
-    if ans1 < ans2:
-        correct_answer = f"{ans1} 或 {ans2}"
-    else:
-        correct_answer = f"{ans2} 或 {ans1}"
-        
-    question_text = f"數線上有 $A ( a )$、$B ( {x2} )$ 兩點，如果 $AB={dist}$，則 $a$ 可能是多少？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_4_problem():
-    """
-    Type 4: Find the possible coordinates of a point given another point and the distance between them (variant).
-    """
-    x2 = random.randint(-12, 12)
-    dist = random.randint(3, 18)
-    
-    ans1 = x2 + dist
-    ans2 = x2 - dist
-    
-    # Ensure canonical order for the answer string: smaller_value 或 larger_value
-    if ans1 < ans2:
-        correct_answer = f"{ans1} 或 {ans2}"
-    else:
-        correct_answer = f"{ans2} 或 {ans1}"
-        
-    question_text = f"數線上有 $C ( c )$、$D ( {x2} )$ 兩點，如果 $CD={dist}$，則 $c$ 可能是多少？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_5_problem():
-    """
-    Type 5: Calculate the midpoint of two points on a number line (integer midpoint).
-    Ensures x1 != x2 and (x1 + x2) is an even number.
-    """
-    while True:
-        x1 = random.randint(-10, 10)
-        
-        # Determine target parity for x2 to ensure (x1 + x2) is even
-        # If x1 is even, x2 must be even. If x1 is odd, x2 must be odd.
-        target_parity = x1 % 2
-        
-        # Generate candidates for x2 that are within range, have the correct parity, and are not equal to x1
-        valid_x2_candidates = [i for i in range(-10, 11) if i % 2 == target_parity and i != x1]
-        
-        if valid_x2_candidates:
-            x2 = random.choice(valid_x2_candidates)
-            ans = (x1 + x2) // 2
-            question_text = f"數線上有 $A ( {x1} )$、$B ( {x2} )$、$C ( c )$ 三點，若 $C$ 為 $A$、$B$ 的中點，則 $c$ 是多少？"
-            correct_answer = str(ans)
-            return {
-                "question_text": question_text,
-                "answer": correct_answer,
-                "correct_answer": correct_answer
-            }
-        # If no valid x2 candidates for this x1 (should not happen with given ranges),
-        # the loop will continue to regenerate x1.
-
-def generate_type_6_problem():
-    """
-    Type 6: Calculate the midpoint of two points on a number line (variant, integer midpoint).
-    Ensures x1 != x2 and (x1 + x2) is an even number.
-    """
-    while True:
-        x1 = random.randint(-12, 12)
-        
-        target_parity = x1 % 2
-        
-        valid_x2_candidates = [i for i in range(-12, 13) if i % 2 == target_parity and i != x1]
-        
-        if valid_x2_candidates:
-            x2 = random.choice(valid_x2_candidates)
-            ans = (x1 + x2) // 2
-            question_text = f"數線上有 $A ( {x1} )$、$B ( {x2} )$、$C ( c )$ 三點，若 $C$ 為 $A$、$B$ 的中點，則 $c$ 是多少？"
-            correct_answer = str(ans)
-            return {
-                "question_text": question_text,
-                "answer": correct_answer,
-                "correct_answer": correct_answer
-            }
+# --- 視覺化工具規範 (Visuals): 數線工具 ---
 
 def generate(level=1):
     """
-    Generates a random problem from the defined types.
-    The 'level' parameter is a placeholder for future complexity scaling
-    and is currently ignored.
-    
-    Returns:
-        dict: A dictionary containing 'question_text', 'answer', and 'correct_answer' for the generated problem.
+    生成 K12 數學「數線上兩點的距離」的題目。
+    根據 `level` 參數（目前未使用，但依規範保留）和隨機邏輯，產生不同題型。
+    嚴禁使用 class 封裝，必須直接定義於模組最外層。
+    確保代碼不依賴全域狀態，以便系統執行 importlib.reload。
     """
-    problem_generators = [
-        generate_type_1_problem,
-        generate_type_2_problem,
-        generate_type_3_problem,
-        generate_type_4_problem,
-        generate_type_5_problem,
-        generate_type_6_problem,
-    ]
-    
-    selected_generator = random.choice(problem_generators)
-    return selected_generator()
+    # 隨機分流：實作至少 3 種不同的題型變體
+    problem_type = random.choice([1, 2, 3])
+
+    question_text_part = ""
+    correct_answer_value = None
+    points_for_visual = {}
+
+    if problem_type == 1:
+        # 題型 1: 直接計算 (Direct Calculation)
+        # 隨機生成兩個不同的整數座標
+        a = random.randint(-15, 15)
+        b = random.randint(-15, 15)
+        while a == b: # 確保兩點不同
+            b = random.randint(-15, 15)
+
+        correct_answer_value = abs(a - b)
+
+        # 排版與 LaTeX 安全: 嚴禁使用 f-string 處理 LaTeX 區塊
+        question_template = r"數線上兩點 $A({a})$ 和 $B({b})$ 之間的距離是多少？"
+        question_latex_safe = question_template.replace("{a}", str(a)).replace("{b}", str(b))
+        
+        question_text_part = f"請計算以下問題：<br>{question_latex_safe}"
+        points_for_visual = {"A": a, "B": b}
+
+    elif problem_type == 2:
+        # 題型 2: 逆向求解（已知距離求座標）
+        # 數線上一點 A，已知與另一點 B 的距離和方向，求 B 的座標。
+        start_point = random.randint(-15, 15)
+        distance = random.randint(3, 12) # 距離至少為 3
+        
+        # 隨機決定未知點 B 在 A 的左側或右側
+        direction_multiplier = random.choice([-1, 1]) # -1 代表左側, 1 代表右側
+        
+        unknown_point_coord = start_point + direction_multiplier * distance
+        correct_answer_value = unknown_point_coord
+
+        direction_text = "右側" if direction_multiplier == 1 else "左側"
+        
+        # 排版與 LaTeX 安全: 嚴禁使用 f-string 處理 LaTeX 區塊
+        question_template = r"數線上一點 $A({start_point})$，若它與另一點 $B$ 的距離為 ${distance}$，且 $B$ 點在 $A$ 點的{direction_text}，則 $B$ 點的座標為何？"
+        
+        question_latex_safe = question_template \
+            .replace("{start_point}", str(start_point)) \
+            .replace("{distance}", str(distance)) \
+            .replace("{direction_text}", direction_text)
+            
+        question_text_part = f"請計算以下問題：<br>{question_latex_safe}"
+        # 視覺化時顯示起始點和最終結果點
+        points_for_visual = {"A": start_point, "B": unknown_point_coord}
+
+    elif problem_type == 3:
+        # 題型 3: 情境應用（如移動點）
+        # 一個點 P 從某座標開始，經過多次移動，求最終座標。
+        p_start = random.randint(-15, 15)
+        d1 = random.randint(2, 10) # 第一次移動距離
+        d2 = random.randint(2, 10) # 第二次移動距離
+
+        # 隨機決定兩次移動的方向
+        dir1_multiplier = random.choice([-1, 1])
+        dir2_multiplier = random.choice([-1, 1])
+
+        p_intermediate = p_start + dir1_multiplier * d1
+        p_final = p_intermediate + dir2_multiplier * d2
+        correct_answer_value = p_final
+
+        dir1_text = "向右" if dir1_multiplier == 1 else "向左"
+        dir2_text = "向右" if dir2_multiplier == 1 else "向左"
+
+        # 排版與 LaTeX 安全: 嚴禁使用 f-string 處理 LaTeX 區塊
+        question_template = r"數線上一點 $P$ 原先在座標 ${p_start}$。若 $P$ 先{dir1_text}移動 ${d1}$ 單位，再{dir2_text}移動 ${d2}$ 單位，則 $P$ 點最終的座標為何？"
+        
+        question_latex_safe = question_template \
+            .replace("{p_start}", str(p_start)) \
+            .replace("{dir1_text}", dir1_text) \
+            .replace("{d1}", str(d1)) \
+            .replace("{dir2_text}", dir2_text) \
+            .replace("{d2}", str(d2))
+
+        question_text_part = f"請計算以下問題：<br>{question_latex_safe}"
+        # 視覺化時顯示起始點和最終點，中間點可省略以保持簡潔
+        points_for_visual = {"P_起始": p_start, "P_最終": p_final}
+
+    # 視覺化工具規範: question_text 必須由「文字題目 + <br> + 視覺化 HTML」組成。
+    visual_html = draw_number_line(points_for_visual)
+    final_question_text = question_text_part + "<br>" + visual_html
+
+    # 數據與欄位 (Standard Fields): 返回字典必須且僅能包含指定欄位
+    return {
+        "question_text": final_question_text,
+        "correct_answer": str(correct_answer_value), # 確保為字串類型
+        "answer": str(correct_answer_value),         # 確保為字串類型，用於顯示
+        "image_base64": None,                        # 本範例不生成圖片，因此為 None
+        "created_at": datetime.now().isoformat(),    # 時間戳記 (ISO 8601 格式)
+        "version": "9.6.0"                           # 系統版本號
+    }
 
 def check(user_answer, correct_answer):
     """
-    檢查答案是否正確。
+    檢查使用者答案是否正確。
+    嚴禁使用 class 封裝，必須直接定義於模組最外層。
+    user_answer: 使用者輸入的答案 (字串)。
+    correct_answer: 系統生成的正確答案 (字串)。
     """
-    user_answer_processed = str(user_answer).strip().upper()
-    correct_answer_processed = str(correct_answer).strip().upper()
-    
-    is_correct = (user_answer_processed == correct_answer_processed)
-    
-    if not is_correct:
-        try:
-            if float(user_answer_processed) == float(correct_answer_processed):
-                is_correct = True
-        except ValueError:
-            pass
+    try:
+        # 將答案轉換為浮點數進行比較，以處理潛在的數字格式問題
+        user_ans_float = float(user_answer)
+        correct_ans_float = float(correct_answer)
+        # 考慮浮點數精度問題，使用 math.isclose 進行比較
+        return math.isclose(user_ans_float, correct_ans_float, rel_tol=1e-9, abs_tol=1e-9)
+    except ValueError:
+        # 如果轉換失敗 (例如，使用者輸入非數字字串)，則答案錯誤
+        return False
 
-    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
+# [Auto-Injected Patch v9.2] Universal Return Fixer
+# 1. Ensures 'answer' key exists (copies from 'correct_answer')
+# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
+def _patch_return_dict(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        if isinstance(res, dict):
+            # Fix 1: Answer Key
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            
+            # Fix 2: Image Key (Flatten visuals for legacy frontend)
+            if 'image_base64' not in res and 'visuals' in res:
+                try:
+                    # Extract first image value from visuals list
+                    for item in res['visuals']:
+                        if item.get('type') == 'image/png':
+                            res['image_base64'] = item.get('value')
+                            break
+                except: pass
+        return res
+    return wrapper
+
+# Apply patch to ALL generator functions in scope
+import sys
+# Iterate over a copy of globals keys to avoid modification issues
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
+        globals()[_name] = _patch_return_dict(_func)

@@ -4,7 +4,7 @@
 模組名稱 (Module Name): core/prompt_architect.py
 功能說明 (Description): AI 架構師模組 (Architect Mode)，負責分析教科書例題與技能需求，設計並生成給 Coder AI 使用的詳細 Python 實作規格書 (Spec)。
 執行語法 (Usage): 由系統調用
-版本資訊 (Version): V2.0
+版本資訊 (Version): V9.3 (Elite Hardening + Timestamp Fix)
 更新日期 (Date): 2026-01-13
 維護團隊 (Maintainer): Math AI Project Team
 =============================================================================
@@ -12,11 +12,13 @@
 # ==============================================================================
 
 import json, re, ast
+from datetime import datetime # [修正] 必須導入 datetime
 from models import db, SkillInfo, TextbookExample, SkillGenCodePrompt
 from core.ai_wrapper import get_ai_client
+from config import Config
 
 def generate_v9_spec(skill_id, model_tag='cloud_pro', prompt_strategy='standard', architect_model='human'):
-    print(f"--- [Architect v9.2.2] Analyzing {skill_id} for '{model_tag}' (Chinese Mode) ---")
+    print(f"--- [Architect v9.3] Analyzing {skill_id} for '{model_tag}' (Elite Mode) ---")
     skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
     if not skill: return {'success': False, 'message': 'Skill not found'}
 
@@ -34,73 +36,45 @@ def generate_v9_spec(skill_id, model_tag='cloud_pro', prompt_strategy='standard'
     else: # cloud_pro
         tier_scope = "Create a rich variety of problem types covering all nuances of the examples."
 
-    # 3. 系統指令 (升級版：加入語言衛兵)
-    system_instruction = f"""You are an **Elite Math Architect & Engineering Lead**.
-Your goal is to design a Python implementation plan (`coder_spec`) for a Junior Coder AI.
+    # 3. 系統指令 (V9.6 終極自動化版)
+    system_instruction = """【任務】：擔任 K12 數學 AI 首席系統架構師 (V9.6 終極自動化版)
 
-### 🌐 GOAL 0: LANGUAGE ENFORCEMENT (CRITICAL)
-1.  **Output Language**: All generated content (Questions, Stories, Explanations, Tutor Guides) MUST be in **Traditional Chinese (Taiwan)** (繁體中文).
-2.  **Terminology**: Use standard Taiwan math terminology (e.g., use "座標" not "坐標", "矩陣" not "行列式" context dependent).
-3.  **Coder Instructions**: You MUST explicitly tell the Coder AI: "Generate the `question_text` and `correct_answer` in Traditional Chinese."
+你必須產出符合以下規範的 Coder Spec，確保產出的 Python 程式碼能自動執行且排版完美：
 
-### 🎯 GOAL 1: ADAPTIVE SCENARIO (Context vs. Pure Math)
-Analyze the INPUT DATA (Textbook Examples) first.
-1.  **If examples are Word Problems**: You MUST wrap math in **Real-world Scenarios** (e.g., Shopping, Temperature, Geometry Design).
-2.  **If examples are Pure Calculations** (e.g., "Solve x+y=5"):
-    - **DO NOT** force a story. Keep it abstract and clean.
-    - Focus on **Structural Diversity** (e.g., vary equation forms, use fractions/integers mix).
-    - Visuals should be technical plots (e.g., "Geometric Solution").
+1. 程式結構 (Structure Hardening)
+- [頂層函式]：嚴禁使用 class 封裝。必須直接定義 generate(level=1) 與 check(user_answer, correct_answer) 於模組最外層。
+- [自動重載]：確保代碼不依賴全域狀態，以便系統執行 importlib.reload。
 
-*Instruction to Coder*: Explicitly tell the Coder to match the *style* of the reference examples (Story vs. Pure Math).
+2. 題型多樣性 (Problem Variety)
+- [隨機分流]：generate() 內部必須使用 random.choice 或 if/elif 邏輯，根據該技能的教科書例題，實作至少 3 種不同的題型變體。
+- [範例]：題型應包含「直接計算」、「逆向求解（已知距離求座標）」、「情境應用（如移動點）」。
 
-### 🛠️ GOAL 2: ENGINEERING ROBUSTNESS (Strict Rules)
-1.  **NO File I/O**: NEVER use `savefig`. Use `io.BytesIO` and return **Base64** string.
-2.  **Return Format**: MUST return a Dictionary:
-    {{
-        "question_text": "Story (in Chinese)...", 
-        "correct_answer": "Solution (in Chinese)...", 
-        "image_base64": "...", 
-        "problem_type": "..."
-    }}
-3.  **Visuals**: Use `matplotlib`. **CRITICAL**: Set Chinese font: `plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial']`.
-4.  **Randomization**: Never hardcode numbers. Use `random`.
+3. 排版與 LaTeX 安全 (Layout Guardrails)
+- [禁止換行符]：嚴禁使用 \\par、\\\\ 或 \[...\]。所有數學式必須使用 $...$ (Inline Math)。
+- [變數注入]：必須使用 r"模板".replace("{a}", str(a)) 語法，嚴禁直接使用 f-string 處理 LaTeX 區塊。
 
-### 🛡️ GOAL 3: NUMERICAL GUARDRAILS (Feasibility & Logic)
-You MUST instruct the Coder to enforce these mathematical constraints:
-1.  **Reasonable Ranges**: Lengths > 0, Angles sum to 180, etc.
-2.  **Clean Answers (Reverse Engineering)**:
-    - **DO NOT** generate random operands first.
-    - **DO** generate the *Answer* first (integers), then calculate operands.
-3.  **Logic Checks**: No division by zero, etc.
+4. 視覺化工具規範 (Visuals)
+- [數線工具]：若為數線題，必須實作 draw_number_line(points_map) 且該函式「最後必須有 return html_string」。
+- [拼接要求]：question_text 必須由「文字題目 + <br> + 視覺化 HTML」組成。
 
-### 📝 INPUT DATA (Textbook Examples)
-{rag_text}
-
-### 📦 OUTPUT FORMAT (JSON ONLY)
-Return a valid JSON object with:
-1. `coder_spec`: A detailed MARKDOWN prompt for the Coder AI. **Ensure the prompt instructions explicitly demand Traditional Chinese output.**
-2. `tutor_guide`: A concise cheat sheet in **Traditional Chinese**.
-
-### ⛔ SYSTEM SAFETY
-- Escape all double quotes in JSON.
-- NO conversational text. START WITH `{{`.
+5. 數據與欄位 (Standard Fields)
+- [欄位鎖死]：返回字典必須且僅能包含 question_text, correct_answer, answer, image_base64。
+- [時間戳記]：更新時必須將 created_at 設為 datetime.now() 並遞增 version。
 """
 
     user_prompt = f"### SKILL: {skill.skill_ch_name} ({skill.skill_id})\n### STRATEGY: {tier_scope}\n### EXECUTE:"
+    
+    now = datetime.now() # [新增] 捕捉當前時間
 
     try:
         client = get_ai_client(role='architect')
         
-        # [Fix] 自動更新 architect_model 為實際使用的 AI 模型名稱
-        # 如果是 cloud_pro，通常對應到 Config 裡的 GEMINI_MODEL_NAME
-        # 這裡做一個簡單的對應，或是直接從 Config 讀取
-        from config import Config
-        from config import Config
         # [Fix] 強行覆蓋預設值 (User Request)
         if model_tag == 'cloud_pro':
             architect_model = Config.GEMINI_MODEL_NAME
         elif model_tag == 'local_14b':
             architect_model = Config.LOCAL_MODEL_NAME
+
         try:
             response = client.generate_content(
                 system_instruction + "\n" + user_prompt,
@@ -111,8 +85,16 @@ Return a valid JSON object with:
             
         response_text = response.text.strip()
         
-        # --- JSON 解析與容錯 ---
-        clean_json = re.sub(r'^```json\s*|```$', '', response_text, flags=re.MULTILINE).strip()
+        # --- JSON 解析與容錯 (V9.3 Reinforced) ---
+        clean_json = response_text.strip()
+        # 1. Try to extract strictly from ```json blocks
+        block_match = re.search(r'```json\s*(.*?)\s*```', clean_json, re.DOTALL)
+        if block_match:
+            clean_json = block_match.group(1)
+        else:
+            # 2. Fallback: Strip Markdown tags if they frame the entire content
+            clean_json = re.sub(r'^```json\s*|```$', '', clean_json, flags=re.MULTILINE).strip()
+            
         data = {}
         try:
             data = json.loads(clean_json)
@@ -133,7 +115,7 @@ Return a valid JSON object with:
         if isinstance(tutor_guide, (dict, list)): tutor_guide = json.dumps(tutor_guide, indent=2, ensure_ascii=False)
         else: tutor_guide = str(tutor_guide)
 
-        # 4. Upsert DB
+        # 4. Upsert DB 與時間更新
         existing_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, model_tag=model_tag).first()
         
         final_version = 1
@@ -141,13 +123,19 @@ Return a valid JSON object with:
             existing_prompt.user_prompt_template = coder_spec
             existing_prompt.system_prompt = system_instruction
             existing_prompt.version += 1
+            existing_prompt.created_at = now # [關鍵修正] 更新時間戳記，解決資料庫不跳動問題
             final_version = existing_prompt.version
             print(f"   🔄 [Upsert] Updated existing prompt (Ver: {final_version})")
         else:
             new_prompt = SkillGenCodePrompt(
-                skill_id=skill_id, model_tag=model_tag, user_prompt_template=coder_spec, 
-                system_prompt=system_instruction, version=1, is_active=True, 
-                architect_model=architect_model
+                skill_id=skill_id, 
+                model_tag=model_tag, 
+                user_prompt_template=coder_spec, 
+                system_prompt=system_instruction, 
+                version=1, 
+                is_active=True, 
+                architect_model=architect_model,
+                created_at=now # [新增] 初始時間
             )
             db.session.add(new_prompt)
             print(f"   🆕 [Upsert] Inserted new prompt entry.")
