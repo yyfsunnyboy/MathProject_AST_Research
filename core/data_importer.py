@@ -1,25 +1,14 @@
 # -*- coding: utf-8 -*-
-# ==============================================================================
-# ID: core/data_importer.py
-# Version: v9.0 (Science Fair Data-Driven Edition)
-# Last Updated: 2026-01-10
-# Author: Math-Master AI Dev Team
-#
-# Description:
-#   Universal Data Import Module for the Math-Master AI Platform.
-#   This module handles bulk data ingestion from Excel (.xlsx) files into the 
-#   SQLite database using Pandas and SQLAlchemy.
-#
-#   [v9.0 Upgrade Highlights]:
-#   1. Dynamic Model Discovery: Replaced hardcoded model mapping with SQLAlchemy
-#      Registry scanning (Reflection). This allows the importer to automatically 
-#      recognize new V9.0 tables (e.g., SkillGenCodePrompt) without code changes.
-#   2. Fuzzy Matching: Implemented case-insensitive matching between Excel sheet
-#      names and Database table names (e.g., Sheet 'Users' maps to Table 'users').
-#   3. Smart Upsert: Uses `db.session.merge` to support both inserting new records
-#      and updating existing ones based on Primary Keys.
-#   4. Robustness: Added comprehensive error handling and detailed result logging
-#      for better troubleshooting during the migration phase.
+"""
+=============================================================================
+模組名稱 (Module Name): core/data_importer.py
+功能說明 (Description): 通用資料匯入模組，負責將 Excel 檔案中的資料批量導入 SQLite 資料庫，支援動態模型偵測與資料清洗 (如日期修復)。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # ==============================================================================
 import pandas as pd
 import os

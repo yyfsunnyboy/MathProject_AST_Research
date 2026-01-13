@@ -1,9 +1,22 @@
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+模組名稱 (Module Name): core/utils.py
+功能說明 (Description): 提供與資料庫互動的通用工具函式，包含技能查詢、課綱結構獲取、以及管理技能與課綱關聯的 CRUD 操作。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 """此模組提供與資料庫互動的通用工具函式，包含查詢技能資訊、課綱結構（年級、冊別、章節）以及管理技能與課綱關聯的 CRUD 操作。"""
 
 # core/utils.py （新建檔案）
 from sqlalchemy import func
 import re
 from models import db, SkillInfo, SkillCurriculum
+from flask import session  # 補上這行
+from sqlalchemy import distinct  # 補上這行
 
 def get_skill_info(skill_id):
     """從 skills_info 表讀取單一技能資訊"""
@@ -206,3 +219,57 @@ def to_superscript(n):
         "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻"
     }
     return "".join(superscript_map.get(char, char) for char in str(n))
+
+def handle_curriculum_filters(request):
+    """
+    通用五層連動過濾器邏輯 (V2.0 模組化版)
+    功能：自動處理網址參數、Session 記憶、以及動態選項產生。
+    """
+    # 1. 取得五層篩選值 (優先順序：網址參數 > Session 記憶 > 預設 'all')
+    f_curr = request.args.get('f_curriculum') or session.get('last_f_curr', 'all')
+    f_grade = request.args.get('f_grade') or session.get('last_f_grade', 'all')
+    f_vol = request.args.get('f_volume') or session.get('last_f_vol', 'all')
+    f_chap = request.args.get('f_chapter') or session.get('last_f_chap', 'all')
+    f_sec = request.args.get('f_section') or session.get('last_f_sec', 'all')
+    
+    # 2. 更新 Session 記憶，供單筆編輯後回復狀態
+    session.update({
+        'last_f_curr': f_curr, 'last_f_grade': f_grade,
+        'last_f_vol': f_vol, 'last_f_chap': f_chap, 'last_f_sec': f_sec
+    })
+
+    # 3. 動態產生下拉選單選項 (五層連動邏輯)
+    filters = {}
+    
+    # A. 課綱
+    filters['curriculums'] = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
+
+    # B. 年級 (依據課綱)
+    g_q = db.session.query(distinct(SkillCurriculum.grade)).filter(SkillCurriculum.grade != None)
+    if f_curr != 'all': g_q = g_q.filter(SkillCurriculum.curriculum == f_curr)
+    filters['grades'] = sorted([r[0] for r in g_q.all()])
+
+    # C. 冊別 (依據課綱+年級)
+    v_q = db.session.query(distinct(SkillCurriculum.volume))
+    if f_curr != 'all': v_q = v_q.filter(SkillCurriculum.curriculum == f_curr)
+    if f_grade != 'all' and str(f_grade).isdigit(): v_q = v_q.filter(SkillCurriculum.grade == int(f_grade))
+    filters['volumes'] = [r[0] for r in v_q.all()]
+
+    # D. 章節 (依據前三層)
+    c_q = db.session.query(distinct(SkillCurriculum.chapter))
+    if f_curr != 'all': c_q = c_q.filter(SkillCurriculum.curriculum == f_curr)
+    if f_grade != 'all' and str(f_grade).isdigit(): c_q = c_q.filter(SkillCurriculum.grade == int(f_grade))
+    if f_vol != 'all': c_q = c_q.filter(SkillCurriculum.volume == f_vol)
+    filters['chapters'] = [r[0] for r in c_q.all()]
+
+    # E. 節 (依據前四層)
+    s_q = db.session.query(distinct(SkillCurriculum.section))
+    if f_curr != 'all': s_q = s_q.filter(SkillCurriculum.curriculum == f_curr)
+    if f_grade != 'all' and str(f_grade).isdigit(): s_q = s_q.filter(SkillCurriculum.grade == int(f_grade))
+    if f_vol != 'all': s_q = s_q.filter(SkillCurriculum.volume == f_vol)
+    if f_chap != 'all': s_q = s_q.filter(SkillCurriculum.chapter == f_chap)
+    filters['sections'] = [r[0] for r in s_q.all()]
+
+    selected = {'f_curriculum': f_curr, 'f_grade': f_grade, 'f_volume': f_vol, 'f_chapter': f_chap, 'f_section': f_sec}
+    
+    return selected, filters    

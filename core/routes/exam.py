@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Module Name: exam.py
-Description: 考卷診斷與分析路由 (Refactored)
-             處理考卷上傳、分析、歷史紀錄查詢與顯示
+=============================================================================
+模組名稱 (Module Name): core/routes/exam.py
+功能說明 (Description): 考卷診斷與分析路由模組，負責處理考卷上傳、整合 Core Analyzer 進行分析，以及查詢歷史分析記錄。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
 """
 
 from flask import request, jsonify, current_app, redirect, url_for, render_template, flash

@@ -1,22 +1,14 @@
 # -*- coding: utf-8 -*-
-# ==============================================================================
-# ID: models.py
-# Version: v9.0 (Science Fair Data-Driven Edition)
-# Last Updated: 2026-01-10
-# Author: Math-Master AI Dev Team
-#
-# Description:
-#   Database models definition for the Math-Master AI Platform.
-#   This module defines the schema for Users, Skills, Curriculum, and Logging.
-#
-#   [v9.0 Upgrade Highlights]:
-#   1. Prompt Versioning: Introduced `SkillGenCodePrompt` table to manage 
-#      and track different versions of prompts (Architect Phase).
-#   2. Science Fair Analytics: Expanded `ExperimentLog` to capture granular
-#      metrics like Token Usage (Cost), AST Repair Counts (Self-Healing),
-#      and Error Categories for scientific analysis.
-#   3. Cost Tracking: Added fields to track API costs for both Prompt Generation
-#      (Architect) and Code Generation (Coder) phases.
+"""
+=============================================================================
+模組名稱 (Module Name): models.py
+功能說明 (Description): 定義系統的資料庫模型 (Schema)，包含使用者 (User)、技能 (Skill)、課綱架構 (Curriculum)、以及實驗記錄與錯誤日誌 (Logging)。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # ==============================================================================
 import sqlite3
 import json

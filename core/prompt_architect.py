@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-# ==============================================================================
-# ID: prompt_architect.py
-# Version: v9.2.2 (Traditional Chinese Enforcement)
-# Last Updated: 2026-01-11
-# Description:
-#   Upgrade from v9.2.1:
-#   1. Enforce "Traditional Chinese (Taiwan)" for ALL output content.
-#   2. Architect MUST write the `tutor_guide` in Chinese.
-#   3. Architect MUST instruct Coder to generate Chinese question text.
+"""
+=============================================================================
+模組名稱 (Module Name): core/prompt_architect.py
+功能說明 (Description): AI 架構師模組 (Architect Mode)，負責分析教科書例題與技能需求，設計並生成給 Coder AI 使用的詳細 Python 實作規格書 (Spec)。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # ==============================================================================
 
 import json, re, ast

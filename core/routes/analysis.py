@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-Module Name: analysis.py
-Description: AI 分析與診斷模組
-             包含：AI 聊天助手 (Chat AI)、手寫辨識分析 (Handwriting)、
-             考卷上傳與診斷 (Exam Analysis)、錯題本 (Mistake Notebook)、弱點分析
-Version: V2.0 (Refactored)
-Maintainer: Math AI Team
+模組名稱 (Module Name): core/routes/analysis.py
+功能說明 (Description): AI 分析與診斷模組，包含 AI 聊天助手 (Chat AI)、手寫辨識分析、考卷上傳與診斷 (Exam Analysis)、錯題本與弱點分析功能。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
 =============================================================================
 """
 

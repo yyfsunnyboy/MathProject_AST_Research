@@ -1,3 +1,16 @@
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+模組名稱 (Module Name): skills/Example_Program.py
+功能說明 (Description): 黃金標準範例程式 (Gold Standard Template)。
+    作為所有 AI 生成技能程式碼的參考模板，展示了標準的結構、
+    LaTeX 處理規範、分級邏輯 (Level 1/2) 以及回應格式要求。
+執行語法 (Usage): 作為 RAG (Retrieval-Augmented Generation) 的參考文件
+版本資訊 (Version): V8.7 (Universal)
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 import random
 import math
 from fractions import Fraction

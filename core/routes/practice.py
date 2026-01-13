@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-Module Name: practice.py
-Description: 處理學生練習區的核心邏輯
-             包含：題目生成 (Generator)、答案批改 (Checker)、繪圖輔助 (Matplotlib)
-             特性：Matplotlib Thread-Safe 機制、Session 狀態管理
-Version: V2.0 (Refactored)
-Maintainer: Math AI Team
+模組名稱 (Module Name): core/routes/practice.py
+功能說明 (Description): 學生練習區核心路由模組，處理題目生成 (Generator)、答案批改 (Checker) 與 Matplotlib 繪圖輔助，並管理練習 Session。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
 =============================================================================
 """
 

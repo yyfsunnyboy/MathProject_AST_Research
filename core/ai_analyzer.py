@@ -1,5 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+模組名稱 (Module Name): core/ai_analyzer.py
+功能說明 (Description): 負責與 Google Gemini AI 模型互動，提供圖片分析、手寫辨識、題目技能識別以及從圖片生成測驗等核心 AI 功能。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 """此模組負責與 Google Gemini AI 模型進行互動，提供圖片分析、手寫辨識、題目技能識別以及從圖片生成測驗等功能。"""
-
 # core/ai_analyzer.py
 import google.generativeai as genai
 import base64

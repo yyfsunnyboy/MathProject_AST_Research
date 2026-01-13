@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-Module Name: admin.py
-Description: 後台管理核心模組 (V2.5 Final)
-             包含：資料庫維護、教科書匯入、技能管理、課程綱要管理、
-             例題管理、Prompt 管理、前置技能管理 (Prerequisites)
+模組名稱 (Module Name): core/routes/admin.py
+功能說明 (Description): 後台管理核心模組，包含資料庫維護、教科書匯入、技能管理、課程綱要管理、例題管理、Prompt 管理與前置技能管理。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
 =============================================================================
 """
 
-from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash, send_file, Response, stream_with_context
+from flask import Blueprint, request, jsonify, current_app, redirect, url_for, render_template, flash, session, send_file, Response, stream_with_context
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from sqlalchemy import distinct, text
@@ -28,6 +30,7 @@ import importlib
 from . import core_bp
 from core.globals import TASK_QUEUES
 from core import textbook_processor
+from core.utils import handle_curriculum_filters
 
 # [Fix] 只引用確定存在的函式，避免 ImportError
 from core.data_importer import import_excel_to_db
@@ -329,34 +332,35 @@ def admin_curriculum():
             flash(f'新增失敗: {str(e)}', 'error')
         return redirect(url_for('core.admin_curriculum'))
 
-    sel_curr = request.args.get('curriculum')
-    sel_grade = request.args.get('grade')
-    sel_vol = request.args.get('volume')
-    sel_chap = request.args.get('chapter')
-    sel_sec = request.args.get('section')
-
-    query = SkillCurriculum.query.join(SkillInfo)
-    if sel_curr: query = query.filter(SkillCurriculum.curriculum == sel_curr)
-    if sel_grade: query = query.filter(SkillCurriculum.grade == int(sel_grade))
-    if sel_vol: query = query.filter(SkillCurriculum.volume == sel_vol)
-    if sel_chap: query = query.filter(SkillCurriculum.chapter == sel_chap)
-    if sel_sec: query = query.filter(SkillCurriculum.section == sel_sec)
+    # 一行代碼取代原本 50 行的連動與記憶邏輯！
+    selected, filters_data = handle_curriculum_filters(request)
     
+    # 主查詢使用 selected 進行過濾
+    query = SkillCurriculum.query.join(SkillInfo)
+    if selected['f_curriculum'] != 'all': 
+        query = query.filter(SkillCurriculum.curriculum == selected['f_curriculum'])
+    
+    if selected['f_grade'] != 'all' and str(selected['f_grade']).isdigit():
+        query = query.filter(SkillCurriculum.grade == int(selected['f_grade']))
+        
+    if selected['f_volume'] != 'all':
+        query = query.filter(SkillCurriculum.volume == selected['f_volume'])
+
+    if selected['f_chapter'] != 'all':
+        query = query.filter(SkillCurriculum.chapter == selected['f_chapter'])
+
+    if selected['f_section'] != 'all':
+        query = query.filter(SkillCurriculum.section == selected['f_section'])
+
     items = query.order_by(SkillCurriculum.grade, SkillCurriculum.volume, SkillCurriculum.display_order).limit(200).all()
 
-    curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
-    grades = sorted([r[0] for r in db.session.query(distinct(SkillCurriculum.grade)).filter(SkillCurriculum.grade != None).all()])
-    volumes = [r[0] for r in db.session.query(distinct(SkillCurriculum.volume)).all()]
-    chapters = [r[0] for r in db.session.query(distinct(SkillCurriculum.chapter)).all()]
-    sections = [r[0] for r in db.session.query(distinct(SkillCurriculum.section)).all()]
-    
     curriculum_map = {'junior_high': '國中', 'general': '普高', 'technical': '技高', 'elementary': '國小'}
-    grade_map = {str(g): str(g) for g in grades}
+    grade_map = {str(g): str(g) for g in filters_data['grades']}
 
     return render_template('admin_curriculum.html', 
                            items=items,
-                           filters={'curriculums': curriculums, 'grades': grades, 'volumes': volumes, 'chapters': chapters, 'sections': sections},
-                           selected_filters={'f_curriculum': sel_curr, 'f_grade': sel_grade, 'f_volume': sel_vol, 'f_chapter': sel_chap, 'f_section': sel_sec},
+                           filters=filters_data,
+                           selected_filters=selected,
                            curriculum_map=curriculum_map,
                            grade_map=grade_map,
                            skills=SkillInfo.query.all())
@@ -406,25 +410,31 @@ def admin_skills():
     if not (current_user.is_admin or current_user.role == 'teacher'):
         return redirect(url_for('dashboard'))
 
-    sel_curr = request.args.get('f_curriculum')
-    sel_grade = request.args.get('f_grade')
+    # 調用 V2.0 工具取得五層狀態
+    selected, filters_data = handle_curriculum_filters(request)
     
-    if sel_curr or sel_grade:
-        query = db.session.query(SkillInfo).join(SkillCurriculum)
-        if sel_curr: query = query.filter(SkillCurriculum.curriculum == sel_curr)
-        if sel_grade: query = query.filter(SkillCurriculum.grade == int(sel_grade))
-        skills = query.distinct().order_by(SkillInfo.skill_id).all()
-    else:
-        skills = SkillInfo.query.order_by(SkillInfo.skill_id).all()
-
-    curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).all()]
-    grades = sorted([r[0] for r in db.session.query(distinct(SkillCurriculum.grade)).filter(SkillCurriculum.grade != None).all()])
+    # 建立 JOIN 查詢
+    query = db.session.query(SkillInfo).join(SkillCurriculum)
+    
+    # --- 補齊所有過濾條件 ---
+    if selected['f_curriculum'] != 'all': 
+        query = query.filter(SkillCurriculum.curriculum == selected['f_curriculum'])
+    if selected['f_grade'] != 'all' and str(selected['f_grade']).isdigit(): 
+        query = query.filter(SkillCurriculum.grade == int(selected['f_grade']))
+    if selected['f_volume'] != 'all':
+        query = query.filter(SkillCurriculum.volume == selected['f_volume'])
+    if selected['f_chapter'] != 'all': # 補這行
+        query = query.filter(SkillCurriculum.chapter == selected['f_chapter'])
+    if selected['f_section'] != 'all': # 補這行
+        query = query.filter(SkillCurriculum.section == selected['f_section'])
+    
+    skills = query.distinct().order_by(SkillInfo.skill_id).all()
 
     return render_template('admin_skills.html', 
                            skills=skills,
-                           filters={'curriculums': curriculums, 'grades': grades},
-                           selected_filters={'f_curriculum': sel_curr, 'f_grade': sel_grade},
-                           grade_map={str(g):str(g) for g in grades},
+                           filters=filters_data,
+                           selected_filters=selected,
+                           grade_map={str(g):str(g) for g in filters_data['grades']},
                            curriculum_map={'junior_high': '國中', 'general': '普高'},
                            username=current_user.username)
 
@@ -544,14 +554,34 @@ def admin_examples():
     if not (current_user.is_admin or current_user.role == 'teacher'):
         return redirect(url_for('dashboard'))
     
+    # 調用 V2.0 工具
+    selected, filters_data = handle_curriculum_filters(request)
     page = request.args.get('page', 1, type=int)
-    query = db.session.query(TextbookExample).join(SkillInfo, TextbookExample.skill_id == SkillInfo.skill_id)
+    
+    # 建立連接 SkillCurriculum 的查詢以進行過濾
+    query = db.session.query(TextbookExample).join(SkillInfo).join(SkillCurriculum)
+    
+    if selected['f_curriculum'] != 'all': 
+        query = query.filter(SkillCurriculum.curriculum == selected['f_curriculum'])
+    if selected['f_grade'] != 'all' and str(selected['f_grade']).isdigit(): 
+        query = query.filter(SkillCurriculum.grade == int(selected['f_grade']))
+    if selected['f_volume'] != 'all':
+        query = query.filter(SkillCurriculum.volume == selected['f_volume'])
+    if selected['f_chapter'] != 'all':
+        query = query.filter(SkillCurriculum.chapter == selected['f_chapter'])
+    if selected['f_section'] != 'all':
+        query = query.filter(SkillCurriculum.section == selected['f_section'])
+    
     pagination = query.order_by(TextbookExample.id.desc()).paginate(page=page, per_page=50, error_out=False)
     
     return render_template('admin_examples.html', 
                            pagination=pagination, 
-                           filters={}, selected_filters={}, curriculum_map={}, grade_map={}, 
-                           skills=SkillInfo.query.all(), username=current_user.username)
+                           filters=filters_data,
+                           selected_filters=selected,
+                           curriculum_map={'junior_high': '國中', 'general': '普高'},
+                           grade_map={str(g):str(g) for g in filters_data['grades']}, 
+                           skills=SkillInfo.query.all(), 
+                           username=current_user.username)
 
 @core_bp.route('/examples/add', methods=['POST'])
 @login_required
@@ -682,49 +712,52 @@ def api_delete_skill_prompt(prompt_id):
 @core_bp.route('/admin/prerequisites')
 @login_required
 def admin_prerequisites():
-    """前置技能管理頁面"""
     if not (current_user.is_admin or current_user.role == "teacher"):
         flash('權限不足', 'error')
         return redirect(url_for('dashboard'))
     
-    f_curriculum = request.args.get('f_curriculum', 'all')
-    f_grade = request.args.get('f_grade', 'all')
-    f_volume = request.args.get('f_volume', 'all')
-    f_chapter = request.args.get('f_chapter', 'all')
+    # --- A. 呼叫 V2.0 模組化工具 ---
+    # 此函式會自動處理 Session 記憶、URL 參數、與動態選單產生
+    selected, filters_data = handle_curriculum_filters(request)
     
+    # --- B. 建立過濾查詢 ---
     query = db.session.query(SkillInfo, SkillCurriculum).join(
         SkillCurriculum, SkillInfo.skill_id == SkillCurriculum.skill_id
     ).filter(SkillInfo.is_active.is_(True))
     
-    if f_curriculum != 'all': query = query.filter(SkillCurriculum.curriculum == f_curriculum)
-    if f_grade != 'all': query = query.filter(SkillCurriculum.grade == int(f_grade))
-    if f_volume != 'all': query = query.filter(SkillCurriculum.volume == f_volume)
-    if f_chapter != 'all': query = query.filter(SkillCurriculum.chapter == f_chapter)
+    # --- 補齊所有過濾條件 ---
+    if selected['f_curriculum'] != 'all': 
+        query = query.filter(SkillCurriculum.curriculum == selected['f_curriculum'])
+    if selected['f_grade'] != 'all' and str(selected['f_grade']).isdigit(): 
+        query = query.filter(SkillCurriculum.grade == int(selected['f_grade']))
+    if selected['f_volume'] != 'all': 
+        query = query.filter(SkillCurriculum.volume == selected['f_volume'])
+    if selected['f_chapter'] != 'all': 
+        query = query.filter(SkillCurriculum.chapter == selected['f_chapter'])
+    if selected['f_section'] != 'all': # 補這行
+        query = query.filter(SkillCurriculum.section == selected['f_section'])
     
     results = query.order_by(SkillCurriculum.display_order).all()
     
+    # (中間處理 skills_list 邏輯不變...)
     skills_list = []
     seen_skill_ids = set()
     for skill_info, skill_curriculum in results:
         if skill_info.skill_id in seen_skill_ids: continue
         seen_skill_ids.add(skill_info.skill_id)
-        
         skill_info.grade = skill_curriculum.grade
         skill_info.volume = skill_curriculum.volume
         skill_info.chapter = skill_curriculum.chapter
         skill_info.prereq_count = len(skill_info.prerequisites)
         skills_list.append(skill_info)
-    
-    base_query = db.session.query(SkillCurriculum)
-    curriculums = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.curriculum)).all()]
-    grades = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.grade)).order_by(SkillCurriculum.grade).all()]
-    volumes = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.volume)).all()]
-    chapters = [r[0] for r in base_query.with_entities(distinct(SkillCurriculum.chapter)).all()]
 
+    # --- C. 傳遞與組件一致的變數名稱 ---
     return render_template('admin_prerequisites.html',
                            skills=skills_list,
-                           filters={'curriculums': curriculums, 'grades': grades, 'volumes': volumes, 'chapters': chapters},
-                           selected={'f_curriculum': f_curriculum, 'f_grade': f_grade, 'f_volume': f_volume, 'f_chapter': f_chapter},
+                           filters=filters_data,             # 統一名稱
+                           selected_filters=selected,        # 解決 UndefinedError
+                           curriculum_map={'junior_high': '國中', 'general': '普高'},
+                           grade_map={str(g):str(g) for g in filters_data['grades']},
                            username=current_user.username)
 
 @core_bp.route('/api/skills/<string:skill_id>/prerequisites', methods=['GET'])
@@ -833,6 +866,7 @@ def import_curriculum():
 @login_required
 def api_get_grades():
     curriculum = request.args.get('curriculum')
+    if not curriculum: return jsonify([])
     query = db.session.query(distinct(SkillCurriculum.grade)).filter_by(curriculum=curriculum)
     grades = sorted([row[0] for row in query.filter(SkillCurriculum.grade != None).all()])
     return jsonify(grades)
@@ -842,6 +876,12 @@ def api_get_grades():
 def api_get_volumes():
     curriculum = request.args.get('curriculum')
     grade = request.args.get('grade')
+    if not curriculum or not grade: return jsonify([])
+    try:
+        grade = int(grade)
+    except:
+        return jsonify([])
+        
     query = db.session.query(distinct(SkillCurriculum.volume)).filter_by(curriculum=curriculum, grade=grade)
     volumes = [row[0] for row in query.all()]
     return jsonify(volumes)
@@ -852,6 +892,12 @@ def api_get_chapters():
     curriculum = request.args.get('curriculum')
     grade = request.args.get('grade')
     volume = request.args.get('volume')
+    if not all([curriculum, grade, volume]): return jsonify([])
+    try:
+        grade = int(grade)
+    except:
+        return jsonify([])
+
     query = db.session.query(distinct(SkillCurriculum.chapter)).filter_by(
         curriculum=curriculum, grade=grade, volume=volume
     )
@@ -865,6 +911,12 @@ def api_get_sections():
     grade = request.args.get('grade')
     volume = request.args.get('volume')
     chapter = request.args.get('chapter')
+    if not all([curriculum, grade, volume, chapter]): return jsonify([])
+    try:
+        grade = int(grade)
+    except:
+        return jsonify([])
+
     query = db.session.query(distinct(SkillCurriculum.section)).filter_by(
         curriculum=curriculum, grade=grade, volume=volume, chapter=chapter
     )
@@ -886,4 +938,86 @@ def api_check_ghost_skills():
         return jsonify(ghost_skills)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ==========================================
+# AI Prompt Settings (全域 AI Prompt 參數設定)
+# ==========================================
+
+@core_bp.route('/admin/ai_prompt_settings')
+@login_required
+def ai_prompt_settings_page():
+    """顯示 AI Prompt 設定頁面"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        flash('權限不足', 'error')
+        return redirect(url_for('dashboard'))
+    return render_template('ai_prompt_settings.html', username=current_user.username)
+
+@core_bp.route('/admin/ai_prompt_settings/get')
+@login_required
+def get_ai_prompt_setting():
+    """API: 取得當前的全域 AI Prompt 設定"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    try:
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        if setting:
+            return jsonify({
+                'success': True,
+                'prompt': setting.value,
+                'updated_at': setting.updated_at.strftime('%Y-%m-%d %H:%M:%S') if setting.updated_at else None
+            })
+        else:
+            # 若無記錄則回傳預設值 (從 ai_analyzer 取得)
+            from core.ai_analyzer import get_ai_prompt
+            return jsonify({'success': True, 'prompt': get_ai_prompt(), 'updated_at': None})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@core_bp.route('/admin/ai_prompt_settings/update', methods=['POST'])
+@login_required
+def update_ai_prompt_setting():
+    """API: 更新全域 AI Prompt 設定"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    try:
+        data = request.get_json()
+        new_prompt = data.get('prompt', '').strip()
+        if not new_prompt: return jsonify({'success': False, 'message': 'Prompt 不能為空'}), 400
+        
+        # 驗證必要變數
+        if '{context}' not in new_prompt or '{prereq_text}' not in new_prompt:
+            return jsonify({'success': False, 'message': 'Prompt 必須包含 {context} 和 {prereq_text}'}), 400
+        
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        if setting:
+            setting.value = new_prompt
+            setting.updated_at = datetime.utcnow()
+        else:
+            setting = SystemSetting(key='ai_analyzer_prompt', value=new_prompt, description='AI 手寫分析 Prompt')
+            db.session.add(setting)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '儲存成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@core_bp.route('/admin/ai_prompt_settings/reset', methods=['POST'])
+@login_required
+def reset_ai_prompt_setting():
+    """API: 恢復 AI Prompt 為預設值"""
+    if not (current_user.is_admin or current_user.role == 'teacher'):
+        return jsonify({'success': False, 'message': '權限不足'}), 403
+    try:
+        from models import SystemSetting
+        from core.ai_analyzer import DEFAULT_PROMPT
+        setting = SystemSetting.query.filter_by(key='ai_analyzer_prompt').first()
+        if setting:
+            setting.value = DEFAULT_PROMPT
+            setting.updated_at = datetime.utcnow()
+            db.session.commit()
+        return jsonify({'success': True, 'message': '已恢復預設值'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
     

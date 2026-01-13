@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-Module Name: classroom.py
-Description: 班級與學生管理模組
-             包含：班級建立、學生加入 (Join Class)、Excel 批次匯入學生、
-             邀請碼重生 (Regenerate Code)、教師班級列表查詢
-Version: V2.0 (Refactored)
-Maintainer: Math AI Team
+模組名稱 (Module Name): core/routes/classroom.py
+功能說明 (Description): 班級與學生管理模組，包含教師建立班級、學生加入班級 (Join Class)、Excel 批次匯入學生、邀請碼管理與班級列表查詢功能。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
 =============================================================================
 """
 
@@ -141,6 +141,56 @@ def get_class_students(class_id):
     except Exception as e:
         current_app.logger.error(f"獲取學生列表失敗: {e}")
         return jsonify({"success": False, "message": "獲取學生列表失敗"}), 500
+
+@core_bp.route('/class/add_student/<int:class_id>', methods=['POST'])
+@login_required
+def add_student_to_class(class_id):
+    """新增單一學生到班級 (若學生不存在則自動建立帳號)"""
+    if current_user.role != 'teacher':
+        return jsonify({"success": False, "message": "權限不足"}), 403
+
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+
+        if not username or not password:
+            return jsonify({"success": False, "message": "請輸入帳號與密碼"}), 400
+
+        # 確認班級存在且屬於該教師
+        target_class = db.session.query(Class).filter_by(id=class_id, teacher_id=current_user.id).first()
+        if not target_class:
+            return jsonify({"success": False, "message": "找不到班級或無權限"}), 404
+
+        # 檢查學生是否已存在
+        student = db.session.query(User).filter_by(username=username).first()
+
+        if not student:
+            # 建立新學生帳號
+            student = User(
+                username=username,
+                password_hash=generate_password_hash(password),
+                role='student'
+            )
+            db.session.add(student)
+            db.session.flush() # 取得 ID
+        else:
+            # 學生已存在，檢查是否已在班級中
+            is_member = db.session.query(ClassStudent).filter_by(class_id=class_id, student_id=student.id).first()
+            if is_member:
+                return jsonify({"success": False, "message": "該學生已經在班級中了"}), 400
+        
+        # 加入班級
+        new_member = ClassStudent(class_id=class_id, student_id=student.id)
+        db.session.add(new_member)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "新增學生成功"})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"新增學生失敗: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @core_bp.route('/api/classes/<int:class_id>/students/upload', methods=['POST'])
 @login_required

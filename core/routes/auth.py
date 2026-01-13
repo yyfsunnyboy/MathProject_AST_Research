@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================================
-Module Name: auth.py
-Description: 驗證與權限管理模組
-             負責定義全域的登入檢查邏輯 (@before_request)
-             確保未登入使用者無法存取核心功能
-Version: V2.0 (Refactored)
-Maintainer: Math AI Team
+模組名稱 (Module Name): core/routes/auth.py
+功能說明 (Description): 驗證與權限管理模組，負責定義全域的登入檢查邏輯 (@before_request)，確保未登入使用者無法存取核心功能。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
 =============================================================================
 """
 from flask import Blueprint

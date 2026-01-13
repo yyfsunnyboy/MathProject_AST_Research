@@ -1,25 +1,14 @@
 # -*- coding: utf-8 -*-
-# ==============================================================================
-# Module: core/ai_wrapper.py
-# Project: AI-Driven Math Problem Generator (Taiwan Junior High School Curriculum)
-# Version: v7.7.5 (Universal Adapter)
-# Last Updated: 2026-01-06
-# Author: Senior Python Architect & R&D Team
-#
-# Description:
-#   本模組擔任「AI 模型驅動層 (AI Driver Layer)」的角色。
-#   它負責將上層業務邏輯 (Architect/Coder) 與底層 AI 供應商 (Google/Ollama) 解耦。
-#   無論 Config 如何設定，上層只需呼叫 get_ai_client()，無需關心底層實作。
-#
-# Key Features:
-#   1. **Factory Pattern**: 透過 get_ai_client() 自動派發 GoogleAIClient 或 LocalAIClient。
-#   2. **Config Adaptive**: 自動適配 config.py 中的 GEMINI_API_KEY 與 LOCAL_API_URL 變數名。
-#   3. **Provider Agnostic**: 同時支援 'google', 'gemini' (雲端) 與 'local' (本地) 關鍵字。
-#   4. **Error Handling**: 封裝 API 連線錯誤，回傳 MockResponse 避免主程式崩潰。
-#
-# Change Log (v7.7.5):
-#   - [Fix] 修正 Config 變數對接問題 (支援 GEMINI_API_KEY, LOCAL_API_URL)。
-#   - [Refactor] 統一 Google/Gemini Provider 的判斷邏輯。
+"""
+=============================================================================
+模組名稱 (Module Name): core/ai_wrapper.py
+功能說明 (Description): AI 模型驅動層 (AI Driver Layer)，負責將業務邏輯與底層 AI 供應商 (Google/Ollama) 解耦，並根據角色 (Role) 自動調度合適的模型。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # ==============================================================================
 
 import os

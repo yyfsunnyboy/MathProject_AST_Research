@@ -1,3 +1,13 @@
+<!--
+=============================================================================
+模組名稱 (Module Name): templates/admin_skills.html
+功能說明 (Description): 後台技能管理
+後端呼叫 (Backend Call): core/routes/admin.py -> admin_skills
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+-->
 <!DOCTYPE html>
 <html lang="zh-TW">
 
@@ -7,13 +17,20 @@
     <title>技能管理 - Math Master Admin</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* Global Styles */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
+        /* --- Master Styles (V2.0 Standard) --- */
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
             padding-bottom: 50px;
         }
 
@@ -26,6 +43,7 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
         }
 
         .navbar .logo {
@@ -42,13 +60,17 @@
             margin-left: 10px;
         }
 
+        .navbar a:hover {
+            background: #34495e;
+        }
+
+        /* Container & Header */
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 30px auto;
             padding: 0 20px;
         }
 
-        /* Header */
         .header {
             display: flex;
             justify-content: space-between;
@@ -58,112 +80,150 @@
 
         .header h1 {
             color: #2c3e50;
-            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 2rem;
             font-weight: 600;
+            margin: 0;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
         }
 
         .btn-add {
-            background: #3498db;
+            background: #27ae60;
             color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 1rem;
-            transition: background 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+            padding: 12px 25px !important;
+            border-radius: 6px;
+            font-size: 1em;
         }
 
+        /* !important to override inline if any */
         .btn-add:hover {
+            background: #229954;
+        }
+
+        .btn-edit {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-edit:hover {
             background: #2980b9;
         }
 
-        /* Card Styles */
-        .card {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            margin-bottom: 25px;
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #c0392b;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .btn-prereq {
+            background: #9b59b6;
+            color: white;
+        }
+
+        .btn-toggle {
+            background: #34495e;
+            color: white;
+        }
+
+        .btn-prompt {
+            background: #8e44ad;
+            color: white;
+        }
+
+        /* Purple for Prompt */
+
+        /* Cards & Tables */
+        .card,
+        .skills-table {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
             overflow: hidden;
+            margin-bottom: 20px;
         }
 
         .card-header {
-            background: #f8f9fa;
+            background: #34495e;
             padding: 15px 20px;
             border-bottom: 1px solid #eee;
             font-weight: 600;
-            color: #2c3e50;
+            color: white;
         }
 
         .card-body {
             padding: 20px;
         }
 
-        /* Form Elements */
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #34495e;
-            font-weight: 500;
-        }
-
-        .form-control,
-        .form-select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1rem;
-            transition: border-color 0.2s;
-        }
-
-        .form-control:focus,
-        .form-select:focus {
-            border-color: #3498db;
-            outline: none;
-        }
-
-        /* Table Styles */
-        .skills-table {
-            width: 100%;
-            overflow-x: auto;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            min-width: 1000px;
+        }
+
+        thead {
+            background: #34495e;
+            color: white;
         }
 
         th,
         td {
             padding: 15px;
             text-align: left;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #e9ecef;
         }
 
         th {
-            background-color: #f8f9fa;
-            color: #7f8c8d;
             font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.85rem;
+            white-space: nowrap;
+            font-size: 0.9em;
         }
 
-        tr:hover {
-            background-color: #f8f9fa;
+        tbody tr:hover {
+            background: #f8f9fa;
         }
+
+        /* Filter Section (Matches admin_prerequisites) */
+        .filter-bar {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        /* --- Page Specific Styles --- */
 
         /* Status Badge */
         .status-badge {
@@ -183,55 +243,13 @@
             color: #c0392b;
         }
 
-        /* Action Buttons */
+        /* Action Group */
         .btn-group {
             display: flex;
             gap: 5px;
         }
 
-        .btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: opacity 0.2s;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .btn:hover {
-            opacity: 0.8;
-        }
-
-        .btn-edit {
-            background: #f39c12;
-            color: white;
-        }
-
-        .btn-prereq {
-            background: #9b59b6;
-            color: white;
-        }
-
-        .btn-toggle {
-            background: #34495e;
-            color: white;
-        }
-
-        .btn-delete {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #95a5a6;
-            color: white;
-        }
-
-        /* Modal Styles */
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -248,7 +266,7 @@
             background-color: white;
             margin: 50px auto;
             padding: 30px;
-            border-radius: 10px;
+            border-radius: 8px;
             width: 90%;
             max-width: 600px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
@@ -262,10 +280,13 @@
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 1px solid #eee;
+            background: transparent;
+            color: #2c3e50;
         }
 
         .modal-header h2 {
             margin: 0;
+            font-size: 1.5em;
             color: #2c3e50;
         }
 
@@ -280,32 +301,40 @@
             color: #2c3e50;
         }
 
-        textarea {
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .form-control,
+        .form-select,
+        textarea,
+        .form-group input,
+        .form-group select {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            min-height: 100px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 1rem;
             font-family: inherit;
-            resize: vertical;
         }
 
-        .gemini-prompt-textarea {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9rem;
-            min-height: 150px;
-            background-color: #f8f9fa;
+        /* Filter override for pixel perfection */
+        .filter-select {
+            padding: 6px 10px !important;
+            font-size: 0.9rem !important;
         }
 
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .checkbox-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
+        .filter-sidebar-label {
+            font-size: 0.85rem !important;
+            margin-bottom: 6px !important;
         }
 
         .form-actions {
@@ -315,87 +344,16 @@
             margin-top: 25px;
         }
 
-        .btn-submit {
-            background: #27ae60;
-            color: white;
-            padding: 10px 25px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background 0.2s;
+        /* Special Textareas */
+        .gemini-prompt-textarea {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            min-height: 150px;
+            background-color: #f8f9fa;
         }
 
-        .btn-submit:hover {
-            background: #229954;
-        }
-
-        .btn-cancel {
-            background: #95a5a6;
-            color: white;
-            padding: 10px 25px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background 0.2s;
-        }
-
-        .btn-cancel:hover {
-            background: #7f8c8d;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #6c757d;
-        }
-
-        .empty-state h3 {
-            margin-bottom: 10px;
-            color: #95a5a6;
-        }
-
-        /* Ghost Skills Modal List */
-        .ghost-list {
-            list-style-type: none;
-            padding: 0;
-        }
-
-        .ghost-list li {
-            background: #f1f2f6;
-            padding: 8px 12px;
-            border-radius: 4px;
-            margin-bottom: 8px;
-            font-family: 'Courier New', Consolas, monospace;
-        }
-
-        /* Prompt Maintenance Styles */
-        .btn-prompt {
-            background: #8e44ad;
-            color: white;
-        }
-
-        .btn-prompt:hover {
-            background: #732d91;
-            color: white;
-        }
-
-        .prompt-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .prompt-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            background: #fff;
-            position: relative;
-            transition: box-shadow 0.2s;
+        /* Prompt Maintenance */
+        transition: box-shadow 0.2s;
         }
 
         .prompt-card:hover {
@@ -443,34 +401,23 @@
             right: 10px;
         }
 
-        /* 修改後的 Prompt 預覽窗格樣式 */
         .prompt-preview {
             font-family: 'Consolas', 'Monaco', monospace;
-            /* 使用等寬字體，比較好讀 Code */
             font-size: 0.85rem;
             color: #333;
             background: #f8f9fa;
             border: 1px solid #e9ecef;
             border-radius: 4px;
             padding: 8px;
-
-            /* 關鍵修改：高度控制與捲動 */
             height: 150px;
-            /* 增加高度 */
             overflow-y: auto;
-            /* 內容太長時出現捲軸 */
             white-space: pre-wrap;
-            /* 保留換行與縮排 */
             word-break: break-all;
-            /* 防止長字串撐破版面 */
-
-            /* 讓使用者可以選取與複製 */
             user-select: text;
             cursor: text;
             margin-bottom: 8px;
         }
 
-        /* 美化捲軸 (Chrome/Safari/Edge) */
         .prompt-preview::-webkit-scrollbar {
             width: 6px;
         }
@@ -484,8 +431,46 @@
             border-radius: 3px;
         }
 
-        .prompt-preview::-webkit-scrollbar-thumb:hover {
-            background: #aaa;
+        /* Alerts */
+        .alert {
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+
+        .alert-error,
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+
+        /* Button Overrides for consistency */
+        .btn-submit {
+            background: #27ae60;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        .btn-submit:hover {
+            background: #229954;
+        }
+
+        .btn-cancel {
+            background: #95a5a6;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 6px;
+            font-size: 1em;
         }
     </style>
 </head>
@@ -522,93 +507,7 @@
         </div>
 
         <!-- 多層篩選器 -->
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-filter"></i> 課程篩選器
-            </div>
-            <div class="card-body">
-                <form id="filter-form" action="{{ url_for('core.admin_skills') }}" method="get"
-                    style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                    <!-- 課綱 -->
-                    <div class="form-group" style="flex: 1; min-width: 150px;">
-                        <label for="f_curriculum">課綱</label>
-                        <select id="f_curriculum" name="f_curriculum" class="form-select"
-                            style="width: 100%; padding: 8px;">
-                            <option value="">-- 請選擇 --</option>
-                            {% for c in filters.curriculums %}
-                            <option value="{{ c }}" {% if selected_filters.f_curriculum==c %}selected{% endif %}>{{
-                                curriculum_map.get(c, c) }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <!-- 年級 -->
-                    <div class="form-group" style="flex: 1; min-width: 150px;">
-                        <label for="f_grade">年級</label>
-                        <select id="f_grade" name="f_grade" class="form-select" {% if not selected_filters.f_curriculum
-                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
-                            <option value="">-- 請選擇 --</option>
-                            {% if filters.grades %}
-                            {% for g in filters.grades %}
-                            <option value="{{ g }}" {% if selected_filters.f_grade==g|string %}selected{% endif %}>{{
-                                grade_map.get(g, g) }}</option>
-                            {% endfor %}
-                            {% endif %}
-                        </select>
-                    </div>
-                    <!-- 冊別 -->
-                    <div class="form-group" style="flex: 1; min-width: 180px;">
-                        <label for="f_volume">冊別</label>
-                        <select id="f_volume" name="f_volume" class="form-select" {% if not selected_filters.f_grade
-                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
-                            <option value="">-- 請選擇 --</option>
-                            {% if filters.volumes %}
-                            {% for v in filters.volumes %}
-                            <option value="{{ v }}" {% if selected_filters.f_volume==v %}selected{% endif %}>{{ v }}
-                            </option>
-                            {% endfor %}
-                            {% endif %}
-                        </select>
-                    </div>
-                    <!-- 章節 -->
-                    <div class="form-group" style="flex: 1; min-width: 200px;">
-                        <label for="f_chapter">章</label>
-                        <select id="f_chapter" name="f_chapter" class="form-select" {% if not selected_filters.f_volume
-                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
-                            <option value="">-- 請選擇 --</option>
-                            {% if filters.chapters %}
-                            {% for ch in filters.chapters %}
-                            <option value="{{ ch }}" {% if selected_filters.f_chapter==ch %}selected{% endif %}>{{ ch }}
-                            </option>
-                            {% endfor %}
-                            {% endif %}
-                        </select>
-                    </div>
-                    <!-- 節 -->
-                    <div class="form-group" style="flex: 1; min-width: 200px;">
-                        <label for="f_section">節</label>
-                        <select id="f_section" name="f_section" class="form-select" {% if not selected_filters.f_chapter
-                            %}disabled{% endif %} style="width: 100%; padding: 8px;">
-                            <option value="">-- 請選擇 --</option>
-                            {% if filters.sections %}
-                            {% for s in filters.sections %}
-                            <option value="{{ s }}" {% if selected_filters.f_section==s %}selected{% endif %}>{{ s }}
-                            </option>
-                            {% endfor %}
-                            {% endif %}
-                        </select>
-                    </div>
-
-                    <div class="form-group" style="flex: 0 0 auto;">
-                        <!-- Hidden input to signal if curriculum was changed, as used by JS -->
-                        <input type="hidden" id="curriculum_changed" name="curriculum_changed" value="false">
-                        <!-- The 'Clear' button should also point to the correct skills admin page -->
-                        <a href="{{ url_for('core.admin_skills') }}" class="btn"
-                            style="padding: 8px 20px; background: #7f8c8d; color: white;"><i class="bi bi-x-circle"></i>
-                            清除</a>
-                    </div>
-                </form>
-            </div>
-        </div>
+        {% include '_filter_sidebar.html' %}
 
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -1032,29 +931,7 @@
             }
         });
 
-        // --- 連動式篩選器邏輯 (表單提交版本) ---
-        document.addEventListener('DOMContentLoaded', function () {
-            const form = document.getElementById('filter-form');
-            const curriculumSelect = document.getElementById('f_curriculum');
-            const gradeSelect = document.getElementById('f_grade');
-            const volumeSelect = document.getElementById('f_volume');
-            const chapterSelect = document.getElementById('f_chapter');
-            const sectionSelect = document.getElementById('f_section');
 
-            if (curriculumSelect) {
-                curriculumSelect.addEventListener('change', function () {
-                    // 當課綱改變時，我們需要重設後面的選項。
-                    document.getElementById('curriculum_changed').value = 'true';
-                    form.submit();
-                });
-            }
-
-            [gradeSelect, volumeSelect, chapterSelect, sectionSelect].forEach(select => {
-                if (select) {
-                    select.addEventListener('change', () => form.submit());
-                }
-            });
-        });
 
         // 全域函式：重新生成技能程式碼 (使用 SweetAlert2)
         function regenerateSkillCode(skillId) {

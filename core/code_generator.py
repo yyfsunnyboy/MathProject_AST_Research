@@ -1,19 +1,14 @@
 # -*- coding: utf-8 -*-
-# ==============================================================================
-# ID: code_generator.py
-# Version: v8.8 (The "Omni-Fix" Edition)
-# Last Updated: 2026-01-09
-# Author: Math-Master AI Dev Team
-# 
-# Description: 
-#   The core engine responsible for generating, validating, and repairing
-#   Python math problem generation scripts.
-#
-#   [v8.8 Fixes]:
-#   1. fmt_num Upgrade: Added support for 'signed' and 'op' arguments to fix crashes.
-#   2. Language Enforcement: Strict Prompt to force Traditional Chinese output.
-#   3. Level Guarantee: Strict Prompt to forbid "No Level X problems" errors.
-#   4. Syntax & Indentation: Includes all previous Regex Armor and syntax fixes.
+"""
+=============================================================================
+模組名稱 (Module Name): core/code_generator.py
+功能說明 (Description): 數學題目生成腳本的核心引擎，負責生成、驗證、修復 Python 程式碼，並包含標準數學工具庫 (Perfect Utils) 的注入與程式碼安全防護。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # ==============================================================================
 
 import os
@@ -248,6 +243,9 @@ Your task is to generate a Python module based on a math skill.
 2. **NO `plt.subplots()`, `plt.show()`, or `plt.close()`**.
 3. **NO Single Braces `{}` in f-strings for LaTeX**.
 
+### ✅ VISUALIZATION RULES:
+1. **NO SPOILERS**: 嚴禁在圖表（如數線、幾何圖形）中直接標註答案數值。圖表僅能呈現題目情境，答案必須保留給學生計算。
+
 ### ✅ GOLDEN CODE TEMPLATE (Follow this Pattern EXACTLY):
 
 ```python
@@ -461,11 +459,34 @@ def fix_code_syntax(code_str, error_msg=""):
     fixed_code, c = apply_fix(r'(?<!\\)\\q', r'\\\\q', fixed_code)
     total_fixes += c
 
-    # 2. f-string single brace fixes (保護 LaTeX 指令不被 f-string 吃掉)
-    fixed_code, c = apply_fix(r'(f"[^"]*?\\right)\}([^"]*")', r'\1}}\2', fixed_code)
-    total_fixes += c
-    fixed_code, c = apply_fix(r"(f'[^']*?\\right)\}([^']*')", r'\1}}\2', fixed_code)
-    total_fixes += c
+    # 2. f-string single brace fixes (Variable Protection)
+    # [Critical Fix] This logic protects Python variables (e.g. {var}) inside f-strings from being 
+    # mistakenly escaped as LaTeX ({{var}}) by subsequent global replace steps.
+    def fix_latex_braces(match):
+        content = match.group(1)
+        # Check if content has potential LaTeX commands (\) and braces
+        if "\\" in content and "{" in content and "{{" not in content:
+            # If the brace content looks like a Python variable {var}, PRESERVE IT (return f"{content}")
+            # Regex checks for {valid_python_var}
+            if re.search(r'\{[a-zA-Z_][a-zA-Z0-9_]*\}', content):
+                return f'f"{content}"' 
+            
+            # Otherwise, it's likely a LaTeX command like \frac{a}{b}, so escape it to \frac{{a}}{{b}}
+            content = content.replace("{", "{{").replace("}", "}}")
+        return f'f"{content}"'
+
+    # Apply the smart fix to all f-strings
+    new_code, c = re.subn(r'f"(.*?)"', fix_latex_braces, fixed_code)
+    # Since re.subn counts matches of the pattern (f string), not internal fixes, we roughly track it
+    if new_code != fixed_code:
+        total_fixes += 1
+    fixed_code = new_code
+    
+    # Also apply to f'...' strings for completeness
+    new_code, c = re.subn(r"f'(.*?)'", fix_latex_braces, fixed_code)
+    if new_code != fixed_code:
+        total_fixes += 1
+    fixed_code = new_code
     
     # 3. cases environment fixes (The "Smart Board" Issue)
     # 3.1 針對 f-string 內的 cases 修復

@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+模組名稱 (Module Name): core/diagnosis_analyzer.py
+功能說明 (Description): 學生學習弱點分析模組，綜合錯題記錄 (MistakeLog) 與考卷分析 (ExamAnalysis)，生成雷達圖數據與 AI 評語。
+執行語法 (Usage): 由系統調用
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # core/diagnosis_analyzer.py
 
 from models import db, MistakeLog, ExamAnalysis, LearningDiagnosis, SkillInfo

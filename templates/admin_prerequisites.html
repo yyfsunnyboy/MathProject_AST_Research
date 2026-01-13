@@ -1,3 +1,13 @@
+<!--
+=============================================================================
+模組名稱 (Module Name): templates/admin_prerequisites.html
+功能說明 (Description): 後台前置技能管理
+後端呼叫 (Backend Call): core/routes/admin.py -> admin_prerequisites
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+-->
 <!DOCTYPE html>
 <html lang="zh-Hant">
 
@@ -6,10 +16,11 @@
     <title>前置技能關聯管理</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
-        /* --- 繼承 admin_skills.html 的風格 --- */
+        /* --- Master Styles (V2.0 Standard) --- */
         * {
             margin: 0;
             padding: 0;
@@ -20,7 +31,6 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             background: #f5f7fa;
             min-height: 100vh;
-            padding-bottom: 50px;
         }
 
         /* Navbar */
@@ -32,6 +42,7 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
         }
 
         .navbar .logo {
@@ -52,14 +63,75 @@
             background: #34495e;
         }
 
-        /* Container & Layout */
+        /* Container & Header */
         .container {
             max-width: 1400px;
             margin: 30px auto;
             padding: 0 20px;
         }
 
-        /* Split Layout for Prerequisite Manager */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-add {
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+
+        .btn-add:hover {
+            background: #229954;
+        }
+
+        .btn-remove {
+            color: #e74c3c;
+            cursor: pointer;
+            padding: 5px;
+            transition: 0.2s;
+        }
+
+        .btn-remove:hover {
+            color: #c0392b;
+            background: #fadbd8;
+            border-radius: 4px;
+        }
+
+        /* Layout */
         .manager-layout {
             display: flex;
             gap: 20px;
@@ -70,33 +142,34 @@
             flex: 4;
         }
 
-        /* 目標技能列表 */
         .right-panel {
             flex: 3;
             position: sticky;
             top: 20px;
         }
 
-        /* 編輯區 */
-
-        /* Card Styles */
+        /* Cards (Styled to match admin_curriculum container/table look) */
         .card {
             background: #fff;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
             overflow: hidden;
             margin-bottom: 20px;
         }
 
         .card-header {
-            background: #fff;
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
+            background: #34495e;
+            color: white;
+            padding: 15px;
             font-weight: 600;
-            color: #2c3e50;
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        .card-header small {
+            color: #ecf0f1;
+            opacity: 0.8;
         }
 
         .card-body {
@@ -104,40 +177,21 @@
         }
 
         /* Filter Section */
-        .filter-form {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: flex-end;
+        .filter-bar {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
         }
 
-        .form-group {
-            flex: 1;
-            min-width: 140px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 0.85em;
-            color: #7f8c8d;
-            margin-bottom: 5px;
-        }
-
-        .form-select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-        }
-
-        /* List Styles (Left Panel) */
+        /* List Styles */
         .skill-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 15px;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid #e9ecef;
             cursor: pointer;
             transition: 0.2s;
         }
@@ -176,7 +230,7 @@
             background: #27ae60;
         }
 
-        /* Editor Styles (Right Panel) */
+        /* Editor Styles */
         .editor-placeholder {
             text-align: center;
             color: #bdc3c7;
@@ -195,7 +249,6 @@
             border-bottom: 2px solid #3498db;
         }
 
-        /* Prerequisite List */
         .prereq-list {
             list-style: none;
             margin-top: 15px;
@@ -216,19 +269,6 @@
 
         .prereq-item:hover {
             border-color: #bdc3c7;
-        }
-
-        .btn-remove {
-            color: #e74c3c;
-            cursor: pointer;
-            padding: 5px;
-            transition: 0.2s;
-        }
-
-        .btn-remove:hover {
-            color: #c0392b;
-            background: #fadbd8;
-            border-radius: 4px;
         }
 
         /* Loading Overlay */
@@ -275,6 +315,17 @@
         .select2-container--default .select2-selection--single .select2-selection__rendered {
             line-height: 36px;
         }
+
+        /* Filter override for pixel perfection */
+        .filter-select {
+            padding: 6px 10px !important;
+            font-size: 0.9rem !important;
+        }
+
+        .filter-sidebar-label {
+            font-size: 0.85rem !important;
+            margin-bottom: 6px !important;
+        }
     </style>
 </head>
 
@@ -288,65 +339,11 @@
     {% include '_admin_navbar.html' %}
 
     <div class="container">
-        <div style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
-            <h1 style="color: #2c3e50; font-size: 1.8rem;">
-                <i class="bi bi-diagram-3" style="color: #e67e22;"></i> 前置技能關聯管理
-            </h1>
+        <div class="header">
+            <h1><i class="bi bi-diagram-3" style="color: #e67e22;"></i> 前置技能關聯管理</h1>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <span><i class="bi bi-funnel"></i> 篩選目標技能</span>
-            </div>
-            <div class="card-body">
-                <form id="filter-form" method="get" action="{{ url_for('core.admin_prerequisites') }}"
-                    class="filter-form">
-                    <div class="form-group">
-                        <label>課綱</label>
-                        <select id="f_curriculum" name="f_curriculum" class="form-select" onchange="this.form.submit()">
-                            <option value="all">全部</option>
-                            {% for c in filters.curriculums %}
-                            <option value="{{ c }}" {% if c==selected.f_curriculum %}selected{% endif %}>{{ c }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>年級</label>
-                        <select name="f_grade" class="form-select" onchange="this.form.submit()">
-                            <option value="all">全部</option>
-                            {% for g in filters.grades %}
-                            <option value="{{ g }}" {% if g|string==selected.f_grade %}selected{% endif %}>{{ g }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>冊別</label>
-                        <select name="f_volume" class="form-select" onchange="this.form.submit()">
-                            <option value="all">全部</option>
-                            {% for v in filters.volumes %}
-                            <option value="{{ v }}" {% if v==selected.f_volume %}selected{% endif %}>{{ v }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>章節</label>
-                        <select name="f_chapter" class="form-select" onchange="this.form.submit()">
-                            <option value="all">全部</option>
-                            {% for ch in filters.chapters %}
-                            <option value="{{ ch }}" {% if ch==selected.f_chapter %}selected{% endif %}>{{ ch }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div style="flex: 0 0 auto; padding-bottom: 2px;">
-                        <a href="{{ url_for('core.admin_prerequisites') }}" class="btn"
-                            style="background:#95a5a6; color:white; padding:8px 15px; border-radius:4px; text-decoration:none;">重置</a>
-                    </div>
-                </form>
-            </div>
-        </div>
+        {% include '_filter_sidebar.html' %}
 
         <div class="manager-layout">
 
@@ -416,7 +413,7 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>

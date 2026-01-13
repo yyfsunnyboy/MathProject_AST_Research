@@ -1,4 +1,16 @@
-
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+模組名稱 (Module Name): skills/custom_upload.py
+功能說明 (Description): 自定義上傳題目的處理模組。
+    本模組作為前端圖片上傳與 AI 解析的佔位介面，回傳預設的空模板，
+    確保系統在處理 "Custom Upload" 類型題目時有一致的介面。
+執行語法 (Usage): 由系統自動調用 (core/code_generator.py 或 routes)
+版本資訊 (Version): V2.0
+更新日期 (Date): 2026-01-13
+維護團隊 (Maintainer): Math AI Project Team
+=============================================================================
+"""
 # skills/custom_upload.py
 import random
 
