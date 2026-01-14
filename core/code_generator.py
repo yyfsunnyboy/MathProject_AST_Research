@@ -64,6 +64,10 @@ from config import Config
 PERFECT_UTILS = r'''
 import random
 import math
+import matplotlib
+# [Fix] Font injection for Traditional Chinese support
+matplotlib.rcParams['font.sans-serif'] = ['Microsoft JhengHei'] 
+matplotlib.rcParams['axes.unicode_minus'] = False
 from fractions import Fraction
 from functools import reduce
 
@@ -262,13 +266,13 @@ def check(user_answer, correct_answer):
     
     # 2. Exact Match Strategy (精確比對)
     if user_norm == correct_norm:
-        return {"correct": True, "result": "Correct!"}
+        return {"correct": True, "result": "正確！"}
         
     # 3. Float Match Strategy (數值容錯比對)
     try:
         # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
         if abs(float(user_norm) - float(correct_norm)) < 1e-6:
-            return {"correct": True, "result": "Correct!"}
+            return {"correct": True, "result": "正確！"}
     except ValueError:
         pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
         
@@ -298,15 +302,17 @@ def inject_perfect_utils(code_str):
 # ==============================================================================
 
 UNIVERSAL_GEN_CODE_PROMPT = """
-You are a Senior Python Developer. Execute the ARCHITECT'S SPEC precisely.
+You are a Senior Python Developer (V10.2 Elite). Execute the ARCHITECT'S SPEC precisely.
 
 ### ⛔ INFRASTRUCTURE RULES:
 1. **NO `matplotlib.pyplot`**: Always use `from matplotlib.figure import Figure` for thread-safety.
-2. **Top-level functions ONLY**: Define `generate(level=1)` and `check(user, correct)` at the module level. DO NOT use classes.
-3. **Traditional Chinese (Taiwan)**: All question text and answer hints MUST be in 繁體中文.
-4. **LaTeX Integrity**: 
-   - DO NOT over-escape Python variables like `{ans}` or `{expr}`. 
-   - If a LaTeX string is complex, use `template.replace()` to avoid f-string brace conflicts.
+2. **Top-level functions ONLY**: Define `generate(level=1)` and `check(user, correct)` at module level.
+3. **Traditional Chinese (Taiwan)**: All text MUST be in 繁體中文.
+4. **LaTeX Integrity (Regex=0)**: For LaTeX strings (\\frac, \\sqrt), MUST use r"template".replace("{a}", str(a)).
+5. **Visual Style (V10.2)**: 
+   - Set `plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']`.
+   - Number line ONLY shows origin '0' with fontsize 18. Point labels (A, B) set to 16+.
+6. **Result Feedback**: The `result` field in `check()` function MUST be "正確！" or "答案錯誤...".
 """
 
 
@@ -379,6 +385,43 @@ def fix_return_format(code_str):
     return re.sub(pattern, repl, code_str, flags=re.MULTILINE)
 
 
+def universal_function_patcher(code_content):
+    total_fixes = 0
+    # 1. 找出所有以 draw_ 開頭的函式定義區塊
+    # 正則表達式：尋找 def draw_...(): 到下一個 def 或 檔案結尾
+    func_blocks = re.finditer(r'def (draw_[a-zA-Z0-9_]+)\(.*?\):(.*?)(\n(?=def)|$)', code_content, re.DOTALL)
+    
+    for match in func_blocks:
+        func_name = match.group(1)
+        func_body = match.group(2)
+        
+        # 2. 如果函式內有賦值給常見的「結果變數」，但沒有 return
+        target_vars = ['result', 'html', 'fig_str', 'output', 'svg_data']
+        needs_fix = any(f"{v} =" in func_body for v in target_vars) and "return" not in func_body
+        
+        if needs_fix:
+            # 找到最後一個賦值的變數名稱
+            found_var = next(v for v in target_vars if f"{v} =" in func_body)
+            # 自動在函式末尾補上 return
+            lines = func_body.splitlines()
+            last_indent = "    "
+            if lines:
+                # Find last non-empty line to determine indentation or just blindly ensure 4 spaces
+                # Better strategy: use the indentation of the last line of the body if available
+                # But here we will follow the user provided logic which seemed to copy indentation
+                for line in reversed(lines):
+                     if line.strip():
+                         last_indent = line[:len(line) - len(line.lstrip())]
+                         break
+            
+            patched_body = func_body.rstrip() + f"\n{last_indent}return {found_var}\n"
+            code_content = code_content.replace(func_body, patched_body)
+            total_fixes += 1
+            print(f"   🔧 [Universal-Fix] Patched missing return in {func_name}.")
+            
+    return code_content, total_fixes
+
+
 def clean_global_scope_execution(code_str):
     lines = code_str.split('\n')
     cleaned = []
@@ -401,44 +444,44 @@ def load_gold_standard_example():
 
 
 def fix_missing_answer_key(code_str):
-    """
-    Auto-patch the generated code to ensure 'answer' key exists in the return dict.
-    It injects a decorator that copies 'correct_answer' to 'answer' at runtime.
-    [V9.2 Update]: Now patches ALL functions starting with 'generate'.
-    """
-    patch_code = """
-# [Auto-Injected Patch v9.2] Universal Return Fixer
-# 1. Ensures 'answer' key exists (copies from 'correct_answer')
-# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
-def _patch_return_dict(func):
+    """[V10.3.1] 增加換行修復、回傳格式強化與全面中文化反饋"""
+    patch_code = r'''
+# [Auto-Injected Patch v10.3.1] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝，並強制使用中文
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            # Fix 1: Answer Key
+            # 2. [V10.3 核心修復] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # 3. 確保反饋訊息也是中文 (針對 AI 可能寫出的英文進行覆蓋)
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
             if 'answer' not in res and 'correct_answer' in res:
                 res['answer'] = res['correct_answer']
             if 'answer' in res:
                 res['answer'] = str(res['answer'])
-            
-            # Fix 2: Image Key (Flatten visuals for legacy frontend)
-            if 'image_base64' not in res and 'visuals' in res:
-                try:
-                    # Extract first image value from visuals list
-                    for item in res['visuals']:
-                        if item.get('type') == 'image/png':
-                            res['image_base64'] = item.get('value')
-                            break
-                except: pass
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
 
-# Apply patch to ALL generator functions in scope
 import sys
-# Iterate over a copy of globals keys to avoid modification issues
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
-        globals()[_name] = _patch_return_dict(_func)
-"""
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
+        globals()[_name] = _patch_all_returns(_func)
+'''
     return code_str + patch_code
 
 # ==============================================================================
@@ -586,23 +629,38 @@ def fix_code_syntax(code_str, error_msg=""):
 
 def validate_and_fix_code(code_content):
     """
-    [V9.9.5 數據強化版] 執行預防性修復並返回精確介入次數。
-    核心目的：解決 LaTeX 誤傷與統計漏失，同時不更動原本的防護邏輯。
+    [V10.2 Pure] 採用「隔離注入」與「字典封裝」策略。
+    解決引號不對稱 (SyntaxError) 與 500 錯誤。
     """
     total_fixes = 0
     
-    # --- 防線 1: Matplotlib 框架轉換 (計數介入) ---
-    if "import matplotlib.pyplot" in code_content:
-        # (轉換邏輯不變，僅增加計數)
-        code_content = code_content.replace("import matplotlib.pyplot as plt", "from matplotlib.figure import Figure")
-        code_content = code_content.replace("import matplotlib.pyplot", "from matplotlib.figure import Figure")
-        code_content = code_content.replace("plt.subplots(", "Figure(")
-        code_content = code_content.replace("fig, ax = Figure(", "fig = Figure(); ax = fig.subplots(")
-        # 移除危險指令
-        for danger in ["plt.show()", "plt.close()", "plt.clf()"]:
-            if danger in code_content:
-                code_content = code_content.replace(danger, f"# {danger} removed")
-        total_fixes += 1 # 基礎框架轉換計為 1 次
+    # --- [V10.2] 隔離注入：使用 r-string 三引號保護補丁 ---
+    if ("matplotlib" in code_content or "Figure" in code_content) and "font.sans-serif" not in code_content:
+        font_style_patch = r'''
+# [V10.2 Elite Font & Style]
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+
+def _apply_v10_visual_style(ax):
+    ax.set_xticks([0])
+    for tick in ax.get_xticklabels():
+        tick.set_fontsize(18); tick.set_fontweight('bold')
+    ax.set_title(""); ax.set_xlabel("")
+'''
+        # 放在最頂部，避開後續 Regex 掃描
+        code_content = font_style_patch + "\n" + code_content
+        total_fixes += 1
+
+    # --- [V10.2] 答案驗證格式自癒 ---
+    # 如果 AI 寫了裸露的 return True/False，自動包裝並加入正確答案顯示
+    if "def check" in code_content:
+        # 修正正確回傳
+        code_content, c1 = re.subn(r'return True\s*$', "return {'correct': True, 'result': '正確！'}", code_content, flags=re.MULTILINE)
+        # 修正錯誤回傳，並嘗試捕捉 correct_answer 變數
+        code_content, c2 = re.subn(r'return False\s*$', "return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}", code_content, flags=re.MULTILINE)
+        total_fixes += (c1 + c2)
+
 
     # LaTeX 精確修復 (避開 \n)
     def smart_fix(match):
@@ -915,7 +973,12 @@ if 'generate' not in globals() and any(k.startswith('generate_') for k in global
         code, pre_fixes = validate_and_fix_code(code)
         
         # [V9.9.5 Data Flow] Accumulate preventive fixes
-        regex_fixes = pre_fixes  
+        regex_fixes = pre_fixes
+
+        # [V9.9.9] Universal Helper Patcher
+        # Patches all draw_* functions to ensure they return values
+        code, patch_fixes = universal_function_patcher(code)
+        regex_fixes += patch_fixes
         
         code = fix_return_format(code)
         code = clean_global_scope_execution(code)

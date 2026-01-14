@@ -157,28 +157,7 @@ def check(user_answer, correct_answer):
     Standard Answer Checker
     Handles float tolerance and string normalization (LaTeX spaces).
     """
-    if user_answer is None: return {"correct": False, "result": "No answer provided."}
-    
-    # 1. Normalize strings (remove spaces, LaTeX commas, etc.)
-    def normalize(s):
-        return str(s).strip().replace(" ", "").replace("\\,", "").replace("\\;", "")
-    
-    user_norm = normalize(user_answer)
-    correct_norm = normalize(correct_answer)
-    
-    # 2. Exact Match Strategy
-    if user_norm == correct_norm:
-        return {"correct": True, "result": "Correct!"}
-        
-    # 3. Float Match Strategy (for numerical answers)
-    try:
-        # If both can be parsed as floats and are close enough
-        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
-            return {"correct": True, "result": "Correct!"}
-    except ValueError:
-        pass # If parsing to float fails, it's not a simple numerical answer.
-        
-    return {"correct": False, "result": f"Incorrect. The answer is {correct_answer}."}    
+    if user_answer is None: return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
     return result
 
 
@@ -441,34 +420,26 @@ def generate(level=1):
     if selected == 'generate_problem': return generate_problem()
     return generate_problem()
 
-# [Auto-Injected Patch v9.2] Universal Return Fixer
-# 1. Ensures 'answer' key exists (copies from 'correct_answer')
-# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
-def _patch_return_dict(func):
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
+        if func.__name__ == "check" and isinstance(res, bool):
+            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
         if isinstance(res, dict):
-            # Fix 1: Answer Key
-            if 'answer' not in res and 'correct_answer' in res:
-                res['answer'] = res['correct_answer']
-            if 'answer' in res:
-                res['answer'] = str(res['answer'])
-            
-            # Fix 2: Image Key (Flatten visuals for legacy frontend)
-            if 'image_base64' not in res and 'visuals' in res:
-                try:
-                    # Extract first image value from visuals list
-                    for item in res['visuals']:
-                        if item.get('type') == 'image/png':
-                            res['image_base64'] = item.get('value')
-                            break
-                except: pass
+            if "question_text" in res and isinstance(res["question_text"], str):
+                res["question_text"] = res["question_text"].replace("\\n", "\n")
+            if func.__name__ == "check" and "result" in res:
+                msg = str(res["result"]).lower()
+                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
+                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
+                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
+            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
+            if "answer" in res: res["answer"] = str(res["answer"])
+            if "image_base64" not in res: res["image_base64"] = ""
         return res
     return wrapper
-
-# Apply patch to ALL generator functions in scope
 import sys
-# Iterate over a copy of globals keys to avoid modification issues
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
-        globals()[_name] = _patch_return_dict(_func)
+    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+        globals()[_name] = _patch_all_returns(_func)

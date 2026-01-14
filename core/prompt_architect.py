@@ -49,13 +49,21 @@ def generate_v9_spec(skill_id, model_tag='cloud_pro', prompt_strategy='standard'
 - [隨機分流]：generate() 內部必須使用 random.choice 或 if/elif 邏輯，根據該技能的教科書例題，實作至少 3 種不同的題型變體。
 - [範例]：題型應包含「直接計算」、「逆向求解（已知距離求座標）」、「情境應用（如移動點）」。
 
-3. 排版與 LaTeX 安全 (Layout Guardrails)
-- [禁止換行符]：嚴禁使用 \\par、\\\\ 或 \[...\]。所有數學式必須使用 $...$ (Inline Math)。
-- [變數注入]：必須使用 r"模板".replace("{a}", str(a)) 語法，嚴禁直接使用 f-string 處理 LaTeX 區塊。
+3. 排版與 LaTeX 安全 (Elite Guardrails)
+- 【強制】語法零修復 (Regex=0)：
+  凡字串包含 LaTeX 指令 (如 \\frac, \\sqrt, \\pm)，嚴禁使用 f-string 或 % 格式化。
+  必須嚴格執行以下模板：
+  ans_val = 5
+  expr = r"x = {a}".replace("{a}", str(ans_val))
+  
+- 【嚴禁】不可使用 f"x = {ans_val}"，因為這會導致 LaTeX 的大括號與 Python 衝突。
+- 【排版】嚴禁使用 \\par 或 \\[...\\]。所有數學式一律使用 $...$。
 
-4. 視覺化工具規範 (Visuals)
-- [數線工具]：若為數線題，必須實作 draw_number_line(points_map) 且該函式「最後必須有 return html_string」。
-- [拼接要求]：question_text 必須由「文字題目 + <br> + 視覺化 HTML」組成。
+
+4. 視覺化與輔助函式通用規範 (Generic Helper Rules)
+- [必須回傳]：所有定義的輔助函式（如 draw_ 開頭或自定義運算函式），最後一行必須明確使用 'return' 語句回傳結果。
+- [類型一致]：若該函式結果會用於拼接 question_text，則回傳值必須強制轉為字串 (str)。
+- [防洩漏原則]：視覺化函式僅能接收「題目已知數據」。嚴禁將「答案數據」傳入繪圖函式，確保學生無法從圖形中直接看到答案。
 
 5. 數據與欄位 (Standard Fields)
 - [欄位鎖死]：返回字典必須且僅能包含 question_text, correct_answer, answer, image_base64。

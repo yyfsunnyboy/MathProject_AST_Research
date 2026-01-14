@@ -155,61 +155,32 @@ def draw_number_line(points_map):
 # --- 4. Standard Answer Checker (Auto-Injected) ---
 def check(user_answer, correct_answer):
     """
-    Standard Answer Checker [V9.8.1 Enhanced]
-    1. Handles float tolerance.
-    2. Normalizes strings (removes spaces, supports Chinese commas).
-    3. Returns user-friendly Chinese error messages.
+    [V10.5.2 Standard Check]
+    1. 支援字元正規化（去空格、換全形逗號）。
+    2. 支援數值誤差容錯。
+    3. 使用三引號原始字串防止語法崩潰。
     """
-    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
-    
-    # 1. Normalize strings (字串正規化)
-    def normalize(s):
-        s = str(s).strip()
-        # 移除空格、LaTeX間距
-        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
-        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
-        s = s.replace("，", ",") 
-        return s
-    
-    user_norm = normalize(user_answer)
-    correct_norm = normalize(correct_answer)
-    
-    # 2. Exact Match Strategy (精確比對)
-    if user_norm == correct_norm:
-        return {"correct": True, "result": "Correct!"}
-        
-    # 3. Float Match Strategy (數值容錯比對)
+    if user_answer is None: 
+        return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+
+    # 正規化處理：轉字串、去空格、中文逗號轉半形
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",")
+    c = str(correct_answer).strip().replace(" ", "").replace("，", ",")
+
+    # 1. 精確字串比對
+    if u == c:
+        return {"correct": True, "result": "正確！"}
+
+    # 2. 數值誤差比對 (針對小數或分數轉換)
     try:
-        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
-        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
-            return {"correct": True, "result": "Correct!"}
-    except ValueError:
-        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
-        
-    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
-    # 這裡回傳的 result 會直接顯示在前端 Result 區域
-    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{correct_answer}"}
+        if abs(float(u) - float(c)) < 1e-6:
+            return {"correct": True, "result": "正確！"}
+    except (ValueError, TypeError):
+        pass
 
-
-import matplotlib.pyplot as plt
-import numpy as np
-import io
-import base64
-
-from decimal import Decimal, getcontext
-
-# Set precision for Decimal operations if needed, though for basic
-# positive/negative numbers, float usually suffices.
-getcontext().prec = 28
-
-# --- Matplotlib Font Setup (CRITICAL for Chinese display) ---
-# Ensure these fonts are available in the execution environment.
-# 'Microsoft JhengHei' is common on Windows for Traditional Chinese.
-# 'SimHei' is common on Windows/Linux for Simplified Chinese, but often supports Traditional.
-# 'Arial Unicode MS' is another option.
-plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'Arial Unicode MS', 'Arial']
-plt.rcParams['axes.unicode_minus'] = False # Solve the problem of '-' sign display
-
+    # 3. 錯誤回傳
+    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+    
 # --- Helper Function to convert Matplotlib figure to Base64 ---
 def _plot_to_base64(fig):
     """
@@ -526,7 +497,7 @@ def _generate_number_line_problem():
 def generate_positive_negative_number_problem():
     """
     Generates a random problem related to positive and negative numbers
-    based on the Architect's specification.
+    based on the Architects specification.
     """
     problem_generators = [
         _generate_scenario_problem,
@@ -574,34 +545,26 @@ def generate(level=1):
     if selected == 'generate_positive_negative_number_problem': return generate_positive_negative_number_problem()
     return generate_positive_negative_number_problem()
 
-# [Auto-Injected Patch v9.2] Universal Return Fixer
-# 1. Ensures 'answer' key exists (copies from 'correct_answer')
-# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
-def _patch_return_dict(func):
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
+        if func.__name__ == "check" and isinstance(res, bool):
+            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
         if isinstance(res, dict):
-            # Fix 1: Answer Key
-            if 'answer' not in res and 'correct_answer' in res:
-                res['answer'] = res['correct_answer']
-            if 'answer' in res:
-                res['answer'] = str(res['answer'])
-            
-            # Fix 2: Image Key (Flatten visuals for legacy frontend)
-            if 'image_base64' not in res and 'visuals' in res:
-                try:
-                    # Extract first image value from visuals list
-                    for item in res['visuals']:
-                        if item.get('type') == 'image/png':
-                            res['image_base64'] = item.get('value')
-                            break
-                except: pass
+            if "question_text" in res and isinstance(res["question_text"], str):
+                res["question_text"] = res["question_text"].replace("\\n", "\n")
+            if func.__name__ == "check" and "result" in res:
+                msg = str(res["result"]).lower()
+                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
+                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
+                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
+            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
+            if "answer" in res: res["answer"] = str(res["answer"])
+            if "image_base64" not in res: res["image_base64"] = ""
         return res
     return wrapper
-
-# Apply patch to ALL generator functions in scope
 import sys
-# Iterate over a copy of globals keys to avoid modification issues
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
-        globals()[_name] = _patch_return_dict(_func)
+    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+        globals()[_name] = _patch_all_returns(_func)

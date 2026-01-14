@@ -250,6 +250,32 @@ def init_db(engine):
         )
     ''')
 
+    # [補上缺失] Questions 表格
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            skill_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            difficulty_level INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # [補上缺失] Quiz Attempts 表格
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS quiz_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            question_id INTEGER NOT NULL,
+            user_answer TEXT,
+            is_correct BOOLEAN DEFAULT 0,
+            duration_seconds REAL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (question_id) REFERENCES questions (id)
+        )
+    ''')
+
     # --------------------------------------------------------
     # 2. 自動升級邏輯：為舊資料庫補上新欄位
     # --------------------------------------------------------

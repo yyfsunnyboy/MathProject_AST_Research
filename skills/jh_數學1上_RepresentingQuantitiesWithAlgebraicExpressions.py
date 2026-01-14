@@ -308,3 +308,27 @@ def generate(level=1):
         raise ValueError("Invalid level. Choose 1 or 2.")
 
     return problem_func()
+
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        if func.__name__ == "check" and isinstance(res, bool):
+            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        if isinstance(res, dict):
+            if "question_text" in res and isinstance(res["question_text"], str):
+                res["question_text"] = res["question_text"].replace("\\n", "\n")
+            if func.__name__ == "check" and "result" in res:
+                msg = str(res["result"]).lower()
+                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
+                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
+                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
+            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
+            if "answer" in res: res["answer"] = str(res["answer"])
+            if "image_base64" not in res: res["image_base64"] = ""
+        return res
+    return wrapper
+import sys
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+        globals()[_name] = _patch_all_returns(_func)

@@ -1,34 +1,126 @@
 # ==============================================================================
 # ID: jh_數學1上_FourArithmeticOperationsOfIntegers
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
-# Duration: 38.84s | RAG: 10 examples
-# Created At: 2026-01-08 22:32:51
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 25.68s | RAG: 5 examples
+# Created At: 2026-01-14 13:43:00
+# Fix Status: [Repaired]
+# Fixes: Regex=6, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+# [Fix] Font injection for Traditional Chinese support
+matplotlib.rcParams['font.sans-serif'] = ['Microsoft JhengHei'] 
+matplotlib.rcParams['axes.unicode_minus'] = False
 from fractions import Fraction
+from functools import reduce
 
+# --- 1. Formatting Helpers ---
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    Convert int/float/Fraction to LaTeX.
+    Handles mixed numbers automatically for Fractions.
+    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
         if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+        # Logic for negative fractions
+        sign = "-" if num < 0 else ""
+        abs_num = abs(num)
+        
+        if abs_num.numerator > abs_num.denominator:
+            whole = abs_num.numerator // abs_num.denominator
+            rem_num = abs_num.numerator % abs_num.denominator
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{rem}}{{den}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{rem}", str(rem_num)).replace("{den}", str(abs_num.denominator))
+        return r"\frac{{num}}{{den}}".replace("{num}", str(num.numerator)).replace("{den}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX.
+    
+    Args:
+        num: The number to format.
+        signed (bool): If True, always show sign (e.g., "+3", "-5").
+        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_val = to_latex(abs(num))
+    
+    if op:
+        # e.g., " + 3", " - 3"
+        return r" - {v}".replace("{v}", abs_val) if is_neg else r" + {v}".replace("{v}", abs_val)
+    
+    if signed:
+        # e.g., "+3", "-3"
+        return r"-{v}".replace("{v}", abs_val) if is_neg else r"+{v}".replace("{v}", abs_val)
+        
+    # Default behavior (parentheses for negative)
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
+
+# Alias for AI habits
+fmt_fraction_latex = to_latex 
+
+# --- 2. Number Theory Helpers ---
+def get_positive_factors(n):
+    """Return a sorted list of positive factors of n."""
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
+def is_prime(n):
+    """Check primality."""
+    if n <= 1: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    if n <= 3: return {'correct': True, 'result': '正確！'}
+    if n % 2 == 0 or n % 3 == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+        i += 6
+    return {'correct': True, 'result': '正確！'}
+def get_prime_factorization(n):
+    """Return dict {prime: exponent}."""
+    factors = {}
+    d = 2
+    temp = n
+    while d * d <= temp:
+        while temp % d == 0:
+            factors[d] = factors.get(d, 0) + 1
+            temp //= d
+        d += 1
+    if temp > 1:
+        factors[temp] = factors.get(temp, 0) + 1
+    return factors
+
+def gcd(a, b): return math.gcd(a, b)
+def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+
+# --- 3. Fraction Generator Helper ---
+def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
+    """
+    Generate a random Fraction within range.
+    simple=True ensures it's not an integer.
+    """
+    for _ in range(100):
+        den = random.randint(2, denominator_limit)
+        num = random.randint(min_val * den, max_val * den)
+        if den == 0: continue
+        val = Fraction(num, den)
+        if simple and val.denominator == 1: continue # Skip integers
+        if val == 0: continue
+        return val
+    return Fraction(1, 2) # Fallback
 
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
@@ -63,514 +155,331 @@ def draw_number_line(points_map):
         f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
         f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
     )
-    return result
 
+# --- 4. High-Level Math Objects (Vector/Matrix/Calculus) ---
+class Vector3:
+    """Simple 3D Vector Class for Geometry."""
+    def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
+    def __add__(self, o): return Vector3(self.x+o.x, self.y+o.y, self.z+o.z)
+    def __sub__(self, o): return Vector3(self.x-o.x, self.y-o.y, self.z-o.z)
+    def dot(self, o): return self.x*o.x + self.y*o.y + self.z*o.z
+    def cross(self, o): return Vector3(self.y*o.z-self.z*o.y, self.z*o.x-self.x*o.z, self.x*o.y-self.y*o.x)
+    def mag(self): return math.sqrt(self.x**2 + self.y**2 + self.z**2)
+    def __repr__(self): return f"({self.x}, {self.y}, {self.z})"
 
- # Included for consistency with reference, though not strictly used in this skill
+class Matrix:
+    """Simple Matrix (2x2 or 3x3) for transformations."""
+    def __init__(self, rows): self.rows = rows
+    def det(self):
+        if len(self.rows) == 2: return self.rows[0][0]*self.rows[1][1] - self.rows[0][1]*self.rows[1][0]
+        return 0 # Placeholder for 3x3
+    def mv(self, v): # Matrix-Vector multiplication
+        return Vector3(
+            self.rows[0][0]*v.x + self.rows[0][1]*v.y,
+            self.rows[1][0]*v.x + self.rows[1][1]*v.y, 0
+        )
 
-# --- Helper Functions for generating specific problem types ---
-
-def _get_non_zero_int(min_val, max_val):
-    """Generates a random integer in a range, ensuring it's not zero."""
-    val = 0
-    while val == 0:
-        val = random.randint(min_val, max_val)
-    return val
-
-def generate_type_1_problem():
+def draw_integral_area(func_lambda, x_range, color='blue', alpha=0.3):
     """
-    Type 1: Basic mixed integer operations (multiplication, division, addition, subtraction) with multiple parts.
+    [Visual] Helper to plot area under curve. 
+    Usage: In generate(), ax.fill_between(x, y, ...).
+    Actually, this is just a placeholder to remind AI to use fill_between.
     """
-    # Part 1: v1_a * v1_b // v1_c
-    v1_a = random.randint(-12, 12)
-    v1_b = random.randint(-12, 12)
-    v1_c = 0
-    retry_count = 0
-    while retry_count < 100 and (v1_c == 0 or (v1_a * v1_b) % v1_c != 0):
-        v1_c = random.randint(-12, 12)
-        retry_count += 1
-    if retry_count == 100: # Fallback if no suitable v1_c found
-        v1_a, v1_b, v1_c = 6, 4, 3 # Example values that work
-    ans1 = (v1_a * v1_b) // v1_c
+    pass
 
-    # Part 2: v2_a // v2_b * v2_c
-    v2_a = random.randint(-12, 12)
-    v2_b = 0
-    retry_count = 0
-    while retry_count < 100 and (v2_b == 0 or v2_a % v2_b != 0):
-        v2_b = random.randint(-12, 12)
-        retry_count += 1
-    if retry_count == 100: # Fallback
-        v2_a, v2_b = 12, 4
-    v2_c = random.randint(-12, 12)
-    ans2 = (v2_a // v2_b) * v2_c
+# --- 5. Standard Answer Checker (Auto-Injected) ---
 
-    # Part 3: v3_a + v3_b * v3_c
-    v3_a = random.randint(-12, 12)
-    v3_b = random.randint(-12, 12)
-    v3_c = random.randint(-12, 12)
-    ans3 = v3_a + v3_b * v3_c
 
-    # Part 4: v4_a * v4_b - v4_c // v4_d
-    v4_a = random.randint(-12, 12)
-    v4_b = random.randint(-12, 12)
-    v4_c = random.randint(-12, 12)
-    v4_d = 0
-    retry_count = 0
-    while retry_count < 100 and (v4_d == 0 or v4_c % v4_d != 0):
-        v4_d = random.randint(-12, 12)
-        retry_count += 1
-    if retry_count == 100: # Fallback
-        v4_c, v4_d = 10, 5
-    ans4 = v4_a * v4_b - (v4_c // v4_d)
 
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"⑴ {v1_a}×{v1_b}÷{v1_c}\n"
-        f"⑵ {v2_a}÷{v2_b}×{v2_c}\n"
-        f"⑶ {v3_a}＋{v3_b}×{v3_c}\n"
-        f"⑷ {v4_a}×{v4_b}-{v4_c}÷{v4_d}"
-    )
-    correct_answer = f"⑴ {ans1}\n⑵ {ans2}\n⑶ {ans3}\n⑷ {ans4}"
+import datetime
+ # For abs() if needed, but direct comparison abs(num) is fine
+import base64 # Required for image_base64, even if empty
 
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+# --- 輔助函式 (Helper Functions) ---
 
-def generate_type_2_problem():
+# 規範 4: 必須回傳結果, 規範 3: LaTeX 安全排版
+# 確保負數在 LaTeX 環境中被括號包圍，如 $(-5)$
+def _format_num_latex_safe(num):
     """
-    Type 2: Basic mixed integer operations with more negative numbers and multiple parts.
+    將數字格式化為 LaTeX 安全的字串。
+    負數會被括號包圍，例如 -5 會變成 `( -5 )`。
+    正數和零則直接轉換為字串。
+    嚴格遵循規範 3，使用 .replace() 避免 f-string 衝突。
     """
-    # Part 1: (-v1_a) * (-v1_b) // v1_c
-    v1_a = random.randint(2, 9)
-    v1_b = random.randint(2, 9)
-    v1_c = 0
-    retry_count = 0
-    while retry_count < 100 and (v1_c == 0 or (v1_a * v1_b) % v1_c != 0):
-        v1_c = random.randint(2, 9)
-        retry_count += 1
-    if retry_count == 100:
-        v1_a, v1_b, v1_c = 4, 9, 3
-    ans1 = (-v1_a) * (-v1_b) // v1_c
+    if num < 0:
+        # 規範 3: 嚴禁 f-string，必須使用 .replace()
+        formatted_str = r"( {val} )".replace("{val}", str(num))
+        return formatted_str
+    # 規範 4: 回傳值強制轉為字串
+    return str(num)
 
-    # Part 2: v2_a // (-v2_b) * (-v2_c)
-    v2_a = random.randint(2, 9)
-    v2_b = 0
-    retry_count = 0
-    while retry_count < 100 and (v2_b == 0 or v2_a % v2_b != 0):
-        v2_b = random.randint(2, 9)
-        retry_count += 1
-    if retry_count == 100:
-        v2_a, v2_b = 6, 2
-    v2_c = random.randint(2, 9)
-    ans2 = v2_a // (-v2_b) * (-v2_c)
+# --- 頂層函式 (Top-Level Functions) ---
 
-    # Part 3: (-v3_a) - (-v3_b) * v3_c
-    v3_a = random.randint(2, 9)
-    v3_b = random.randint(2, 9)
-    v3_c = random.randint(2, 9)
-    ans3 = (-v3_a) - (-v3_b) * v3_c
-
-    # Part 4: (-v4_a) * v4_b + (-v4_c) // v4_d
-    v4_a = random.randint(2, 9)
-    v4_b = random.randint(2, 9)
-    v4_c = random.randint(2, 9)
-    v4_d = 0
-    retry_count = 0
-    while retry_count < 100 and (v4_d == 0 or v4_c % v4_d != 0):
-        v4_d = random.randint(2, 9)
-        retry_count += 1
-    if retry_count == 100:
-        v4_c, v4_d = 8, 4
-    ans4 = (-v4_a) * v4_b + (-v4_c) // v4_d
-
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"⑴ ({ -v1_a })×({ -v1_b })÷{v1_c}\n"
-        f"⑵ {v2_a}÷({ -v2_b })×({ -v2_c })\n"
-        f"⑶ ({ -v3_a })-({ -v3_b })×{v3_c}\n"
-        f"⑷ ({ -v4_a })×{v4_b}＋({ -v4_c })÷{v4_d}"
-    )
-    correct_answer = f"⑴ {ans1}\n⑵ {ans2}\n⑶ {ans3}\n⑷ {ans4}"
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_3_problem():
-    """
-    Type 3: Order of operations with nested brackets involving multiplication, subtraction, and division.
-    """
-    v1_outer = random.randint(-100, -20)
-    v2_mult1 = random.randint(-10, -2)
-    v3_mult2 = random.randint(2, 10)
-    v4_sub = random.randint(1, 5)
-
-    inner_val = 0
-    retry_count = 0
-    while retry_count < 100:
-        inner_val = v2_mult1 * v3_mult2 - v4_sub
-        if inner_val != 0 and v1_outer % inner_val == 0:
-            break
-        v1_outer = random.randint(-100, -20)
-        v2_mult1 = random.randint(-10, -2)
-        v3_mult2 = random.randint(2, 10)
-        v4_sub = random.randint(1, 5)
-        retry_count += 1
-    
-    if retry_count == 100: # Fallback to a working set
-        v1_outer, v2_mult1, v3_mult2, v4_sub = -60, -7, 2, 1
-        inner_val = v2_mult1 * v3_mult2 - v4_sub # -7*2-1 = -14-1 = -15
-
-    ans = v1_outer // inner_val
-
-    question_text = f"計算 ({v1_outer})÷[ ({v2_mult1})×{v3_mult2}-{v4_sub} ] 的值。"
-    correct_answer = str(ans)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_4_problem():
-    """
-    Type 4: Order of operations with nested brackets involving addition, division, and multiplication.
-    """
-    v1_add1 = random.randint(-30, -10)
-    v2_add2 = random.randint(-20, -5)
-    v4_mult = random.randint(2, 5)
-
-    sum_val = v1_add1 + v2_add2
-    v3_div = 0
-    retry_count = 0
-    while retry_count < 100 and (v3_div == 0 or sum_val % v3_div != 0):
-        v3_div = random.randint(-10, -2)
-        retry_count += 1
-    
-    if retry_count == 100: # Fallback
-        v1_add1, v2_add2, v3_div, v4_mult = -20, -10, -5, 3
-        sum_val = v1_add1 + v2_add2 # -30
-
-    ans = (sum_val // v3_div) * v4_mult
-
-    question_text = f"計算 [ ({v1_add1})＋({v2_add2}) ]÷({v3_div})×{v4_mult} 的值。"
-    correct_answer = str(ans)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_5_problem():
-    """
-    Type 5: Absolute value in an expression with mixed operations (multiplication, subtraction, addition).
-    """
-    v1_mult1 = random.randint(-10, -2)
-    v2_mult2 = random.randint(2, 8)
-    v3_abs_mult1 = random.randint(-8, -2)
-    v4_abs_mult2 = random.randint(5, 10)
-    v5_abs_sub = random.randint(1, 5)
-
-    abs_inner = v3_abs_mult1 * v4_abs_mult2 - v5_abs_sub
-    ans = v1_mult1 * v2_mult2 + abs(abs_inner)
-
-    question_text = f"計算 ({v1_mult1})×{v2_mult2}＋｜({v3_abs_mult1})×{v4_abs_mult2}-{v5_abs_sub}｜的值。"
-    correct_answer = str(ans)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_6_problem():
-    """
-    Type 6: Absolute value in an expression with mixed operations (multiplication, subtraction, division, multiplication).
-    """
-    v1_abs_mult1 = random.randint(2, 8)
-    v2_abs_mult2 = random.randint(-8, -2)
-    v3_abs_sub = random.randint(1, 5)
-    v5_mult = random.randint(-5, -2)
-
-    abs_inner_raw = v1_abs_mult1 * v2_abs_mult2 - v3_abs_sub
-    abs_inner = abs(abs_inner_raw)
-    
-    v4_div = 0
-    retry_count = 0
-    while retry_count < 100 and (v4_div == 0 or abs_inner % v4_div != 0):
-        v4_div = random.randint(2, 5)
-        retry_count += 1
-    
-    if retry_count == 100: # Fallback
-        v1_abs_mult1, v2_abs_mult2, v3_abs_sub, v4_div, v5_mult = 8, -2, 5, 7, -3
-        abs_inner = abs(v1_abs_mult1 * v2_abs_mult2 - v3_abs_sub) # abs(8*-2 - 5) = abs(-16-5) = abs(-21) = 21
-
-    ans = (abs_inner // v4_div) * v5_mult
-
-    question_text = f"計算 ｜{v1_abs_mult1}×({v2_abs_mult2})-{v3_abs_sub}｜÷{v4_div}×({v5_mult}) 的值。"
-    correct_answer = str(ans)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_7_problem():
-    """
-    Type 7: Distributive property (e.g., `a*c + b*c = (a+b)*c`) with positive and negative common factors.
-    """
-    # Part 1: v1_a * v1_common + v1_b * v1_common
-    v1_common = random.randint(-10, -2)
-    v1_a = random.randint(10, 100)
-    v1_b = random.randint(10, 100)
-    ans1 = v1_a * v1_common + v1_b * v1_common
-
-    # Part 2: v2_a * v2_common - v2_b * v2_common
-    v2_common = random.randint(-10, -2)
-    v2_a = random.randint(10, 100)
-    v2_b = random.randint(10, 100)
-    ans2 = v2_a * v2_common - v2_b * v2_common
-
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"⑴ {v1_a}×({v1_common})＋{v1_b}×({v1_common})\n"
-        f"⑵ {v2_a}×({v2_common})-{v2_b}×({v2_common})"
-    )
-    correct_answer = f"⑴ {ans1}\n⑵ {ans2}"
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_8_problem():
-    """
-    Type 8: Distributive property with larger numbers, often resulting in multiples of 100 or 1000.
-    """
-    # Part 1: (v1_common_neg) * v1_a + (v1_common_neg) * v1_b -> (v1_common_neg) * (v1_a + v1_b)
-    v1_common_neg = random.randint(-150, -50)
-    v1_a = random.randint(20, 80)
-    v1_b = 100 - v1_a
-    ans1 = v1_common_neg * (v1_a + v1_b)
-
-    # Part 2: v2_large * v2_common_mult - v2_small * v2_common_mult -> (v2_large - v2_small) * v2_common_mult
-    v2_common_mult = random.randint(-50, -10)
-    v2_small = random.randint(1, 9)
-    v2_large = 1000 + v2_small # Ensures (v2_large - v2_small) is 1000
-    ans2 = (v2_large - v2_small) * v2_common_mult
-
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"⑴ ({v1_common_neg})×{v1_a}＋({v1_common_neg})×{v1_b}\n"
-        f"⑵ {v2_large}×({v2_common_mult})-{v2_small}×({v2_common_mult})"
-    )
-    correct_answer = f"⑴ {ans1}\n⑵ {ans2}"
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_9_problem():
-    """
-    Type 9: Mental math for multiplication, rewriting numbers as `(X + a) * b` or `a * (Y - b)` where X, Y are powers of 10.
-    """
-    # Part 1: num1 * v1_factor, where num1 = 1000 + v1_offset
-    v1_base = 1000
-    v1_offset = random.randint(1, 9)
-    v1_factor = random.randint(-200, -100)
-    num1 = v1_base + v1_offset
-    ans1 = num1 * v1_factor
-
-    # Part 2: v2_factor * num2, where num2 = 1000 - v2_offset
-    v2_base = 1000
-    v2_offset = random.randint(1, 9)
-    v2_factor = random.randint(-300, -100)
-    num2 = v2_base - v2_offset
-    ans2 = v2_factor * num2
-
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"⑴ {num1}×({v1_factor})\n"
-        f"⑵ ({v2_factor})×{num2}"
-    )
-    correct_answer = f"⑴ {ans1}\n⑵ {ans2}"
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_10_problem():
-    """
-    Type 10: Mental math for multiplication, rewriting numbers as `(A00 - x) * b` or `a * (B00 + y)`.
-    """
-    # Part 1: num1 * v1_factor, where num1 = 200 - v1_offset
-    v1_base = 200
-    v1_offset = random.randint(1, 5)
-    v1_factor = random.randint(-20, -10)
-    num1 = v1_base - v1_offset
-    ans1 = num1 * v1_factor
-
-    # Part 2: v2_factor * num2, where num2 = (400 or 500) + v2_offset
-    v2_base = random.choice([400, 500])
-    v2_offset = random.randint(1, 5)
-    v2_factor = random.randint(-60, -40)
-    num2 = v2_base + v2_offset
-    ans2 = v2_factor * num2
-
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"⑴ {num1}×({v1_factor})\n"
-        f"⑵ ({v2_factor})×{num2}"
-    )
-    correct_answer = f"⑴ {ans1}\n⑵ {ans2}"
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_11_problem():
-    """
-    Type 11: Word problem involving integer arithmetic, accumulating position on a number line based on event outcomes.
-    """
-    even_move_right = random.randint(3, 7)
-    odd_move_left = random.randint(3, 7)
-    while even_move_right == odd_move_left: # Ensure distinct values for more interesting problems
-        odd_move_left = random.randint(3, 7)
-
-    total_rolls = random.randint(8, 15)
-    even_count = random.randint(2, total_rolls - 2) # Ensure at least 2 odd and 2 even rolls
-    odd_count = total_rolls - even_count
-
-    final_position = even_count * even_move_right - odd_count * odd_move_left
-
-    question_text = (
-        f"小翊投擲一顆點數為 1、2、3、4、5、6 的骰子，並將一個棋子放在數線上，依照下列規則移動。\n"
-        f"擲出偶數點：棋子往數線右方移動 {even_move_right} 個單位；\n"
-        f"擲出奇數點：棋子往數線左方移動 {odd_move_left} 個單位。\n"
-        f"已知小翊一開始將棋子放在原點，共投擲了 {total_rolls} 次，其中出現 {even_count} 次偶數點，則棋子最後的位置在哪個坐標上？"
-    )
-    correct_answer = str(final_position)
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_12_problem():
-    """
-    Type 12: Word problem involving integer arithmetic, calculating scores for two players in a game based on win/lose/draw conditions.
-    """
-    win_points = random.randint(2, 5)
-    lose_deduct = random.randint(1, 3)
-    draw_points = random.randint(0, 2)
-    
-    total_games = random.randint(8, 15)
-    
-    p1_wins = random.randint(2, total_games - 2) # Ensure p1 wins at least 2 games
-    
-    p2_wins = 0
-    draws = -1
-    retry_count = 0
-    while retry_count < 100:
-        p2_wins = random.randint(1, total_games - p1_wins - 1) # Ensure p2 wins at least 1, and enough games left for draws
-        draws = total_games - p1_wins - p2_wins
-        if draws >= 0:
-            break
-        retry_count += 1
-    
-    if retry_count == 100: # Fallback to a working set
-        total_games, p1_wins, p2_wins = 10, 4, 3
-        draws = total_games - p1_wins - p2_wins # 3
-        win_points, lose_deduct, draw_points = 3, 2, 1
-        
-    p1_score = p1_wins * win_points - p2_wins * lose_deduct + draws * draw_points
-    p2_score = p2_wins * win_points - p1_wins * lose_deduct + draws * draw_points
-
-    question_text = (
-        f"小妍與小美玩猜拳遊戲，遊戲規則為贏的人得{win_points}分，輸的人扣{lose_deduct}分，平手則各得{draw_points}分。\n"
-        f"已知兩人共猜了 {total_games} 次拳，其中小妍贏 {p1_wins} 次，小美贏 {p2_wins} 次，平手 {draws} 次，分別求出兩人最後的分數為何？"
-    )
-    correct_answer = f"小妍{p1_score}分，小美{p2_score}分"
-
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-# --- Standard Check Function (copied from reference) ---
-
-def check(user_answer, correct_answer):
-    """
-    檢查答案是否正確。
-    """
-    user_answer = user_answer.strip().upper()
-    correct_answer = correct_answer.strip().upper()
-    
-    is_correct = (user_answer == correct_answer)
-    
-    if not is_correct:
-        try:
-            # Attempt to compare as floats for numerical answers, if direct string comparison fails
-            if float(user_answer) == float(correct_answer):
-                is_correct = True
-        except ValueError:
-            pass
-        except TypeError: # Handle cases where correct_answer might not be directly floatable (e.g., multiline answers)
-            pass
-
-    result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-    return {"correct": is_correct, "result": result_text, "next_question": True}
-
-
-# --- Main Dispatcher ---
-
+# 規範 1: 嚴禁使用 class 封裝，必須直接定義於模組最外層
 def generate(level=1):
     """
-    Generates a Four Arithmetic Operations Of Integers problem based on a random type.
-    The 'level' parameter is ignored for now, as per spec.
-    """
-    problem_type = random.randint(1, 12) # Randomly pick one of the 12 types
-    
-    if problem_type == 1:
-        return generate_type_1_problem()
-    elif problem_type == 2:
-        return generate_type_2_problem()
-    elif problem_type == 3:
-        return generate_type_3_problem()
-    elif problem_type == 4:
-        return generate_type_4_problem()
-    elif problem_type == 5:
-        return generate_type_5_problem()
-    elif problem_type == 6:
-        return generate_type_6_problem()
-    elif problem_type == 7:
-        return generate_type_7_problem()
-    elif problem_type == 8:
-        return generate_type_8_problem()
-    elif problem_type == 9:
-        return generate_type_9_problem()
-    elif problem_type == 10:
-        return generate_type_10_problem()
-    elif problem_type == 11:
-        return generate_type_11_problem()
-    elif problem_type == 12:
-        return generate_type_12_problem()
-    else:
-        raise ValueError("Invalid problem type generated.")
+    根據「整數的四則運算」技能，生成一道數學題目。
+    包含多種題型變體，並嚴格遵守 LaTeX 排版和數據規範。
 
+    Args:
+        level (int): 題目難度等級 (此版本中暫未實作等級差異，預設為1)。
+
+    Returns:
+        dict: 包含題目文本、正確答案、答案字串、圖片Base64等資訊的字典。
+              規範 5: 欄位鎖死。
+    """
+    # 規範 2: 隨機分流，至少 3 種不同的題型變體
+    problem_type = random.choice([
+        "direct_calculation",      # 直接計算
+        "inverse_solving",         # 逆向求解
+        "contextual_application"   # 情境應用
+    ])
+
+    question_text = ""
+    correct_answer = None
+    
+    # 規範 5: image_base64 欄位必須存在，即使為空字串
+    # 規範 4: 防洩漏原則，視覺化函式僅能接收「題目已知數據」，嚴禁傳入「答案數據」
+    # 此技能目前沒有複雜的視覺化需求，故為空字串。
+    image_base64 = ""
+
+    if problem_type == "direct_calculation":
+        # 題型變體 1: 直接計算 (Direct Calculation)
+        # 例如：計算 $(-5) + 3 \times (-2) - 10 \div 2$ 的值。
+        
+        # 初始化起始值
+        current_val = random.randint(-20, 20)
+        
+        # 規範 3: 所有數學式一律使用 $...$
+        # 規範 3: 嚴格執行 .replace() 模板
+        expression_display_parts = [_format_num_latex_safe(current_val)]
+        
+        num_operations = random.randint(2, 3) # 增加 2 到 3 個運算
+        
+        for _ in range(num_operations):
+            op = random.choice(['+', '-', '*', '/'])
+            next_val = random.randint(-15, 15) # 潛在的下一個運算數
+            
+            # 確保除法結果為整數，並避免除以零
+            if op == '/':
+                # 策略：如果 current_val 是 0，除數可以是任何非零數。
+                # 如果 current_val 不是 0，則尋找其因數作為除數。
+                if current_val == 0:
+                    while next_val == 0:
+                        next_val = random.randint(-15, 15)
+                else:
+                    # 尋找 current_val 的非零因數
+                    # 考慮到 next_val 範圍是 -15 到 15，因此只尋找此範圍內的因數
+                    divisors = [d for d in range(-15, 16) if d != 0 and current_val % d == 0]
+                    if not divisors:
+                        # 備用方案：如果範圍內沒有合適的整數因數，則改變運算符
+                        # 為了簡化，直接將運算符改為非除法
+                        op = random.choice(['+', '-', '*']) 
+                        next_val = random.randint(-15, 15) # 重新選擇 next_val
+                    else:
+                        next_val = random.choice(divisors) # 從因數中隨機選擇一個作為除數
+            
+            # 規範 3: 數學符號的 LaTeX 顯示，並使用 .replace()
+            op_display = op
+            if op == '*':
+                op_display = r"\times"
+            elif op == '/':
+                op_display = r"\div"
+            
+            # 規範 3: 嚴格執行 .replace() 模板來構建顯示部分
+            display_part = r" {op_display} {operand_str} ".replace("{op_display}", op_display) \
+                                                          .replace("{operand_str}", _format_num_latex_safe(next_val))
+            expression_display_parts.append(display_part)
+            
+            # 根據運算符更新 current_val
+            if op == '+':
+                current_val += next_val
+            elif op == '-':
+                current_val -= next_val
+            elif op == '*':
+                current_val *= next_val
+            elif op == '/':
+                current_val //= next_val # 使用整數除法
+
+        correct_answer = current_val # 最終計算結果
+        
+        # 規範 3: 構建完整的題目文本，所有數學式一律使用 $...$
+        # 規範 3: 嚴格執行 .replace() 模板
+        question_text_base = r"計算下列各式的值："
+        question_expr = r"$ {expression} $".replace("{expression}", "".join(expression_display_parts))
+        question_text = r"{intro} {expr}".replace("{intro}", question_text_base).replace("{expr}", question_expr)
+
+    elif problem_type == "inverse_solving":
+        # 題型變體 2: 逆向求解 (Inverse Solving)
+        # 例如：「某數 $x$ 加上 $( -7 )$ 後得到 $15$，求此數 $x$。」
+        
+        x = random.randint(-20, 20) # 待求的未知數 x
+        op = random.choice(['+', '-', '*']) # 選擇加、減、乘運算
+        
+        operand_b = random.randint(-15, 15)
+        
+        result_val = 0
+        question_template = ""
+
+        if op == '+':
+            result_val = x + operand_b
+            # x + B = R => x = R - B
+            question_template = r"某數 $x$ 加上 {operand_b_str} 後得到 {result_str}，求此數 $x$。"
+            
+        elif op == '-':
+            result_val = x - operand_b
+            # x - B = R => x = R + B
+            question_template = r"某數 $x$ 減去 {operand_b_str} 後得到 {result_str}，求此數 $x$。"
+            
+        elif op == '*':
+            # 確保乘法逆向求解時，結果能被 operand_b 整除，以得到整數 x
+            operand_b = random.randint(-5, 5)
+            while operand_b == 0: # 避免乘數為零
+                operand_b = random.randint(-5, 5)
+            
+            x = random.randint(-10, 10) # 重新生成未知數 x
+            result_val = x * operand_b
+            
+            # x * B = R => x = R / B
+            question_template = r"某數 $x$ 乘以 {operand_b_str} 後得到 {result_str}，求此數 $x$。"
+            
+        # 規範 3: 嚴格執行 .replace() 模板來構建題目文本
+        question_text = question_template \
+            .replace("{operand_b_str}", _format_num_latex_safe(operand_b)) \
+            .replace("{result_str}", _format_num_latex_safe(result_val))
+            
+        correct_answer = x
+
+    elif problem_type == "contextual_application":
+        # 題型變體 3: 情境應用 (Contextual Application)
+        # 例如：氣溫變化、海拔高度、銀行帳戶餘額等。
+        
+        scenario = random.choice(["temperature", "elevation", "money"])
+        
+        if scenario == "temperature":
+            initial_temp = random.randint(-10, 10) # 清晨氣溫
+            change1_val = random.randint(-15, 15) # 第一次變化 (可升可降)
+            change2_val = random.randint(-15, 15) # 第二次變化
+            
+            final_temp = initial_temp + change1_val + change2_val
+            
+            # 規範 3: 嚴格執行 .replace() 模板
+            question_template = r"某城市清晨的氣溫是 {initial_temp_str} 度。中午時 {change1_action} 了 {change1_abs_str} 度，傍晚又 {change2_action} 了 {change2_abs_str} 度。請問傍晚的氣溫是多少度？"
+            
+            change1_action = r"上升" if change1_val >= 0 else r"下降"
+            change2_action = r"上升" if change2_val >= 0 else r"下降"
+            
+            change1_abs_str = str(abs(change1_val))
+            change2_abs_str = str(abs(change2_val))
+
+            question_text = question_template \
+                .replace("{initial_temp_str}", _format_num_latex_safe(initial_temp)) \
+                .replace("{change1_action}", change1_action) \
+                .replace("{change1_abs_str}", change1_abs_str) \
+                .replace("{change2_action}", change2_action) \
+                .replace("{change2_abs_str}", change2_abs_str)
+            
+            correct_answer = final_temp
+        
+        elif scenario == "elevation":
+            initial_elevation = random.randint(-50, 50) # 初始海拔 (海平面以上/下)
+            climb_val = random.randint(10, 30) # 上升距離
+            descend_val = random.randint(10, 30) # 下潛距離
+            
+            # 隨機決定上升/下潛的順序
+            if random.choice([True, False]):
+                final_elevation = initial_elevation + climb_val - descend_val
+                question_template = r"某潛水艇一開始在海平面 {initial_elevation_str} 公尺處。它先上升 {climb_str} 公尺，然後又下潛 {descend_str} 公尺。請問潛水艇最終在海平面多少公尺處？"
+            else:
+                final_elevation = initial_elevation - descend_val + climb_val
+                question_template = r"某潛水艇一開始在海平面 {initial_elevation_str} 公尺處。它先下潛 {descend_str} 公尺，然後又上升 {climb_str} 公尺。請問潛水艇最終在海平面多少公尺處？"
+            
+            # 規範 3: 嚴格執行 .replace() 模板
+            question_text = question_template \
+                .replace("{initial_elevation_str}", _format_num_latex_safe(initial_elevation)) \
+                .replace("{climb_str}", str(climb_val)) \
+                .replace("{descend_str}", str(descend_val))
+            
+            correct_answer = final_elevation
+
+        elif scenario == "money":
+            initial_balance = random.randint(100, 500) # 初始餘額
+            deposit1_val = random.randint(50, 200) # 第一次存入
+            withdrawal1_val = random.randint(20, 100) # 第一次提領
+            deposit2_val = random.randint(30, 150) # 第二次存入
+            
+            final_balance = initial_balance + deposit1_val - withdrawal1_val + deposit2_val
+            
+            # 規範 3: 嚴格執行 .replace() 模板
+            question_template = r"小明銀行帳戶裡原有 {initial_balance_str} 元。他先存入 {deposit1_str} 元，然後提領 {withdrawal1_str} 元，最後又存入 {deposit2_str} 元。請問小明帳戶裡現在有多少元？"
+            
+            question_text = question_template \
+                .replace("{initial_balance_str}", str(initial_balance)) \
+                .replace("{deposit1_str}", str(deposit1_val)) \
+                .replace("{withdrawal1_str}", str(withdrawal1_val)) \
+                .replace("{deposit2_str}", str(deposit2_val))
+            
+            correct_answer = final_balance
+
+    # 確保 correct_answer 是整數 (此技能為整數運算)
+    if not isinstance(correct_answer, int):
+        correct_answer = int(correct_answer)
+
+    # 規範 5: 返回字典必須且僅能包含指定欄位
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": str(correct_answer), # 規範 5: 答案的字串表示
+        "image_base64": image_base64, # 規範 5: 圖片 Base64 (此處為空)
+        "created_at": datetime.datetime.now().isoformat(), # 規範 5: 時間戳記
+        "version": "9.6" # 規範 5: 版本號
+    }
+
+# 規範 1: 嚴禁使用 class 封裝，必須直接定義於模組最外層
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",")
+
+    # 處理「商,餘數」格式 (針對 IntegerDivision)
+    if isinstance(correct_answer, dict) and "quotient" in correct_answer:
+        ans_display = r"{q},{r}".replace("{q}", str(correct_answer["quotient"])).replace("{r}", str(correct_answer["remainder"]))
+        try:
+            u_q_r = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_q_r[0]) == int(correct_answer["quotient"]) and int(u_q_r[1]) == int(correct_answer["remainder"]):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(correct_answer).strip()
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", ans_display)} 
+
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤。'}
+        if isinstance(res, dict):
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤。'
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
+        return res
+    return wrapper
+
+import sys
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
+        globals()[_name] = _patch_all_returns(_func)

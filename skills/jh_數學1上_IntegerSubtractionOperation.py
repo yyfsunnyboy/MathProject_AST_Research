@@ -192,35 +192,7 @@ def check(user_answer, correct_answer):
     2. Normalizes strings (removes spaces, supports Chinese commas).
     3. Returns user-friendly Chinese error messages.
     """
-    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
-    
-    # 1. Normalize strings (字串正規化)
-    def normalize(s):
-        s = str(s).strip()
-        # 移除空格、LaTeX間距
-        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
-        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
-        s = s.replace("，", ",") 
-        return s
-    
-    user_norm = normalize(user_answer)
-    correct_norm = normalize(correct_answer)
-    
-    # 2. Exact Match Strategy (精確比對)
-    if user_norm == correct_norm:
-        return {"correct": True, "result": "Correct!"}
-        
-    # 3. Float Match Strategy (數值容錯比對)
-    try:
-        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
-        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
-            return {"correct": True, "result": "Correct!"}
-    except ValueError:
-        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
-        
-    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
-    # 這裡回傳的 result 會直接顯示在前端 Result 區域
-    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{{correct_answer}}"}
+    if user_answer is None: return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
 
 
 # No matplotlib imports needed for pure calculation problems as per TASK MODE SWITCHING.
@@ -295,34 +267,17 @@ def check(user_answer, correct_answer):
     c = correct_answer.strip().replace(" ", "")
     
     if u == c:
-        return {"correct": True, "result": "Correct!"}
+        return {"correct": True, "result": "正確！"}
     
     try:
         # 嘗試將答案轉換為浮點數進行比較，考慮浮點數精度問題
         if abs(float(u) - float(c)) < 1e-6:
-            return {"correct": True, "result": "Correct!"}
+            return {"correct": True, "result": "正確！"}
     except ValueError:
         # 如果無法轉換為數字，則按字串比較失敗處理
         pass
         
-    return {"correct": False, "result": f"Incorrect. The correct answer is {correct_answer}."}
-
-# Example usage (for testing purposes, not part of the module output):
-# if __name__ == "__main__":
-#     problem = generate_integer_subtraction_problem()
-#     print(problem)
-#     # Expected output example:
-#     # {
-#     #   'question_text': '計算下列各式的值。$\text{125} - (\text{-25})$', 
-#     #   'correct_answer': '150', 
-#     #   'image_base64': '', 
-#     #   'problem_type': '純計算題'
-#     # }
-#     
-#     # Test check function
-#     # user_ans = "150"
-#     # correct_ans = "150"
-#     # print(f"User: '{user_ans}', Correct: '{correct_ans}' -> {check(user_ans, correct_ans)}")
+    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
 #     
 #     # user_ans = "-9"
 #     # correct_ans = "-9"
@@ -344,34 +299,26 @@ def generate(level=1):
     if selected == 'generate_integer_subtraction_problem': return generate_integer_subtraction_problem()
     return generate_integer_subtraction_problem()
 
-# [Auto-Injected Patch v9.2] Universal Return Fixer
-# 1. Ensures 'answer' key exists (copies from 'correct_answer')
-# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
-def _patch_return_dict(func):
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
+        if func.__name__ == "check" and isinstance(res, bool):
+            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
         if isinstance(res, dict):
-            # Fix 1: Answer Key
-            if 'answer' not in res and 'correct_answer' in res:
-                res['answer'] = res['correct_answer']
-            if 'answer' in res:
-                res['answer'] = str(res['answer'])
-            
-            # Fix 2: Image Key (Flatten visuals for legacy frontend)
-            if 'image_base64' not in res and 'visuals' in res:
-                try:
-                    # Extract first image value from visuals list
-                    for item in res['visuals']:
-                        if item.get('type') == 'image/png':
-                            res['image_base64'] = item.get('value')
-                            break
-                except: pass
+            if "question_text" in res and isinstance(res["question_text"], str):
+                res["question_text"] = res["question_text"].replace("\\n", "\n")
+            if func.__name__ == "check" and "result" in res:
+                msg = str(res["result"]).lower()
+                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
+                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
+                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
+            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
+            if "answer" in res: res["answer"] = str(res["answer"])
+            if "image_base64" not in res: res["image_base64"] = ""
         return res
     return wrapper
-
-# Apply patch to ALL generator functions in scope
 import sys
-# Iterate over a copy of globals keys to avoid modification issues
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
-        globals()[_name] = _patch_return_dict(_func)
+    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+        globals()[_name] = _patch_all_returns(_func)

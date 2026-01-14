@@ -34,30 +34,22 @@ def check(user_answer, correct_answer):
     2. 嘗試數值比對。
     """
     if not user_answer or not correct_answer:
-        return {"correct": False, "result": "無法驗證答案 (缺少題目或作答)"}
+        return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
 
-    # 輔助函式：標準化字串 (去除干擾字元)
-    def normalize(s):
-        return str(s).strip().lower()\
-            .replace(" ", "")\
-            .replace("(", "").replace(")", "")\
-            .replace("[", "").replace("]", "")\
-            .replace("{", "").replace("}", "")\
-            .replace("$", "").replace("\\", "")
 
     u_norm = normalize(user_answer)
     c_norm = normalize(correct_answer)
 
     # 1. 直接字串比對 (標準化後)
     if u_norm == c_norm:
-        return {"correct": True, "result": "答對了！"}
+        return {"correct": True, "result": "正確！"}
 
     # 2. 嘗試數值比對 (針對單一數值)
     try:
         u_val = float(u_norm)
         c_val = float(c_norm)
         if abs(u_val - c_val) < 1e-6:
-             return {"correct": True, "result": "答對了！"}
+             return {"correct": True, "result": "正確！"}
     except ValueError:
         pass
         
@@ -78,6 +70,30 @@ def check(user_answer, correct_answer):
                         all_match = False
                         break
             if all_match:
-                return {"correct": True, "result": "答對了！"}
+                return {"correct": True, "result": "正確！"}
 
-    return {"correct": False, "result": f"答錯了。正確答案應為：{correct_answer}"}
+    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        if func.__name__ == "check" and isinstance(res, bool):
+            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        if isinstance(res, dict):
+            if "question_text" in res and isinstance(res["question_text"], str):
+                res["question_text"] = res["question_text"].replace("\\n", "\n")
+            if func.__name__ == "check" and "result" in res:
+                msg = str(res["result"]).lower()
+                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
+                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
+                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
+            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
+            if "answer" in res: res["answer"] = str(res["answer"])
+            if "image_base64" not in res: res["image_base64"] = ""
+        return res
+    return wrapper
+import sys
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+        globals()[_name] = _patch_all_returns(_func)

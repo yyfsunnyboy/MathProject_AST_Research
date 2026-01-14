@@ -220,6 +220,14 @@ def check_answer():
 
     # 執行批改
     result = mod.check(user_ans, current['answer'])
+    
+    # [V10.1 Repair] 強制轉型：若模組回傳 bool，自動封裝為 dict
+    if isinstance(result, bool):
+        result = {
+            "correct": result,
+            "result": "Correct!" if result else "Incorrect."
+        }
+        
     is_correct = result.get('correct', False)
 
     # 更新進度

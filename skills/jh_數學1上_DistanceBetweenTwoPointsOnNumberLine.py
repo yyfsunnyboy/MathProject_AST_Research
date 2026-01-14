@@ -1,15 +1,19 @@
 # ==============================================================================
 # ID: jh_數學1上_DistanceBetweenTwoPointsOnNumberLine
 # Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
-# Duration: 20.77s | RAG: 5 examples
-# Created At: 2026-01-14 00:22:21
+# Duration: 26.10s | RAG: 5 examples
+# Created At: 2026-01-14 09:33:32
 # Fix Status: [Repaired]
-# Fixes: Regex=1, Logic=0
+# Fixes: Regex=6, Logic=0
 #==============================================================================
 
 
 import random
 import math
+import matplotlib
+# [Fix] Font injection for Traditional Chinese support
+matplotlib.rcParams["font.sans-serif"] = ["Microsoft JhengHei"] 
+matplotlib.rcParams['axes.unicode_minus'] = False
 from fractions import Fraction
 from functools import reduce
 
@@ -77,74 +81,10 @@ def get_positive_factors(n):
 
 def is_prime(n):
     """Check primality."""
-    if n <= 1: return False
-    if n <= 3: return True
-    if n % 2 == 0 or n % 3 == 0: return False
+    if n <= 1: return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
     i = 5
     while i * i <= n:
-        if n % i == 0 or n % (i + 2) == 0: return False
-        i += 6
-    return True
-
-def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
-    factors = {}
-    d = 2
-    temp = n
-    while d * d <= temp:
-        while temp % d == 0:
-            factors[d] = factors.get(d, 0) + 1
-            temp //= d
-        d += 1
-    if temp > 1:
-        factors[temp] = factors.get(temp, 0) + 1
-    return factors
-
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
-
-# --- 3. Fraction Generator Helper ---
-def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
-    for _ in range(100):
-        den = random.randint(2, denominator_limit)
-        num = random.randint(min_val * den, max_val * den)
-        if den == 0: continue
-        val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
-        if val == 0: continue
-        return val
-    return Fraction(1, 2) # Fallback
-
-def draw_number_line(points_map):
-    """[Advanced] Generate aligned ASCII number line with HTML container."""
-    if not points_map: return ""
-    values = []
-    for v in points_map.values():
-        if isinstance(v, (int, float)): values.append(float(v))
-        elif isinstance(v, Fraction): values.append(float(v))
-        else: values.append(0.0)
-    if not values: values = [0]
-    min_val = math.floor(min(values)) - 1
-    max_val = math.ceil(max(values)) + 1
-    if max_val - min_val > 15:
-        mid = (max_val + min_val) / 2
-        min_val = int(mid - 7); max_val = int(mid + 8)
-    unit_width = 6
-    line_str = ""; tick_str = ""
-    range_len = max_val - min_val + 1
-    label_slots = [[] for _ in range(range_len)]
-    for name, val in points_map.items():
-        if isinstance(val, Fraction): val = float(val)
-        idx = int(round(val - min_val))
-        if 0 <= idx < range_len: label_slots[idx].append(name)
-    for i in range(range_len):
-        val = min_val + i
-        line_str += "+" + "-" * (unit_width - 1)
-        tick_str += f"{str(val):<{unit_width}}"
+        if n % i == 0 or n % (i + 2) == 0: return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
     final_label_str = ""
     for labels in label_slots:
         final_label_str += f"{labels[0]:<{unit_width}}" if labels else " " * unit_width
@@ -152,7 +92,6 @@ def draw_number_line(points_map):
         f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
         f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
     )
-    return result # [必須補上這行]    
 
 # --- 4. High-Level Math Objects (Vector/Matrix/Calculus) ---
 class Vector3:
@@ -193,192 +132,289 @@ def check(user_answer, correct_answer):
     2. Normalizes strings (removes spaces, supports Chinese commas).
     3. Returns user-friendly Chinese error messages.
     """
-    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
-    
-    # 1. Normalize strings (字串正規化)
-    def normalize(s):
-        s = str(s).strip()
-        # 移除空格、LaTeX間距
-        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
-        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
-        s = s.replace("，", ",") 
-        return s
-    
-    user_norm = normalize(user_answer)
-    correct_norm = normalize(correct_answer)
-    
-    # 2. Exact Match Strategy (精確比對)
-    if user_norm == correct_norm:
-        return {"correct": True, "result": "Correct!"}
-        
-    # 3. Float Match Strategy (數值容錯比對)
-    try:
-        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
-        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
-            return {"correct": True, "result": "Correct!"}
-    except ValueError:
-        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
-        
-    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
-    # 這裡回傳的 result 會直接顯示在前端 Result 區域
-    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{correct_answer}"}
+    if user_answer is None: return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
 
 
 
+import base64
 from datetime import datetime
-import base64 # 雖然本實現中 image_base64 為 None，但依規範保留此 import。
+from io import BytesIO
+from matplotlib.figure import Figure # 遵循 Infrastructure Rule 1: NO matplotlib.pyplot
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import numpy as np
 
-# --- 視覺化工具規範 (Visuals): 數線工具 ---
+# --- 視覺化與輔助函式通用規範 (Generic Helper Rules) ---
+# 這些輔助函式是 TECHNICAL SPECIFICATION 的一部分，而非我額外定義，因此保留。
 
+def _draw_number_line(points_data, min_limit, max_limit, title_text="", highlight_segments=None):
+    """
+    [V10.2 精簡版] 只顯示刻度 0，字體放大，去除所有文字提示。
+    """
+    fig = Figure(figsize=(8, 1.5)) # 高度縮小一點更精悍
+    canvas = FigureCanvas(fig)
+    ax = fig.add_subplot(111)
+
+    # 1. 繪製數線主體
+    ax.plot([min_limit, max_limit], [0, 0], 'k-', linewidth=1.5) 
+    ax.plot(max_limit, 0, 'k>', markersize=8) # 右箭頭
+    ax.plot(min_limit, 0, 'k<', markersize=8) # 左箭頭
+
+    # 2. 設定刻度：只顯示 0，並且字體加大
+    ax.set_xticks([0])
+    ax.set_xticklabels(['0'], fontsize=18, fontweight='bold') 
+    
+    # 3. 移除所有標籤與標題 (滿足「不顯示任何提示」需求)
+    ax.set_title("")
+    ax.set_xlabel("")
+    ax.set_yticks([]) 
+
+    # 4. 繪製題目指定的點 (紅點與標籤 A, B)
+    for label, coord in points_data.items():
+        if isinstance(coord, (int, float)):
+            ax.plot(coord, 0, 'ro', markersize=7) 
+            # 點的標籤 (A, B) 稍微放大
+            ax.text(coord, 0.08, label, ha='center', va='bottom', fontsize=14, fontweight='bold')
+
+    # 5. 美化版面
+    ax.set_ylim(-0.15, 0.25)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False) # 隱藏底線，讓數線本體看起來更乾淨
+    
+    fig.tight_layout()
+
+    # 輸出 Base64
+    buf = BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', transparent=True)
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+def _generate_distinct_coordinates(min_val=-10, max_val=10, count=2):
+    """
+    生成指定範圍內 `count` 個不重複的隨機整數坐標。
+    """
+    if count > (max_val - min_val + 1):
+        raise ValueError("無法在給定範圍內生成足夠的不重複坐標。")
+    coords = random.sample(range(min_val, max_val + 1), count)
+    return coords
+
+# --- 程式結構 (Structure Hardening) ---
+# 遵循 Infrastructure Rule 2: Top-level functions ONLY
 def generate(level=1):
     """
-    生成 K12 數學「數線上兩點的距離」的題目。
-    根據 `level` 參數（目前未使用，但依規範保留）和隨機邏輯，產生不同題型。
-    嚴禁使用 class 封裝，必須直接定義於模組最外層。
-    確保代碼不依賴全域狀態，以便系統執行 importlib.reload。
+    生成 K12 數學「數線上兩點的距離」題目。
+    嚴禁使用 class 封裝，代碼不依賴全域狀態。
     """
-    # 隨機分流：實作至少 3 種不同的題型變體
-    problem_type = random.choice([1, 2, 3])
+    # 題型隨機分流 (Problem Variety)
+    problem_type = random.choice(["direct_calculation", "inverse_problem", "contextual_application"])
+    
+    question_text = ""
+    correct_answer = None
+    numerical_answer = None
+    image_base64 = ""
+    points_for_plot = {} # 僅用於繪圖的已知點
+    plot_min = -15
+    plot_max = 15
 
-    question_text_part = ""
-    correct_answer_value = None
-    points_for_visual = {}
+    if problem_type == "direct_calculation":
+        # 題型1: 直接計算 (Direct Calculation)
+        # 給定兩點坐標，求距離。
+        coord1, coord2 = _generate_distinct_coordinates(min_val=-10, max_val=10, count=2)
+        coord1_label = random.choice(['A', 'P', 'X'])
+        coord2_label = random.choice(['B', 'Q', 'Y'])
+        while coord2_label == coord1_label: # 確保標籤不重複
+            coord2_label = random.choice(['B', 'Q', 'Y'])
 
-    if problem_type == 1:
-        # 題型 1: 直接計算 (Direct Calculation)
-        # 隨機生成兩個不同的整數座標
-        a = random.randint(-15, 15)
-        b = random.randint(-15, 15)
-        while a == b: # 確保兩點不同
-            b = random.randint(-15, 15)
-
-        correct_answer_value = abs(a - b)
-
-        # 排版與 LaTeX 安全: 嚴禁使用 f-string 處理 LaTeX 區塊
-        question_template = r"數線上兩點 $A({a})$ 和 $B({b})$ 之間的距離是多少？"
-        question_latex_safe = question_template.replace("{a}", str(a)).replace("{b}", str(b))
+        points_for_plot = {coord1_label: coord1, coord2_label: coord2}
+        numerical_answer = abs(coord1 - coord2)
         
-        question_text_part = f"請計算以下問題：<br>{question_latex_safe}"
-        points_for_visual = {"A": a, "B": b}
+        # 排版與 LaTeX 安全 (Elite Guardrails)
+        # 凡字串包含 LaTeX 指令 (如 \frac, \sqrt, \pm)，嚴禁使用 f-string 或 % 格式化。
+        # 這裡的字串雖然沒有 LaTeX 指令，但仍遵循嚴格的 .replace() 模板以確保未來擴展性。
+        # 遵循 Infrastructure Rule 5: LaTeX Integrity (使用 r"template".replace())
+        question_template = r"數線上有兩點 {label1} 和 {label2}，其坐標分別為 {val1} 和 {val2}。請問 {label1} 和 {label2} 兩點之間的距離為何？"
+        
+        question_text = question_template.replace("{label1}", coord1_label)\
+                                         .replace("{label2}", coord2_label)\
+                                         .replace("{val1}", str(coord1))\
+                                         .replace("{val2}", str(coord2))
+        
+        correct_answer = str(numerical_answer) # 答案必須是字串
+        
+        # 調整繪圖範圍以包含所有點
+        plot_min = min(coord1, coord2) - random.randint(3, 7)
+        plot_max = max(coord1, coord2) + random.randint(3, 7)
+        image_base64 = _draw_number_line(points_for_plot, plot_min, plot_max, title_text=r"數線上兩點的距離")
 
-    elif problem_type == 2:
-        # 題型 2: 逆向求解（已知距離求座標）
-        # 數線上一點 A，已知與另一點 B 的距離和方向，求 B 的座標。
-        start_point = random.randint(-15, 15)
-        distance = random.randint(3, 12) # 距離至少為 3
-        
-        # 隨機決定未知點 B 在 A 的左側或右側
-        direction_multiplier = random.choice([-1, 1]) # -1 代表左側, 1 代表右側
-        
-        unknown_point_coord = start_point + direction_multiplier * distance
-        correct_answer_value = unknown_point_coord
+    elif problem_type == "inverse_problem":
+        # 題型2: 逆向求解 (已知距離求座標)
+        # 給定一點、距離和方向，求另一個點的坐標。
+        start_coord = random.randint(-8, 8)
+        distance = random.randint(3, 12)
+        direction = random.choice(["right", "left"]) # 決定向左或向右
 
-        direction_text = "右側" if direction_multiplier == 1 else "左側"
+        start_label = random.choice(['A', 'P', 'X'])
+        end_label = random.choice(['B', 'Q', 'Y'])
+        while end_label == start_label:
+            end_label = random.choice(['B', 'Q', 'Y'])
+
+        if direction == "right":
+            numerical_answer = start_coord + distance
+            question_template = r"數線上 {label1} 點的坐標為 {val1}。若 {label2} 點在 {label1} 點的右方，且兩點之間的距離為 {dist}，請問 {label2} 點的坐標為何？"
+            question_text = question_template.replace("{label1}", start_label)\
+                                             .replace("{label2}", end_label)\
+                                             .replace("{val1}", str(start_coord))\
+                                             .replace("{dist}", str(distance))
+        else: # direction == "left"
+            numerical_answer = start_coord - distance
+            question_template = r"數線上 {label1} 點的坐標為 {val1}。若 {label2} 點在 {label1} 點的左方，且兩點之間的距離為 {dist}，請問 {label2} 點的坐標為何？"
+            question_text = question_template.replace("{label1}", start_label)\
+                                             .replace("{label2}", end_label)\
+                                             .replace("{val1}", str(start_coord))\
+                                             .replace("{dist}", str(distance))
         
-        # 排版與 LaTeX 安全: 嚴禁使用 f-string 處理 LaTeX 區塊
-        question_template = r"數線上一點 $A({start_point})$，若它與另一點 $B$ 的距離為 ${distance}$，且 $B$ 點在 $A$ 點的{direction_text}，則 $B$ 點的座標為何？"
+        correct_answer = str(numerical_answer)
         
-        question_latex_safe = question_template \
-            .replace("{start_point}", str(start_point)) \
-            .replace("{distance}", str(distance)) \
-            .replace("{direction_text}", direction_text)
+        # 視覺化函式僅能接收「題目已知數據」。此處僅繪製已知點。
+        points_for_plot = {start_label: start_coord}
+        plot_min = min(start_coord, numerical_answer) - random.randint(3, 7)
+        plot_max = max(start_coord, numerical_answer) + random.randint(3, 7)
+        image_base64 = _draw_number_line(points_for_plot, plot_min, plot_max, title_text=r"尋找數線上的點")
+
+    elif problem_type == "contextual_application":
+        # 題型3: 情境應用 (如移動點)
+        # 點在數線上經過多次移動，求最終位置。
+        start_coord = random.randint(-10, 10)
+        move1_dist = random.randint(2, 7)
+        move2_dist = random.randint(2, 7)
+        
+        move1_dir = random.choice(["right", "left"])
+        move2_dir = random.choice(["right", "left"])
+
+        current_coord = start_coord # 追蹤點的當前位置
+        description_parts = []
+        
+        point_label = random.choice(['P', 'Q', 'M'])
+        
+        description_parts.append(r"點 {label} 原本在坐標 {start_val} 的位置。".replace("{label}", point_label).replace("{start_val}", str(start_coord)))
+        
+        if move1_dir == "right":
+            current_coord += move1_dist
+            description_parts.append(r"它先向右移動了 {dist1} 個單位。".replace("{dist1}", str(move1_dist)))
+        else:
+            current_coord -= move1_dist
+            description_parts.append(r"它先向左移動了 {dist1} 個單位。".replace("{dist1}", str(move1_dist)))
             
-        question_text_part = f"請計算以下問題：<br>{question_latex_safe}"
-        # 視覺化時顯示起始點和最終結果點
-        points_for_visual = {"A": start_point, "B": unknown_point_coord}
+        if move2_dir == "right":
+            current_coord += move2_dist
+            description_parts.append(r"接著再向右移動了 {dist2} 個單位。".replace("{dist2}", str(move2_dist)))
+        else:
+            current_coord -= move2_dist
+            description_parts.append(r"接著再向左移動了 {dist2} 個單位。".replace("{dist2}", str(move2_dist)))
 
-    elif problem_type == 3:
-        # 題型 3: 情境應用（如移動點）
-        # 一個點 P 從某座標開始，經過多次移動，求最終座標。
-        p_start = random.randint(-15, 15)
-        d1 = random.randint(2, 10) # 第一次移動距離
-        d2 = random.randint(2, 10) # 第二次移動距離
-
-        # 隨機決定兩次移動的方向
-        dir1_multiplier = random.choice([-1, 1])
-        dir2_multiplier = random.choice([-1, 1])
-
-        p_intermediate = p_start + dir1_multiplier * d1
-        p_final = p_intermediate + dir2_multiplier * d2
-        correct_answer_value = p_final
-
-        dir1_text = "向右" if dir1_multiplier == 1 else "向左"
-        dir2_text = "向右" if dir2_multiplier == 1 else "向左"
-
-        # 排版與 LaTeX 安全: 嚴禁使用 f-string 處理 LaTeX 區塊
-        question_template = r"數線上一點 $P$ 原先在座標 ${p_start}$。若 $P$ 先{dir1_text}移動 ${d1}$ 單位，再{dir2_text}移動 ${d2}$ 單位，則 $P$ 點最終的座標為何？"
+        numerical_answer = current_coord
         
-        question_latex_safe = question_template \
-            .replace("{p_start}", str(p_start)) \
-            .replace("{dir1_text}", dir1_text) \
-            .replace("{d1}", str(d1)) \
-            .replace("{dir2_text}", dir2_text) \
-            .replace("{d2}", str(d2))
+        question_text = "".join(description_parts) + r"請問點 {label} 最後的坐標為何？".replace("{label}", point_label)
+        correct_answer = str(numerical_answer)
+        
+        # 視覺化函式僅能接收「題目已知數據」。此處僅繪製起點。
+        points_for_plot = {point_label: start_coord}
+        plot_min = min(start_coord, numerical_answer) - random.randint(3, 7)
+        plot_max = max(start_coord, numerical_answer) + random.randint(3, 7)
+        image_base64 = _draw_number_line(points_for_plot, plot_min, plot_max, title_text=r"點的移動")
 
-        question_text_part = f"請計算以下問題：<br>{question_latex_safe}"
-        # 視覺化時顯示起始點和最終點，中間點可省略以保持簡潔
-        points_for_visual = {"P_起始": p_start, "P_最終": p_final}
-
-    # 視覺化工具規範: question_text 必須由「文字題目 + <br> + 視覺化 HTML」組成。
-    visual_html = draw_number_line(points_for_visual)
-    final_question_text = question_text_part + "<br>" + visual_html
-
-
-    # 數據與欄位 (Standard Fields): 返回字典必須且僅能包含指定欄位
+    # 數據與欄位 (Standard Fields)
+    # 遵循 Infrastructure Rule 3: Return Format (CRITICAL)
     return {
-        "question_text": final_question_text,
-        "correct_answer": str(correct_answer_value), # 確保為字串類型
-        "answer": str(correct_answer_value),         # 確保為字串類型，用於顯示
-        "image_base64": None,                        # 本範例不生成圖片，因此為 None
-        "created_at": datetime.now().isoformat(),    # 時間戳記 (ISO 8601 格式)
-        "version": "9.6.0"                           # 系統版本號
+        "question_text": question_text,
+        "correct_answer": correct_answer, # 必須是字串
+        "answer": numerical_answer,       # 數值型答案 (int 或 float)
+        "image_base64": image_base64,
+        "created_at": datetime.now().isoformat(), # ISO 8601 格式時間戳記
+        "version": 1 # 初始版本號，外部系統負責遞增
     }
 
+# 遵循 Infrastructure Rule 2: Top-level functions ONLY
+# 遵循 Infrastructure Rule 3: Return Format (CRITICAL)
 def check(user_answer, correct_answer):
     """
     檢查使用者答案是否正確。
-    嚴禁使用 class 封裝，必須直接定義於模組最外層。
-    user_answer: 使用者輸入的答案 (字串)。
-    correct_answer: 系統生成的正確答案 (字串)。
+    
+    Args:
+        user_answer (str): 使用者輸入的答案字串。
+        correct_answer (str): 由 generate 函式提供的正確答案字串。
+        
+    Returns:
+        dict: 包含 'correct' (bool) 和 'result' (str) 的字典。
     """
     try:
-        # 將答案轉換為浮點數進行比較，以處理潛在的數字格式問題
-        user_ans_float = float(user_answer)
-        correct_ans_float = float(correct_answer)
-        # 考慮浮點數精度問題，使用 math.isclose 進行比較
-        return math.isclose(user_ans_float, correct_ans_float, rel_tol=1e-9, abs_tol=1e-9)
-    except ValueError:
-        # 如果轉換失敗 (例如，使用者輸入非數字字串)，則答案錯誤
-        return False
+        user_ans_num = float(user_answer)
+        correct_ans_num = float(correct_answer)
+        # 使用一個小的容忍度進行浮點數比較，以防潛在的精度問題
+        is_correct = math.isclose(user_ans_num, correct_ans_num, rel_tol=1e-9, abs_tol=1e-9)
+        
+        if is_correct:
+            return {"correct": True, "result": "正確！"}
+    except:
+        pass
+            
+    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
 
-# [Auto-Injected Patch v9.2] Universal Return Fixer
-# 1. Ensures 'answer' key exists (copies from 'correct_answer')
-# 2. Ensures 'image_base64' key exists (extracts from 'visuals')
-def _patch_return_dict(func):
+# --- 範例使用 (用於測試，非最終模組的一部分) ---
+if __name__ == "__main__":
+    print("--- 生成 5 個題目範例 ---")
+    for i in range(5):
+        problem = generate()
+        print(f"\n--- 題目 {i+1} ---")
+        print(f"問題: {problem['question_text']}")
+        print(f"正確答案 (字串): {problem['correct_answer']}")
+        print(f"答案 (數值): {problem['answer']}")
+        print(f"圖片 Base64 (前50字元): {problem['image_base64'][:50]}...")
+        print(f"生成時間: {problem['created_at']}")
+        print(f"版本: {problem['version']}")
+
+        # 測試 check 函式
+        test_user_answer_correct = problem['correct_answer']
+        # 確保錯誤答案與正確答案不同，且能轉換為數字
+        test_user_answer_wrong = str(float(problem['correct_answer']) + random.choice([-1, 1]) * random.random() * 5)
+        
+        print(f"檢查使用者答案 '{test_user_answer_correct}': {check(test_user_answer_correct, problem['correct_answer'])}")
+        print(f"檢查使用者答案 '{test_user_answer_wrong}': {check(test_user_answer_wrong, problem['correct_answer'])}")
+        print(f"檢查使用者答案 'abc': {check('abc', problem['correct_answer'])}")
+
+        # 將 Base64 圖片儲存為檔案以供查看 (可選)
+        # with open(f"number_line_problem_{i+1}.png", "wb") as f:
+        #     f.write(base64.b64decode(problem['image_base64']))
+        # print(f"圖片已儲存為 number_line_problem_{i+1}.png")
+
+    print("\n--- LaTeX 安全性測試 (確保未使用 f-string 處理可能含 LaTeX 的字串) ---")
+    ans_val_test = 10
+    # 遵循規範，即使是簡單替換也使用 .replace()
+    expr_safe_template = r"答案為 {a}。"
+    expr_safe = expr_safe_template.replace("{a}", str(ans_val_test))
+    print(f"安全字串生成範例: {expr_safe}")
+    # 嚴禁使用 f"答案為 {ans_val_test}" 這樣的寫法
+
+# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
+        if func.__name__ == "check" and isinstance(res, bool):
+            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
         if isinstance(res, dict):
-            # Fix 1: Answer Key
-            if 'answer' not in res and 'correct_answer' in res:
-                res['answer'] = res['correct_answer']
-            if 'answer' in res:
-                res['answer'] = str(res['answer'])
-            
-            # Fix 2: Image Key (Flatten visuals for legacy frontend)
-            if 'image_base64' not in res and 'visuals' in res:
-                try:
-                    # Extract first image value from visuals list
-                    for item in res['visuals']:
-                        if item.get('type') == 'image/png':
-                            res['image_base64'] = item.get('value')
-                            break
-                except: pass
+            if "question_text" in res and isinstance(res["question_text"], str):
+                res["question_text"] = res["question_text"].replace("\\n", "\n")
+            if func.__name__ == "check" and "result" in res:
+                msg = str(res["result"]).lower()
+                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
+                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
+                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
+            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
+            if "answer" in res: res["answer"] = str(res["answer"])
+            if "image_base64" not in res: res["image_base64"] = ""
         return res
     return wrapper
-
-# Apply patch to ALL generator functions in scope
 import sys
-# Iterate over a copy of globals keys to avoid modification issues
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith('generate') or _name == 'generate'):
-        globals()[_name] = _patch_return_dict(_func)
+    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+        globals()[_name] = _patch_all_returns(_func)
