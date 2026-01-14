@@ -12,7 +12,7 @@ import random
 import math
 import matplotlib
 # [Fix] Font injection for Traditional Chinese support
-matplotlib.rcParams['font.sans-serif"] = ["Microsoft JhengHei'] 
+matplotlib.rcParams['font.sans-serif'] = ['Microsoft JhengHei'] 
 matplotlib.rcParams['axes.unicode_minus'] = False
 from fractions import Fraction
 from functools import reduce
