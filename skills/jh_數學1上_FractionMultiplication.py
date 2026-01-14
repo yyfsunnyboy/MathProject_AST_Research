@@ -1,50 +1,84 @@
 # ==============================================================================
 # ID: jh_數學1上_FractionMultiplication
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 57.03s | RAG: 4 examples
-# Created At: 2026-01-09 14:10:22
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 70.58s | RAG: 4 examples
+# Created At: 2026-01-14 19:05:55
+# Fix Status: [Repaired]
+# Fixes: Regex=6, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
 from functools import reduce
+import ast
 
-# --- 1. Formatting Helpers ---
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses."""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
+def is_prime(n):
+    """Check primality (Standard Boolean Return)."""
+    if n <= 1: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    if n <= 3: return {'correct': True, 'result': '正確！'}
+    if n % 2 == 0 or n % 3 == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+        i += 6
+    return {'correct': True, 'result': '正確！'}
 def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
     factors = set()
     for i in range(1, int(math.isqrt(n)) + 1):
         if n % i == 0:
@@ -52,19 +86,7 @@ def get_positive_factors(n):
             factors.add(n // i)
     return sorted(list(factors))
 
-def is_prime(n):
-    """Check primality."""
-    if n <= 1: return False
-    if n <= 3: return True
-    if n % 2 == 0 or n % 3 == 0: return False
-    i = 5
-    while i * i <= n:
-        if n % i == 0 or n % (i + 2) == 0: return False
-        i += 6
-    return True
-
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -77,25 +99,21 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
 
-# --- 3. Fraction Generator Helper ---
+# --- 3. Fraction Generator ---
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -131,358 +149,397 @@ def draw_number_line(points_map):
     )
     return result
 
-
-
-
-
-# ==============================================================================
-# GOLD STANDARD TEMPLATE v8.7 (Universal)
-# ==============================================================================
-# Rules for AI Coder:
-# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands.
-#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
-#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
-# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
-# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
-# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer'.
-# ==============================================================================
-
-# Helper functions provided in the architect's spec or common template.
-
-def _generate_fraction_part(max_num=5, max_den=7, ensure_proper=True):
-    """Generates a proper fraction (numerator, denominator) tuple as a Fraction object."""
-    # Ensure numerator < denominator for proper fraction
-    numerator = random.randint(1, max_num)
-    # Denominator must be strictly greater than numerator if ensure_proper is True
-    denominator = random.randint(numerator + 1 if ensure_proper else 2, max_den)
-    return Fraction(numerator, denominator)
-
-def _generate_fraction_obj(allow_negative=True, max_abs_num=10, max_den=12, proper=False):
-    """Generates a random Fraction object."""
-    num = random.randint(1, max_abs_num)
-    # Denominator must be strictly greater than numerator if proper is True
-    den = random.randint(num + 1 if proper else 2, max_den)
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
     
-    frac = Fraction(num, den)
-    if allow_negative and random.choice([True, False]):
-        frac *= -1
-    return frac
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
 
-def _generate_mixed_number_obj(allow_negative=True, max_int=3, max_frac_num=4, max_frac_den=7):
-    """Generates a random mixed number as a Fraction object."""
-    integer_part = random.randint(1, max_int)
-    frac_part = _generate_fraction_part(max_frac_num, max_frac_den, ensure_proper=True)
-    
-    # Convert mixed number to improper fraction (e.g., 2 1/3 = 2 + 1/3 = 7/3)
-    frac = integer_part + frac_part
-    
-    if allow_negative and random.choice([True, False]):
-        frac *= -1
-    return frac
-
-def _format_fraction_for_display(f: Fraction) -> str:
-    """
-    Formats a fraction for display in the question, including mixed numbers
-    and wrapping negative fractions in parentheses.
-    """
-    is_negative = f < 0
-    abs_f = abs(f)
-
-    if abs_f.denominator == 1:
-        # It's an integer
-        return fmt_num(abs_f.numerator * (-1 if is_negative else 1))
-    
-    if abs_f.numerator > abs_f.denominator:
-        # It's an improper fraction, display as mixed number
-        integer_part = abs_f.numerator // abs_f.denominator
-        proper_frac_part = abs_f - integer_part
-        
-        # Format the proper fraction part using to_latex
-        frac_latex = to_latex(proper_frac_part) # This will be \frac{num}{den}
-        
-        # Combine into mixed number string with a space
-        display_str = f"{integer_part} {frac_latex}"
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
     else:
-        # It's a proper fraction, display directly
-        display_str = to_latex(abs_f) # This will be \frac{num}{den}
+        ans_display = str(c_raw).strip()
 
-    if is_negative:
-        # Ensure negative sign is inside parentheses, but not if it's 0.
-        return f"({'-' if abs_f.numerator != 0 else ''}{display_str})"
-    return display_str
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 
 
-# ------------------------------------------------------------------------------
-# Problem Type Implementations
-# ------------------------------------------------------------------------------
 
-def generate_type_1_problem():
-    """
-    Level 1: Multiplication of two fractions (proper or improper), involving negative signs.
-    Focus on smaller number ranges.
-    """
-    frac1 = _generate_fraction_obj(allow_negative=True, max_abs_num=5, max_den=7)
-    frac2 = _generate_fraction_obj(allow_negative=True, max_abs_num=5, max_den=7)
-    
-    question_text = (
-        f"計算下列各式的值。\\n"
-        f"$"
-        f"{_format_fraction_for_display(frac1)} \\times {_format_fraction_for_display(frac2)}"
-        f"$"
-    )
-    
-    result = frac1 * frac2
-    
-    return {
-        "question_text": question_text,
-        "answer": to_latex(result),
-        "correct_answer": to_latex(result),
-        "difficulty": 1
-    }
+from datetime import datetime
 
-def generate_type_2_problem():
-    """
-    Level 1: Multiplication of two fractions (proper or improper), involving negative signs.
-    Numbers might be slightly larger, often leading to simplification.
-    """
-    frac1 = _generate_fraction_obj(allow_negative=True, max_abs_num=10, max_den=15)
-    frac2 = _generate_fraction_obj(allow_negative=True, max_abs_num=10, max_den=15)
-    
-    question_text = (
-        f"計算下列各式的值。\\n"
-        f"$"
-        f"{_format_fraction_for_display(frac1)} \\times {_format_fraction_for_display(frac2)}"
-        f"$"
-    )
-    
-    result = frac1 * frac2
-    
-    return {
-        "question_text": question_text,
-        "answer": to_latex(result),
-        "correct_answer": to_latex(result),
-        "difficulty": 1
-    }
+import base64
+import io
 
-def generate_type_3_problem():
-    """
-    Level 2: Multiplication of three fractions (can include mixed numbers) OR repeated multiplication (powers of 3 or 4).
-    """
-    sub_type = random.choice(['three_fractions', 'power'])
-    
-    if sub_type == 'three_fractions':
-        terms = []
-        for _ in range(3):
-            if random.random() < 0.5: # Decide if it's a mixed number or simple fraction
-                terms.append(_generate_mixed_number_obj(allow_negative=True, max_int=2, max_frac_num=3, max_frac_den=5))
-            else:
-                terms.append(_generate_fraction_obj(allow_negative=True, max_abs_num=5, max_den=7))
-        
-        frac1, frac2, frac3 = terms[0], terms[1], terms[2]
-        
-        question_text = (
-            f"計算下列各式的值。\\n"
-            f"$"
-            f"{_format_fraction_for_display(frac1)} \\times {_format_fraction_for_display(frac2)} \\times {_format_fraction_for_display(frac3)}"
-            f"$"
-        )
-        result = frac1 * frac2 * frac3
-    
-    else: # sub_type == 'power'
-        base_frac = _generate_fraction_obj(allow_negative=True, max_abs_num=3, max_den=5, proper=True)
-        exponent = random.randint(3, 4)
-        
-        question_text = (
-            f"計算下列各式的值。\\n"
-            f"$"
-            f"({_format_fraction_for_display(base_frac)})^{{{exponent}}}"
-            f"$"
-        )
-        result = base_frac ** exponent
-        
-    return {
-        "question_text": question_text,
-        "answer": to_latex(result),
-        "correct_answer": to_latex(result),
-        "difficulty": 2
-    }
-
-def generate_type_4_problem():
-    """
-    Level 2: Similar to Type 3, but with potentially more complex mixed number combinations or higher powers (4 or 5).
-    """
-    sub_type = random.choice(['three_fractions', 'power'])
-    
-    if sub_type == 'three_fractions':
-        terms = []
-        for _ in range(3):
-            if random.random() < 0.6: # Slightly higher chance for mixed numbers
-                terms.append(_generate_mixed_number_obj(allow_negative=True, max_int=3, max_frac_num=4, max_frac_den=7))
-            else:
-                terms.append(_generate_fraction_obj(allow_negative=True, max_abs_num=7, max_den=10))
-        
-        frac1, frac2, frac3 = terms[0], terms[1], terms[2]
-        
-        question_text = (
-            f"計算下列各式的值。\\n"
-            f"$"
-            f"{_format_fraction_for_display(frac1)} \\times {_format_fraction_for_display(frac2)} \\times {_format_fraction_for_display(frac3)}"
-            f"$"
-        )
-        result = frac1 * frac2 * frac3
-    
-    else: # sub_type == 'power'
-        base_frac = _generate_fraction_obj(allow_negative=True, max_abs_num=3, max_den=5, proper=True)
-        exponent = random.randint(4, 5) # Higher exponent
-        
-        question_text = (
-            f"計算下列各式的值。\\n"
-            f"$"
-            f"({_format_fraction_for_display(base_frac)})^{{{exponent}}}"
-            f"$"
-        )
-        result = base_frac ** exponent
-        
-    return {
-        "question_text": question_text,
-        "answer": to_latex(result),
-        "correct_answer": to_latex(result),
-        "difficulty": 2
-    }
-
-# ------------------------------------------------------------------------------
-# Main Dispatcher and Checker
-# ------------------------------------------------------------------------------
-
+# 頂層函式：生成數學題目
 def generate(level=1):
     """
-    Main Dispatcher:
-    - Level 1: Basic concepts, direct calculations.
-    - Level 2: Advanced applications, multi-step problems, powers.
+    生成分數乘法運算的題目。
+    根據 level 參數（目前未使用，但保留擴展性），隨機選擇題型。
     """
-    if level == 1:
-        problem_func = random.choice([
-            generate_type_1_problem,
-            generate_type_2_problem
-        ])
-        return problem_func()
-    elif level == 2:
-        problem_func = random.choice([
-            generate_type_3_problem,
-            generate_type_4_problem
-        ])
-        return problem_func()
-    else:
-        raise ValueError("Invalid level. Level must be 1 or 2.")
+    problem_type = random.choice([1, 2, 3]) # 3 種不同的題型變體
 
-# Helper for parsing various fraction string formats (including LaTeX) into Fraction objects.
-def _parse_fraction_string(s: str) -> Fraction:
-    s = s.strip()
-    
-    # Handle overall negative sign for the expression
-    is_negative = False
-    if s.startswith("(-") and s.endswith(")"):
-        is_negative = True
-        s = s[2:-1].strip() # Remove "(-" and ")"
-        # Handle cases like (-(1/2))
-        if s.startswith("-"):
-            is_negative = not is_negative # Double negative means positive
-            s = s[1:].strip()
-    elif s.startswith("-"):
-        is_negative = True
-        s = s[1:].strip()
+    question_text = ""
+    correct_answer_frac = None
+    image_base64 = None # 本技能不涉及視覺化，因此不產生圖片
 
-    # Try parsing as a mixed number first (e.g., "1 2/3" or "1 \frac{2}{3}")
-    parts = s.split(' ', 1) # Split only on the first space
-    if len(parts) == 2 and parts[0].strip().isdigit():
-        integer_part = int(parts[0].strip())
-        fraction_part_str = parts[1].strip()
-        frac_part = _parse_fraction_string(fraction_part_str) # Recursive call for the fractional part
-        val = integer_part + frac_part
-    # Case 1: Simple integer
-    elif s.isdigit():
-        val = Fraction(int(s))
-    # Case 2: Standard fraction string "N/D"
-    elif '/' in s:
-        parts = s.split('/')
-        if len(parts) == 2 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
-            val = Fraction(int(parts[0]), int(parts[1]))
+    if problem_type == 1:
+        # 題型 1: 直接計算 - 分數乘分數
+        # 範例：(2/3) * (1/4)
+        num1 = random.randint(1, 10)
+        den1 = random.randint(num1 + 1, 15) if num1 < 15 else random.randint(2, 15)
+        while math.gcd(num1, den1) != 1 or den1 == 1: # 確保初始分數非整數且已簡化
+            num1 = random.randint(1, 10)
+            den1 = random.randint(num1 + 1, 15) if num1 < 15 else random.randint(2, 15)
+        frac1 = Fraction(num1, den1)
+
+        num2 = random.randint(1, 10)
+        den2 = random.randint(num2 + 1, 15) if num2 < 15 else random.randint(2, 15)
+        while math.gcd(num2, den2) != 1 or den2 == 1: # 確保初始分數非整數且已簡化
+            num2 = random.randint(1, 10)
+            den2 = random.randint(num2 + 1, 15) if num2 < 15 else random.randint(2, 15)
+        frac2 = Fraction(num2, den2)
+
+        correct_answer_frac = frac1 * frac2
+        
+        # Inlining _fraction_to_display_string logic for frac1
+        _frac_obj_temp_1 = frac1
+        if _frac_obj_temp_1.denominator == 1:
+            _display_string_temp_1 = str(_frac_obj_temp_1.numerator)
+        elif _frac_obj_temp_1.numerator == 0:
+            _display_string_temp_1 = "0"
+        elif _frac_obj_temp_1.numerator > _frac_obj_temp_1.denominator and _frac_obj_temp_1.numerator % _frac_obj_temp_1.denominator != 0:
+            _whole_temp_1 = _frac_obj_temp_1.numerator // _frac_obj_temp_1.denominator
+            _remainder_temp_1 = _frac_obj_temp_1.numerator % _frac_obj_temp_1.denominator
+            _template_temp_1 = r"{whole}\frac{{num}}{{den}}"
+            _display_string_temp_1 = _template_temp_1.replace("{whole}", str(_whole_temp_1))\
+                                                     .replace("{num}", str(_remainder_temp_1))\
+                                                     .replace("{den}", str(_frac_obj_temp_1.denominator))
         else:
-            raise ValueError(f"Invalid fraction format: {s}")
-    # Case 3: LaTeX fraction "\\frac{N}{D}"
-    elif s.startswith("\\frac{") and s.endswith("}"):
-        # Find the split between numerator and denominator by counting braces
-        brace_level = 0
-        split_index = -1
-        # s[6:] starts after "\frac{"
-        for i, char in enumerate(s[6:]):
-            if char == '{':
-                brace_level += 1
-            elif char == '}':
-                if brace_level == 0:
-                    split_index = i + 6 # Position of '}' after numerator
-                    break
-                brace_level -= 1
+            _template_temp_1 = r"\frac{{num}}{{den}}"
+            _display_string_temp_1 = _template_temp_1.replace("{num}", str(_frac_obj_temp_1.numerator))\
+                                                     .replace("{den}", str(_frac_obj_temp_1.denominator))
+
+        # Inlining _fraction_to_display_string logic for frac2
+        _frac_obj_temp_2 = frac2
+        if _frac_obj_temp_2.denominator == 1:
+            _display_string_temp_2 = str(_frac_obj_temp_2.numerator)
+        elif _frac_obj_temp_2.numerator == 0:
+            _display_string_temp_2 = "0"
+        elif _frac_obj_temp_2.numerator > _frac_obj_temp_2.denominator and _frac_obj_temp_2.numerator % _frac_obj_temp_2.denominator != 0:
+            _whole_temp_2 = _frac_obj_temp_2.numerator // _frac_obj_temp_2.denominator
+            _remainder_temp_2 = _frac_obj_temp_2.numerator % _frac_obj_temp_2.denominator
+            _template_temp_2 = r"{whole}\frac{{num}}{{den}}"
+            _display_string_temp_2 = _template_temp_2.replace("{whole}", str(_whole_temp_2))\
+                                                     .replace("{num}", str(_remainder_temp_2))\
+                                                     .replace("{den}", str(_frac_obj_temp_2.denominator))
+        else:
+            _template_temp_2 = r"\frac{{num}}{{den}}"
+            _display_string_temp_2 = _template_temp_2.replace("{num}", str(_frac_obj_temp_2.numerator))\
+                                                     .replace("{den}", str(_frac_obj_temp_2.denominator))
         
-        if split_index == -1:
-            raise ValueError(f"Invalid LaTeX fraction format (numerator brace mismatch): {s}")
+        # 嚴格遵循 LaTeX 安全排版規範：使用 .replace() 替換佔位符
+        q_template = r"計算：${f1} \times {f2} = ?$"
+        question_text = q_template.replace("{f1}", _display_string_temp_1)\
+                                  .replace("{f2}", _display_string_temp_2)
 
-        numerator_str = s[6:split_index]
-        denominator_str = s[split_index + 2:-1] # +2 to skip '}{', -1 to remove last '}'
+    elif problem_type == 2:
+        # 題型 2: 帶分數 / 整數乘分數
+        # 細分三種子題型：整數乘分數、帶分數乘分數、帶分數乘整數
+        sub_type = random.choice([1, 2, 3])
 
-        num = int(numerator_str.strip())
-        den = int(denominator_str.strip())
-        val = Fraction(num, den)
+        if sub_type == 1: # 整數乘分數
+            whole_num = random.randint(2, 10)
+            num = random.randint(1, whole_num + 5)
+            den = random.randint(num + 1, 15) if num < 15 else random.randint(2, 15)
+            while math.gcd(num, den) != 1 or den == 1:
+                num = random.randint(1, whole_num + 5)
+                den = random.randint(num + 1, 15) if num < 15 else random.randint(2, 15)
+            frac = Fraction(num, den)
+            
+            correct_answer_frac = Fraction(whole_num) * frac
+            
+            # Inlining _fraction_to_display_string logic for frac
+            _frac_obj_temp_3 = frac
+            if _frac_obj_temp_3.denominator == 1:
+                _display_string_temp_3 = str(_frac_obj_temp_3.numerator)
+            elif _frac_obj_temp_3.numerator == 0:
+                _display_string_temp_3 = "0"
+            elif _frac_obj_temp_3.numerator > _frac_obj_temp_3.denominator and _frac_obj_temp_3.numerator % _frac_obj_temp_3.denominator != 0:
+                _whole_temp_3 = _frac_obj_temp_3.numerator // _frac_obj_temp_3.denominator
+                _remainder_temp_3 = _frac_obj_temp_3.numerator % _frac_obj_temp_3.denominator
+                _template_temp_3 = r"{whole}\frac{{num}}{{den}}"
+                _display_string_temp_3 = _template_temp_3.replace("{whole}", str(_whole_temp_3))\
+                                                         .replace("{num}", str(_remainder_temp_3))\
+                                                         .replace("{den}", str(_frac_obj_temp_3.denominator))
+            else:
+                _template_temp_3 = r"\frac{{num}}{{den}}"
+                _display_string_temp_3 = _template_temp_3.replace("{num}", str(_frac_obj_temp_3.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_3.denominator))
+            
+            q_template = r"計算：${w} \times {f} = ?$"
+            question_text = q_template.replace("{w}", str(whole_num))\
+                                      .replace("{f}", _display_string_temp_3)
+
+        elif sub_type == 2: # 帶分數乘分數
+            whole_part = random.randint(1, 5)
+            num_m = random.randint(1, 5)
+            den_m = random.randint(num_m + 1, 10)
+            while math.gcd(num_m, den_m) != 1 or den_m == 1:
+                num_m = random.randint(1, 5)
+                den_m = random.randint(num_m + 1, 10)
+            mixed_frac = Fraction(whole_part * den_m + num_m, den_m)
+
+            num_f = random.randint(1, 5)
+            den_f = random.randint(num_f + 1, 10)
+            while math.gcd(num_f, den_f) != 1 or den_f == 1:
+                num_f = random.randint(1, 5)
+                den_f = random.randint(num_f + 1, 10)
+            frac = Fraction(num_f, den_f)
+            
+            correct_answer_frac = mixed_frac * frac
+            
+            # Inlining _fraction_to_display_string logic for mixed_frac
+            _frac_obj_temp_4 = mixed_frac
+            if _frac_obj_temp_4.denominator == 1:
+                _display_string_temp_4 = str(_frac_obj_temp_4.numerator)
+            elif _frac_obj_temp_4.numerator == 0:
+                _display_string_temp_4 = "0"
+            elif _frac_obj_temp_4.numerator > _frac_obj_temp_4.denominator and _frac_obj_temp_4.numerator % _frac_obj_temp_4.denominator != 0:
+                _whole_temp_4 = _frac_obj_temp_4.numerator // _frac_obj_temp_4.denominator
+                _remainder_temp_4 = _frac_obj_temp_4.numerator % _frac_obj_temp_4.denominator
+                _template_temp_4 = r"{whole}\frac{{num}}{{den}}"
+                _display_string_temp_4 = _template_temp_4.replace("{whole}", str(_whole_temp_4))\
+                                                         .replace("{num}", str(_remainder_temp_4))\
+                                                         .replace("{den}", str(_frac_obj_temp_4.denominator))
+            else:
+                _template_temp_4 = r"\frac{{num}}{{den}}"
+                _display_string_temp_4 = _template_temp_4.replace("{num}", str(_frac_obj_temp_4.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_4.denominator))
+            
+            # Inlining _fraction_to_display_string logic for frac
+            _frac_obj_temp_5 = frac
+            if _frac_obj_temp_5.denominator == 1:
+                _display_string_temp_5 = str(_frac_obj_temp_5.numerator)
+            elif _frac_obj_temp_5.numerator == 0:
+                _display_string_temp_5 = "0"
+            elif _frac_obj_temp_5.numerator > _frac_obj_temp_5.denominator and _frac_obj_temp_5.numerator % _frac_obj_temp_5.denominator != 0:
+                _whole_temp_5 = _frac_obj_temp_5.numerator // _frac_obj_temp_5.denominator
+                _remainder_temp_5 = _frac_obj_temp_5.numerator % _frac_obj_temp_5.denominator
+                _template_temp_5 = r"{whole}\frac{{num}}{{den}}"
+                _display_string_temp_5 = _template_temp_5.replace("{whole}", str(_whole_temp_5))\
+                                                         .replace("{num}", str(_remainder_temp_5))\
+                                                         .replace("{den}", str(_frac_obj_temp_5.denominator))
+            else:
+                _template_temp_5 = r"\frac{{num}}{{den}}"
+                _display_string_temp_5 = _template_temp_5.replace("{num}", str(_frac_obj_temp_5.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_5.denominator))
+
+            q_template = r"計算：${mf} \times {f} = ?$"
+            question_text = q_template.replace("{mf}", _display_string_temp_4)\
+                                      .replace("{f}", _display_string_temp_5)
+
+        elif sub_type == 3: # 帶分數乘整數
+            whole_part = random.randint(1, 5)
+            num_m = random.randint(1, 5)
+            den_m = random.randint(num_m + 1, 10)
+            while math.gcd(num_m, den_m) != 1 or den_m == 1:
+                num_m = random.randint(1, 5)
+                den_m = random.randint(num_m + 1, 10)
+            mixed_frac = Fraction(whole_part * den_m + num_m, den_m)
+
+            whole_num = random.randint(2, 10)
+            
+            correct_answer_frac = mixed_frac * Fraction(whole_num)
+            
+            # Inlining _fraction_to_display_string logic for mixed_frac
+            _frac_obj_temp_6 = mixed_frac
+            if _frac_obj_temp_6.denominator == 1:
+                _display_string_temp_6 = str(_frac_obj_temp_6.numerator)
+            elif _frac_obj_temp_6.numerator == 0:
+                _display_string_temp_6 = "0"
+            elif _frac_obj_temp_6.numerator > _frac_obj_temp_6.denominator and _frac_obj_temp_6.numerator % _frac_obj_temp_6.denominator != 0:
+                _whole_temp_6 = _frac_obj_temp_6.numerator // _frac_obj_temp_6.denominator
+                _remainder_temp_6 = _frac_obj_temp_6.numerator % _frac_obj_temp_6.denominator
+                _template_temp_6 = r"{whole}\frac{{num}}{{den}}"
+                _display_string_temp_6 = _template_temp_6.replace("{whole}", str(_whole_temp_6))\
+                                                         .replace("{num}", str(_remainder_temp_6))\
+                                                         .replace("{den}", str(_frac_obj_temp_6.denominator))
+            else:
+                _template_temp_6 = r"\frac{{num}}{{den}}"
+                _display_string_temp_6 = _template_temp_6.replace("{num}", str(_frac_obj_temp_6.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_6.denominator))
+
+            q_template = r"計算：${mf} \times {w} = ?$"
+            question_text = q_template.replace("{mf}", _display_string_temp_6)\
+                                      .replace("{w}", str(whole_num))
+
+    elif problem_type == 3:
+        # 題型 3: 情境應用題 (文字應用題)
+        # 範例：一本書有 X 頁，小明讀了其中的 (A/B)。請問小明讀了多少頁？
+        
+        context_type = random.choice([1, 2])
+        
+        if context_type == 1: # 書本頁數情境
+            total_quantity = random.randint(30, 150) # 總頁數
+            num = random.randint(1, 5)
+            den = random.randint(num + 1, 10)
+            while math.gcd(num, den) != 1 or den == 1:
+                num = random.randint(1, 5)
+                den = random.randint(num + 1, 10)
+            fraction_of_quantity = Fraction(num, den)
+
+            correct_answer_frac = Fraction(total_quantity) * fraction_of_quantity
+            
+            # Inlining _fraction_to_display_string logic for fraction_of_quantity
+            _frac_obj_temp_7 = fraction_of_quantity
+            if _frac_obj_temp_7.denominator == 1:
+                _display_string_temp_7 = str(_frac_obj_temp_7.numerator)
+            elif _frac_obj_temp_7.numerator == 0:
+                _display_string_temp_7 = "0"
+            elif _frac_obj_temp_7.numerator > _frac_obj_temp_7.denominator and _frac_obj_temp_7.numerator % _frac_obj_temp_7.denominator != 0:
+                _whole_temp_7 = _frac_obj_temp_7.numerator // _frac_obj_temp_7.denominator
+                _remainder_temp_7 = _frac_obj_temp_7.numerator % _frac_obj_temp_7.denominator
+                _template_temp_7 = r"{whole}\frac{{num}}{{den}}"
+                _display_string_temp_7 = _template_temp_7.replace("{whole}", str(_whole_temp_7))\
+                                                         .replace("{num}", str(_remainder_temp_7))\
+                                                         .replace("{den}", str(_frac_obj_temp_7.denominator))
+            else:
+                _template_temp_7 = r"\frac{{num}}{{den}}"
+                _display_string_temp_7 = _template_temp_7.replace("{num}", str(_frac_obj_temp_7.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_7.denominator))
+
+            q_template = r"一本故事書有 {total} 頁，小明已經讀了其中的 ${frac}$。請問小明讀了多少頁？"
+            question_text = q_template.replace("{total}", str(total_quantity))\
+                                      .replace("{frac}", _display_string_temp_7)
+
+        elif context_type == 2: # 容器容量情境
+            total_quantity = random.randint(5, 20) # 總容量或重量
+            unit = random.choice(["公升", "公斤", "公尺"])
+            num = random.randint(1, 5)
+            den = random.randint(num + 1, 10)
+            while math.gcd(num, den) != 1 or den == 1:
+                num = random.randint(1, 5)
+                den = random.randint(num + 1, 10)
+            fraction_of_quantity = Fraction(num, den)
+
+            correct_answer_frac = Fraction(total_quantity) * fraction_of_quantity
+            
+            # Inlining _fraction_to_display_string logic for fraction_of_quantity
+            _frac_obj_temp_8 = fraction_of_quantity
+            if _frac_obj_temp_8.denominator == 1:
+                _display_string_temp_8 = str(_frac_obj_temp_8.numerator)
+            elif _frac_obj_temp_8.numerator == 0:
+                _display_string_temp_8 = "0"
+            elif _frac_obj_temp_8.numerator > _frac_obj_temp_8.denominator and _frac_obj_temp_8.numerator % _frac_obj_temp_8.denominator != 0:
+                _whole_temp_8 = _frac_obj_temp_8.numerator // _frac_obj_temp_8.denominator
+                _remainder_temp_8 = _frac_obj_temp_8.numerator % _frac_obj_temp_8.denominator
+                _template_temp_8 = r"{whole}\frac{{num}}{{den}}"
+                _display_string_temp_8 = _template_temp_8.replace("{whole}", str(_whole_temp_8))\
+                                                         .replace("{num}", str(_remainder_temp_8))\
+                                                         .replace("{den}", str(_frac_obj_temp_8.denominator))
+            else:
+                _template_temp_8 = r"\frac{{num}}{{den}}"
+                _display_string_temp_8 = _template_temp_8.replace("{num}", str(_frac_obj_temp_8.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_8.denominator))
+
+            q_template = r"一個水桶可以裝 {total} {unit} 的水。現在水桶裝了 ${frac}$ 滿。請問水桶裡有多少 {unit} 的水？"
+            question_text = q_template.replace("{total}", str(total_quantity))\
+                                      .replace("{unit}", unit)\
+                                      .replace("{frac}", _display_string_temp_8)
+
+    # 最終答案格式化
+    # 'answer' 欄位為顯示給學生的答案字串 (可能包含帶分數或整數)
+    # Inlining _fraction_to_display_string logic for correct_answer_frac for display_answer_str
+    _frac_obj_temp_final_display = correct_answer_frac
+    if _frac_obj_temp_final_display.denominator == 1:
+        display_answer_str = str(_frac_obj_temp_final_display.numerator)
+    elif _frac_obj_temp_final_display.numerator == 0:
+        display_answer_str = "0"
+    elif _frac_obj_temp_final_display.numerator > _frac_obj_temp_final_display.denominator and _frac_obj_temp_final_display.numerator % _frac_obj_temp_final_display.denominator != 0:
+        _whole_temp_final_display = _frac_obj_temp_final_display.numerator // _frac_obj_temp_final_display.denominator
+        _remainder_temp_final_display = _frac_obj_temp_final_display.numerator % _frac_obj_temp_final_display.denominator
+        _template_temp_final_display = r"{whole}\frac{{num}}{{den}}"
+        display_answer_str = _template_temp_final_display.replace("{whole}", str(_whole_temp_final_display))\
+                                                         .replace("{num}", str(_remainder_temp_final_display))\
+                                                         .replace("{den}", str(_frac_obj_temp_final_display.denominator))
     else:
-        raise ValueError(f"Unknown fraction format: {s}")
+        _template_temp_final_display = r"\frac{{num}}{{den}}"
+        display_answer_str = _template_temp_final_display.replace("{num}", str(_frac_obj_temp_final_display.numerator))\
+                                                         .replace("{den}", str(_frac_obj_temp_final_display.denominator))
+    
+    # 'correct_answer' 欄位為標準化、易於程式檢查的答案字串 (例如 "1/2" 或 "3")
+    if correct_answer_frac.denominator == 1:
+        canonical_correct_answer = str(correct_answer_frac.numerator)
+    else:
+        canonical_correct_answer = f"{correct_answer_frac.numerator}/{correct_answer_frac.denominator}"
 
-    return val * (-1 if is_negative else 1)
+    return {
+        "question_text": question_text,
+        "correct_answer": canonical_correct_answer,
+        "answer": display_answer_str,
+        "image_base64": image_base64,
+        "created_at": datetime.now().isoformat(),
+        "version": 1
+    }
 
-def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker for fractions.
-    Handles LaTeX fraction strings and mixed numbers by converting to Fraction objects.
-    """
-    # Do NOT replace spaces globally, as they are significant for mixed numbers.
-    user_ans_clean = user_answer.strip()
-    correct_ans_clean = correct_answer.strip()
+# 頂層函式：檢查使用者答案
 
-    try:
-        user_frac = _parse_fraction_string(user_ans_clean)
-        correct_frac = _parse_fraction_string(correct_ans_clean)
-        
-        if user_frac == correct_frac:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        # If fraction parsing fails, it's likely an incorrect format or non-fraction.
-        # For this skill, answers *should* be fractions, so no float fallback.
-        pass
-    except Exception:
-        # Catch any unexpected errors during parsing, treat as incorrect
-        pass
-        
-    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
-
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # 2. [V10.3] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\']
+            if (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers) and "手寫" not in res.get('question_text', ''):
+                res['question_text'] += "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

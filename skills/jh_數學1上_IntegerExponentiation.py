@@ -495,27 +495,20 @@ def generate(level=1):
 
 def check(user_answer, correct_answer):
     """
-    檢查使用者答案是否正確。
-    處理可能有多個正確答案的情況 (例如 $x^2=36$ 的 $6, -6$)。
-    並根據 Infrastructure Rule 6 返回字典格式的結果。
+    [V10.6 Standard] 支援指數題型可能出現的多重答案 (如 6, -6)
     """
-    user_answer = str(user_answer).strip()
-    correct_answer = str(correct_answer).strip()
-
-    is_correct = False
-    # 處理多個答案，例如 "6, -6"
-    if "," in correct_answer:
-        # 將正確答案和使用者答案都轉換為集合，進行比較（不考慮順序）
-        correct_set = frozenset(s.strip() for s in correct_answer.split(','))
-        user_set = frozenset(s.strip() for s in user_answer.split(','))
-        is_correct = (user_set == correct_set)
-    else:
-        is_correct = (user_answer == correct_answer)
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",")
+    c = str(correct_answer).strip().replace(" ", "").replace("，", ",")
     
-    return {
-        "is_correct": is_correct,
-        "result": "正確！" if is_correct else "答案錯誤...",
-    }
+    # 處理多個答案 (例如 6,-6)
+    u_list = sorted(u.split(","))
+    c_list = sorted(c.split(","))
+    
+    if u_list == c_list:
+        return {"correct": True, "result": "正確！"}
+        
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", str(correct_answer))}
 
 # --- 內部測試用程式碼 (不會被納入最終系統) ---
 if __name__ == '__main__':

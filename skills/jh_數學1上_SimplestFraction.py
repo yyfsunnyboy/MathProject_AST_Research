@@ -1,59 +1,75 @@
 # ==============================================================================
 # ID: jh_數學1上_SimplestFraction
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 60.71s | RAG: 6 examples
-# Created At: 2026-01-09 16:10:59
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 48.74s | RAG: 5 examples
+# Created At: 2026-01-14 20:38:02
+# Fix Status: [Repaired]
+# Fixes: Regex=1, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
 from functools import reduce
+import ast
 
-# --- 1. Formatting Helpers ---
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses."""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
+    """Check primality (Standard Boolean Return)."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -63,8 +79,15 @@ def is_prime(n):
         i += 6
     return True
 
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -77,25 +100,26 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+# --- 3. Fraction Generator ---
+def simplify_fraction(n, d):
+    """[V11.3 Standard Helper] 強力化簡分數並回傳 (分子, 分母)"""
+    common = math.gcd(n, d)
+    return n // common, d // common
 
-# --- 3. Fraction Generator Helper ---
+
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -131,341 +155,367 @@ def draw_number_line(points_map):
     )
     return result
 
-
-
-
-
-# ==============================================================================
-# GOLD STANDARD TEMPLATE v8.7 (Universal)
-# ==============================================================================
-# Rules for AI Coder:
-# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands. 
-#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
-#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
-# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
-# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
-# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer', 'difficulty'.
-# ==============================================================================
-
-# Helper function to format negative numbers with parentheses for display.
-
-
-# Example: fraction_to_mixed_latex(Fraction(-7, 3)) -> "$-2 \frac{1}{3}$"
-def fraction_to_mixed_latex(frac):
-    """Helper: Converts a Fraction object to a mixed number LaTeX string."""
-    if frac.denominator == 0:
-        return "Undefined" # Should not happen with current generation logic
-    
-    sign = ""
-    # Store the original sign, then work with absolute value for whole/remainder calculation
-    if frac < 0:
-        sign = "-"
-        frac = abs(frac)
-    
-    # If it's a proper fraction or zero
-    if frac.numerator < frac.denominator:
-        if frac.numerator == 0: # Handle 0 explicitly, it's not a mixed number
-            return "0"
-        return f"{sign}{to_latex(frac)}" # e.g., -1/2
-    
-    whole = frac.numerator // frac.denominator
-    remainder = frac.numerator % frac.denominator
-    
-    if remainder == 0: # Whole number, e.g., 6/3 -> 2
-        return f"{sign}{whole}"
-    else: # Mixed number, e.g., 7/3 -> 2 1/3
-        return f"{sign}{whole} {to_latex(Fraction(remainder, frac.denominator))}"
-
-# Re-implement gcd using math.gcd as it's standard.
-def gcd(a, b):
-    """Helper: Returns the greatest common divisor."""
-    return math.gcd(a, b)
-
-# ==============================================================================
-# Skill Specific Implementations (jh_數學1上_SimplestFraction)
-# ==============================================================================
-
-def generate_type_1_problem():
-    """
-    Level 1: Conceptual understanding of simplest fraction.
-    Question: "將一個分數的分子和分母同時除以它們的最大公因數，所得到的分數是最簡分數嗎？說說你的看法。"
-    Answer: "是"
-    """
-    question_text = "將一個分數的分子和分母同時除以它們的最大公因數，所得到的分數是最簡分數嗎？說說你的看法。"
-    answer = "是"
-    return {
-        "question_text": question_text,
-        "answer": answer,
-        "correct_answer": answer,
-        "difficulty": 1
-    }
-
-def generate_type_2_problem():
-    """
-    Level 1: Simplifying fractions and identifying simplest form.
-    Involves handling positive, negative numerators/denominators.
-    """
-    while True:
-        num = random.randint(-40, 40)
-        den = random.randint(2, 50)
-        if num == 0: 
-            continue # Avoid 0/den for simplification context
-
-        frac_val = Fraction(num, den)
-        
-        # The Fraction class automatically normalizes the sign and simplifies.
-        # E.g., Fraction(1, -2) becomes Fraction(-1, 2).
-        # We need to ensure the denominator is positive for the GCD calculation as per spec.
-        # This is implicitly handled if we take abs(numerator) and the positive denominator.
-        
-        question_text = f"判斷分數 ${to_latex(frac_val)}$ 是否為最簡分數，如果不是，請化成最簡分數。"
-        
-        # Calculate GCD using absolute value of numerator for consistency
-        common_divisor = gcd(abs(frac_val.numerator), frac_val.denominator)
-        
-        if common_divisor == 1:
-            answer = "是最簡分數"
-        else:
-            # Explicitly calculate simplified form as per spec, even though Fraction is already simplified.
-            simplified_num = frac_val.numerator // common_divisor
-            simplified_den = frac_val.denominator // common_divisor
-            answer = to_latex(Fraction(simplified_num, simplified_den))
-        
-        return {
-            "question_text": question_text,
-            "answer": answer,
-            "correct_answer": answer, # Correct answer is the generated answer string
-            "difficulty": 1
-        }
-
-def generate_type_4_problem():
-    """
-    Level 1: Comparing two positive proper fractions.
-    """
-    while True:
-        num1 = random.randint(1, 10)
-        den1 = random.randint(2, 15)
-        num2 = random.randint(1, 10)
-        den2 = random.randint(2, 15)
-
-        frac1 = Fraction(num1, den1)
-        frac2 = Fraction(num2, den2)
-        
-        # Ensure proper fractions (numerator < denominator)
-        is_proper1 = frac1.numerator < frac1.denominator
-        is_proper2 = frac2.numerator < frac2.denominator
-
-        # Ensure distinct and both are proper
-        if frac1 != frac2 and is_proper1 and is_proper2:
-            break
-    
-    question_text = f"比較 ${to_latex(frac1)}$ 和 ${to_latex(frac2)}$ 的大小。"
-    if frac1 < frac2:
-        answer = f"{to_latex(frac1)} < {to_latex(frac2)}"
-    else: # frac1 > frac2, since frac1 != frac2 condition ensures they are not equal
-        answer = f"{to_latex(frac1)} > {to_latex(frac2)}"
-    
-    return {
-        "question_text": question_text,
-        "answer": answer,
-        "correct_answer": answer,
-        "difficulty": 1
-    }
-
-def generate_type_3_problem():
-    """
-    Level 2: Comparing three positive proper/improper fractions.
-    """
-    fractions_list = []
-    while len(fractions_list) < 3:
-        num = random.randint(1, 20)
-        den = random.randint(2, 20) 
-        f = Fraction(num, den)
-        # Ensure fractions are distinct
-        if f not in fractions_list:
-            fractions_list.append(f)
-    
-    # Sort for answer generation (ascending order as per spec's implicit example for type 3)
-    sorted_fractions = sorted(fractions_list)
-    
-    question_text = (f"比較下列各組數的大小。\n"
-                     f"⑴ ${to_latex(fractions_list[0])}$、${to_latex(fractions_list[1])}$、${to_latex(fractions_list[2])}$")
-    
-    answer = (f"{to_latex(sorted_fractions[0])} < "
-              f"{to_latex(sorted_fractions[1])} < "
-              f"{to_latex(sorted_fractions[2])}")
-    
-    return {
-        "question_text": question_text,
-        "answer": answer,
-        "correct_answer": answer,
-        "difficulty": 2
-    }
-
-def generate_type_5_problem():
-    """
-    Level 2: Comparing negative fractions and mixed numbers.
-    """
-    # Part 1: Two distinct negative fractions
-    f_neg1, f_neg2 = None, None
-    while f_neg1 is None or f_neg1 == f_neg2:
-        f_neg1 = Fraction(random.randint(1, 15), random.randint(2, 15)) * -1
-        f_neg2 = Fraction(random.randint(1, 15), random.randint(2, 15)) * -1
-    
-    # Part 2: Three distinct negative mixed numbers
-    mixed_neg_list = []
-    while len(mixed_neg_list) < 3:
-        mixed_neg_int = random.randint(1, 3)
-        mixed_neg_frac_num = random.randint(1, 5)
-        # Ensure proper fractional part (numerator < denominator)
-        mixed_neg_frac_den = random.randint(mixed_neg_frac_num + 1, 6) 
-        
-        # Create a positive fraction first, then apply negative sign
-        mixed_val = (mixed_neg_int + Fraction(mixed_neg_frac_num, mixed_neg_frac_den)) * -1
-        if mixed_val not in mixed_neg_list:
-            mixed_neg_list.append(mixed_val)
-    
-    sorted_mixed_neg = sorted(mixed_neg_list) # Sorts in ascending order
-    
-    question_text = (f"比較下列各組數的大小。\n"
-                     f"⑴ ${to_latex(f_neg1)}$、${to_latex(f_neg2)}$\n"
-                     f"⑵ ${fraction_to_mixed_latex(mixed_neg_list[0])}$、${fraction_to_mixed_latex(mixed_neg_list[1])}$、${fraction_to_mixed_latex(mixed_neg_list[2])}$")
-    
-    # Answers should be in ascending order.
-    # For Part 1, compare directly.
-    ans_part1 = f"{to_latex(f_neg1)} < {to_latex(f_neg2)}" if f_neg1 < f_neg2 else f"{to_latex(f_neg1)} > {to_latex(f_neg2)}"
-    
-    # For Part 2, use the sorted list.
-    ans_part2 = (f"{fraction_to_mixed_latex(sorted_mixed_neg[0])} < "
-                 f"{fraction_to_mixed_latex(sorted_mixed_neg[1])} < "
-                 f"{fraction_to_mixed_latex(sorted_mixed_neg[2])}")
-    
-    answer = f"⑴ {ans_part1}\n⑵ {ans_part2}"
-    
-    return {
-        "question_text": question_text,
-        "answer": answer,
-        "correct_answer": answer,
-        "difficulty": 2
-    }
-
-def generate_type_6_problem():
-    """
-    Level 2: More complex comparison of negative fractions and mixed numbers.
-    """
-    # Part 1: Three distinct negative fractions
-    f_neg_list = []
-    while len(f_neg_list) < 3:
-        f = Fraction(random.randint(1, 20), random.randint(2, 20)) * -1
-        if f not in f_neg_list:
-            f_neg_list.append(f)
-    sorted_f_neg = sorted(f_neg_list) # Sorts in ascending order
-    
-    # Part 2: Two distinct negative mixed numbers
-    mixed_neg_list = []
-    while len(mixed_neg_list) < 2:
-        mixed_neg_int = random.randint(1, 4)
-        mixed_neg_frac_num = random.randint(1, 6)
-        # Ensure proper fractional part (numerator < denominator)
-        mixed_neg_frac_den = random.randint(mixed_neg_frac_num + 1, 7) 
-        
-        mixed_val = (mixed_neg_int + Fraction(mixed_neg_frac_num, mixed_neg_frac_den)) * -1
-        if mixed_val not in mixed_neg_list:
-            mixed_neg_list.append(mixed_val)
-    sorted_mixed_neg_part2 = sorted(mixed_neg_list) # Sorts in ascending order
-    
-    question_text = (f"比較下列各組數的大小。\n"
-                     f"⑴ ${to_latex(f_neg_list[0])}$、${to_latex(f_neg_list[1])}$、${to_latex(f_neg_list[2])}$\n"
-                     f"⑵ ${fraction_to_mixed_latex(mixed_neg_list[0])}$、${fraction_to_mixed_latex(mixed_neg_list[1])}$")
-    
-    # Answers should be in ascending order.
-    ans_part1 = (f"{to_latex(sorted_f_neg[0])} < "
-                 f"{to_latex(sorted_f_neg[1])} < "
-                 f"{to_latex(sorted_f_neg[2])}")
-    
-    ans_part2 = (f"{fraction_to_mixed_latex(sorted_mixed_neg_part2[0])} < "
-                 f"{fraction_to_mixed_latex(sorted_mixed_neg_part2[1])}")
-    
-    answer = f"⑴ {ans_part1}\n⑵ {ans_part2}"
-    
-    return {
-        "question_text": question_text,
-        "answer": answer,
-        "correct_answer": answer,
-        "difficulty": 2
-    }
-
-# ==============================================================================
-# Main Dispatcher and Checker (from Gold Standard Template)
-# ==============================================================================
-
-def generate(level=1):
-    """
-    Main Dispatcher:
-    - Level 1: Basic concepts, direct calculations, simple definitions.
-    - Level 2: Advanced applications, multi-step problems, word problems.
-    """
-    if level == 1:
-        problem_type_func = random.choice([
-            generate_type_1_problem, 
-            generate_type_2_problem,
-            generate_type_4_problem
-        ])
-    elif level == 2:
-        problem_type_func = random.choice([
-            generate_type_3_problem, 
-            generate_type_5_problem,
-            generate_type_6_problem
-        ])
-    else:
-        raise ValueError("Invalid level. Please choose level 1 or 2.")
-    
-    return problem_type_func()
-
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
 def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker
-    Handles float tolerance and string normalization.
-    """
-    # Normalize by removing all whitespace and common LaTeX spacing commands
-    user = user_answer.strip().replace(" ", "").replace("\\,", "").replace("\\;", "")
-    correct = correct_answer.strip().replace(" ", "").replace("\\,", "").replace("\\;", "")
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
     
-    # Direct string comparison for exact matches (e.g., "是", LaTeX fractions, comparisons)
-    if user == correct:
-        return {"correct": True, "result": "正確！"}
-        
-    # Attempt float comparison for purely numerical answers, if applicable.
-    # This might not be suitable for complex LaTeX strings with operators.
-    try:
-        # If both can be parsed as floats and are close enough
-        if abs(float(user) - float(correct)) < 1e-6:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        pass # If parsing to float fails, it's not a simple numerical answer.
-        
-    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    
+    # [V11.1] 科學記號自動比對 (1.23*10^4 vs 1.23e4)
+    # 支援 *10^, x10^, e 格式
+    if "*" in str(ans_display) or "^" in str(ans_display) or "e" in str(ans_display):
+        try:
+            # 正規化：將常見乘號與次方符號轉為 E-notation
+            norm_ans = str(ans_display).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            norm_user = str(u).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            if math.isclose(float(norm_ans), float(norm_user), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+        except: pass
+
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
+
+
+
+from datetime import datetime
+import base64
+from io import BytesIO
+
+# --- 輔助函式 (Helper Functions) ---
+# 遵循通用規範：明確回傳值，若用於question_text則強制轉為str，不洩漏答案數據。
+
+def _simplify_fraction(n: int, d: int) -> tuple[int, int]:
+    """
+    將分數 n/d 化為最簡分數。
+    回傳 (簡化後的分子, 簡化後的分母)。
+    確保分母為正數。
+    """
+    if d == 0:
+        raise ValueError("分母不能為零。")
+    
+    # 分子為零時，分數為零，簡化為 0/1
+    if n == 0:
+        return 0, 1 
+
+    # 計算最大公因數
+    common_divisor = math.gcd(abs(n), abs(d))
+    
+    simplified_n = n // common_divisor
+    simplified_d = d // common_divisor
+    
+    # 確保分母為正。如果原始分母為負，將負號移至分子。
+    if simplified_d < 0:
+        simplified_n = -simplified_n
+        simplified_d = -simplified_d
+        
+    return simplified_n, simplified_d
+
+def _format_fraction_string(numerator: int, denominator: int) -> str:
+    """
+    將分子和分母格式化為分數或整數的字串表示。
+    例如：(1, 2) -> "1/2", (5, 1) -> "5"。
+    此函式回傳值會用於 correct_answer 和 answer 欄位。
+    """
+    if denominator == 1:
+        return str(numerator)
+    return f"{numerator}/{denominator}" # 此處的 f-string 不包含 LaTeX 指令，因此安全。
+
+def _parse_fraction_string_to_simplified_tuple(s: str) -> tuple[int, int] | tuple[None, None]:
+    """
+    解析字串形式的分數 (e.g., "1/2", "5") 並返回其最簡形式的 (分子, 分母) tuple。
+    若解析失敗或分母為零，返回 (None, None)。
+    """
+    s = s.strip()
+    if '/' in s:
+        try:
+            n_str, d_str = s.split('/')
+            n = int(n_str)
+            d = int(d_str)
+            if d == 0: 
+                return None, None # 無效分數
+            return _simplify_fraction(n, d)
+        except ValueError:
+            return None, None # 非有效分數格式
+    else:
+        try:
+            n = int(s)
+            return _simplify_fraction(n, 1) # 整數視為分母為1的分數
+        except ValueError:
+            return None, None # 非有效整數格式
+
+# --- 頂層函式 (Top-Level Functions) ---
+# 遵循程式結構規範：直接定義於模組最外層，嚴禁 class 封裝，不依賴全域狀態。
+
+def generate(level: int = 1) -> dict:
+    """
+    生成「最簡分數」問題。
+    遵循題型多樣性、排版與 LaTeX 安全、數據與欄位規範。
+    """
+    problem_type = random.choice([1, 2, 3])
+    
+    question_text = ""
+    correct_answer_val = ""
+    answer_display = ""
+    image_base64_str = "" # 本技能無需圖片，預設為空字串
+
+    # Type 1 (Maps to Example 1, 3): 直接計算 - 將給定分數化為最簡分數。
+    if problem_type == 1:
+        # 生成可簡化的分數
+        common_factor = random.randint(2, 12) # 最大公因數
+        num_base = random.randint(1, 15)
+        den_base = random.randint(num_base + 1, 20) # 確保分母通常大於分子，形成真分數
+
+        numerator_initial = num_base * common_factor
+        denominator_initial = den_base * common_factor
+        
+        # 確保初始分數確實可簡化 (即不是已經是最簡分數)
+        while math.gcd(numerator_initial, denominator_initial) == 1:
+            common_factor = random.randint(2, 12)
+            num_base = random.randint(1, 15)
+            den_base = random.randint(num_base + 1, 20)
+            numerator_initial = num_base * common_factor
+            denominator_initial = den_base * common_factor
+            
+        # 增加假分數或整數的機會
+        if random.random() < 0.3: # 30% 機率生成假分數或整數
+            if random.random() < 0.5: # 假分數
+                # 將分子和分母對調，然後確保分子大於分母
+                numerator_initial, denominator_initial = denominator_initial, numerator_initial
+                if numerator_initial < denominator_initial:
+                    numerator_initial += denominator_initial * random.randint(1, 3)
+            else: # 整數
+                # 生成一個分母，使其能被分子整除
+                temp_den = random.randint(1, 10)
+                numerator_initial = random.randint(1, 10) * temp_den * common_factor
+                denominator_initial = temp_den * common_factor
+                # 避免分母為0，雖然在當前邏輯下不會發生，但保留以遵循原規範
+                if denominator_initial == 0: 
+                    denominator_initial = common_factor * random.randint(1, 5)
+                    numerator_initial = random.randint(1, 10) * denominator_initial
+        
+        # 處理分子為零的特殊情況
+        if random.random() < 0.05: # 5% 機率生成分子為零的題目
+            numerator_initial = 0
+            denominator_initial = random.randint(1, 20) * common_factor
+            # 避免分母為0，雖然在當前邏輯下不會發生，但保留以遵循原規範
+            if denominator_initial == 0: denominator_initial = 5 
+
+        simplified_num, simplified_den = _simplify_fraction(numerator_initial, denominator_initial)
+        
+        # LaTeX 安全規範：使用 .replace() 避免 f-string 與 LaTeX 衝突
+        question_text_template = r"請將分數 $\frac{{{num}}}{{{den}}}$ 化為最簡分數。"
+        question_text = question_text_template.replace("{num}", str(numerator_initial)).replace("{den}", str(denominator_initial))
+        
+        correct_answer_val = _format_fraction_string(simplified_num, simplified_den)
+        answer_display = correct_answer_val
+
+    # Type 2 (Maps to Example 2, 4): 逆向求解 - 已知最簡分數求原分數的某部分。
+    elif problem_type == 2:
+        simplified_num = random.randint(1, 10)
+        simplified_den = random.randint(simplified_num + 1, 15) # 確保簡化後為真分數
+        
+        # 確保簡化後的分數確實是最簡分數 (分子分母互質)
+        while math.gcd(simplified_num, simplified_den) != 1:
+            simplified_num = random.randint(1, 10)
+            simplified_den = random.randint(simplified_num + 1, 15)
+
+        multiplier = random.randint(2, 8) # 用於擴大分數的乘數
+        
+        # 隨機決定是分子還是分母為未知數
+        if random.random() < 0.5: # 缺少分子
+            unknown_den_val = simplified_den * multiplier
+            correct_num_val = simplified_num * multiplier
+            
+            question_text_template = r"若分數 $\frac{{{unknown}}}{{{den}}}$ 化為最簡分數後是 $\frac{{{s_num}}}{{{s_den}}}$，請問 ${{unknown}}$ 是多少？"
+            question_text = question_text_template.replace("{unknown}", "a").replace("{den}", str(unknown_den_val)).replace("{s_num}", str(simplified_num)).replace("{s_den}", str(simplified_den))
+            correct_answer_val = str(correct_num_val)
+            answer_display = str(correct_num_val)
+        else: # 缺少分母
+            unknown_num_val = simplified_num * multiplier
+            correct_den_val = simplified_den * multiplier
+            
+            question_text_template = r"若分數 $\frac{{{num}}}{{{unknown}}}$ 化為最簡分數後是 $\frac{{{s_num}}}{{{s_den}}}$，請問 ${{unknown}}$ 是多少？"
+            question_text = question_text_template.replace("{num}", str(unknown_num_val)).replace("{unknown}", "b").replace("{s_num}", str(simplified_num)).replace("{s_den}", str(simplified_den))
+            correct_answer_val = str(correct_den_val)
+            answer_display = str(correct_den_val)
+
+    # Type 3 (Maps to Example 5, 6): 情境應用 - 應用題求最簡分數。
+    elif problem_type == 3:
+        scenario = random.choice([
+            "班級中男生與女生的比例",
+            "水果籃中蘋果與橘子的比例",
+            "一份食譜中麵粉與糖的比例",
+            "一個農場裡牛與羊的比例",
+            "一段路程的完成比例"
+        ])
+        
+        if "班級" in scenario:
+            item1 = "男生"
+            item2 = "女生"
+            total_students = random.randint(20, 40)
+            num1 = random.randint(5, total_students - 5)
+            # num2 = total_students - num1 # num2 not directly used in question logic
+            
+            question_text_template = r"一個班級有 {num1} 位{item1}和 {num2} 位{item2}。請問{item1}佔全班人數的最簡分數是多少？"
+            question_text = question_text_template.replace("{num1}", str(num1)).replace("{item1}", item1).replace("{num2}", str(total_students - num1)).replace("{item2}", item2)
+            
+            simplified_n, simplified_d = _simplify_fraction(num1, total_students)
+            correct_answer_val = _format_fraction_string(simplified_n, simplified_d)
+            answer_display = correct_answer_val
+            
+        elif "水果" in scenario:
+            item1 = "蘋果"
+            item2 = "橘子"
+            num1 = random.randint(5, 20)
+            num2 = random.randint(5, 20)
+            total_fruits = num1 + num2
+            
+            choice_q = random.choice([item1, item2])
+            
+            question_text_template = r"水果籃裡有 {num1} 顆{item1}和 {num2} 顆{item2}。請問{choice_q}佔所有水果數量的最簡分數是多少？"
+            question_text = question_text_template.replace("{num1}", str(num1)).replace("{item1}", item1).replace("{num2}", str(num2)).replace("{item2}", item2).replace("{choice_q}", choice_q)
+            
+            numerator_for_q = num1 if choice_q == item1 else num2
+            simplified_n, simplified_d = _simplify_fraction(numerator_for_q, total_fruits)
+            correct_answer_val = _format_fraction_string(simplified_n, simplified_d)
+            answer_display = correct_answer_val
+        
+        elif "食譜" in scenario:
+            item1 = "麵粉"
+            item2 = "糖"
+            unit = "克"
+            num1 = random.randint(100, 500) # 麵粉重量
+            num2 = random.randint(50, 300)  # 糖重量
+            
+            question_text_template = r"一份食譜需要 {num1}{unit}{item1}和 {num2}{unit}{item2}。請問{item1}的重量佔{item2}的重量的最簡分數是多少？"
+            question_text = question_text_template.replace("{num1}", str(num1)).replace("{unit}", unit).replace("{item1}", item1).replace("{num2}", str(num2)).replace("{item2}", item2)
+            
+            simplified_n, simplified_d = _simplify_fraction(num1, num2)
+            correct_answer_val = _format_fraction_string(simplified_n, simplified_d)
+            answer_display = correct_answer_val
+
+        elif "農場" in scenario:
+            item1 = "牛"
+            item2 = "羊"
+            num1 = random.randint(10, 50)
+            num2 = random.randint(10, 50)
+            total_animals = num1 + num2
+            
+            choice_q = random.choice([item1, item2])
+            
+            question_text_template = r"一個農場裡有 {num1} 隻{item1}和 {num2} 隻{item2}。請問{choice_q}的數量佔所有動物數量的最簡分數是多少？"
+            question_text = question_text_template.replace("{num1}", str(num1)).replace("{item1}", item1).replace("{num2}", str(num2)).replace("{item2}", item2).replace("{choice_q}", choice_q)
+            
+            numerator_for_q = num1 if choice_q == item1 else num2
+            simplified_n, simplified_d = _simplify_fraction(numerator_for_q, total_animals)
+            correct_answer_val = _format_fraction_string(simplified_n, simplified_d)
+            answer_display = correct_answer_val
+            
+        elif "路程" in scenario:
+            # 確保生成的路程數值可簡化
+            common_factor_path = random.randint(2, 6)
+            base_completed = random.randint(1, 5)
+            base_total = random.randint(base_completed + 1, 10) # 確保完成部分小於總路程
+            
+            completed_distance_units = base_completed * common_factor_path
+            total_distance_units = base_total * common_factor_path
+            
+            # 確保初始分數確實可簡化
+            while math.gcd(completed_distance_units, total_distance_units) == 1:
+                common_factor_path = random.randint(2, 6)
+                base_completed = random.randint(1, 5)
+                base_total = random.randint(base_completed + 1, 10)
+                completed_distance_units = base_completed * common_factor_path
+                total_distance_units = base_total * common_factor_path
+
+            question_text_template = r"小明完成了一段路程的 {completed} 單元，總路程為 {total} 單元。請問小明完成了總路程的最簡分數是多少？"
+            question_text = question_text_template.replace("{completed}", str(completed_distance_units)).replace("{total}", str(total_distance_units))
+            
+            simplified_n, simplified_d = _simplify_fraction(completed_distance_units, total_distance_units)
+            correct_answer_val = _format_fraction_string(simplified_n, simplified_d)
+            answer_display = correct_answer_val
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer_val,
+        "answer": answer_display,
+        "image_base64": image_base64_str,
+        "created_at": datetime.now().isoformat(),
+        "version": "V9.6.1" # 版本號遞增
+    }
+
+
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \\n 問題
+                res['question_text'] = re.sub(r'\\n', '\n', res['question_text'])
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

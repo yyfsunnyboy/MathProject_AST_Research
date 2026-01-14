@@ -1,81 +1,75 @@
 # ==============================================================================
 # ID: jh_數學1上_EvaluatingAlgebraicExpressions
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 40.21s | RAG: 3 examples
-# Created At: 2026-01-09 22:55:51
-# Fix Status: [Clean Pass]
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 29.69s | RAG: 3 examples
+# Created At: 2026-01-14 20:58:02
+# Fix Status: [Repaired]
+# Fixes: Regex=1, Logic=0
 #==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
 from functools import reduce
+import ast
 
-# --- 1. Formatting Helpers ---
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
 def fmt_num(num, signed=False, op=False):
     """
-    Format number for LaTeX.
-    
-    Args:
-        num: The number to format.
-        signed (bool): If True, always show sign (e.g., "+3", "-5").
-        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
+    Format number for LaTeX (Safe Mode).
     """
     latex_val = to_latex(num)
     if num == 0 and not signed and not op: return "0"
     
     is_neg = (num < 0)
-    abs_val = to_latex(abs(num))
+    abs_str = to_latex(abs(num))
     
     if op:
-        # e.g., " + 3", " - 3"
-        return f" - {abs_val}" if is_neg else f" + {abs_val}"
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
     
     if signed:
-        # e.g., "+3", "-3"
-        return f"-{abs_val}" if is_neg else f"+{abs_val}"
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
         
-    # Default behavior (parentheses for negative)
-    if is_neg: return f"({latex_val})"
+    if is_neg: return r"({v})".replace("{v}", latex_val)
     return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
+    """Check primality (Standard Boolean Return)."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -85,8 +79,15 @@ def is_prime(n):
         i += 6
     return True
 
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -99,25 +100,26 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+# --- 3. Fraction Generator ---
+def simplify_fraction(n, d):
+    """[V11.3 Standard Helper] 強力化簡分數並回傳 (分子, 分母)"""
+    common = math.gcd(n, d)
+    return n // common, d // common
 
-# --- 3. Fraction Generator Helper ---
+
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -153,168 +155,434 @@ def draw_number_line(points_map):
     )
     return result
 
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
+    
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
+
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    
+    # [V11.1] 科學記號自動比對 (1.23*10^4 vs 1.23e4)
+    # 支援 *10^, x10^, e 格式
+    if "*" in str(ans_display) or "^" in str(ans_display) or "e" in str(ans_display):
+        try:
+            # 正規化：將常見乘號與次方符號轉為 E-notation
+            norm_ans = str(ans_display).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            norm_user = str(u).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            if math.isclose(float(norm_ans), float(norm_user), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+        except: pass
+
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
+
+
+import datetime
 
 
 
+# --- 輔助函式通用規範 ---
+# [必須回傳]：所有定義的輔助函式，最後一行必須明確使用 'return' 語句回傳結果。
+# [類型一致]：若該函式結果會用於拼接 question_text，則回傳值必須強制轉為字串 (str)。
+# [防洩漏原則]：視覺化函式僅能接收「題目已知數據」。嚴禁將「答案數據」傳入繪圖函式。
 
-# (Helpers are auto-injected here, do not write them)
-
-def generate_type_1_problem():
+def _format_number_for_latex(num):
     """
-    Generates a Level 1 problem: Evaluate a linear algebraic expression.
-    Concept: Evaluate a given algebraic expression for a specific numerical value (integer, decimal, or fraction).
-             The expressions are linear with one variable.
+    格式化數字為 LaTeX 字串，處理整數和分數。
+    確保正數在單獨顯示時沒有前導 '+' 號。
+    回傳值強制轉為字串。
     """
-    # Ensure x_val is not always 0 or 1, and covers different types (int, float, Fraction)
-    x_val_choices = [random.randint(-5, 5) for _ in range(3)] + \
-                    [round(random.uniform(-3, 3), 1) for _ in range(3)] + \
-                    [get_random_fraction(-2, 2, denominator_limit=5) for _ in range(3)]
-    # Filter out 0 to reduce trivial cases, but allow it to occur occasionally if needed
-    x_val = random.choice([val for val in x_val_choices if val != 0] + [0]) # Allow 0 occasionally
-    
-    # Coefficient 'a' for x, ensuring it's not zero
-    coeff_a = random.choice([Fraction(random.randint(-10, 10), 1), get_random_fraction(-5, 5, denominator_limit=5)])
-    while coeff_a == 0:
-        coeff_a = random.choice([Fraction(random.randint(-10, 10), 1), get_random_fraction(-5, 5, denominator_limit=5)])
+    if isinstance(num, Fraction):
+        if num.denominator == 1:
+            return str(num.numerator)
+        # 使用 \frac 進行分數表示
+        expr = r"\frac{{num_n}}{{num_d}}".replace("{num_n}", str(num.numerator)).replace("{num_d}", str(num.denominator))
+        return expr
+    return str(num)
 
-    # Constant term 'b'
-    const_b = random.choice([Fraction(random.randint(-15, 15), 1), get_random_fraction(-10, 10, denominator_limit=5)])
-    
-    # Randomly choose one of three expression forms
-    expression_type = random.choice(["ax", "ax_plus_b", "b_minus_ax"])
-    
-    expression_str = ""
-    correct_answer_val = None
-
-    # Convert all numerical values to Fraction for consistent arithmetic
-    # The Fraction constructor handles int, float, and existing Fraction objects correctly.
-    x_val_frac = Fraction(x_val)
-    coeff_a_frac = Fraction(coeff_a)
-    const_b_frac = Fraction(const_b)
-
-    if expression_type == "ax":
-        # Question format: $ax$
-        expression_str = f"{fmt_num(coeff_a_frac)}x"
-        correct_answer_val = coeff_a_frac * x_val_frac
-    elif expression_type == "ax_plus_b":
-        # Question format: $ax + b$
-        # Following spec's template directly, assuming fmt_num handles signs for display.
-        expression_str = f"{fmt_num(coeff_a_frac)}x + {fmt_num(const_b_frac)}"
-        correct_answer_val = coeff_a_frac * x_val_frac + const_b_frac
-    elif expression_type == "b_minus_ax":
-        # Question format: $b - ax$
-        # Following spec's template directly, assuming fmt_num handles signs for display.
-        expression_str = f"{fmt_num(const_b_frac)} - {fmt_num(coeff_a_frac)}x"
-        correct_answer_val = const_b_frac - coeff_a_frac * x_val_frac
-            
-    # Construct the question text in Traditional Chinese
-    question_text = f"當 $x={fmt_num(x_val)}$ 時，求代數式 ${expression_str}$ 的值。"
-    
-    # Format the correct answer using to_latex (no $ signs in answer)
-    correct_answer_str = to_latex(correct_answer_val)
-    
-    return {'question_text': question_text, 'answer': correct_answer_str, 'correct_answer': correct_answer_str}
-
-def generate_type_2_problem():
+def _get_coeff_str(coeff, var_name, power):
     """
-    Generates a Level 2 problem: Word problem with single algebraic expression evaluation.
-    Concept: Solve a word problem by evaluating a given algebraic expression for a single specific value.
+    取得代數項係數的字串表示，處理 1 和 -1 係數。
+    例如：(1, 'x', 1) -> 'x', (-1, 'x', 1) -> '-x', (2, 'x', 1) -> '2x'
+    回傳值強制轉為字串。
     """
-    item_name_zh = random.choice(["T恤", "洋裝", "牛仔褲", "夾克"])
-    original_price_x = random.choice([100, 150, 200, 250, 300, 400, 500])
-    coeff_frac = random.choice([Fraction(1,2), Fraction(2,3), Fraction(3,4), Fraction(3,5), Fraction(4,5)])
-    discount_const = random.randint(1, 20)
-    currency_zh = random.choice(["元", "歐元", "日圓"])
+    if coeff == 1 and var_name:
+        return var_name + (r"^{" + str(power) + r"}" if power > 1 else "")
+    elif coeff == -1 and var_name:
+        return "-" + var_name + (r"^{" + str(power) + r"}" if power > 1 else "")
+    elif var_name:
+        return _format_number_for_latex(coeff) + var_name + (r"^{" + str(power) + r"}" if power > 1 else "")
+    else: # 常數項
+        return _format_number_for_latex(coeff)
 
-    # Calculate the price. The result will be a Fraction because of coeff_frac.
-    calculated_price = (coeff_frac * original_price_x) - discount_const
-    
-    # Construct the question text in Traditional Chinese
-    question_text = (
-        f"某商店販售的{item_name_zh}，其售價為 $(\\frac{{{coeff_frac.numerator}}}{{{coeff_frac.denominator}}}x - {discount_const})$ {currency_zh}，"
-        f"其中 $x$ 為原價。若一件{item_name_zh}的原價是 ${original_price_x}$ {currency_zh}，"
-        f"請問它的售價是多少？"
-    )
-    
-    # Format the answer, including the currency unit (no $ signs in answer)
-    correct_answer_str = f"{to_latex(calculated_price)} {currency_zh}"
-    
-    return {'question_text': question_text, 'answer': correct_answer_str, 'correct_answer': correct_answer_str}
-
-def generate_type_3_problem():
+def _build_expression_string_from_parts(terms):
     """
-    Generates a Level 2 problem: Word problem with multiple algebraic expression evaluations.
-    Concept: Solve a word problem by evaluating a given algebraic expression for two different specific values.
+    從 (係數, 變數名, 次方) 元組列表建立 LaTeX 安全的代數式字串。
+    假設項已排序 (例如：最高次方在前)。正確處理正負號。
+    範例：[(3, 'x', 1), (-5, None, None)] -> "3x - 5"
+    範例：[(-1, 'x', 2), (2, 'y', 1), (7, None, None)] -> "-x^2 + 2y + 7"
+    回傳值強制轉為字串。
     """
-    person_names_zh = random.sample(["約翰", "麥克", "莎拉", "艾蜜莉", "大衛", "安娜"], 2)
-    person_name1_zh, person_name2_zh = person_names_zh[0], person_names_zh[1]
-    
-    # Two distinct heights
-    heights = random.sample(range(160, 195), 2) 
-    height_x1, height_x2 = heights[0], heights[1]
-    
-    const_sub = random.choice([70, 75, 80])
-    coeff_dec = random.choice([0.6, 0.65, 0.7, 0.75])
-    unit_result_zh = random.choice(["公斤", "磅"]) # Unit for the calculated measurement (e.g., weight)
-    measurement_type_zh = random.choice(["標準體重", "理想體重"])
+    parts = []
+    for i, (coeff, var_name, power) in enumerate(terms):
+        if coeff == 0:
+            continue
 
-    # Calculate answers for both individuals
-    answer1 = (height_x1 - const_sub) * coeff_dec
-    answer2 = (height_x2 - const_sub) * coeff_dec
-    
-    # Format answers to 1 decimal place as specified, then convert to LaTeX string
-    answer1_formatted = round(answer1, 1)
-    answer2_formatted = round(answer2, 1)
+        term_str = _get_coeff_str(abs(coeff), var_name, power)
 
-    # Construct the question text in Traditional Chinese
-    question_text = (
-        f"{measurement_type_zh}的計算公式為 $(x - {const_sub}) \\times {coeff_dec}$ {unit_result_zh}，"
-        f"其中 $x$ 為身高（公分）。若{person_name1_zh}的身高是 ${height_x1}$ 公分，且"
-        f"{person_name2_zh}的身高是 ${height_x2}$ 公分，請問他們的{measurement_type_zh}分別是多少？"
-    )
-    
-    # Format the answer string (no $ signs in answer)
-    correct_answer_str = (
-        f"{person_name1_zh}: {to_latex(answer1_formatted)} {unit_result_zh}, "
-        f"{person_name2_zh}: {to_latex(answer2_formatted)} {unit_result_zh}"
-    )
-    
-    return {'question_text': question_text, 'answer': correct_answer_str, 'correct_answer': correct_answer_str}
+        if i == 0: # 第一個非零項
+            if coeff < 0:
+                parts.append(r"-" + term_str)
+            else:
+                parts.append(term_str)
+        else: # 後續項
+            if coeff < 0:
+                parts.append(r" - " + term_str)
+            else:
+                parts.append(r" + " + term_str)
+
+    if not parts:
+        return "0" # 如果所有係數都為零
+    return "".join(parts)
+
+# --- 頂層函式 ---
+# [頂層函式]：嚴禁使用 class 封裝。必須直接定義 generate 與 check 於模組最外層。
+# [自動重載]：確保代碼不依賴全域狀態，以便系統執行 importlib.reload。
 
 def generate(level=1):
     """
-    Dispatcher function to generate problems based on the specified level.
+    生成 K12 數學「求代數式的值」題目。
+    確保題型多樣性、LaTeX 安全性並符合程式結構規範。
     """
-    if level == 1:
-        # Level 1 problems are based on Type 1 (Direct Evaluation)
-        return generate_type_1_problem()
-    elif level == 2:
-        # Level 2 problems are based on Type 2 (Word Problem - Single Evaluation)
-        # and Type 3 (Word Problem - Multiple Evaluations)
-        return random.choice([generate_type_2_problem, generate_type_3_problem])()
-    else:
-        raise ValueError("Invalid level. Level must be 1 or 2.")
+    # [題型多樣性]：generate() 內部必須使用 random.choice 或 if/elif 邏輯，實作至少 3 種不同的題型變體。
+    problem_types = [
+        "Type 1 (Maps to Example 1): 直接計算簡單線性代數式 (ax+b)。",
+        "Type 2 (Maps to Example 2, 4): 直接計算較複雜代數式 (例如：ax^2+b, ax+by+c, 含分數)。",
+        "Type 3 (Maps to Example 3, 5): 情境應用題，需代入數值計算 (例如：長方形周長/面積、花費計算)。"
+    ]
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    chosen_type = random.choice(problem_types)
+
+    question_text_parts = []
+    expression_latex = ""
+    variable_values_latex = ""
+    calculated_answer = None # 儲存計算結果，可以是 int, float, Fraction
+
+    if "Type 1" in chosen_type:
+        # 範例：求代數式 $3x+5$ 的值，當 $x=2$ 時。
+        a = random.randint(-5, 5)
+        while a == 0: # 確保 'a' 不為零，否則會變成常數式
+            a = random.randint(-5, 5)
+        b = random.randint(-10, 10)
+        x_val = random.randint(-5, 5)
+
+        terms = [(a, 'x', 1)]
+        if b != 0:
+            terms.append((b, None, None))
+        expression_latex = _build_expression_string_from_parts(terms)
+
+        var_x_str = _format_number_for_latex(x_val)
+        # [排版與 LaTeX 安全]：嚴禁使用 f-string 或 % 格式化。必須嚴格執行 .replace() 模板。
+        variable_values_latex = r"當 $x={x_val}$ 時".replace("{x_val}", var_x_str)
+
+        calculated_answer = a * x_val + b
+
+        question_text_template = r"求代數式 ${expr}$ 的值，{vars}。"
+        question_text_parts.append(
+            question_text_template.replace("{expr}", expression_latex).replace("{vars}", variable_values_latex)
+        )
+
+    elif "Type 2" in chosen_type:
+        sub_type = random.choice(["quadratic", "two_variables", "fractional"])
+
+        if sub_type == "quadratic":
+            # 範例：求代數式 $2x^2 - 3x + 7$ 的值，當 $x=2$ 時。
+            a = random.randint(-3, 3)
+            while a == 0:
+                a = random.randint(-3, 3)
+            b = random.randint(-5, 5)
+            c = random.randint(-10, 10)
+            x_val = random.randint(-4, 4)
+
+            terms = [(a, 'x', 2)]
+            if b != 0:
+                terms.append((b, 'x', 1))
+            if c != 0:
+                terms.append((c, None, None))
+            expression_latex = _build_expression_string_from_parts(terms)
+
+            var_x_str = _format_number_for_latex(x_val)
+            variable_values_latex = r"當 $x={x_val}$ 時".replace("{x_val}", var_x_str)
+            calculated_answer = a * (x_val**2) + b * x_val + c
+
+            question_text_template = r"求代數式 ${expr}$ 的值，{vars}。"
+            question_text_parts.append(
+                question_text_template.replace("{expr}", expression_latex).replace("{vars}", variable_values_latex)
+            )
+
+        elif sub_type == "two_variables":
+            # 範例：求代數式 $3x - 2y + 5$ 的值，當 $x=2, y=1$ 時。
+            a = random.randint(-3, 3)
+            while a == 0: a = random.randint(-3, 3)
+            b = random.randint(-3, 3)
+            while b == 0: b = random.randint(-3, 3)
+            c = random.randint(-5, 5)
+            x_val = random.randint(-3, 3)
+            y_val = random.randint(-3, 3)
+
+            terms = [(a, 'x', 1), (b, 'y', 1)]
+            if c != 0:
+                terms.append((c, None, None))
+            expression_latex = _build_expression_string_from_parts(terms)
+
+            var_x_str = _format_number_for_latex(x_val)
+            var_y_str = _format_number_for_latex(y_val)
+            variable_values_latex = r"當 $x={x_val}$, $y={y_val}$ 時".replace("{x_val}", var_x_str).replace("{y_val}", var_y_str)
+            calculated_answer = a * x_val + b * y_val + c
+
+            question_text_template = r"求代數式 ${expr}$ 的值，{vars}。"
+            question_text_parts.append(
+                question_text_template.replace("{expr}", expression_latex).replace("{vars}", variable_values_latex)
+            )
+
+        elif sub_type == "fractional":
+            # 範例：求代數式 $\frac{6}{x} + 2$ 的值，當 $x=-3$ 時。
+            a = random.randint(-10, 10)
+            while a == 0: a = random.randint(-10, 10)
+            b = random.randint(-5, 5)
+            x_val = random.choice([x for x in range(-5, 6) if x != 0]) # x 不能為 0
+
+            frac_part_latex = r"\frac{{num_a}}{{x}}".replace("{num_a}", _format_number_for_latex(a))
+            if b != 0:
+                if b > 0:
+                    expression_latex = frac_part_latex + r" + " + _format_number_for_latex(b)
+                else:
+                    expression_latex = frac_part_latex + r" - " + _format_number_for_latex(abs(b))
+            else:
+                expression_latex = frac_part_latex
+
+            var_x_str = _format_number_for_latex(x_val)
+            variable_values_latex = r"當 $x={x_val}$ 時".replace("{x_val}", var_x_str)
+
+            # 計算答案，使用 Fraction 確保精度
+            calculated_answer = Fraction(a, x_val) + Fraction(b)
+            # 如果分母為 1，則轉換為整數
+            if calculated_answer.denominator == 1:
+                calculated_answer = int(calculated_answer)
+
+            question_text_template = r"求代數式 ${expr}$ 的值，{vars}。"
+            question_text_parts.append(
+                question_text_template.replace("{expr}", expression_latex).replace("{vars}", variable_values_latex)
+            )
+
+    elif "Type 3" in chosen_type:
+        sub_type = random.choice(["perimeter_area", "cost_calculation"])
+
+        if sub_type == "perimeter_area":
+            # 範例：一個長方形的長為 $(2x+1)$ 公分，寬為 $x$ 公分。當 $x=3$ 時，求此長方形的周長。
+            x_val = random.randint(2, 8)
+            length_coeff = random.randint(1, 3)
+            length_const = random.randint(0, 5)
+            width_coeff = random.randint(1, 2)
+            width_const = random.randint(0, 3)
+
+            # 確保在 x_val 時，長寬都是正數且寬度小於長度
+            actual_length = length_coeff * x_val + length_const
+            actual_width = width_coeff * x_val + width_const
+            # 重新生成直到滿足條件
+            while actual_length <= 0 or actual_width <= 0 or actual_width >= actual_length:
+                x_val = random.randint(2, 8)
+                length_coeff = random.randint(1, 3)
+                length_const = random.randint(0, 5)
+                width_coeff = random.randint(1, 2)
+                width_const = random.randint(0, 3)
+                actual_length = length_coeff * x_val + length_const
+                actual_width = width_coeff * x_val + width_const
+
+            length_expr_terms = [(length_coeff, 'x', 1)]
+            if length_const > 0:
+                length_expr_terms.append((length_const, None, None))
+            length_latex = _build_expression_string_from_parts(length_expr_terms)
+
+            width_expr_terms = [(width_coeff, 'x', 1)]
+            if width_const > 0:
+                width_expr_terms.append((width_const, None, None))
+            width_latex = _build_expression_string_from_parts(width_expr_terms)
+
+            var_x_str = _format_number_for_latex(x_val)
+            variable_values_latex = r"當 $x={x_val}$ 時".replace("{x_val}", var_x_str)
+
+            question_type_choice = random.choice(["perimeter", "area"])
+            if question_type_choice == "perimeter":
+                question_text_template = r"一個長方形的長為 $({length})$ 公分，寬為 $({width})$ 公分。{vars}，求此長方形的周長。"
+                calculated_answer = 2 * (actual_length + actual_width)
+            else: # area
+                question_text_template = r"一個長方形的長為 $({length})$ 公分，寬為 $({width})$ 公分。{vars}，求此長方形的面積。"
+                calculated_answer = actual_length * actual_width
+
+            question_text_parts.append(
+                question_text_template
+                .replace("{length}", length_latex)
+                .replace("{width}", width_latex)
+                .replace("{vars}", variable_values_latex)
+            )
+
+        elif sub_type == "cost_calculation":
+            # 範例：某商店的 A 商品單價為 $20 元，B 商品單價為 $15 元。
+            # 小明購買了 $(2x+3)$ 個 A 商品和 $5$ 個 B 商品。當 $x=4$ 時，求小明總共花費多少元？
+            item_price_a = random.randint(10, 50)
+            item_price_b = random.randint(5, 30)
+            num_a_coeff = random.randint(1, 3)
+            num_a_const = random.randint(0, 5)
+            num_b_const = random.randint(1, 10)
+            x_val = random.randint(2, 10)
+
+            qty_a_expr_terms = [(num_a_coeff, 'x', 1)]
+            if num_a_const > 0:
+                qty_a_expr_terms.append((num_a_const, None, None))
+            qty_a_latex = _build_expression_string_from_parts(qty_a_expr_terms)
+
+            actual_qty_a = num_a_coeff * x_val + num_a_const
+            actual_qty_b = num_b_const
+
+            calculated_answer = item_price_a * actual_qty_a + item_price_b * actual_qty_b
+
+            var_x_str = _format_number_for_latex(x_val)
+            variable_values_latex = r"當 $x={x_val}$ 時".replace("{x_val}", var_x_str)
+
+            question_text_template = (
+                r"某商店的 A 商品單價為 ${price_a}$ 元，B 商品單價為 ${price_b}$ 元。 "
+                r"小明購買了 $({qty_a_expr})$ 個 A 商品和 ${qty_b}$ 個 B 商品。 "
+                r"{vars}，求小明總共花費多少元？"
+            )
+            question_text_parts.append(
+                question_text_template
+                .replace("{price_a}", _format_number_for_latex(item_price_a))
+                .replace("{price_b}", _format_number_for_latex(item_price_b))
+                .replace("{qty_a_expr}", qty_a_latex)
+                .replace("{qty_b}", _format_number_for_latex(actual_qty_b))
+                .replace("{vars}", variable_values_latex)
+            )
+
+    # 最終題目文字
+    final_question_text = "".join(question_text_parts)
+
+    # 格式化 calculated_answer 為字串，以符合 correct_answer 的規範
+    if isinstance(calculated_answer, Fraction):
+        if calculated_answer.denominator == 1:
+            correct_answer_str = str(int(calculated_answer))
+        else:
+            # 使用 \frac 進行分數表示
+            correct_answer_str = r"\frac{{num_n}}{{num_d}}".replace("{num_n}", str(calculated_answer.numerator)).replace("{num_d}", str(calculated_answer.denominator))
+    else:
+        correct_answer_str = str(calculated_answer)
+
+    # [數據與欄位]：返回字典必須且僅能包含指定欄位。
+    # [時間戳記]：更新時必須將 created_at 設為 datetime.now() 並遞增 version。
+    result = {
+        "question_text": final_question_text,
+        "correct_answer": correct_answer_str, # 字串化的正確答案，用於 check 函式比較
+        "answer": calculated_answer,         # 原始計算結果 (int, float, Fraction)，用於內部記錄或顯示
+        "image_base64": None,                # 此技能不涉及圖片，故為 None
+        "created_at": datetime.datetime.now().isoformat(),
+        "version": "9.6.0",                  # 版本號
+    }
+    return result
+
+# 根據「絕對禁令：嚴禁自定義 check()」，系統將自動注入 V10.6 鎖死版工具庫，
+# 因此此處不定義 check 函式。
+# def check(user_answer, correct_answer):
+#     """
+#     檢查使用者答案是否正確。
+#     處理整數、浮點數和分數的比較。
+#     """
+#     try:
+#         # 嘗試將使用者答案解析為 Fraction，可處理 "1/2", "-3", "5" 等格式
+#         user_val = Fraction(user_answer)
+#         correct_val = Fraction(correct_answer)
+
+#         # 以 Fraction 進行精確比較
+#         return user_val == correct_val
+#     except ValueError:
+#         # 如果 Fraction 解析失敗，嘗試解析為浮點數 (例如："0.5")
+#         try:
+#             user_val = float(user_answer)
+#             correct_val = float(correct_answer)
+#             # 使用 math.isclose 比較浮點數以處理精度問題
+#             return math.isclose(user_val, correct_val, rel_tol=1e-9, abs_tol=1e-9)
+#         except ValueError:
+#             # 如果所有解析都失敗，則視為無效格式
+#             return False
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \\n 問題
+                res['question_text'] = re.sub(r'\\n', '\n', res['question_text'])
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

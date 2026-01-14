@@ -1,35 +1,119 @@
 # ==============================================================================
 # ID: jh_數學1上_ApplicationProblems
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 31.82s | RAG: 8 examples
-# Created At: 2026-01-09 13:19:48
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 51.22s | RAG: 5 examples
+# Created At: 2026-01-14 18:59:38
+# Fix Status: [Repaired]
+# Fixes: Regex=6, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
+from functools import reduce
+import ast
 
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
+    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+        
+        sign = "-" if num < 0 else ""
+        abs_num = abs(num)
+        
+        if abs_num.numerator > abs_num.denominator:
+            whole = abs_num.numerator // abs_num.denominator
+            rem_num = abs_num.numerator % abs_num.denominator
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses for LaTeX display"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
+# Alias
+fmt_fraction_latex = to_latex 
+
+# --- 2. Number Theory Helpers ---
+def is_prime(n):
+    """Check primality (Standard Boolean Return)."""
+    if n <= 1: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    if n <= 3: return {'correct': True, 'result': '正確！'}
+    if n % 2 == 0 or n % 3 == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+        i += 6
+    return {'correct': True, 'result': '正確！'}
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
+def get_prime_factorization(n):
+    factors = {}
+    d = 2
+    temp = n
+    while d * d <= temp:
+        while temp % d == 0:
+            factors[d] = factors.get(d, 0) + 1
+            temp //= d
+        d += 1
+    if temp > 1:
+        factors[temp] = factors.get(temp, 0) + 1
+    return factors
+
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+
+# --- 3. Fraction Generator ---
+def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
+    for _ in range(100):
+        den = random.randint(2, denominator_limit)
+        num = random.randint(min_val * den, max_val * den)
+        if den == 0: continue
+        val = Fraction(num, den)
+        if simple and val.denominator == 1: continue 
+        if val == 0: continue
+        return val
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -65,293 +149,259 @@ def draw_number_line(points_map):
     )
     return result
 
-
-
-
-
-# ==============================================================================
-# GOLD STANDARD TEMPLATE v8.7 (Universal)
-# ==============================================================================
-# Rules for AI Coder:
-# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands. 
-#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
-#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
-# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
-# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
-# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer'.
-# ==============================================================================
-
-
-def gcd(a, b):
-    return math.gcd(a, b)
-
-def lcm(a, b):
-    if a == 0 or b == 0:
-        return 0
-    return abs(a * b) // math.gcd(a, b)
-
-def lcm_three(a, b, c):
-    return lcm(lcm(a, b), c)
-
-# [Level 1: Basic Types]
-
-def generate_type_1_problem():
-    """
-    Concept: Finding the Greatest Common Divisor (GCD) of two numbers in a direct "grouping" context.
-    """
-    common_factor = random.choice([2, 3, 4, 5, 6, 8, 10, 12, 15])
-    factor1 = random.randint(3, 10)
-    factor2 = random.randint(3, 10)
-    while factor1 == factor2: # Ensure distinct factors
-        factor2 = random.randint(3, 10)
-    num1 = common_factor * factor1
-    num2 = common_factor * factor2
-    # Ensure numbers are within a reasonable range for fruit counts
-    num1 = max(30, num1)
-    num2 = max(30, num2)
-
-    ans_val = math.gcd(num1, num2)
-    question_text = f"水果店老闆想將 {num1} 個梨子和 {num2} 個蘋果分裝成禮盒出售，梨子禮盒和蘋果禮盒內的水果個數要一樣多，且全部分裝完。那麼一盒最多可以放幾個水果？"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans_val),
-        "correct_answer": str(ans_val),
-        "difficulty": 1
-    }
-
-def generate_type_3_problem():
-    """
-    Concept: Finding the Least Common Multiple (LCM) of three numbers in a "simultaneous event" context.
-    """
-    days = random.sample(range(6, 21), 3) # Pick 3 distinct days between 6 and 20
-    day1, day2, day3 = days[0], days[1], days[2]
-    
-    ans_val = lcm_three(day1, day2, day3)
-    question_text = f"小翊每 {day1} 天到中央公園跑步一次，小妍每 {day2} 天到中央公園跑步一次，小靖每 {day3} 天到中央公園跑步一次。今天三人都到中央公園跑步，那麼最少要再幾天，三人才會再度在同一天到此公園跑步？"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans_val),
-        "correct_answer": str(ans_val),
-        "difficulty": 1
-    }
-
-def generate_type_4_problem():
-    """
-    Concept: Finding the Least Common Multiple (LCM) of three numbers in a "simultaneous event" context (different scenario).
-    """
-    hours = random.sample([15, 18, 20, 24, 30, 36, 40, 45, 50, 60], 3)
-    h1, h2, h3 = hours[0], hours[1], hours[2]
-    
-    ans_val = lcm_three(h1, h2, h3)
-    question_text = f"小妍玩《健康農場》遊戲時發現，高麗菜每 {h1} 小時可收成一次，小白菜每 {h2} 小時可收成一次，空心菜每 {h3} 小時可收成一次。某次小妍同時收成這三種蔬菜，那麼最少要再幾小時，小妍才可以再度同時收成這三種蔬菜？"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(ans_val),
-        "correct_answer": str(ans_val),
-        "difficulty": 1
-    }
-
-# [Level 2: Advanced Types]
-
-def generate_type_2_problem():
-    """
-    Concept: Finding GCD, then using it for a derived calculation (total per group). Multi-part question.
-    """
-    common_factor = random.choice([2, 3, 4, 5, 6, 8])
-    factor_a = random.randint(3, 8)
-    factor_b = random.randint(2, 6)
-    while factor_a == factor_b: # Ensure distinct factors for variety
-        factor_b = random.randint(2, 6)
-    a_students = common_factor * factor_a
-    b_students = common_factor * factor_b
-    # Ensure reasonable student counts
-    a_students = max(15, a_students)
-    b_students = max(10, b_students)
-    
-    g = math.gcd(a_students, b_students)
-    ans1 = g
-    ans2 = (a_students // g) + (b_students // g)
-    correct_answer = f"⑴ {ans1} 組 ⑵ {ans2} 位學生"
-    question_text = f"臺灣的 A 校為了招待來自新加坡的姐妹學校 B 校，安排 {a_students} 位學生來接待 B 校 {b_students} 位學生，現將其分成若干組進行參觀活動，每組都要包含 A 校及 B 校學生，而且每組 A 校學生人數一樣多、B 校學生人數也一樣多，請問：\n⑴ 最多可分成幾組？\n⑵ 承⑴，此時每組共有多少位學生？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 2
-    }
-
-def generate_type_5_problem():
-    """
-    Concept: Finding LCM for dimensions of a rectangle to form a square, then calculating area. Multi-part question.
-    """
-    dimensions = random.sample([30, 40, 45, 50, 60, 75, 80, 90], 2)
-    length, width = dimensions[0], dimensions[1]
-    
-    side_length = lcm(length, width)
-    area = side_length * side_length
-    correct_answer = f"邊長 {side_length} 公分，面積 {area} 平方公分"
-    question_text = f"將若干塊長 {length} 公分、寬 {width} 公分的長方形磁磚，以長邊接長邊，短邊接短邊的方式，緊密且無縫隙拼貼成一個正方形，則所拼貼的正方形最小邊長為何？此時面積是多少平方公分？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 2
-    }
-
-def generate_type_6_problem():
-    """
-    Concept: Finding LCM for side lengths of two types of square tiles to determine the smallest square bulletin board, then calculating its area.
-    """
-    sides = random.sample([30, 40, 45, 48, 50, 60, 75, 80, 90], 2)
-    side1, side2 = sides[0], sides[1]
-    
-    board_side = lcm(side1, side2)
-    area = board_side * board_side
-    correct_answer = f"{area} 平方公分"
-    question_text = f"小翊想用邊長 {side1} 公分與 {side2} 公分兩種正方形海報紙，貼滿教室後方的正方形布告欄，已知用這兩種海報紙的任一種若干張，皆可在不切割的情況下緊密的將布告欄貼滿，請問此布告欄的面積最小是多少平方公分？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 2
-    }
-
-def generate_type_7_problem():
-    """
-    Concept: Finding GCD for dimensions to determine maximum spacing, then calculating the total number of trees around the perimeter. Multi-part question.
-    """
-    common_factor = random.choice([5, 9, 15, 25, 30, 45])
-    factor_l = random.randint(4, 10)
-    factor_w = random.randint(2, 6)
-    while factor_l == factor_w: # Ensure distinct factors
-        factor_w = random.randint(2, 6)
-    length = common_factor * factor_l
-    width = common_factor * factor_w
-    # Ensure reasonable dimensions
-    length = max(150, length)
-    width = max(90, width)
-    
-    g = math.gcd(length, width)
-    distance = g
-    # For a rectangle with trees at all 4 corners, count is (L/g + W/g) * 2
-    num_trees = (length // g + width // g) * 2
-    correct_answer = f"距離 {distance} 公尺，共 {num_trees} 棵樹"
-    question_text = f"王伯伯有一塊長 {length} 公尺、寬 {width} 公尺的長方形土地，他想在其周圍種樹，相鄰兩棵樹之間的距離要相等，且四個頂點都種，則相鄰兩棵樹之間的距離最大是幾公尺？此時總共要種幾棵樹？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 2
-    }
-
-def generate_type_8_problem():
-    """
-    Concept: Finding LCM of two intervals to find common positions, then counting within a range, 
-             considering "not installed at ends". Multi-part, complex counting.
-    """
-    intervals = random.sample([15, 20, 24, 25, 30, 36, 40], 2)
-    interval1, interval2 = intervals[0], intervals[1]
-    
-    lcm_intervals = lcm(interval1, interval2)
-    # total_length should be a multiple of lcm_val and large enough
-    total_length_multiplier = random.randint(10, 25)
-    total_length = lcm_intervals * total_length_multiplier
-    # Ensure total_length is within a reasonable range (e.g., 1000 to 5000)
-    total_length = max(1000, total_length)
-    total_length = min(5000, total_length)
-    
-    distance = lcm_intervals
-    # Number of common lights on one side, excluding ends: (total_length / lcm_intervals) - 1
-    # Example: total_length=100, lcm=20. Positions: 20, 40, 60, 80. Count = 4 = (100/20)-1.
-    num_common_lights_one_side = (total_length // lcm_intervals) - 1
-    total_common_lights = num_common_lights_one_side * 2 # For both sides
-    correct_answer = f"距離 {distance} 公尺，共 {total_common_lights} 盞"
-    question_text = f"澎湖有一全長 {total_length} 公尺的跨海大橋，原來在此橋的兩側每隔 {interval1} 公尺裝設一盞路燈 ( 橋頭與橋尾未裝 )，但因節能考量改為每隔 {interval2} 公尺裝設一盞路燈，則在不需要拆除的路燈中，相鄰兩盞的距離是多少公尺？此時不需要拆除的路燈共有多少盞？"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 2
-    }
-
-
-def generate(level=1):
-    """
-    Generates a math problem based on the specified level.
-    Args:
-        level (int): The difficulty level (1 for Basic, 2 for Advanced).
-    Returns:
-        dict: A dictionary containing the question string, the answer string, and the correct answer string.
-    """
-    if level == 1:
-        problem_func = random.choice([
-            generate_type_1_problem,
-            generate_type_3_problem,
-            generate_type_4_problem,
-        ])
-    elif level == 2:
-        problem_func = random.choice([
-            generate_type_2_problem,
-            generate_type_5_problem,
-            generate_type_6_problem,
-            generate_type_7_problem,
-            generate_type_8_problem,
-        ])
-    else:
-        raise ValueError("Invalid level. Please choose 1 for Basic or 2 for Advanced.")
-
-    return problem_func()
-
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
 def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker
-    Handles float tolerance and string normalization.
-    """
-    user = user_answer.strip().replace(" ", "")
-    correct = correct_answer.strip().replace(" ", "")
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
     
-    if user == correct:
-        return {"correct": True, "result": "正確！"}
-        
-    try:
-        # Attempt float comparison for numerical answers
-        user_float = float(user)
-        correct_float = float(correct)
-        if abs(user_float - correct_float) < 1e-6:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        pass # Not a simple float, fall back to string comparison
-        
-    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
+
+
+from datetime import datetime
+import base64
+
+# import importlib # Not directly used in the code, but mentioned for context of reload
+
+# --- Module-level Configuration ---
+# This version number represents the version of this specific problem generation module.
+# It should be manually incremented when the generation logic (this file) is updated.
+_MODULE_VERSION = 1.1 # Incremented due to logic refinements and enhanced problem diversity
+
+# --- Helper Functions (遵循通用規範) ---
+
+def _get_dummy_image_base64() -> str:
+    """
+    [必須回傳]：回傳一個微小的透明 GIF 圖片的 Base64 編碼字串。
+    [類型一致]：回傳值強制轉為字串。
+    [防洩漏原則]：不接收任何題目或答案數據。
+    這個函數作為視覺化輸出的佔位符，確保 `image_base64` 欄位不為空。
+    """
+    # 1x1 透明 GIF 像素的 Base64 編碼
+    transparent_gif_pixel = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+    return transparent_gif_pixel
+
+def _round_if_close(value: float, tolerance: float = 1e-9) -> float | int:
+    """
+    [必須回傳]：判斷浮點數是否極接近整數，若是則回傳整數，否則回傳浮點數。
+    [類型一致]：回傳值可能是 float 或 int。在用於拼接 question_text 時，會再強制轉為 str。
+    """
+    if abs(value - round(value)) < tolerance:
+        return int(round(value))
+    return value
+
+# --- 頂層函式 (遵循程式結構規範) ---
+
+def generate(level: int = 1) -> dict:
+    """
+    生成 K12 數學「應用問題」題型。
+    [頂層函式]：直接定義於模組最外層，嚴禁使用 class 封裝。
+    [自動重載]：代碼不依賴全域狀態。
+    [題型多樣性]：實作至少 3 種不同題型變體。
+    [排版與 LaTeX 安全]：嚴格遵守字串格式化規範。
+    [數據與欄位]：回傳字典包含指定欄位。
+    """
+    # 確保代碼不依賴全域狀態，這裡的 `_MODULE_VERSION` 是模組級常數，不會被 `generate` 修改
+    # `datetime.now()` 也是獨立操作，不產生全域狀態。
+
+    # [題型多樣性]：使用 random.choice 實現隨機分流
+    problem_type = random.choice([
+        "direct_calculation",           # 直接計算
+        "inverse_problem",              # 逆向求解
+        "scenario_application"          # 情境應用 (如相對運動)
+    ])
+
+    question_text = ""
+    correct_answer_str = "" # correct_answer 必須為字串
+    numeric_answer = None   # 內部儲存的數值答案
+
+    # 難度調整 (level 參數影響數值範圍)
+    # 基礎數值範圍，隨 level 增加
+    base_min = 10 + (level - 1) * 5
+    base_max = 50 + (level - 1) * 10
+    # 因子數值範圍，隨 level 增加
+    factor_min = 2 + level // 2
+    factor_max = 5 + level // 2
+
+    if problem_type == "direct_calculation":
+        # 題型變體 1: 直接計算 (Simple Linear Equation)
+        # 範例: "小明有若干顆糖果，吃了5顆後剩下12顆，請問他原本有多少顆糖果？"
+        eaten_candies = random.randint(factor_min, factor_max + 5)
+        remaining_candies = random.randint(base_min, base_max)
+        
+        original_candies = eaten_candies + remaining_candies
+        
+        # [排版與 LaTeX 安全]：嚴禁使用 f-string 或 % 格式化，必須使用 .replace()
+        question_template = r"小明有若干顆糖果，吃了 {eaten} 顆後剩下 {remaining} 顆，請問他原本有多少顆糖果？"
+        question_text = question_template.replace("{eaten}", str(eaten_candies)).replace("{remaining}", str(remaining_candies))
+        
+        numeric_answer = original_candies
+        correct_answer_str = str(original_candies)
+
+    elif problem_type == "inverse_problem":
+        # 題型變體 2: 逆向求解 (Finding Initial Value with Percentage/Fraction)
+        # 範例: "一本書打七折後賣210元，請問這本書的原價是多少元？" 或 "某數的 $\frac{2}{5}$ 是 12，請問某數是多少？"
+        
+        if random.random() < 0.6: # 百分比折扣類問題 (約60%機率)
+            discount_percent = random.choice([10, 20, 25, 30, 35, 40, 50])
+            discount_factor_numerator = 100 - discount_percent
+            
+            # 計算 original_price 必須是哪個數的倍數，才能確保 final_price 為整數
+            # original_price * (100 - discount_percent) / 100 = final_price
+            # 為確保 final_price 為整數，original_price 必須是 100 / gcd(100, 100 - discount_percent) 的倍數
+            common_divisor = math.gcd(100, discount_factor_numerator)
+            min_original_price_multiplier = 100 // common_divisor
+            
+            # 生成 original_price，確保其在合理範圍內，且為 min_original_price_multiplier 的倍數
+            lower_bound_base = max(1, (base_min * 2) // min_original_price_multiplier)
+            upper_bound_base = (base_max * 5) // min_original_price_multiplier
+            
+            original_price_val = random.randint(lower_bound_base, upper_bound_base) * min_original_price_multiplier
+            
+            final_price_val = int(original_price_val * discount_factor_numerator / 100)
+
+            question_template = r"一本書打 {discount}% 後賣 {final_price} 元，請問這本書的原價是多少元？"
+            question_text = question_template.replace("{discount}", str(discount_percent)).replace("{final_price}", str(final_price_val))
+            
+            numeric_answer = original_price_val
+            correct_answer_str = str(original_price_val)
+            
+        else: # 分數部分求整體 (約40%機率)
+            numerator = random.randint(1, factor_min + 1)
+            denominator = random.randint(numerator + 1, factor_max + 3) # 確保分母大於分子
+            
+            # 計算 whole_value 必須是哪個數的倍數，才能確保 part_value 為整數
+            # whole_value * (numerator / denominator) = part_value
+            # 為確保 part_value 為整數，whole_value 必須是 denominator / gcd(numerator, denominator) 的倍數
+            common_divisor_frac = math.gcd(numerator, denominator)
+            min_whole_value_multiplier = denominator // common_divisor_frac
+            
+            # 生成 whole_value
+            lower_bound_base_frac = max(1, (base_min * 2) // min_whole_value_multiplier)
+            upper_bound_base_frac = (base_max * 5) // min_whole_value_multiplier
+            
+            whole_value_val = random.randint(lower_bound_base_frac, upper_bound_base_frac) * min_whole_value_multiplier
+            
+            part_value_val = int(whole_value_val * numerator / denominator)
+            
+            # [排版與 LaTeX 安全]：所有數學式一律使用 $...$
+            question_template = r"某數的 $\frac{{{numerator}}}{{{denominator}}}$ 是 {part_value}，請問某數是多少？"
+            question_text = question_template.replace("{numerator}", str(numerator)).replace("{denominator}", str(denominator)).replace("{part_value}", str(part_value_val))
+            
+            numeric_answer = whole_value_val
+            correct_answer_str = str(whole_value_val)
+
+    elif problem_type == "scenario_application":
+        # 題型變體 3: 情境應用 (Relative Movement - Meeting Problem)
+        # 範例: "甲乙兩人相距200公尺，同時相向而行。甲每分鐘走50公尺，乙每分鐘走30公尺。請問幾分鐘後兩人相遇？"
+        
+        distance_unit = random.choice(["公尺", "公里"]) # 距離單位多樣性
+        time_unit = random.choice(["分鐘", "小時"])    # 時間單位多樣性
+        
+        # 生成速度
+        speed_a = random.randint(factor_min * 5, factor_max * 10)
+        speed_b = random.randint(factor_min * 5, factor_max * 10)
+        
+        total_speed = speed_a + speed_b
+        
+        # 生成相遇時間，確保其為整數或簡單的小數 (例如 X.5)
+        time_options = [random.randint(2, 10)] # 優先生成整數時間
+        if level >= 2: # 難度較高時引入半小時時間
+            time_options.append(random.randint(1, 5) + 0.5)
+        
+        time_to_meet = random.choice(time_options)
+        
+        # 根據相遇時間和總速度計算總距離，確保距離數值是「乾淨」的
+        distance = _round_if_close(time_to_meet * total_speed)
+        
+        # [排版與 LaTeX 安全]：嚴禁使用 f-string 或 % 格式化，必須使用 .replace()
+        question_template = r"甲乙兩人相距 {distance} {distance_unit}，同時相向而行。甲每{time_unit}走 {speed_a} {distance_unit}，乙每{time_unit}走 {speed_b} {distance_unit}。請問幾{time_unit}後兩人相遇？"
+        question_text = question_template.replace("{distance}", str(distance)) \
+                                 .replace("{distance_unit}", distance_unit) \
+                                 .replace("{speed_a}", str(speed_a)) \
+                                 .replace("{speed_b}", str(speed_b)) \
+                                 .replace("{time_unit}", time_unit)
+        
+        numeric_answer = time_to_meet
+        correct_answer_str = str(_round_if_close(time_to_meet)) # 將答案數值轉換為字串
+
+    # [視覺化與輔助函式通用規範]：必須回傳圖片 Base64 字串
+    image_base64_str = _get_dummy_image_base64()
+
+    # [數據與欄位]：返回字典必須且僅能包含指定欄位
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer_str,
+        "answer": numeric_answer, # 數值型答案，供內部使用或額外展示
+        "image_base64": image_base64_str,
+        "created_at": datetime.now().isoformat(), # [時間戳記]：更新時設定為當前時間
+        "version": _MODULE_VERSION # [時間戳記]：使用模組版本，不自動遞增
+    }
+
+
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # 2. [V10.3] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\']
+            if (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers) and "手寫" not in res.get('question_text', ''):
+                res['question_text'] += "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

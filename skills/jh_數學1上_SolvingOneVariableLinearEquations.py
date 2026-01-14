@@ -1,81 +1,75 @@
 # ==============================================================================
 # ID: jh_數學1上_SolvingOneVariableLinearEquations
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 53.14s | RAG: 6 examples
-# Created At: 2026-01-09 23:00:50
-# Fix Status: [Clean Pass]
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 43.35s | RAG: 5 examples
+# Created At: 2026-01-14 21:06:38
+# Fix Status: [Repaired]
+# Fixes: Regex=1, Logic=0
 #==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
 from functools import reduce
+import ast
 
-# --- 1. Formatting Helpers ---
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
 def fmt_num(num, signed=False, op=False):
     """
-    Format number for LaTeX.
-    
-    Args:
-        num: The number to format.
-        signed (bool): If True, always show sign (e.g., "+3", "-5").
-        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
+    Format number for LaTeX (Safe Mode).
     """
     latex_val = to_latex(num)
     if num == 0 and not signed and not op: return "0"
     
     is_neg = (num < 0)
-    abs_val = to_latex(abs(num))
+    abs_str = to_latex(abs(num))
     
     if op:
-        # e.g., " + 3", " - 3"
-        return f" - {abs_val}" if is_neg else f" + {abs_val}"
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
     
     if signed:
-        # e.g., "+3", "-3"
-        return f"-{abs_val}" if is_neg else f"+{abs_val}"
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
         
-    # Default behavior (parentheses for negative)
-    if is_neg: return f"({latex_val})"
+    if is_neg: return r"({v})".replace("{v}", latex_val)
     return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
+    """Check primality (Standard Boolean Return)."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -85,8 +79,15 @@ def is_prime(n):
         i += 6
     return True
 
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -99,25 +100,26 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+# --- 3. Fraction Generator ---
+def simplify_fraction(n, d):
+    """[V11.3 Standard Helper] 強力化簡分數並回傳 (分子, 分母)"""
+    common = math.gcd(n, d)
+    return n // common, d // common
 
-# --- 3. Fraction Generator Helper ---
+
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -153,265 +155,450 @@ def draw_number_line(points_map):
     )
     return result
 
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
+    
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
+
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    
+    # [V11.1] 科學記號自動比對 (1.23*10^4 vs 1.23e4)
+    # 支援 *10^, x10^, e 格式
+    if "*" in str(ans_display) or "^" in str(ans_display) or "e" in str(ans_display):
+        try:
+            # 正規化：將常見乘號與次方符號轉為 E-notation
+            norm_ans = str(ans_display).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            norm_user = str(u).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            if math.isclose(float(norm_ans), float(norm_user), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+        except: pass
+
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 
 
 
+import datetime
+import base64 # Required by spec, even if image_base64 is an empty string for this skill.
 
-# (Helpers are auto-injected here, do not write them)
+# --- Helper Functions (符合通用規範：明確回傳、類型一致、防洩漏原則) ---
 
-def generate_type_1_problem():
+def _generate_random_int(min_val, max_val, exclude_zero=False):
     """
-    Type 1: Checking potential solutions.
-    Concept: Students substitute given values into a linear equation to determine which one is the solution.
+    生成指定範圍內的隨機整數，可選擇排除零。
+    返回值: int
     """
-    a = random.randint(-5, 5)
-    while a == 0:
-        a = random.randint(-5, 5)
+    num = random.randint(min_val, max_val)
+    if exclude_zero and num == 0:
+        # 遞迴呼叫直到產生非零數
+        return _generate_random_int(min_val, max_val, exclude_zero)
+    return num
 
-    correct_x = random.randint(-5, 5)
-    b = random.randint(-10, 10)
-    c = a * correct_x + b # c is calculated to ensure correct_x is an integer solution
-
-    # Generate distinct distractors close to correct_x
-    distractor1 = correct_x + random.choice([-2, -1, 1, 2])
-    while distractor1 == correct_x:
-        distractor1 = correct_x + random.choice([-2, -1, 1, 2])
-    
-    distractor2 = correct_x + random.choice([-3, -2, -1, 1, 2, 3])
-    while distractor2 == correct_x or distractor2 == distractor1:
-        distractor2 = correct_x + random.choice([-3, -2, -1, 1, 2, 3])
-
-    choices = [correct_x, distractor1, distractor2]
-    random.shuffle(choices)
-
-    # Format the constant term 'b' with its sign
-    question_eq_b = f"+ {fmt_num(b)}" if b >= 0 else fmt_num(b)
-    
-    question_text = f"檢驗看看，{choices[0]}、{choices[1]}、{choices[2]} 三數中，哪一個是方程式 ${fmt_num(a)}x {question_eq_b} = {fmt_num(c)}$ 的解？"
-    answer = str(correct_x) 
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
-
-def generate_type_2_problem():
+def _format_variable_term(coeff, var_name='x'):
     """
-    Type 2: Simple addition/subtraction equations.
-    Concept: Students solve linear equations of the form `x + a = b` or `x - a = b`.
+    格式化變數項 (例如: '3x', '-x', 'x', '' (如果係數為0))。
+    返回值: str
     """
-    a = random.randint(1, 15) # a is positive
-    b = random.randint(-10, 20)
-    op = random.choice(['+', '-'])
-    
-    if op == '+':
-        correct_x = b - a
-    else: # op == '-'
-        correct_x = b + a
-    
-    question_text = f"解一元一次方程式 $x {op} {a} = {fmt_num(b)}$。"
-    answer = str(correct_x)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    if coeff == 1:
+        return var_name
+    elif coeff == -1:
+        return "-" + var_name
+    elif coeff == 0:
+        return "" # 係數為0時不顯示變數項
+    else:
+        return str(coeff) + var_name
 
-def generate_type_3_problem():
+def _format_constant_term(const):
     """
-    Type 3: Simple multiplication/division equations.
-    Concept: Students solve linear equations of the form `ax = b` or `x/a = b`.
+    格式化常數項，若為正數則包含 '+' 號 (例如: '+5', '-3', '0')。
+    返回值: str
     """
-    a = random.randint(-10, 10)
-    while a == 0:
-        a = random.randint(-10, 10)
-    
-    op_type = random.choice(['multiply', 'divide'])
-    
-    if op_type == 'multiply':
-        # ax = b, ensure integer solution by picking x first
-        correct_x = random.randint(-10, 10)
-        b = a * correct_x
-        question_text = f"解一元一次方程式 ${fmt_num(a)}x = {fmt_num(b)}$。"
-    else: # op_type == 'divide'
-        # x/a = b, calculate x = a * b
-        b = random.randint(-10, 10)
-        correct_x = a * b
-        question_text = f"解一元一次方程式 $\\frac{{x}}{{{fmt_num(a)}}} = {fmt_num(b)}$。"
-    
-    answer = str(correct_x)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    if const >= 0:
+        return "+" + str(const)
+    else:
+        return str(const) # 負號已包含
 
-def generate_type_4_problem():
+# --- 題型變體實作 (符合題型多樣性、排版與 LaTeX 安全規範) ---
+
+# Type 1 (Maps to Example 1, 2): 直接計算 - ax + b = c 或 ax = b
+def _generate_type1_direct_calculation():
     """
-    Type 4: Variables on both sides.
-    Concept: Students solve linear equations with variables and constants on both sides (e.g., `ax + b = cx + d`).
+    生成形如 ax + b = c 或 ax = b 的直接計算題。
+    確保解為整數。
     """
-    a = random.randint(-5, 5)
-    c = random.randint(-5, 5)
-    while a == c: # Ensure `a != c` to avoid no solution/infinite solutions
-        c = random.randint(-5, 5)
+    a = _generate_random_int(-10, 10, exclude_zero=True)
+    b = _generate_random_int(-15, 15)
     
-    correct_x = random.randint(-5, 5) # Generate x first to ensure integer solution
-    
-    b = random.randint(-10, 10)
-    # Based on ax + b = cx + d, we need d = (a-c)x + b
-    d = (a - c) * correct_x + b
-    
-    # Format constant terms with their signs
-    question_b_str = f"+ {fmt_num(b)}" if b >= 0 else fmt_num(b)
-    question_d_str = f"+ {fmt_num(d)}" if d >= 0 else fmt_num(d)
-    
-    question_text = f"解一元一次方程式 ${fmt_num(a)}x {question_b_str} = {fmt_num(c)}x {question_d_str}$。"
-    answer = str(correct_x)
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    # 先生成解，再計算常數項，確保解為整數
+    solution_x = _generate_random_int(-10, 10)
+    c = a * solution_x + b
 
-def generate_type_5_problem():
+    # 構造方程式字串
+    equation_parts = []
+    equation_parts.append(_format_variable_term(a, 'x'))
+    if b != 0:
+        equation_parts.append(_format_constant_term(b))
+    
+    equation_str = "".join(equation_parts) + " = " + str(c)
+    
+    # 嚴格遵循 LaTeX 安全規範
+    question_text_template = r"解方程式: ${equation}$"
+    question_text = question_text_template.replace("{equation}", equation_str)
+
+    correct_answer = str(solution_x)
+    answer_display = r"x = {ans_val}".replace("{ans_val}", str(solution_x))
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display
+    }
+
+# Type 2 (Maps to Example 3, 4): 直接計算 - 包含括號或兩邊皆有變數
+def _generate_type2_intermediate_calculation():
     """
-    Type 5: Equations with distributive property.
-    Concept: Students solve linear equations requiring the distributive property and multiple steps.
-    Template: A(Bx + C) = D(Ex + F) + G
+    生成形如 A(bx + c) = d 或 ax + b = cx + d 的中間難度計算題。
+    確保解為整數。
     """
-    A = random.randint(-3, 3)
-    while A == 0: A = random.randint(-3, 3) # A must be non-zero
-    B = random.randint(-3, 3)
-    while B == 0: B = random.randint(-3, 3) # B must be non-zero for Bx term
-    C = random.randint(-5, 5)
-    D = random.randint(-3, 3)
-    E = random.randint(-3, 3)
-    # E can be zero if D is non-zero, it just means no x term on the right from D(Ex+F)
-    F = random.randint(-5, 5)
-    G = random.randint(-10, 10)
+    problem_type_choice = random.choice([1, 2])
+    solution_x = _generate_random_int(-10, 10)
 
-    # Expand the equation:
-    # ABx + AC = DEx + DF + G
-    # (AB - DE)x = DF + G - AC
-
-    # Calculate coefficients after expansion
-    final_coeff_x = (A * B) - (D * E)
-    final_const = (D * F + G) - (A * C)
-
-    # Ensure a valid equation with a unique solution (coefficient of x cannot be zero)
-    if final_coeff_x == 0:
-        return generate_type_5_problem() # Regenerate if x terms cancel out
-    
-    correct_x = Fraction(final_const, final_coeff_x)
-
-    # Format parts of the question string
-    question_left_b_str = f"+ {fmt_num(C)}" if C >= 0 else fmt_num(C)
-    question_right_d_str = f"+ {fmt_num(F)}" if F >= 0 else fmt_num(F)
-    
-    # Handle G term: if G is 0, it should not be displayed
-    question_g_str = ""
-    if G != 0:
-        question_g_str = f"+ {fmt_num(G)}" if G >= 0 else fmt_num(G)
-
-    question_text = f"解一元一次方程式 ${fmt_num(A)}({fmt_num(B)}x {question_left_b_str}) = {fmt_num(D)}({fmt_num(E)}x {question_right_d_str}) {question_g_str}$。"
-    answer = to_latex(correct_x) # Answer must not contain $ signs
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
-
-
-def generate_type_6_problem():
-    """
-    Type 6: Equations with fractions.
-    Concept: Students solve linear equations involving fractions, requiring finding a common denominator.
-    """
-    choice = random.choice([1, 2])
-
-    if choice == 1:
-        # Template 1: frac1*x = frac2 - frac3*x
-        f1 = get_random_fraction(1, 5, den_limit=6) # Positive coefficient for x on left
-        f2 = get_random_fraction(-10, 10, den_limit=10) # Constant term on right
-        f3 = get_random_fraction(-3, 3, exclude_zero=True, den_limit=6) # Coefficient for x on right, non-zero
-
-        # Equation: f1*x = f2 - f3*x
-        # Rearrange: (f1 + f3)*x = f2
-        coeff_x = f1 + f3
-        if coeff_x == 0: 
-            return generate_type_6_problem() # Prevent division by zero if x terms cancel
+    if problem_type_choice == 1: # A(bx + c) = d
+        A = _generate_random_int(-5, 5, exclude_zero=True)
+        b = _generate_random_int(-5, 5, exclude_zero=True)
         
-        correct_x = f2 / coeff_x
+        # 計算 c 和 d，確保解為整數
+        # A(b*solution_x + c) = d
+        # 先生成 d，再計算 c，並確保 d 可被 A 整除
+        d = _generate_random_int(-20, 20)
+        while d % A != 0:
+            d = _generate_random_int(-20, 20)
         
-        # Format f3_str for the question: handle its sign
-        f3_str = f"- {to_latex(f3)}x" if f3 > 0 else f"+ {to_latex(-f3)}x"
-        question_text = f"解一元一次方程式 ${to_latex(f1)}x = {to_latex(f2)} {f3_str}$。"
-        
-    else: # choice == 2
-        # Template 2: frac1*x - (f2_num_a*x + f2_num_b)/f2_den = frac3
-        f1 = get_random_fraction(-3, 3, exclude_zero=True, den_limit=5)
+        c = d // A - b * solution_x
 
-        f2_num_a = random.randint(-4, 4)
-        f2_num_b = random.randint(-8, 8)
-        f2_den = random.randint(2, 6) # Denominator must be > 1
-        
-        f3 = get_random_fraction(-5, 5, den_limit=10)
+        equation_str = str(A) + "(" + _format_variable_term(b, 'x')
+        if c != 0:
+            equation_str += _format_constant_term(c)
+        equation_str += ") = " + str(d)
 
-        # Equation: f1*x - (f2_num_a*x + f2_num_b)/f2_den = f3
-        # Multiply by LCM (f2_den) to clear fractions:
-        # f1*f2_den*x - (f2_num_a*x + f2_num_b) = f3*f2_den
-        # f1*f2_den*x - f2_num_a*x - f2_num_b = f3*f2_den
-        # (f1*f2_den - f2_num_a)*x = f3*f2_den + f2_num_b
+    else: # ax + b = cx + d
+        a = _generate_random_int(-7, 7, exclude_zero=True)
+        c = _generate_random_int(-7, 7, exclude_zero=True)
         
-        # Calculate coefficients for x and constant term
-        coeff_x_val = f1 * f2_den - f2_num_a
-        const_val = f3 * f2_den + f2_num_b
+        # 確保 a != c 以避免 0x = k 或 0x = 0 的特殊情況
+        while a == c:
+            c = _generate_random_int(-7, 7, exclude_zero=True)
         
-        if coeff_x_val == 0: 
-            return generate_type_6_problem() # Prevent division by zero
+        # 計算 b 和 d，確保解為整數
+        # (a-c)x = d-b
+        # 先生成 b，再計算 d
+        b = _generate_random_int(-15, 15)
+        d = (a - c) * solution_x + b
+
+        equation_parts_left = []
+        equation_parts_left.append(_format_variable_term(a, 'x'))
+        if b != 0:
+            equation_parts_left.append(_format_constant_term(b))
         
-        correct_x = Fraction(const_val, coeff_x_val)
-
-        # Format f2_num_a*x term within the fraction numerator (e.g., 'x', '-x', '2x', '(-3)x')
-        f2_num_a_str = ""
-        if f2_num_a == 1:
-            f2_num_a_str = "x"
-        elif f2_num_a == -1:
-            f2_num_a_str = "-x"
-        else:
-            f2_num_a_str = f"{fmt_num(f2_num_a)}x"
-
-        # Format f2_num_b term within the fraction numerator
-        f2_num_b_str = f"+ {fmt_num(f2_num_b)}" if f2_num_b >= 0 else fmt_num(f2_num_b)
+        equation_parts_right = []
+        equation_parts_right.append(_format_variable_term(c, 'x'))
+        if d != 0:
+            equation_parts_right.append(_format_constant_term(d))
         
-        question_text = f"解一元一次方程式 ${to_latex(f1)}x - \\frac{{{f2_num_a_str} {f2_num_b_str}}}{{{f2_den}}} = {to_latex(f3)}$。"
+        equation_str = "".join(equation_parts_left) + " = " + "".join(equation_parts_right)
 
-    answer = to_latex(correct_x) # Answer must not contain $ signs
-    return {'question_text': question_text, 'answer': answer, 'correct_answer': answer}
+    # 嚴格遵循 LaTeX 安全規範
+    question_text_template = r"解方程式: ${equation}$"
+    question_text = question_text_template.replace("{equation}", equation_str)
 
+    correct_answer = str(solution_x)
+    answer_display = r"x = {ans_val}".replace("{ans_val}", str(solution_x))
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display
+    }
+
+# Type 3 (Maps to Example 5, 6): 直接計算 - 包含分數
+def _generate_type3_fractional_calculation():
+    """
+    生成包含分數的計算題，例如 (ax+b)/c = d 或 x/a + b = c。
+    確保解為整數。
+    """
+    problem_type_choice = random.choice([1, 2])
+    solution_x = _generate_random_int(-10, 10)
+
+    if problem_type_choice == 1: # (ax+b)/c = d
+        a = _generate_random_int(-5, 5, exclude_zero=True)
+        c = _generate_random_int(2, 6) # 分母，必須非零
+        
+        # 計算 d 和 b，確保解為整數
+        # (a*solution_x + b) / c = d
+        # 先生成 d
+        d = _generate_random_int(-10, 10)
+        b = c * d - a * solution_x
+        
+        equation_str_template = r"\frac{{ {numerator} }}{{ {denominator} }} = {rhs}"
+        numerator_str = _format_variable_term(a, 'x')
+        if b != 0:
+            numerator_str += _format_constant_term(b)
+        
+        equation_str = equation_str_template.replace("{numerator}", numerator_str).replace("{denominator}", str(c)).replace("{rhs}", str(d))
+
+    else: # x/a + b = c
+        a = _generate_random_int(2, 6) # x 的分母，必須非零
+        
+        # 確保 solution_x 是 a 的倍數，以簡化整數解的計算
+        solution_x = _generate_random_int(-5, 5, exclude_zero=True) * a
+        if solution_x == 0: # 如果 solution_x 意外變成 0，重新生成
+             solution_x = _generate_random_int(-5, 5, exclude_zero=True) * a
+
+        # 計算 b 和 c
+        # x/a + b = c
+        # 先生成 b
+        b = _generate_random_int(-10, 10)
+        c = solution_x // a + b
+
+        equation_str_template = r"\frac{{x}}{{ {denominator} }} {constant_b} = {rhs}"
+        
+        constant_b_str = _format_constant_term(b) if b != 0 else "" 
+        
+        equation_str = equation_str_template.replace("{denominator}", str(a)).replace("{constant_b}", constant_b_str).replace("{rhs}", str(c))
+        # 清理若 b 為 0 時可能產生的 "+0"
+        equation_str = equation_str.replace(" +0", "")
+
+    # 嚴格遵循 LaTeX 安全規範
+    question_text_template = r"解方程式: ${equation}$"
+    question_text = question_text_template.replace("{equation}", equation_str)
+
+    correct_answer = str(solution_x)
+    answer_display = r"x = {ans_val}".replace("{ans_val}", str(solution_x))
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display
+    }
+
+# Type 4 (Maps to Example 7, 8): 逆向求解 - 尋找係數
+def _generate_type4_inverse_solving():
+    """
+    生成逆向求解問題：已知 x 的解，求方程式中的某個係數 'm'。
+    確保解為整數。
+    """
+    # x 的解不能為 0，如果 'm' 是 x 的係數
+    solution_x_val = _generate_random_int(-8, 8, exclude_zero=True) 
+
+    problem_type_choice = random.choice([1, 2])
+
+    if problem_type_choice == 1: # 已知 x，求 mx + b = c 中的 m
+        # 先生成 m_val (答案)
+        m_val = _generate_random_int(-10, 10, exclude_zero=True)
+        b = _generate_random_int(-15, 15)
+        
+        # 計算 c，使 mx + b = c 在 x = solution_x_val 時成立
+        c = m_val * solution_x_val + b
+
+        equation_str_template = r"mx {constant_b} = {rhs}"
+        constant_b_str = _format_constant_term(b) if b != 0 else ""
+        
+        equation_str = equation_str_template.replace("{constant_b}", constant_b_str).replace("{rhs}", str(c))
+        question_text_template = r"若 $x = {solution}$ 是方程式 ${equation}$ 的解，則 $m = ?$".replace("{solution}", str(solution_x_val))
+        question_text = question_text_template.replace("{equation}", equation_str)
+        
+        correct_answer = str(m_val)
+        answer_display = r"m = {ans_val}".replace("{ans_val}", str(m_val))
+
+    else: # 已知 x，求 A(x + m) = B 中的 m
+        # 先生成 m_val (答案)
+        m_val = _generate_random_int(-10, 10)
+        A = _generate_random_int(-5, 5, exclude_zero=True)
+        
+        # 計算 B，使 A(x + m) = B 在 x = solution_x_val, m = m_val 時成立
+        B = A * (solution_x_val + m_val)
+
+        equation_str = str(A) + r"(x + m) = " + str(B)
+            
+        question_text_template = r"若 $x = {solution}$ 是方程式 ${equation}$ 的解，則 $m = ?$".replace("{solution}", str(solution_x_val))
+        question_text = question_text_template.replace("{equation}", equation_str)
+            
+        correct_answer = str(m_val)
+        answer_display = r"m = {ans_val}".replace("{ans_val}", str(m_val))
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display
+    }
+
+# Type 5 (Maps to Example 9, 10): 情境應用 - 應用問題
+def _generate_type5_word_problem():
+    """
+    生成可轉換為一元一次方程式的應用問題 (例如：連續整數問題、年齡問題)。
+    確保解為整數。
+    """
+    problem_type_choice = random.choice([1, 2])
+
+    if problem_type_choice == 1: # 連續整數問題
+        first_num = _generate_random_int(10, 50)
+        num_consecutive = random.choice([2, 3]) # 兩個或三個連續整數
+        
+        if num_consecutive == 2:
+            # 方程式: x + (x+1) = Sum
+            solution_x = first_num
+            sum_val = solution_x + (solution_x + 1)
+            
+            question_text = r"有兩個連續整數，其和為 ${sum_val}$。請問較小的整數為何？".replace("{sum_val}", str(sum_val))
+            correct_answer = str(solution_x)
+            answer_display = r"較小的整數為 {ans_val}".replace("{ans_val}", str(solution_x))
+            
+        else: # num_consecutive == 3
+            # 方程式: x + (x+1) + (x+2) = Sum
+            solution_x = first_num
+            sum_val = solution_x + (solution_x + 1) + (solution_x + 2)
+            
+            question_text = r"有三個連續整數，其和為 ${sum_val}$。請問最小的整數為何？".replace("{sum_val}", str(sum_val))
+            correct_answer = str(solution_x)
+            answer_display = r"最小的整數為 {ans_val}".replace("{ans_val}", str(solution_x))
+
+    else: # 年齡問題 (簡化版)
+        # 爸爸的年齡是小明的 M 倍，他們的年齡和是 S 歲。求小明今年幾歲。
+        # 方程式: x + M*x = S => (M+1)x = S.
+        
+        M = random.choice([2, 3, 4]) # 爸爸的倍數
+        solution_x = _generate_random_int(5, 20) # 小明目前的年齡
+        
+        sum_of_ages = (M + 1) * solution_x
+        
+        question_text_template = r"爸爸的年齡是小明的 {M_times} 倍，他們的年齡和是 {sum_ages} 歲。請問小明今年幾歲？"
+        question_text = question_text_template.replace("{M_times}", str(M)).replace("{sum_ages}", str(sum_of_ages))
+        
+        correct_answer = str(solution_x)
+        answer_display = r"小明今年 {ans_val} 歲".replace("{ans_val}", str(solution_x))
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display
+    }
+
+# --- 頂層函式 (符合程式結構、自動重載、數據與欄位規範) ---
 
 def generate(level=1):
     """
-    Dispatcher function to generate problems based on the specified level.
+    生成 K12 數學一元一次方程式的題目。
+    根據 level 參數調整題目難度。
+    返回值: dict (包含 question_text, correct_answer, answer, image_base64, created_at, version)
     """
+    problem_generators = {
+        1: _generate_type1_direct_calculation,
+        2: _generate_type2_intermediate_calculation,
+        3: _generate_type3_fractional_calculation,
+        4: _generate_type4_inverse_solving,
+        5: _generate_type5_word_problem,
+    }
+
+    # 根據難度等級選擇題型
     if level == 1:
-        problem_types = [
-            generate_type_1_problem,
-            generate_type_2_problem,
-            generate_type_3_problem,
-            generate_type_4_problem,
-        ]
+        # 基礎題型：直接計算、簡單括號、簡單應用題
+        selected_generator = random.choice([
+            problem_generators[1],
+            problem_generators[2], # 包含 Type 2 的較簡單變體
+            problem_generators[5]  # 簡單應用題
+        ])
     elif level == 2:
-        problem_types = [
-            generate_type_5_problem,
-            generate_type_6_problem,
-        ]
-    else:
-        raise ValueError("Invalid level. Choose 1 or 2.")
+        # 中等難度題型：更複雜的直接計算 (分數、兩邊皆有變數)、逆向求解、中等應用題
+        selected_generator = random.choice([
+            problem_generators[2],
+            problem_generators[3],
+            problem_generators[4],
+            problem_generators[5] # 應用題可包含更複雜的設定
+        ])
+    else: # 預設或更高難度等級，包含所有題型
+        selected_generator = random.choice(list(problem_generators.values()))
 
-    return random.choice(problem_types)()
+    problem_data = selected_generator()
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    # 填充標準欄位
+    problem_data["image_base64"] = "" # 此技能不涉及圖像，因此為空字串
+    problem_data["created_at"] = datetime.datetime.now().isoformat()
+    problem_data["version"] = "1.0" # 初始版本號
+
+    return problem_data
+
+# 根據基礎設施規則 (【絕對禁令】：嚴禁自定義 check() ... 系統會自動注入 V10.6 鎖死版工具庫。)，
+# 此處不應定義 check 函式。系統將自動注入其專用版本。
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \\n 問題
+                res['question_text'] = re.sub(r'\\n', '\n', res['question_text'])
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

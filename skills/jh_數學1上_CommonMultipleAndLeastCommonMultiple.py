@@ -1,35 +1,119 @@
 # ==============================================================================
 # ID: jh_數學1上_CommonMultipleAndLeastCommonMultiple
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 65.41s | RAG: 8 examples
-# Created At: 2026-01-09 13:22:00
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 51.22s | RAG: 5 examples
+# Created At: 2026-01-14 19:01:57
+# Fix Status: [Repaired]
+# Fixes: Regex=6, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
+from functools import reduce
+import ast
 
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
+    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+        
+        sign = "-" if num < 0 else ""
+        abs_num = abs(num)
+        
+        if abs_num.numerator > abs_num.denominator:
+            whole = abs_num.numerator // abs_num.denominator
+            rem_num = abs_num.numerator % abs_num.denominator
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses for LaTeX display"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
+# Alias
+fmt_fraction_latex = to_latex 
+
+# --- 2. Number Theory Helpers ---
+def is_prime(n):
+    """Check primality (Standard Boolean Return)."""
+    if n <= 1: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    if n <= 3: return {'correct': True, 'result': '正確！'}
+    if n % 2 == 0 or n % 3 == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+        i += 6
+    return {'correct': True, 'result': '正確！'}
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
+def get_prime_factorization(n):
+    factors = {}
+    d = 2
+    temp = n
+    while d * d <= temp:
+        while temp % d == 0:
+            factors[d] = factors.get(d, 0) + 1
+            temp //= d
+        d += 1
+    if temp > 1:
+        factors[temp] = factors.get(temp, 0) + 1
+    return factors
+
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+
+# --- 3. Fraction Generator ---
+def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
+    for _ in range(100):
+        den = random.randint(2, denominator_limit)
+        num = random.randint(min_val * den, max_val * den)
+        if den == 0: continue
+        val = Fraction(num, den)
+        if simple and val.denominator == 1: continue 
+        if val == 0: continue
+        return val
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -65,560 +149,338 @@ def draw_number_line(points_map):
     )
     return result
 
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
+    
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
+
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 
 
 
+import datetime
+import base64
+import io
 
-# ==============================================================================
-# GOLD STANDARD TEMPLATE v8.7 (Universal)
-# ==============================================================================
-# Rules for AI Coder:
-# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands.
-#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
-#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
-# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
-# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
-# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer'.
-# ==============================================================================
+# --- 輔助函式通用規範 (Generic Helper Rules) ---
+# 所有輔助函式必須明確使用 'return' 語句回傳結果。
+# 若結果用於拼接 question_text，則回傳值必須強制轉為字串 (str)。
+# 視覺化函式 (若有) 僅能接收「題目已知數據」，嚴禁將「答案數據」傳入。
 
-# ==============================================================================
-# Helper Functions & Constants
-# ==============================================================================
+def _gcd(a, b):
+    """計算兩個數字的最大公因數。"""
+    while b:
+        a, b = b, a % b
+    return a
 
-# Helper to format numbers, especially negatives (though not used in these specific problems)
-
-def _get_prime_factors(n):
-    factors = {}
-    if n == 1:
-        return {} # 1 has no prime factors in the usual sense
-    d = 2
-    temp = n
-    while d * d <= temp:
-        while temp % d == 0:
-            factors[d] = factors.get(d, 0) + 1
-            temp //= d
-        d += 1
-    if temp > 1:
-        factors[temp] = factors.get(temp, 0) + 1
-    return factors
-
-# Helper to format prime factorization into LaTeX string
-def _format_prime_factorization(factors_dict):
-    if not factors_dict:
-        return "1" # Represents the number 1
-    parts = []
-    for prime in sorted(factors_dict.keys()):
-        exponent = factors_dict[prime]
-        if exponent == 1:
-            parts.append(str(prime))
-        else:
-            parts.append(f"{prime}^{{{exponent}}}")
-    return " \\times ".join(parts)
-
-# Helper to calculate LCM of two numbers
 def _lcm(a, b):
-    return (a * b) // math.gcd(a, b)
-
-# Helper to calculate LCM of three numbers
-def _lcm_three(a, b, c):
-    return _lcm(_lcm(a, b), c)
-
-# Helper to calculate LCM from prime factorizations (dicts)
-def _lcm_prime_factors(factors1, factors2, factors3=None):
-    lcm_factors = {}
-    all_primes = set(factors1.keys()) | set(factors2.keys())
-    if factors3:
-        all_primes |= set(factors3.keys())
-
-    for p in all_primes:
-        max_exponent = max(factors1.get(p, 0), factors2.get(p, 0))
-        if factors3:
-            max_exponent = max(max_exponent, factors3.get(p, 0))
-        if max_exponent > 0: # Only include primes with positive exponents
-            lcm_factors[p] = max_exponent
-    return lcm_factors
-
-# Helper to calculate GCD from prime factorizations (dicts)
-def _gcd_prime_factors(factors1, factors2):
-    gcd_factors = {}
-    common_primes = set(factors1.keys()) & set(factors2.keys())
-    for p in common_primes:
-        min_exponent = min(factors1.get(p, 0), factors2.get(p, 0))
-        if min_exponent > 0: # Only include primes with positive exponents
-            gcd_factors[p] = min_exponent
-    return gcd_factors
-
-# Helper to get number from prime factorization dict
-def _get_number_from_prime_factors(factors_dict):
-    num = 1
-    for p, e in factors_dict.items():
-        num *= (p ** e)
-    return num
-
-# Common prime bases for factorization problems
-COMMON_PRIMES = [2, 3, 5, 7]
-
-# Function to check if candidate factors are a multiple of base factors
-def _is_multiple_of_prime_factors(candidate_factors, base_factors):
-    for prime, base_exp in base_factors.items():
-        if candidate_factors.get(prime, 0) < base_exp:
-            return False
-    return True
-
-# Ensure distinct numbers for problem generation
-def _get_distinct_numbers(count, min_val, max_val):
-    numbers = set()
-    while len(numbers) < count:
-        numbers.add(random.randint(min_val, max_val))
-    return sorted(list(numbers))
-
-# ==============================================================================
-# Problem Type Implementations (Level 1)
-# ==============================================================================
-
-def generate_type_1_problem():
-    """
-    Level 1: Listing multiples, identifying common multiples up to a limit,
-    and finding the Least Common Multiple (LCM) of two or three numbers.
-    Understanding the relationship between common multiples and LCM.
-    """
-    nums = _get_distinct_numbers(3, 3, 15)
-    num1, num2, num3 = nums[0], nums[1], nums[2]
-    limit = random.randint(50, 150)
-
-    lcm_val = _lcm_three(num1, num2, num3)
-
-    multiples1 = [i for i in range(num1, limit + 1, num1)]
-    multiples2 = [i for i in range(num2, limit + 1, num2)]
-    multiples3 = [i for i in range(num3, limit + 1, num3)]
-
-    common_multiples = [i for i in range(lcm_val, limit + 1, lcm_val)]
-
-    question_text = (
-        f"1. 分別列出 1 到 {limit} 的整數中，{num1}、{num2}、{num3} 三數的倍數，並圈出它們的公倍數。\n"
-        f"2. 以 $[ {num1} , {num2} , {num3} ]$ 表示 {num1}、{num2}、{num3} 的最小公倍數，則 $[ {num1} , {num2} , {num3} ]$=？\n"
-        f"3. 第 1 題所圈出的公倍數與第 2 題所求的最小公倍數有何關係？"
-    )
-
-    answer_text = (
-        f"1.\n"
-        f"   {num1} 的倍數: {', '.join(map(str, multiples1))}\n"
-        f"   {num2} 的倍數: {', '.join(map(str, multiples2))}\n"
-        f"   {num3} 的倍數: {', '.join(map(str, multiples3))}\n"
-        f"   公倍數: {', '.join(map(str, common_multiples))}\n"
-        f"2. {lcm_val}\n"
-        f"3. 公倍數是最小公倍數的倍數。"
-    )
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 1
-    }
-
-def generate_type_2_problem():
-    """
-    Level 1: Direct calculation of the Least Common Multiple (LCM) for two or three positive integers.
-    """
-    nums = _get_distinct_numbers(3, 20, 80)
-    a, b, c = nums[0], nums[1], nums[2]
-
-    lcm_ab = _lcm(a, b)
-    lcm_abc = _lcm_three(a, b, c)
-
-    question_text = (
-        f"求下列各組數的最小公倍數。\n"
-        f"⑴ {a}、{b}\n"
-        f"⑵ {a}、{b}、{c}"
-    )
-
-    answer_text = (
-        f"⑴ {lcm_ab}\n"
-        f"⑵ {lcm_abc}"
-    )
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 1
-    }
-
-def generate_type_3_problem():
-    """
-    Level 1: Identifying multiples of a number given in prime factorization form.
-    A number X is a multiple of Y if all prime factors of Y are present in X
-    with at least the same or higher exponents.
-    """
-    p1, p2 = random.sample(COMMON_PRIMES, 2)
-    exp1_base = random.randint(1, 3)
-    exp2_base = random.randint(1, 3)
-    base_factors = {p1: exp1_base, p2: exp2_base}
-    base_num_formatted = _format_prime_factorization(base_factors)
-
-    candidates = []
-    
-    # Generate 5 candidates
-    for _ in range(5):
-        candidate_factors = {}
-        # Vary exponents around base, allowing for less or more
-        candidate_factors[p1] = random.randint(exp1_base - 1, exp1_base + 2)
-        candidate_factors[p2] = random.randint(exp2_base - 1, exp2_base + 2)
-
-        # Introduce other primes sometimes
-        other_primes = [p for p in COMMON_PRIMES if p not in [p1, p2]]
-        if other_primes and random.random() < 0.5:
-            candidate_factors[random.choice(other_primes)] = random.randint(1, 2)
-        
-        # Remove primes with 0 or negative exponents (not valid in prime factorization)
-        candidate_factors = {p: e for p, e in candidate_factors.items() if e > 0}
-        candidates.append(candidate_factors)
-
-    # Ensure there's at least one correct answer
-    if not any(_is_multiple_of_prime_factors(c, base_factors) for c in candidates):
-        correct_candidate_factors = {p1: exp1_base + random.randint(0,1), p2: exp2_base + random.randint(0,1)}
-        other_primes = [p for p in COMMON_PRIMES if p not in [p1, p2]]
-        if other_primes and random.random() < 0.5:
-            correct_candidate_factors[random.choice(other_primes)] = random.randint(1, 2)
-        correct_candidate_factors = {p: e for p, e in correct_candidate_factors.items() if e > 0}
-        
-        replace_idx = random.randint(0, len(candidates) - 1)
-        candidates[replace_idx] = correct_candidate_factors
-
-    correct_answers_formatted = []
-    for i, candidate_factors in enumerate(candidates):
-        if _is_multiple_of_prime_factors(candidate_factors, base_factors):
-            correct_answers_formatted.append(f"{chr(ord('⑴')+i)}")
-
-    question_text = (
-        f"下列各數中，哪些是 $ {base_num_formatted} $ 的倍數？\n" +
-        "\n".join([f"({chr(ord('⑴')+i)}) $ {_format_prime_factorization(c)} $" for i, c in enumerate(candidates)])
-    )
-    
-    answer_text = " 和 ".join(correct_answers_formatted)
-    if not answer_text:
-        answer_text = "無"
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 1
-    }
-
-def generate_type_4_problem():
-    """
-    Level 1: Similar to Type 3, identifying multiples from a list of numbers given in prime factorization form.
-    Reinforces the understanding of prime factor exponents for multiples.
-    """
-    p1, p2 = random.sample(COMMON_PRIMES, 2)
-    exp1_base = random.randint(1, 3)
-    exp2_base = random.randint(1, 3)
-    base_factors = {p1: exp1_base, p2: exp2_base}
-    base_num_formatted = _format_prime_factorization(base_factors)
-
-    candidates = []
-    
-    # Generate 4 candidates
-    for _ in range(4):
-        candidate_factors = {}
-        candidate_factors[p1] = random.randint(exp1_base - 1, exp1_base + 2)
-        candidate_factors[p2] = random.randint(exp2_base - 1, exp2_base + 2)
-
-        other_primes = [p for p in COMMON_PRIMES if p not in [p1, p2]]
-        if other_primes and random.random() < 0.5:
-            candidate_factors[random.choice(other_primes)] = random.randint(1, 2)
-        
-        candidate_factors = {p: e for p, e in candidate_factors.items() if e > 0}
-        candidates.append(candidate_factors)
-
-    # Ensure at least one correct answer
-    if not any(_is_multiple_of_prime_factors(c, base_factors) for c in candidates):
-        correct_candidate_factors = {p1: exp1_base + random.randint(0,1), p2: exp2_base + random.randint(0,1)}
-        other_primes = [p for p in COMMON_PRIMES if p not in [p1, p2]]
-        if other_primes and random.random() < 0.5:
-            correct_candidate_factors[random.choice(other_primes)] = random.randint(1, 2)
-        correct_candidate_factors = {p: e for p, e in correct_candidate_factors.items() if e > 0}
-        
-        replace_idx = random.randint(0, len(candidates) - 1)
-        candidates[replace_idx] = correct_candidate_factors
-
-    correct_answers_formatted = []
-    for candidate_factors in candidates:
-        if _is_multiple_of_prime_factors(candidate_factors, base_factors):
-            correct_answers_formatted.append(f"$ {_format_prime_factorization(candidate_factors)} $")
-
-    question_text = (
-        f"下列各數中，哪些是 $ {base_num_formatted} $ 的倍數？\n" +
-        "、".join([f"$ {_format_prime_factorization(c)} $" for c in candidates])
-    )
-    
-    answer_text = " 與 ".join(correct_answers_formatted)
-    if not answer_text:
-        answer_text = "無"
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 1
-    }
-
-def generate_type_5_problem():
-    """
-    Level 1: Calculating the Least Common Multiple (LCM) of two or three numbers
-    when they are given in their standard prime factorization form.
-    """
-    primes = random.sample(COMMON_PRIMES + [11, 13], 3)
-    p1, p2, p3 = primes[0], primes[1], primes[2]
-
-    factors_a = {p1: random.randint(1, 3)}
-    if random.random() < 0.7:
-        factors_a[p2] = random.randint(0, 2)
-    factors_a = {p: e for p, e in factors_a.items() if e > 0}
-
-    factors_b = {p1: random.randint(0, 2)}
-    factors_b[p2] = random.randint(1, 3)
-    if random.random() < 0.7:
-        factors_b[p3] = random.randint(1, 2)
-    factors_b = {p: e for p, e in factors_b.items() if e > 0}
-    
-    factors_c = {p1: random.randint(0, 2)}
-    factors_c[p3] = random.randint(1, 3)
-    if random.random() < 0.5:
-        factors_c[random.choice([11,13])] = 1
-    factors_c = {p: e for p, e in factors_c.items() if e > 0}
-
-    lcm_ab_factors = _lcm_prime_factors(factors_a, factors_b)
-    lcm_abc_factors = _lcm_prime_factors(factors_a, factors_b, factors_c)
-
-    formatted_a = _format_prime_factorization(factors_a)
-    formatted_b = _format_prime_factorization(factors_b)
-    formatted_c = _format_prime_factorization(factors_c)
-
-    question_text = (
-        f"利用標準分解式求最小公倍數\n"
-        f"求下列各組數的最小公倍數，並以標準分解式表示。\n"
-        f"⑴ a=${formatted_a}$、b=${formatted_b}$\n"
-        f"⑵ a=${formatted_a}$、b=${formatted_b}$、c=${formatted_c}$"
-    )
-
-    answer_text = (
-        f"⑴ $ {_format_prime_factorization(lcm_ab_factors)} $\n"
-        f"⑵ $ {_format_prime_factorization(lcm_abc_factors)} $"
-    )
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 1
-    }
-
-def generate_type_6_problem():
-    """
-    Level 1: Similar to Type 5, calculating LCM from prime factorizations,
-    but with a slightly different input format using bracket notation for LCM.
-    """
-    primes_set1 = random.sample(COMMON_PRIMES, 2)
-    p1_1, p1_2 = primes_set1[0], primes_set1[1]
-    
-    factors_x = {p1_1: random.randint(2, 4)}
-    factors_y = {p1_2: random.randint(2, 4)}
-    
-    lcm_xy_factors = _lcm_prime_factors(factors_x, factors_y)
-
-    primes_set2 = random.sample(COMMON_PRIMES + [11, 13], 3)
-    p2_1, p2_2, p2_3 = primes_set2[0], primes_set2[1], primes_set2[2]
-
-    factors_p = {p2_1: 1, p2_2: random.randint(1, 2)}
-    factors_p = {p: e for p, e in factors_p.items() if e > 0}
-
-    factors_q = {p2_1: random.randint(2, 3), p2_2: random.randint(2, 4)}
-    if random.random() < 0.7:
-        factors_q[p2_3] = random.randint(1, 2)
-    factors_q = {p: e for p, e in factors_q.items() if e > 0}
-
-    factors_r = {p2_3: random.randint(1, 2), p2_1: 1, p2_2: 1}
-    factors_r = {p: e for p, e in factors_r.items() if e > 0}
-
-    lcm_pqr_factors = _lcm_prime_factors(factors_p, factors_q, factors_r)
-
-    question_text = (
-        f"求下列各組數的最小公倍數，並以標準分解式表示。\n"
-        f"⑴ $[ {_format_prime_factorization(factors_x)} , {_format_prime_factorization(factors_y)} ]=$\n"
-        f"⑵ $[ {_format_prime_factorization(factors_p)} , {_format_prime_factorization(factors_q)} , {_format_prime_factorization(factors_r)} ]=$"
-    )
-
-    answer_text = (
-        f"⑴ $ {_format_prime_factorization(lcm_xy_factors)} $\n"
-        f"⑵ $ {_format_prime_factorization(lcm_pqr_factors)} $"
-    )
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 1
-    }
-
-# ==============================================================================
-# Problem Type Implementations (Level 2)
-# ==============================================================================
-
-def generate_type_7_problem():
-    """
-    Level 2: Multi-step problem involving calculating both GCD and LCM from prime factorizations,
-    then verifying the property that the product of two numbers equals the product of their GCD and LCM:
-    a * b = (a, b) * [a, b].
-    """
-    primes = random.sample(COMMON_PRIMES + [11, 13], 3)
-    p1, p2, p3 = primes[0], primes[1], primes[2]
-
-    factors_a = {p1: random.randint(2, 4), p2: random.randint(1, 3)}
-    factors_a = {p: e for p, e in factors_a.items() if e > 0}
-
-    factors_b = {p1: random.randint(1, 3), p2: random.randint(2, 4)}
-    if random.random() < 0.7:
-        factors_b[p3] = random.randint(1, 2)
-    factors_b = {p: e for p, e in factors_b.items() if e > 0}
-
-    a_val = _get_number_from_prime_factors(factors_a)
-    b_val = _get_number_from_prime_factors(factors_b)
-
-    gcd_factors = _gcd_prime_factors(factors_a, factors_b)
-    lcm_factors = _lcm_prime_factors(factors_a, factors_b)
-
-    gcd_val = _get_number_from_prime_factors(gcd_factors)
-    lcm_val = _get_number_from_prime_factors(lcm_factors)
-    product_gcd_lcm_factors = _get_prime_factors(gcd_val * lcm_val)
-
-    product_ab_factors = _get_prime_factors(a_val * b_val)
-
-    formatted_a = _format_prime_factorization(factors_a)
-    formatted_b = _format_prime_factorization(factors_b)
-
-    question_text = (
-        f"已知 a=${formatted_a}$、b=${formatted_b}$，回答下列問題。\n"
-        f"⑴ 利用標準分解式求 a 和 b 的最大公因數與最小公倍數。\n"
-        f"⑵ 分別以標準分解式表示 $( a , b ) \\times [ a , b ]$ 與 $a \\times b$。\n"
-        f"⑶ 由第⑵題中，你有什麼發現？"
-    )
-
-    answer_text = (
-        f"⑴ $( a , b ) = {_format_prime_factorization(gcd_factors)}$ , $[ a , b ] = {_format_prime_factorization(lcm_factors)}$\n"
-        f"⑵ $( a , b ) \\times [ a , b ] = {_format_prime_factorization(product_gcd_lcm_factors)}$ , $a \\times b = {_format_prime_factorization(product_ab_factors)}$\n"
-        f"⑶ $( a , b ) \\times [ a , b ] = a \\times b$ (最大公因數與最小公倍數的乘積等於兩數的乘積)"
-    )
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 2
-    }
-
-def generate_type_8_problem():
-    """
-    Level 2: Inverse problem applying the property a * b = (a, b) * [a, b]
-    to find the Greatest Common Divisor (GCD) when the product of two numbers
-    and their Least Common Multiple (LCM) are given.
-    """
-    while True:
-        num1 = random.randint(6, 30)
-        num2 = random.randint(6, 30)
-        # Ensure distinct numbers, non-trivial GCD, and manageable LCM
-        if num1 != num2 and math.gcd(num1, num2) > 1 and _lcm(num1, num2) < 300:
-             break
-
-    product_ab = num1 * num2
-    lcm_ab = _lcm(num1, num2)
-    gcd_ab = math.gcd(num1, num2) # This is the target answer
-
-    assert product_ab == gcd_ab * lcm_ab # Sanity check
-
-    question_text = (
-        f"已知兩正整數 a、b，其中 $a \\times b = {product_ab}$、$[ a , b ] = {lcm_ab}$，則 a、b 兩數的最大公因數為何？"
-    )
-
-    answer_text = str(gcd_ab)
-
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 2
-    }
-
-# ==============================================================================
-# Main Dispatcher
-# ==============================================================================
+    """計算兩個數字的最小公倍數。"""
+    if a == 0 or b == 0:
+        return 0
+    # 使用公式 lcm(a, b) = |a*b| / gcd(a, b)
+    # 為了避免中間乘積溢位 (雖然在K12範圍內不太可能，但為良好習慣)，先除後乘
+    return abs(a // _gcd(a, b) * b)
+
+def _lcm_multiple(numbers):
+    """計算一系列數字的最小公倍數。"""
+    if not numbers:
+        return 1
+    result = numbers[0]
+    for i in range(1, len(numbers)):
+        result = _lcm(result, numbers[i])
+    return result
+
+# --- 頂層函式 ---
+# 嚴禁使用 class 封裝。必須直接定義 generate() 與 check() 於模組最外層。
+# 確保代碼不依賴全域狀態，以便系統執行 importlib.reload。
 
 def generate(level=1):
     """
-    Main Dispatcher:
-    - Level 1: Basic concepts, direct calculations, simple definitions.
-    - Level 2: Advanced applications, multi-step problems, word problems.
+    生成 K12 數學「公倍數與最小公倍數」的題目。
+    根據規範，確保程式結構、題型多樣性、排版與 LaTeX 安全，以及數據欄位標準。
     """
-    if level == 1:
-        problem_types = [
-            generate_type_1_problem,
-            generate_type_2_problem,
-            generate_type_3_problem,
-            generate_type_4_problem,
-            generate_type_5_problem,
-            generate_type_6_problem
-        ]
-        return random.choice(problem_types)()
-    elif level == 2:
-        problem_types = [
-            generate_type_7_problem,
-            generate_type_8_problem
-        ]
-        return random.choice(problem_types)()
-    else:
-        raise ValueError("Invalid level. Please choose level 1 or 2.")
+    # 確保代碼不依賴全域狀態，每次執行時重新初始化隨機數生成器
+    random.seed()
 
-def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker
-    Handles float tolerance and string normalization.
-    """
-    user = user_answer.strip().replace(" ", "")
-    correct = correct_answer.strip().replace(" ", "")
-    
-    if user == correct:
-        return {"correct": True, "result": "正確！"}
-        
-    try:
-        if abs(float(user) - float(correct)) < 1e-6:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        pass # Fallback to string comparison if float conversion fails
-        
-    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+    # 初始化返回字典的欄位
+    question_text = ""
+    correct_answer = ""  # 用於程式檢查的標準答案格式 (純數字或逗號分隔)
+    answer_display = ""  # 用於向用戶顯示的答案格式 (可能包含單位或連接詞)
+    image_base64 = None  # 本技能暫無視覺化需求，預設為 None
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    # 題型多樣性：實作至少 3 種不同的題型變體
+    problem_types = [
+        "direct_calculation",     # 直接計算最小公倍數或公倍數
+        "inverse_problem",        # 逆向求解，已知LCM求原數
+        "contextual_application"  # 情境應用題
+    ]
+    selected_type = random.choice(problem_types)
+
+    if selected_type == "direct_calculation":
+        # 直接計算題型的子變體
+        sub_type = random.choice(["lcm_two_numbers", "lcm_three_numbers", "common_multiples_in_range"])
+
+        if sub_type == "lcm_two_numbers":
+            # 題目：求兩個數字的最小公倍數
+            num1 = random.randint(6, 40)
+            num2 = random.randint(6, 40)
+            # 確保數字不相同，且非簡單的倍數關係 (非互質，非倍數關係)，使題目更具挑戰性
+            # 重新生成直到滿足條件
+            while num1 == num2 or num1 % num2 == 0 or num2 % num1 == 0 or _gcd(num1, num2) == 1:
+                num1 = random.randint(6, 40)
+                num2 = random.randint(6, 40)
+            
+            ans_val = _lcm(num1, num2)
+            
+            # 排版與 LaTeX 安全：嚴禁使用 f-string 或 % 格式化
+            question_text = r"求出 {num1} 和 {num2} 的最小公倍數。".replace("{num1}", str(num1)).replace("{num2}", str(num2))
+            answer_display = str(ans_val)
+            correct_answer = str(ans_val)
+
+        elif sub_type == "lcm_three_numbers":
+            # 題目：求三個數字的最小公倍數
+            num1 = random.randint(3, 15)
+            num2 = random.randint(3, 15)
+            num3 = random.randint(3, 15)
+            # 確保三個數字不同，且LCM不是其中任何一個數字 (避免 2, 4, 8 這種 LCM 為 8 的簡單情況)
+            while (len(set([num1, num2, num3])) < 3 or 
+                   _lcm_multiple([num1, num2, num3]) in [num1, num2, num3]):
+                num1 = random.randint(3, 15)
+                num2 = random.randint(3, 15)
+                num3 = random.randint(3, 15)
+            
+            ans_val = _lcm_multiple([num1, num2, num3])
+
+            question_text = r"求出 {num1}、{num2} 和 {num3} 的最小公倍數。".replace("{num1}", str(num1)).replace("{num2}", str(num2)).replace("{num3}", str(num3))
+            answer_display = str(ans_val)
+            correct_answer = str(ans_val)
+
+        elif sub_type == "common_multiples_in_range":
+            # 題目：找出在特定範圍內的所有公倍數
+            num1 = random.randint(4, 15)
+            num2 = random.randint(4, 15)
+            # 確保非互質且非倍數關係，以產生更多樣的LCM
+            while num1 == num2 or num1 % num2 == 0 or num2 % num1 == 0 or _gcd(num1, num2) == 1:
+                num1 = random.randint(4, 15)
+                num2 = random.randint(4, 15)
+            
+            lcm_val = _lcm(num1, num2)
+            
+            # 設定範圍，確保範圍內至少有幾個公倍數
+            min_multiples_count = 2 # 範圍內至少2個公倍數
+            max_multiples_count = 5 # 範圍內最多5個公倍數
+
+            # 確保起始點在 LCM 的倍數附近，且不至於太小
+            start_multiple_factor = random.randint(1, 3) 
+            start_range_lower_bound = lcm_val * start_multiple_factor
+            start_range_upper_bound = lcm_val * (start_multiple_factor + 1) - 1 # 確保不會跳過LCM的倍數
+            start_range = random.randint(start_range_lower_bound, start_range_upper_bound)
+
+            # 確保結束點能包含足夠的公倍數
+            end_range_min_val = start_range + lcm_val * min_multiples_count
+            end_range_max_val = start_range + lcm_val * max_multiples_count + lcm_val - 1
+            end_range = random.randint(end_range_min_val, end_range_max_val)
+            
+            common_multiples = []
+            # 找到第一個大於等於 start_range 的公倍數
+            first_multiple_in_range = ((start_range - 1) // lcm_val + 1) * lcm_val
+            
+            current_multiple = first_multiple_in_range
+            while current_multiple <= end_range:
+                common_multiples.append(current_multiple)
+                current_multiple += lcm_val
+            
+            # 確保生成的題目至少有 min_multiples_count 個公倍數
+            # 避免因隨機範圍導致公倍數過少或沒有 (儘管上面的邏輯已盡力避免)
+            if len(common_multiples) < min_multiples_count:
+                # 重新調整範圍以保證數量
+                start_range = lcm_val * random.randint(1, 2)
+                end_range = start_range + lcm_val * random.randint(min_multiples_count + 1, max_multiples_count + 2)
+                common_multiples = []
+                first_multiple_in_range = ((start_range - 1) // lcm_val + 1) * lcm_val
+                current_multiple = first_multiple_in_range
+                while current_multiple <= end_range:
+                    common_multiples.append(current_multiple)
+                    current_multiple += lcm_val
+            
+            ans_val_str = ", ".join(map(str, sorted(common_multiples))) # 逗號分隔
+            
+            question_text = r"找出 {num1} 和 {num2} 在 {start} 到 {end} 之間的所有公倍數 (包含 {start} 和 {end})，並由小到大排列，用逗號分隔。".replace("{num1}", str(num1)).replace("{num2}", str(num2)).replace("{start}", str(start_range)).replace("{end}", str(end_range))
+            answer_display = ans_val_str
+            correct_answer = ans_val_str
+
+    elif selected_type == "inverse_problem":
+        # 逆向求解題型的子變體
+        sub_type = random.choice(["find_other_number_given_lcm_and_one", "find_numbers_given_lcm_and_ratio"])
+
+        if sub_type == "find_other_number_given_lcm_and_one":
+            # 題目：已知兩個正整數的最小公倍數和其中一個數，求另一個數。
+            # 策略：先生成兩個數，再計算LCM，然後隱藏其中一個。
+            n1 = random.randint(6, 20)
+            n2 = random.randint(6, 20)
+            # 確保數字不相同，且非簡單的倍數關係，也不是互質，使題目有挑戰性
+            while n1 == n2 or n1 % n2 == 0 or n2 % n1 == 0 or _gcd(n1, n2) == 1:
+                n1 = random.randint(6, 20)
+                n2 = random.randint(6, 20)
+            
+            lcm_val = _lcm(n1, n2)
+            
+            # 隨機選擇一個數作為已知數
+            if random.choice([True, False]):
+                known_num = n1
+                ans_val = n2
+            else:
+                known_num = n2
+                ans_val = n1
+            
+            question_text = r"已知兩個正整數的最小公倍數是 {lcm_val}。如果其中一個數是 {known_num}，那麼另一個數是多少？".replace("{lcm_val}", str(lcm_val)).replace("{known_num}", str(known_num))
+            answer_display = str(ans_val)
+            correct_answer = str(ans_val)
+
+        elif sub_type == "find_numbers_given_lcm_and_ratio":
+            # 題目：已知兩個正整數的最小公倍數和它們的比，求這兩個數。
+            # 策略：選擇兩個互質的比例數 r1, r2 和一個公因數 k。
+            # 兩個數為 r1*k 和 r2*k。LCM 為 r1*r2*k。
+            r1 = random.randint(2, 7)
+            r2 = random.randint(2, 7)
+            while r1 == r2 or _gcd(r1, r2) != 1: # 確保 r1, r2 互質且不相等
+                r1 = random.randint(2, 7)
+                r2 = random.randint(2, 7)
+            
+            k = random.randint(2, 5) # 公因數
+            
+            num1 = r1 * k
+            num2 = r2 * k
+            
+            lcm_val = _lcm(num1, num2) # 計算實際的LCM
+            
+            # 確保比例數 r1 < r2，以保持問題描述一致性
+            if r1 > r2:
+                r1, r2 = r2, r1
+            
+            ans_val_pair = sorted([num1, num2]) # 答案以排序後的數字呈現
+            ans_val_str = r"{n1} 和 {n2}".replace("{n1}", str(ans_val_pair[0])).replace("{n2}", str(ans_val_pair[1]))
+            
+            question_text = r"有兩個正整數，它們的最小公倍數是 {lcm_val}，且它們的比是 {r1}:{r2}。請問這兩個數分別是多少？(請由小到大排列，用'和'字連接)".replace("{lcm_val}", str(lcm_val)).replace("{r1}", str(r1)).replace("{r2}", str(r2))
+            correct_answer = f"{ans_val_pair[0]},{ans_val_pair[1]}" # 用逗號分隔作為程式檢查標準
+            answer_display = ans_val_str
+
+    elif selected_type == "contextual_application":
+        # 情境應用題型的子變體
+        sub_type = random.choice(["event_scheduling", "tiling_problem"])
+
+        if sub_type == "event_scheduling":
+            # 題目：兩種事件同時發生後，下次再同時發生的時間（公車、火車等）
+            interval1 = random.randint(5, 18)
+            interval2 = random.randint(5, 18)
+            while interval1 == interval2 or _gcd(interval1, interval2) == 1: # 確保間隔時間不同且非互質，使LCM不等於乘積
+                interval1 = random.randint(5, 18)
+                interval2 = random.randint(5, 18)
+            
+            ans_val = _lcm(interval1, interval2)
+            
+            entity_options = ["公車", "火車", "航班", "船班"]
+            unit_options = ["分鐘", "小時"]
+            
+            entity1 = random.choice(entity_options)
+            entity2 = random.choice([e for e in entity_options if e != entity1]) # 確保兩種實體不同
+            unit = random.choice(unit_options)
+            
+            question_text = r"某車站有兩種 {entity1} 和 {entity2}。{entity1} 每 {interval1} {unit} 發一班，{entity2} 每 {interval2} {unit} 發一班。如果現在兩種 {entity1} 和 {entity2} 同時發車，請問最快要再過多久兩種車會再次同時發車？".replace("{entity1}", entity1).replace("{entity2}", entity2).replace("{interval1}", str(interval1)).replace("{interval2}", str(interval2)).replace("{unit}", unit)
+            answer_display = r"{ans_val}{unit}".replace("{ans_val}", str(ans_val)).replace("{unit}", unit)
+            correct_answer = str(ans_val) # 程式檢查僅需數字部分
+
+        elif sub_type == "tiling_problem":
+            # 題目：用長方形磁磚鋪成最小正方形的邊長
+            len1 = random.randint(8, 25)
+            len2 = random.randint(8, 25)
+            while len1 == len2 or _gcd(len1, len2) == 1: # 確保非互質且非倍數關係
+                len1 = random.randint(8, 25)
+                len2 = random.randint(8, 25)
+            
+            ans_val = _lcm(len1, len2)
+            
+            unit = random.choice(["公分", "公尺"])
+            
+            question_text = r"小明想用長 {len1} {unit}、寬 {len2} {unit} 的長方形磁磚鋪成一個最小的正方形。請問這個正方形的邊長是多少 {unit}？".replace("{len1}", str(len1)).replace("{len2}", str(len2)).replace("{unit}", unit)
+            answer_display = r"{ans_val}{unit}".replace("{ans_val}", str(ans_val)).replace("{unit}", unit)
+            correct_answer = str(ans_val) # 程式檢查僅需數字部分
+            
+    # 返回字典必須且僅能包含 question_text, correct_answer, answer, image_base64
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display,
+        "image_base64": image_base64,
+        "created_at": datetime.datetime.now().isoformat(), # 時間戳記
+        "version": "1.0" # 遞增版本號
+    }
+
+
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # 2. [V10.3] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\']
+            if (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers) and "手寫" not in res.get('question_text', ''):
+                res['question_text'] += "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

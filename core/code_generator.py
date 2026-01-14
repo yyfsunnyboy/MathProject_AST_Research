@@ -65,76 +65,70 @@ PERFECT_UTILS = r'''
 import random
 import math
 import matplotlib
-# [Fix] Font injection for Traditional Chinese support
-matplotlib.rcParams['font.sans-serif'] = ['Microsoft JhengHei'] 
-matplotlib.rcParams['axes.unicode_minus'] = False
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from fractions import Fraction
 from functools import reduce
+import ast
+import base64
+import io
+import re
 
-# --- 1. Formatting Helpers ---
+# [V11.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
 def fmt_num(num, signed=False, op=False):
     """
-    Format number for LaTeX.
-    
-    Args:
-        num: The number to format.
-        signed (bool): If True, always show sign (e.g., "+3", "-5").
-        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
+    Format number for LaTeX (Safe Mode).
     """
     latex_val = to_latex(num)
     if num == 0 and not signed and not op: return "0"
     
     is_neg = (num < 0)
-    abs_val = to_latex(abs(num))
+    abs_str = to_latex(abs(num))
     
     if op:
-        # e.g., " + 3", " - 3"
-        return f" - {abs_val}" if is_neg else f" + {abs_val}"
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
     
     if signed:
-        # e.g., "+3", "-3"
-        return f"-{abs_val}" if is_neg else f"+{abs_val}"
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
         
-    # Default behavior (parentheses for negative)
-    if is_neg: return f"({latex_val})"
+    if is_neg: return r"({v})".replace("{v}", latex_val)
     return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
+    """Check primality (Standard Boolean Return)."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -144,8 +138,15 @@ def is_prime(n):
         i += 6
     return True
 
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -158,127 +159,179 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+# --- 3. Fraction Generator ---
+def simplify_fraction(n, d):
+    """[V11.3 Standard Helper] 強力化簡分數並回傳 (分子, 分母)"""
+    common = math.gcd(n, d)
+    return n // common, d // common
 
-# --- 3. Fraction Generator Helper ---
+def _calculate_distance_1d(a, b):
+    """[V11.4 Standard Helper] 計算一維距離"""
+    return abs(a - b)
+
+def draw_geometry_composite(polygons, labels, x_limit=(0,10), y_limit=(0,10)):
+    """[V11.6 Ultra Visual] 物理級幾何渲染器 (Physical Geometry Renderer)"""
+    fig = Figure(figsize=(5, 4))
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    
+    # [Physical Standard] 直角鎖死，防止變形
+    ax.set_aspect('equal', adjustable='datalim')
+
+    # 1. 繪製多邊形
+    all_x, all_y = [], []
+    for poly_pts in polygons:
+        polygon = patches.Polygon(poly_pts, closed=True, fill=False, edgecolor='black', linewidth=2)
+        ax.add_patch(polygon)
+        for p in poly_pts:
+            all_x.append(p[0])
+            all_y.append(p[1])
+            
+    # 2. 標註頂點 (Label Halo & High Density)
+    for text, pos in labels.items():
+        all_x.append(pos[0])
+        all_y.append(pos[1])
+        # [Label Halo] 白色遮罩確保清晰度
+        ax.text(pos[0], pos[1], text, fontsize=20, fontweight='bold', ha='center', va='center',
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=1))
+
+    # [Dynamic Buffer] 動態邊界補償 (容納 大字體)
+    if all_x and all_y:
+        min_x, max_x = min(all_x), max(all_x)
+        min_y, max_y = min(all_y), max(all_y)
+        rx = (max_x - min_x) * 0.3 if (max_x - min_x) > 0 else 1.0
+        ry = (max_y - min_y) * 0.3 if (max_y - min_y) > 0 else 1.0
+        ax.set_xlim(min_x - rx, max_x + rx)
+        ax.set_ylim(min_y - ry, max_y + ry)
+    else:
+        ax.set_xlim(x_limit)
+        ax.set_ylim(y_limit)
+
+    ax.axis('off')
+    
+    buf = io.BytesIO()
+    # [High Density] 300 DPI Hardened
+    fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
+    del fig
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
+
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
-def draw_number_line(points_map):
-    """[Advanced] Generate aligned ASCII number line with HTML container."""
-    if not points_map: return ""
+    return Fraction(1, 2)
+    
+def draw_number_line(points_map, x_min=None, x_max=None, **kwargs):
+    """
+    [V11.6 Self-Healing] 數線引擎：參數兼容與高解析度
+    """
+    highlight_segment = kwargs.get('highlight_segment')
+    # 1. 數據正規化
     values = []
     for v in points_map.values():
         if isinstance(v, (int, float)): values.append(float(v))
         elif isinstance(v, Fraction): values.append(float(v))
         else: values.append(0.0)
+    
     if not values: values = [0]
-    min_val = math.floor(min(values)) - 1
-    max_val = math.ceil(max(values)) + 1
-    if max_val - min_val > 15:
-        mid = (max_val + min_val) / 2
-        min_val = int(mid - 7); max_val = int(mid + 8)
-    unit_width = 6
-    line_str = ""; tick_str = ""
-    range_len = max_val - min_val + 1
-    label_slots = [[] for _ in range(range_len)]
-    for name, val in points_map.items():
+    
+    # 2. 自動計算範圍 (如果未提供)
+    if x_min is None: x_min = math.floor(min(values)) - 1
+    if x_max is None: x_max = math.ceil(max(values)) + 1
+    
+    # 3. 建立 Figure (Thread-Safe)
+    fig = Figure(figsize=(8, 1.5))
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+
+    # 4. 繪製數線主體
+    ax.plot([x_min, x_max], [0, 0], 'k-', linewidth=1.5) 
+    ax.plot(x_max, 0, 'k>', markersize=8, clip_on=False) # 右箭頭
+    ax.plot(x_min, 0, 'k<', markersize=8, clip_on=False) # 左箭頭
+
+    # 5. 設定刻度：只顯示 0，並且字體加大 (V10.2 Style)
+    ticks = [0] if x_min <= 0 <= x_max else []
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(['0'] if ticks else [], fontsize=18, fontweight='bold') 
+    
+    # 6. 移除其他干擾
+    ax.set_yticks([])
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    # 7. 繪製點與標籤
+    for label, val in points_map.items():
         if isinstance(val, Fraction): val = float(val)
-        idx = int(round(val - min_val))
-        if 0 <= idx < range_len: label_slots[idx].append(name)
-    for i in range(range_len):
-        val = min_val + i
-        line_str += "+" + "-" * (unit_width - 1)
-        tick_str += f"{str(val):<{unit_width}}"
-    final_label_str = ""
-    for labels in label_slots:
-        final_label_str += f"{labels[0]:<{unit_width}}" if labels else " " * unit_width
-    result = (
-        f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
-        f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
-    )
+        ax.plot(val, 0, 'ro', markersize=7)
+        # 點標籤設為 16 號
+        ax.text(val, 0.08, label, ha='center', va='bottom', fontsize=16, fontweight='bold', color='red')
 
-# --- 4. High-Level Math Objects (Vector/Matrix/Calculus) ---
-class Vector3:
-    """Simple 3D Vector Class for Geometry."""
-    def __init__(self, x, y, z=0): self.x, self.y, self.z = x, y, z
-    def __add__(self, o): return Vector3(self.x+o.x, self.y+o.y, self.z+o.z)
-    def __sub__(self, o): return Vector3(self.x-o.x, self.y-o.y, self.z-o.z)
-    def dot(self, o): return self.x*o.x + self.y*o.y + self.z*o.z
-    def cross(self, o): return Vector3(self.y*o.z-self.z*o.y, self.z*o.x-self.x*o.z, self.x*o.y-self.y*o.x)
-    def mag(self): return math.sqrt(self.x**2 + self.y**2 + self.z**2)
-    def __repr__(self): return f"({self.x}, {self.y}, {self.z})"
+    # 8. 繪製線段 (Highlight Segment)
+    if highlight_segment:
+        try:
+            p1_label, p2_label = highlight_segment
+            if p1_label in points_map and p2_label in points_map:
+                v1 = float(points_map[p1_label])
+                v2 = float(points_map[p2_label])
+                ax.plot([v1, v2], [0, 0], 'r-', linewidth=3, alpha=0.5)
+        except:
+            pass
 
-class Matrix:
-    """Simple Matrix (2x2 or 3x3) for transformations."""
-    def __init__(self, rows): self.rows = rows
-    def det(self):
-        if len(self.rows) == 2: return self.rows[0][0]*self.rows[1][1] - self.rows[0][1]*self.rows[1][0]
-        return 0 # Placeholder for 3x3
-    def mv(self, v): # Matrix-Vector multiplication
-        return Vector3(
-            self.rows[0][0]*v.x + self.rows[0][1]*v.y,
-            self.rows[1][0]*v.x + self.rows[1][1]*v.y, 0
-        )
+    # 9. 輸出 Base64 [V11.6 High Density]
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
+    del fig
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
 
-def draw_integral_area(func_lambda, x_range, color='blue', alpha=0.3):
-    """
-    [Visual] Helper to plot area under curve. 
-    Usage: In generate(), ax.fill_between(x, y, ...).
-    Actually, this is just a placeholder to remind AI to use fill_between.
-    """
-    pass
-
-# --- 5. Standard Answer Checker (Auto-Injected) ---
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
 def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker [V9.8.1 Enhanced]
-    1. Handles float tolerance.
-    2. Normalizes strings (removes spaces, supports Chinese commas).
-    3. Returns user-friendly Chinese error messages.
-    """
-    if user_answer is None: return {"correct": False, "result": "未提供答案 (No answer)"}
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
     
-    # 1. Normalize strings (字串正規化)
-    def normalize(s):
-        s = str(s).strip()
-        # 移除空格、LaTeX間距
-        s = s.replace(" ", "").replace("\\,", "").replace("\\;", "")
-        # [Fix] 支援中文全形逗號，轉為半形，避免判錯
-        s = s.replace("，", ",") 
-        return s
-    
-    user_norm = normalize(user_answer)
-    correct_norm = normalize(correct_answer)
-    
-    # 2. Exact Match Strategy (精確比對)
-    if user_norm == correct_norm:
-        return {"correct": True, "result": "正確！"}
-        
-    # 3. Float Match Strategy (數值容錯比對)
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
+
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
     try:
-        # 嘗試將兩者都轉為浮點數，如果誤差極小則算對
-        if abs(float(user_norm) - float(correct_norm)) < 1e-6:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        pass # 無法轉為數字，可能是代數式或座標，維持字串比對結果
-        
-    # [Fix] 錯誤訊息優化：中文、換行顯示，去除不必要的符號
-    # 這裡回傳的 result 會直接顯示在前端 Result 區域
-    return {"correct": False, "result": f"答案錯誤。正確答案為：\n{correct_answer}"}
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    
+    # [V11.1] 科學記號自動比對 (1.23*10^4 vs 1.23e4)
+    # 支援 *10^, x10^, e 格式
+    if "*" in str(ans_display) or "^" in str(ans_display) or "e" in str(ans_display):
+        try:
+            # 正規化：將常見乘號與次方符號轉為 E-notation
+            norm_ans = str(ans_display).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            norm_user = str(u).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            if math.isclose(float(norm_ans), float(norm_user), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+        except: pass
+
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 '''
 
 def inject_perfect_utils(code_str):
@@ -287,7 +340,7 @@ def inject_perfect_utils(code_str):
     CRITICAL: Strips AI-generated duplicates to prevent redefinition errors.
     """
     # 1. Strip known helper functions if AI wrote them despite instructions
-    pattern = r'def (to_latex|fmt_num|get_positive_factors|is_prime|get_prime_factorization|gcd|lcm|get_random_fraction|draw_number_line|draw_integral_area)\(.*?(\n\s+.*)+'
+    pattern = r'def\s+(check|to_latex|fmt_num|get_positive_factors|is_prime|get_prime_factorization|gcd|lcm|simplify_fraction|get_random_fraction|draw_number_line|draw_integral_area|_calculate_distance_1d|draw_geometry_composite)\(.*?(\n\s+.*)+'
     clean = re.sub(pattern, '', code_str, flags=re.MULTILINE)
     
     # 2. Strip standard imports to avoid duplication
@@ -313,6 +366,8 @@ You are a Senior Python Developer (V10.2 Elite). Execute the ARCHITECT'S SPEC pr
    - Set `plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']`.
    - Number line ONLY shows origin '0' with fontsize 18. Point labels (A, B) set to 16+.
 6. **Result Feedback**: The `result` field in `check()` function MUST be "正確！" or "答案錯誤...".
+7. **Forbidden**: 【絕對禁令】：嚴禁自定義 check()、to_latex() 與 is_prime()，系統會自動注入 V10.6 鎖死版工具庫。
+8. **Data Prohibition**: generate() MUST use random.randint for geometric properties. Calculate answers/coords via formulas. DO NOT hardcode values.
 """
 
 
@@ -445,22 +500,40 @@ def load_gold_standard_example():
 
 def fix_missing_answer_key(code_str):
     """[V10.3.1] 增加換行修復、回傳格式強化與全面中文化反饋"""
-    patch_code = r'''
-# [Auto-Injected Patch v10.3.1] Universal Return, Linebreak & Chinese Fixer
+    patch_code = r"""
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
         
-        # 1. 針對 check 函式的布林值回傳進行容錯封裝，並強制使用中文
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
         if func.__name__ == 'check' and isinstance(res, bool):
             return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
         
         if isinstance(res, dict):
-            # 2. [V10.3 核心修復] 解決 r-string 導致的 \n 換行失效問題
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
             if 'question_text' in res and isinstance(res['question_text'], str):
-                res['question_text'] = res['question_text'].replace("\\n", "\n")
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \\n 問題
+                res['question_text'] = re.sub(r'\\n', '\n', res['question_text'])
             
-            # 3. 確保反饋訊息也是中文 (針對 AI 可能寫出的英文進行覆蓋)
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', ',', '|', '(', '[', '{', '\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                res['input_mode'] = 'handwriting'
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
             if func.__name__ == 'check' and 'result' in res:
                 if res['result'].lower() in ['correct!', 'correct', 'right']:
                     res['result'] = '正確！'
@@ -481,7 +554,7 @@ import sys
 for _name, _func in list(globals().items()):
     if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)
-'''
+"""
     return code_str + patch_code
 
 # ==============================================================================
@@ -624,6 +697,17 @@ def fix_code_syntax(code_str, error_msg=""):
         fixed_code, c = apply_fix(r'print\s+(.*)', r'print(\1)', fixed_code)
         total_fixes += c
 
+    # [V11.8 Punctuation Hardening Patch]
+    # 暴力修復非字串區塊的全形標點符號
+    # 邏輯：將行末或運算符旁的全形句號、逗號轉換或刪除
+    lines = fixed_code.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        if not re.search(r'["\']', line): # 僅針對不含引號的純代碼行
+            line = line.replace('。', '').replace('，', ',').replace('；', ';').replace('：', ':')
+        cleaned_lines.append(line)
+    fixed_code = '\n'.join(cleaned_lines)
+
     return fixed_code, total_fixes
 
 
@@ -639,7 +723,7 @@ def validate_and_fix_code(code_content):
         font_style_patch = r'''
 # [V10.2 Elite Font & Style]
 import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 def _apply_v10_visual_style(ax):
@@ -652,14 +736,21 @@ def _apply_v10_visual_style(ax):
         code_content = font_style_patch + "\n" + code_content
         total_fixes += 1
 
+    # [V10.6.2 Elite] 針對字體設定行的「全方位引號對齊」手術
+    # 增加對 matplotlib.rcParams, plt.rcParams 與 rcParams 的全面支援
+    font_conf_pattern = r"(?:matplotlib\.|plt\.)?rcParams\[['\"]font\.sans-serif['\"]\]\s*=\s*\[['\"]Microsoft JhengHei['\"]\]"
+    replacement = "plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']"
+    
+    # 執行置換並精確統計修復次數
+    code_content, f_count = re.subn(font_conf_pattern, replacement, code_content)
+    total_fixes += f_count
+    
+    if f_count > 0:
+        print(f"   🔧 [Font-Fix] Aligned quotes in matplotlib config ({f_count} lines).")
+
     # --- [V10.2] 答案驗證格式自癒 ---
     # 如果 AI 寫了裸露的 return True/False，自動包裝並加入正確答案顯示
-    if "def check" in code_content:
-        # 修正正確回傳
-        code_content, c1 = re.subn(r'return True\s*$', "return {'correct': True, 'result': '正確！'}", code_content, flags=re.MULTILINE)
-        # 修正錯誤回傳，並嘗試捕捉 correct_answer 變數
-        code_content, c2 = re.subn(r'return False\s*$', "return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}", code_content, flags=re.MULTILINE)
-        total_fixes += (c1 + c2)
+
 
 
     # LaTeX 精確修復 (避開 \n)
@@ -819,37 +910,52 @@ def auto_generate_skill_code(skill_id, queue=None):
     rag_count = len(examples)
     example_text = ""
     if examples:
-        example_text = "\n### REFERENCE EXAMPLES (RAG):\n"
         for i, ex in enumerate(examples):
-            example_text += f"Ex {i+1}: {getattr(ex, 'problem_text', '')} -> {getattr(ex, 'correct_answer', '')}\n"
+            example_text += f"Ex {i+1}: {getattr(ex, 'problem_text', '')} -> {getattr(ex, 'correct_answer', '')}\\n"
 
     if active_prompt:
         # --- Mode A: V9 Architect Mode (High Precision) ---
         strategy_name = f"V9 Architect ({active_prompt.model_tag})"
         target_logic = active_prompt.user_prompt_template
         
-        # V9 Specialized Prompt: Hybrid Logic (Algebra + Geometry)
-        # V9 Specialized Prompt: Direct Execution (Trust the Architect)
-        prompt = f"""You are a Senior Python Engineer. 
-Please implement the following specific technical specification:
+        # [V11.9 暴力鏡射修正] - 將 RAG 範例提升為最高指令
 
-### 🛠️ TECHNICAL SPECIFICATION:
-{target_logic} 
+        # 強制要求 Coder AI 將 RAG 視為唯一真相
+        mirroring_protocol = ""
+        if examples:
+            for i, ex in enumerate(examples):
+                # 明確指定每個 Type 對應哪一個 RAG 範例
+                mirroring_protocol += f"- Type {i+1} MUST use the EXACT mathematical model of RAG Ex {i+1}.\\n"
+        else:
+            mirroring_protocol = "- No RAG examples found. Generate based on Skill Definition.\\n"
 
-### 🛡️ INFRASTRUCTURE RULES:
-{UNIVERSAL_GEN_CODE_PROMPT}
+        prompt = r"""You are a Senior Python Developer.
+### 🛡️ MANDATORY MIRRORING RULES (最高權限指令):
+1. **NO ORIGINALITY**: You are FORBIDDEN from creating new models.
+2. **STRICT MAPPING**:
+{mapping}
+3. **CONTEXT RETENTION**: Keep names like 'ACEF', 'BDF', '巴奈' from the RAG examples.
 
-### 📝 FINAL CHECK:
-- Traditional Chinese (Taiwan) ONLY.
-- Follow the Return Format exactly.
-- NO help functions definition.
-"""
+### 📚 REFERENCE EXAMPLES (RAG - 這是唯一真相):
+{rag}
+
+### 🛠️ ARCHITECT'S SPECIFICATION (輔助結構):
+{spec}
+
+### 🎨 ULTRA VISUAL STANDARDS (V11.6):
+- Aspect Ratio: `ax.set_aspect('equal')` (物理比例鎖死).
+- Resolution: `dpi=300`.
+- Label Halo: White halos for ABCD text.
+
+### ⛔ SYSTEM GUARDRAILS:
+{system_rules}
+""".replace("{mapping}", mirroring_protocol).replace("{rag}", example_text).replace("{spec}", target_logic).replace("{system_rules}", UNIVERSAL_GEN_CODE_PROMPT)
     else:
         # --- Mode B: Legacy V8 Mode (Fallback) ---
         strategy_name = "Standard Mode"
         target_logic = skill.gemini_prompt if (skill and skill.gemini_prompt) else f"Math logic for {skill_id}"
         
-        # [v8.7.3 Upgrade]: Prompt Optimization - No Helpers Output
+        # [v11.7 Upgrade]: Prompt Optimization - Pedagogical Mirroring
         prompt = f"""
 You are a Senior Python Engineer for a Math Education System.
 
@@ -881,9 +987,20 @@ def generate(level=1):
     ...
 ARCHITECT'S SPECIFICATION: {target_logic}
 
+### REFERENCE EXAMPLES (RAG):
 {example_text}
 
-CODING RULES:
+### 💡 INSTRUCTION:
+Your task is to dynamize (Dynamize) the following examples into Python code, strictly adhering to their mathematical models.
+
+### 🛡️ PEDAGOGICAL PRIORITY PROTOCOL (V11.7):
+1. **Type 1 - Textbook Mirroring (Mirror Mode)**:
+   - You MUST generate `generate_type_1` by strictly mirroring the first RAG example.
+   - **NO ORIGINALITY**: Use the EXACT same mathematical model. ONLY Randomize the numbers.
+   - **Context**: Keep keywords like "Aquarium", "Ticket". Do not change context.
+
+2. **Data Linkage (Integer Guarantee)**:
+   - For Reverse Calculation problems, generate the integer ANSWER first, then derive the question parameters.
 
 CODING RULES:
 
@@ -1003,6 +1120,81 @@ if 'generate' not in globals() and any(k.startswith('generate_') for k in global
             code, l_count = fix_logic_errors(code, logic_err)
             logic_fixes += l_count # 累加
             repaired = True
+
+        # =========================================================
+        # [V11.4] "Final Intercept" (The Last Line of Defense)
+        # =========================================================
+
+        # 1. String Deduplication (防止提示語堆疊)
+        # 合併 question_text 中連續重複的括號引導語
+        if code.count("請輸入") > 1 or code.count("例如：") > 1 or code.count("答案格式") > 1:
+            code = re.sub(r'(\(請輸入.*?\))(\s*\\n\1)+', r'\1', code)
+            code = re.sub(r'(\(例如：.*?\))(\s*\\n\1)+', r'\1', code)
+            code = re.sub(r'(\(答案格式：.*?\))(\s*\\n\1)+', r'\1', code)
+
+        # 2. Answer Purge (答案欄位淨化) - 強制清除引導語
+        # 若 answer 欄位包含「例如：」或「請輸入」，強制還原為 str(correct_answer)
+        if "例如：" in code or "請輸入" in code:
+             code = re.sub(r"'answer':\s*['\"](.*?(?:例如|請輸入).*?)['\"]", r"'answer': str(correct_answer)", code)
+
+        # 3. Quote Hardening (引號鎖死) [Final Intercept]
+        # 強制修正為標準格式 ['Microsoft JhengHei']，無論 AI 產出為何
+        font_pattern = r"(?:matplotlib\.|plt\.)?rcParams\[['\"]font\.sans-serif['\"]\]\s*=\s*(?:\[[^\]]*\]|['\"].*?['\"])"
+        code = re.sub(font_pattern, "plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']", code)
+
+        # 4. Physical Newline Hardening (物理換行硬化)
+        # 將程式碼中所有文字態的 \\n 替換為物理換行符號 \n (解決單引號/f-string 內的換行顯示問題)
+        code = code.replace('\\\\n', '\\n')
+
+        # 4. Truncation Detection (斷頭偵測) [NEW]
+        # Scan for calls to _generate_type_... inside generate()
+        # And ensure they are defined in the code.
+        generate_match = re.search(r'def generate\(.*?\):(.*?)(?=\ndef|\Z)', code, re.DOTALL)
+        if generate_match:
+            generate_body = generate_match.group(1)
+            calls = re.findall(r'(_generate_type_\w+)\(', generate_body)
+            definitions = re.findall(r'def\s+(_generate_type_\w+)\s*\(', code)
+            missing_funcs = [c for c in calls if c not in definitions]
+            if missing_funcs:
+                error_msg = f"Critical Error: Called functions not defined: {missing_funcs}. Code truncated?"
+                log_experiment(
+                    skill_id, start_time, len(prompt), len(code), False, 
+                    error_msg, repaired,
+                    current_model,
+                    actual_provider=current_provider,
+                    regex_fixes=regex_fixes, 
+                    raw_output_len=raw_len,
+                    utils_len=utils_len
+                )
+                return False, error_msg
+
+        # 4. Logic Self-Healing (邏輯自癒)
+        # 若發現 is_prime 或 _check_divisibility 函式內部包含 return {'correct': False...} 這種錯誤格式
+        # 強制將其替換為標準的 return False 或 return True
+        # 注意：這裡使用較為保守的替換，避免誤傷主 check 函式
+        
+        def fix_bool_return(match):
+            func_body = match.group(0)
+            if "def check" in func_body: return func_body # Skip main check function
+            # Replace dict returns with bools
+            fixed = re.sub(r"return\s+\{['\"]correct['\"]\s*:\s*False.*?\}", "return False", func_body)
+            fixed = re.sub(r"return\s+\{['\"]correct['\"]\s*:\s*True.*?\}", "return True", fixed)
+            return fixed
+
+        # 掃描 helper functions (此處假設 helper 函式較短，且由 def 開頭)
+        # 為了安全，我們針對特定函式名稱進行掃描
+        for func_name in ['is_prime', '_check_divisibility', 'check_divisibility']:
+            pattern = rf"(def {func_name}\(.*?\):.*?)(?=\ndef|\Z)"
+            code = re.sub(pattern, fix_bool_return, code, flags=re.DOTALL)
+
+
+        # 2. Handwriting Prompt Injection (Logic Enhancement) - [Cleaned up in V11.1]
+        # 由於 fix_missing_answer_key 已包含增強邏輯，此處僅做備援檢查或是移除舊的 runtime patch
+        if "_patch_all_returns" in code:
+             # 如果 AI 沒有寫 input_mode，我們不需要強制 runtime patch 去 check 變數
+             # 因為 fix_missing_answer_key 的 patch 已經很強大了
+             pass
+        # =========================================================
 
         duration = time.time() - start_time
         created_at = time.strftime('%Y-%m-%d %H:%M:%S')

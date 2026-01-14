@@ -364,8 +364,8 @@
 
         function openEditModal(example) {
             const form = document.getElementById('editExampleForm');
-            // 【修復】確保路徑正確，包含 /admin 前綴與正確的斜線
-            form.action = `/admin/examples/edit/${example.id}`;
+            // 【修復】確保路徑正確，移除多餘的 /admin 前綴
+            form.action = `/examples/edit/${example.id}`;
             document.getElementById('edit_example_id').value = example.id;
             document.getElementById('edit_skill_id').value = example.skill_id;
             document.getElementById('edit_problem_text').value = example.problem_text;
@@ -377,7 +377,8 @@
 
         function deleteExample(exampleId) {
             if (confirm('確定要刪除這個例題嗎？')) {
-                const url = `/admin/examples/delete/${exampleId}`;
+                // 【修復】確保路徑正確，移除多餘的 /admin 前綴
+                const url = `/examples/delete/${exampleId}`;
                 fetch(url, {
                     method: 'POST',
                     headers: {

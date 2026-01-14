@@ -1,35 +1,119 @@
 # ==============================================================================
 # ID: jh_數學1上_ScientificNotation
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.0)
-# Duration: 33.50s | RAG: 7 examples
-# Created At: 2026-01-08 23:02:34
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 33.05s | RAG: 5 examples
+# Created At: 2026-01-14 18:44:50
+# Fix Status: [Repaired]
+# Fixes: Regex=6, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
+from functools import reduce
+import ast
 
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
-    """Convert number to LaTeX (integers, decimals, fractions, mixed numbers)"""
+    """
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
+    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        if abs(num.numerator) > num.denominator:
-            sign = "-" if num.numerator < 0 else ""
-            rem = abs(num) - (abs(num).numerator // abs(num).denominator)
-            if rem == 0: return f"{sign}{abs(num).numerator // abs(num).denominator}"
-            return f"{sign}{abs(num).numerator // abs(num).denominator} \\frac{{{rem.numerator}}}{{{rem.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+        
+        sign = "-" if num < 0 else ""
+        abs_num = abs(num)
+        
+        if abs_num.numerator > abs_num.denominator:
+            whole = abs_num.numerator // abs_num.denominator
+            rem_num = abs_num.numerator % abs_num.denominator
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses"""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
+# Alias
+fmt_fraction_latex = to_latex 
+
+# --- 2. Number Theory Helpers ---
+def is_prime(n):
+    """Check primality (Standard Boolean Return)."""
+    if n <= 1: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    if n <= 3: return {'correct': True, 'result': '正確！'}
+    if n % 2 == 0 or n % 3 == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0: return {'correct': False, 'result': r'答案錯誤。正確答案為：{ans}'.replace('{ans}', str(correct_answer))}
+        i += 6
+    return {'correct': True, 'result': '正確！'}
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
+def get_prime_factorization(n):
+    factors = {}
+    d = 2
+    temp = n
+    while d * d <= temp:
+        while temp % d == 0:
+            factors[d] = factors.get(d, 0) + 1
+            temp //= d
+        d += 1
+    if temp > 1:
+        factors[temp] = factors.get(temp, 0) + 1
+    return factors
+
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
+
+# --- 3. Fraction Generator ---
+def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
+    for _ in range(100):
+        den = random.randint(2, denominator_limit)
+        num = random.randint(min_val * den, max_val * den)
+        if den == 0: continue
+        val = Fraction(num, den)
+        if simple and val.denominator == 1: continue 
+        if val == 0: continue
+        return val
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -65,411 +149,385 @@ def draw_number_line(points_map):
     )
     return result
 
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
+    
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
 
-#  # Not needed for this skill
-
-def generate_type_1_problem():
-    """
-    Concept: Convert a large integer, a small decimal, and a fraction (with a power of 10 denominator) into scientific notation.
-    """
-    # Part 1 (Large Integer)
-    int_val_a = random.randint(1, 9)
-    int_val_b = random.randint(0, 9)
-    num_zeros1 = random.randint(6, 8)
-    
-    q1_num = str(int_val_a) + str(int_val_b) + '0' * num_zeros1
-    ans_exp1 = num_zeros1 + 1
-    ans1 = f"{int_val_a}.{int_val_b} \\times 10^{{{ans_exp1}}}"
-
-    # Part 2 (Small Decimal)
-    dec_val_a = random.randint(1, 9)
-    dec_val_b = random.randint(0, 9)
-    dec_val_c = random.randint(0, 9)
-    num_zeros2 = random.randint(5, 7)
-    
-    q2_num = f"0.{'0' * num_zeros2}{dec_val_a}{dec_val_b}{dec_val_c}"
-    ans_exp2 = -(num_zeros2 + 1)
-    ans2 = f"{dec_val_a}.{dec_val_b}{dec_val_c} \\times 10^{{{ans_exp2}}}"
-
-    # Part 3 (Fraction)
-    frac_num = random.randint(1, 9)
-    frac_den_exp = random.randint(5, 7)
-    
-    q3_num = f"\\frac{{{frac_num}}}{{10^{{{frac_den_exp}}}}}"
-    ans_exp3 = -frac_den_exp
-    ans3 = f"{frac_num} \\times 10^{{{ans_exp3}}}"
-    
-    question_text = f"以科學記號表示下列各數。\n⑴ {q1_num}\n⑵ {q2_num}\n⑶ ${q3_num}$"
-    correct_answer = f"⑴ ${ans1}$ ⑵ ${ans2}$ ⑶ ${ans3}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_2_problem():
-    """
-    Concept: Convert a large integer, a small decimal, and a fraction (with a power of 10 denominator) into scientific notation.
-    (Similar to Type 1 but with slightly different numerical ranges to ensure distinct problem generation).
-    """
-    # Part 1 (Large Integer)
-    int_val_a = random.randint(1, 9)
-    int_val_b = random.randint(0, 9)
-    num_zeros1 = random.randint(7, 9) # Range 7-9
-    
-    q1_num = str(int_val_a) + str(int_val_b) + '0' * num_zeros1
-    ans_exp1 = num_zeros1 + 1
-    ans1 = f"{int_val_a}.{int_val_b} \\times 10^{{{ans_exp1}}}"
-
-    # Part 2 (Small Decimal)
-    dec_val_a = random.randint(1, 9)
-    dec_val_b = random.randint(0, 9)
-    dec_val_c = random.randint(0, 9)
-    num_zeros2 = random.randint(6, 8) # Range 6-8
-    
-    q2_num = f"0.{'0' * num_zeros2}{dec_val_a}{dec_val_b}{dec_val_c}"
-    ans_exp2 = -(num_zeros2 + 1)
-    ans2 = f"{dec_val_a}.{dec_val_b}{dec_val_c} \\times 10^{{{ans_exp2}}}"
-
-    # Part 3 (Fraction)
-    frac_num = random.randint(1, 9)
-    frac_den_exp = random.randint(6, 8) # Range 6-8
-    
-    q3_num = f"\\frac{{{frac_num}}}{{10^{{{frac_den_exp}}}}}"
-    ans_exp3 = -frac_den_exp
-    ans3 = f"{frac_num} \\times 10^{{{ans_exp3}}}"
-    
-    question_text = f"以科學記號表示下列各數。\n⑴ {q1_num}\n⑵ {q2_num}\n⑶ ${q3_num}$"
-    correct_answer = f"⑴ ${ans1}$ ⑵ ${ans2}$ ⑶ ${ans3}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_3_problem():
-    """
-    Concept: Convert a small decimal number presented in a real-world context into scientific notation.
-    """
-    val_a = random.randint(1, 9)
-    val_b = random.randint(0, 9)
-    val_c = random.randint(0, 9)
-    num_zeros_after_decimal = random.randint(6, 9)
-    
-    object_name = random.choice(["諾羅病毒", "細菌", "紅血球", "灰塵顆粒"])
-    unit_name = random.choice(["奈米", "微米", "毫米"])
-    
-    decimal_str = f"0.{'0' * num_zeros_after_decimal}{val_a}{val_b}{val_c}"
-    exp = -(num_zeros_after_decimal + 1)
-    mantissa = f"{val_a}.{val_b}{val_c}"
-    
-    question_text = f"{object_name}的直徑大小約為 {val_a}{val_b}{val_c} {unit_name}，即 {decimal_str} 公尺。試將 {decimal_str} 以科學記號表示。"
-    correct_answer = f"${mantissa} \\times 10^{{{exp}}}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_4_problem():
-    """
-    Concept: For a number in scientific notation, determine its number of digits (for positive exponents)
-    or the position of the first non-zero digit after the decimal point (for negative exponents).
-    """
-    # Part 1 (Positive Exponent)
-    mantissa1_int = random.randint(1, 9)
-    mantissa1_dec = random.randint(0, 9)
-    exp1 = random.randint(6, 9)
-    ans1 = exp1 + 1
-    
-    # Part 2 (Negative Exponent)
-    mantissa2_int = random.randint(1, 9)
-    mantissa2_dec = random.randint(0, 9)
-    exp2 = random.randint(4, 6) # Absolute value
-    ans2 = exp2
-    
-    question_text = (
-        f"⑴ 若將 ${mantissa1_int}.{mantissa1_dec} \\times 10^{{{exp1}}}$ 乘開，則這個數是幾位數？\n"
-        f"⑵ 若將 ${mantissa2_int}.{mantissa2_dec} \\times 10^{{{-exp2}}}$ 乘開，則這個數的小數點後第幾位開始出現不為 0 的數字？"
-    )
-    correct_answer = f"⑴ {ans1} 位數 ⑵ 第 {ans2} 位"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_5_problem():
-    """
-    Concept: For a number in scientific notation, determine its number of digits (for positive exponents)
-    or the position of the first non-zero digit after the decimal point (for negative exponents).
-    (Similar to Type 4 but with slightly different numerical ranges and mantissa precision).
-    """
-    # Part 1 (Positive Exponent)
-    mantissa1_int = random.randint(1, 9)
-    mantissa1_dec = random.randint(0, 9)
-    exp1 = random.randint(5, 8)
-    ans1 = exp1 + 1
-    
-    # Part 2 (Negative Exponent)
-    mantissa2_int = random.randint(1, 9)
-    mantissa2_dec1 = random.randint(0, 9)
-    mantissa2_dec2 = random.randint(0, 9)
-    exp2 = random.randint(5, 7) # Absolute value
-    ans2 = exp2
-    
-    question_text = (
-        f"1. 若將 ${mantissa1_int}.{mantissa1_dec} \\times 10^{{{exp1}}}$ 乘開，則這個數是幾位數？\n"
-        f"2. 若將 ${mantissa2_int}.{mantissa2_dec1}{mantissa2_dec2} \\times 10^{{{-exp2}}}$ 乘開，則這個數的小數點後第幾位開始出現不為 0 的數字？"
-    )
-    correct_answer = f"1. {ans1} 位數 2. 第 {ans2} 位"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_6_problem():
-    """
-    Concept: Compare two scientific notation numbers, focusing on cases where exponents are often distinct,
-    using `與` to separate the numbers.
-    """
-    # Part 1 (Positive Exponents)
-    retry_count = 0
-    while retry_count < 100:
-        m1_int = random.randint(1, 9)
-        m1_dec = random.randint(0, 9)
-        e1_val = random.randint(3, 6)
-        mantissa1_str = f"{m1_int}.{m1_dec}"
-        mantissa1 = float(mantissa1_str)
-
-        m2_int = random.randint(1, 9)
-        m2_dec = random.randint(0, 9)
-        e2_val = random.randint(3, 6)
-        mantissa2_str = f"{m2_int}.{m2_dec}"
-        mantissa2 = float(mantissa2_str)
-        
-        # Ensure numbers are distinct enough for comparison, avoiding identical representations
-        if abs(e1_val - e2_val) >= 1 or (e1_val == e2_val and mantissa1 != mantissa2):
-            break
-        retry_count += 1
-    if retry_count == 100:
-        raise RuntimeError("Failed to generate distinct numbers for Type 6 Part 1 after 100 retries.")
-
-    num1_val = mantissa1 * (10**e1_val)
-    num2_val = mantissa2 * (10**e2_val)
-    ans_op1 = ">" if num1_val > num2_val else "<"
-
-    # Part 2 (Negative Exponents)
-    retry_count = 0
-    while retry_count < 100:
-        m3_int = random.randint(1, 9)
-        m3_dec = random.randint(0, 9)
-        e3_val = random.randint(4, 7)
-        mantissa3_str = f"{m3_int}.{m3_dec}"
-        mantissa3 = float(mantissa3_str)
-
-        m4_int = random.randint(1, 9)
-        m4_dec = random.randint(0, 9)
-        e4_val = random.randint(4, 7)
-        mantissa4_str = f"{m4_int}.{m4_dec}"
-        mantissa4 = float(mantissa4_str)
-
-        # Ensure numbers are distinct enough for comparison, avoiding identical representations
-        if abs(e3_val - e4_val) >= 1 or (e3_val == e4_val and mantissa3 != mantissa4):
-            break
-        retry_count += 1
-    if retry_count == 100:
-        raise RuntimeError("Failed to generate distinct numbers for Type 6 Part 2 after 100 retries.")
-
-    num3_val = mantissa3 * (10**(-e3_val))
-    num4_val = mantissa4 * (10**(-e4_val))
-    ans_op2 = ">" if num3_val > num4_val else "<"
-    
-    question_text = (
-        f"比較下列各題中兩數的大小。\n"
-        f"⑴ ${mantissa1_str} \\times 10^{{{e1_val}}}$ 與 ${mantissa2_str} \\times 10^{{{e2_val}}}$ \n"
-        f"⑵ ${mantissa3_str} \\times 10^{{{-e3_val}}}$ 與 ${mantissa4_str} \\times 10^{{{-e4_val}}}$"
-    )
-    correct_answer = (
-        f"⑴ ${mantissa1_str} \\times 10^{{{e1_val}}}$ {ans_op1} ${mantissa2_str} \\times 10^{{{e2_val}}}$ "
-        f"⑵ ${mantissa3_str} \\times 10^{{{-e3_val}}}$ {ans_op2} ${mantissa4_str} \\times 10^{{{-e4_val}}}$"
-    )
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
-
-def generate_type_7_problem():
-    """
-    Concept: Compare two scientific notation numbers, allowing for same exponents and equality, using `__` as a placeholder.
-    """
-    # Part 1 (Positive Exponents)
-    retry_count = 0
-    while retry_count < 100:
-        m1_int = random.randint(1, 9)
-        m1_dec1 = random.randint(0, 9)
-        m1_dec2 = random.randint(0, 9)
-        e1_val = random.randint(4, 7)
-        mantissa1_str = f"{m1_int}.{m1_dec1}{m1_dec2}"
-        mantissa1 = float(mantissa1_str)
-
-        m2_int = random.randint(1, 9)
-        m2_dec1 = random.randint(0, 9)
-        m2_dec2 = random.randint(0, 9)
-        mantissa2_str = f"{m2_int}.{m2_dec1}{m2_dec2}"
-        mantissa2 = float(mantissa2_str)
-        
-        # Randomly set e2_val relative to e1_val
-        e2_val_offset = random.choice([-1, 0, 1])
-        e2_val = e1_val + e2_val_offset
-        # Ensure e2_val is within range [4, 7]
-        e2_val = max(4, min(7, e2_val))
-
-        # Ensure the *representation* is not identical unless specific logic allows for it.
-        # The spec says: "If (mantissa1 != mantissa2 or e1_val != e2_val), break loop."
-        # This means it will loop until they are NOT identically represented.
-        if mantissa1 != mantissa2 or e1_val != e2_val:
-            break
-        retry_count += 1
-    if retry_count == 100:
-        raise RuntimeError("Failed to generate distinct numbers for Type 7 Part 1 after 100 retries.")
-
-    num1_val = mantissa1 * (10**e1_val)
-    num2_val = mantissa2 * (10**e2_val)
-    
-    if num1_val > num2_val:
-        ans_op1 = ">"
-    elif num1_val < num2_val:
-        ans_op1 = "<"
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
     else:
-        ans_op1 = "="
+        ans_display = str(c_raw).strip()
 
-    # Part 2 (Negative Exponents)
-    retry_count = 0
-    while retry_count < 100:
-        m3_int = random.randint(1, 9)
-        m3_dec1 = random.randint(0, 9)
-        m3_dec2 = random.randint(0, 9)
-        e3_val = random.randint(5, 8)
-        mantissa3_str = f"{m3_int}.{m3_dec1}{m3_dec2}"
-        mantissa3 = float(mantissa3_str)
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 
-        m4_int = random.randint(1, 9)
-        m4_dec1 = random.randint(0, 9)
-        m4_dec2 = random.randint(0, 9)
-        mantissa4_str = f"{m4_int}.{m4_dec1}{m4_dec2}"
-        mantissa4 = float(mantissa4_str)
-        
-        # Randomly set e4_val relative to e3_val
-        e4_val_offset = random.choice([-1, 0, 1])
-        e4_val = e3_val + e4_val_offset
-        # Ensure e4_val is within range [5, 8]
-        e4_val = max(5, min(8, e4_val))
 
-        # Ensure the *representation* is not identical
-        if mantissa3 != mantissa4 or e3_val != e4_val:
-            break
-        retry_count += 1
-    if retry_count == 100:
-        raise RuntimeError("Failed to generate distinct numbers for Type 7 Part 2 after 100 retries.")
 
-    num3_val = mantissa3 * (10**(-e3_val))
-    num4_val = mantissa4 * (10**(-e4_val))
-    
-    if num3_val > num4_val:
-        ans_op2 = ">"
-    elif num3_val < num4_val:
-        ans_op2 = "<"
+from datetime import datetime
+import base64 # 依規範必須包含，即使不使用
+import re
+
+# --- 輔助函式 (Helper Functions) ---
+# 規範：所有輔助函式必須明確使用 'return' 語句回傳結果。
+# 規範：若結果用於拼接 question_text，則回傳值必須強制轉為字串 (str)。
+
+def _format_scientific_notation(coefficient, exponent):
+    """
+    格式化科學記號字串，嚴格遵守 LaTeX 安全排版規範。
+    範例：3.45 \times 10^{6}
+    規範：凡字串包含 LaTeX 指令，嚴禁使用 f-string 或 % 格式化。
+    """
+    # 處理係數為 0 的特殊情況
+    if math.isclose(coefficient, 0.0, abs_tol=1e-12):
+        return "0"
+
+    # 確保係數格式化至合理的位數，並移除尾隨的零和點
+    # 內部使用 f-string 格式化係數數值，但最終拼接 LaTeX 字串時仍使用 replace
+    if coefficient == int(coefficient):
+        coeff_str = str(int(coefficient))
     else:
-        ans_op2 = "="
+        # 使用足夠的精度，然後移除尾隨零和點
+        coeff_str = f"{coefficient:.10f}".rstrip('0').rstrip('.')
+        if coeff_str == "-0": # 處理 -0.0 顯示為 0
+            coeff_str = "0"
+
+    # 嚴格執行 LaTeX 模板替換，禁止 f-string 或 % 格式化
+    template = r"{coeff} \times 10^{{{exp}}}".replace("{coeff}", coeff_str)
+    formatted_string = template.replace("{exp}", str(exponent))
+    return formatted_string
+
+def _to_scientific_notation_tuple(number):
+    """
+    將標準數字轉換為 (係數, 指數) 元組，確保 1 <= |係數| < 10。
+    """
+    if math.isclose(number, 0.0, abs_tol=1e-12):
+        return (0.0, 0) # 0 的科學記號通常直接表示為 0
+
+    is_negative = number < 0
+    abs_number = abs(number)
+    exponent = 0
+
+    if abs_number >= 10:
+        while abs_number >= 10:
+            abs_number /= 10
+            exponent += 1
+    elif abs_number < 1:
+        while abs_number < 1 and not math.isclose(abs_number, 0.0, abs_tol=1e-12):
+            abs_number *= 10
+            exponent -= 1
     
-    question_text = (
-        f"比較兩數的大小，在 __ 中填入＞、＜或=。\n"
-        f"⑴ ${mantissa1_str} \\times 10^{{{e1_val}}}$ __ ${mantissa2_str} \\times 10^{{{e2_val}}}$ \n"
-        f"⑵ ${mantissa3_str} \\times 10^{{{-e3_val}}}$ __ ${mantissa4_str} \\times 10^{{{-e4_val}}}$"
+    coefficient = abs_number * (-1 if is_negative else 1)
+    
+    # 微調以確保係數在 [1, 10) 範圍內，處理浮點數精度問題
+    # 例如：如果原始數字是 9.999999999999999，可能被表示為 10.0
+    # 或者 0.9999999999999999，可能被表示為 0.999...
+    if abs(coefficient) >= 10 and not math.isclose(coefficient, 0.0, abs_tol=1e-12):
+        coefficient /= 10
+        exponent += 1
+    elif abs(coefficient) < 1 and not math.isclose(coefficient, 0.0, abs_tol=1e-12):
+        coefficient *= 10
+        exponent -= 1
+    
+    # 再次檢查並確保係數在 [1, 10) 範圍內 (排除 0)
+    if not math.isclose(coefficient, 0.0, abs_tol=1e-12):
+        while abs(coefficient) >= 10:
+            coefficient /= 10
+            exponent += 1
+        while abs(coefficient) < 1:
+            coefficient *= 10
+            exponent -= 1
+
+    return (coefficient, exponent)
+
+def _parse_scientific_notation_string(s):
+    """
+    解析可能是科學記號形式的字串為浮點數值。
+    能處理的格式包含： "3.45 \times 10^{6}", "3.45E6", "3.45 * 10^6", "12345", "0.000123"。
+    若解析失敗則回傳 None。
+    """
+    s = s.strip()
+    
+    # 嘗試直接轉換為浮點數 (處理標準數字和 '3.45e6' 格式)
+    try:
+        return float(s)
+    except ValueError:
+        pass
+
+    # 嘗試解析 LaTeX 樣式的科學記號: X \times 10^{Y} 或 X * 10^{Y}
+    # 支援係數為負數、小數點，指數為負數。
+    latex_pattern = re.compile(
+        r"^(-?\d+(?:\.\d+)?)\s*(?:\\times|\*|\cdot)?\s*10\^{(-?\d+)}$"
     )
-    correct_answer = f"⑴ {ans_op1} ⑵ {ans_op2}"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer
-    }
+    # 移除空格以匹配 LaTeX 格式，但保留係數和指數之間的空格彈性
+    match = latex_pattern.match(s) 
+    if match:
+        coeff_str, exp_str = match.groups()
+        try:
+            coefficient = float(coeff_str)
+            exponent = int(exp_str)
+            return coefficient * (10**exponent)
+        except ValueError:
+            pass
+
+    # 嘗試解析簡化版科學記號: X * 10^Y 或 X * 10**Y
+    simple_pattern = re.compile(
+        r"^(-?\d+(?:\.\d+)?)\s*(?:[\*x]\s*10(?:\^|\*\*)(-?\d+))$"
+    )
+    match = simple_pattern.match(s)
+    if match:
+        coeff_str, exp_str = match.groups()
+        try:
+            coefficient = float(coeff_str)
+            exponent = int(exp_str)
+            return coefficient * (10**exponent)
+        except ValueError:
+            pass
+            
+    return None # 所有解析嘗試都失敗
+
+# --- 頂層函式 (Top-Level Functions) ---
+# 規範：嚴禁使用 class 封裝。必須直接定義 generate() 與 check() 於模組最外層。
+# 規範：確保代碼不依賴全域狀態，以便系統執行 importlib.reload。
 
 def generate(level=1):
     """
-    Main dispatcher for Scientific Notation problems.
-    Randomly selects one of the 7 problem types.
+    根據指定難度等級生成科學記號相關題目。
+
+    Args:
+        level (int): 難度等級，預設為 1。
+
+    Returns:
+        dict: 包含題目文本、正確答案、答案、圖片 base64、創建時間和版本號的字典。
     """
-    problem_types = [
-        generate_type_1_problem,
-        generate_type_2_problem,
-        generate_type_3_problem,
-        generate_type_4_problem,
-        generate_type_5_problem,
-        generate_type_6_problem,
-        generate_type_7_problem,
-    ]
-    
-    chosen_problem_func = random.choice(problem_types)
-    return chosen_problem_func()
+    question_text = ""
+    correct_answer = ""
+    answer = "" # 此欄位與 correct_answer 相同，用於顯示給使用者
+    image_base64 = None # 科學記號通常不需要圖片，依規範設為 None
 
-# The check function from the gold standard is not explicitly part of the specification
-# for this skill's implementation, so it is omitted.
-# If a check function were required, it would look similar to the reference:
-# def check(user_answer, correct_answer):
-#     user_answer = user_answer.strip().replace(' ', '').replace('$', '') # Basic cleanup for comparison
-#     correct_answer = correct_answer.strip().replace(' ', '').replace('$', '') # Basic cleanup for comparison
-#
-#     is_correct = (user_answer == correct_answer)
-#
-#     # Add more robust parsing for scientific notation if needed, e.g., to handle 1.0e5 vs 10e4
-#     # For now, strict string comparison might be sufficient based on how answers are formatted.
-#     # Example for numerical comparison for scientific notation:
-#     # try:
-#     #     # Simple parsing, might need more complex regex for full LaTeX support
-#     #     def parse_scientific(s):
-#     #         s = s.replace('\\times', '*').replace('^', '**').replace('{', '').replace('}', '')
-#     #         return eval(s)
-#     #     if "times 10" in user_answer and "times 10" in correct_answer:
-#     #         if abs(parse_scientific(user_answer) - parse_scientific(correct_answer)) < 1e-9:
-#     #             is_correct = True
-#     #     elif float(user_answer) == float(correct_answer): # For simple numbers
-#     #         is_correct = True
-#     # except (ValueError, SyntaxError):
-#     #     pass
-#
-#     result_text = f"完全正確！答案是 ${correct_answer}$。" if is_correct else f"答案不正確。正確答案應為：${correct_answer}$"
-#     return {"correct": is_correct, "result": result_text, "next_question": True}
+    # 規範：generate() 內部必須使用 random.choice 或 if/elif 邏輯，實作至少 3 種不同的題型變體。
+    problem_type = random.choice([
+        "standard_to_scientific",  # 變體 1: 直接計算 (標準數字轉科學記號)
+        "scientific_to_standard",  # 變體 2: 逆向求解 (科學記號轉標準數字)
+        "comparison_or_operation"  # 變體 3: 情境應用 (比較大小或運算)
+    ])
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    if problem_type == "standard_to_scientific":
+        # 變體 1: 將標準數字表示成科學記號
+        if level == 1:
+            num_range_choice = random.choice(["large", "small", "moderate"])
+            if num_range_choice == "large":
+                num = random.randint(10**3, 10**6) # 例如: 12345, 987654
+            elif num_range_choice == "small":
+                num = random.uniform(0.001, 0.999) # 例如: 0.00123, 0.987
+                num = round(num, random.randint(3, 5)) # 保留一些精度
+            else: # moderate, 10-999 或 0.1-0.99
+                if random.random() < 0.5:
+                    num = random.randint(10, 999)
+                else:
+                    num = random.uniform(0.1, 0.99)
+                    num = round(num, random.randint(2,3))
+        else: # 更高難度等級
+            num_range_choice = random.choice(["large", "small", "very_large", "very_small"])
+            if num_range_choice == "large":
+                num = random.randint(10**5, 10**10)
+            elif num_range_choice == "small":
+                num = random.uniform(10**-10, 10**-5)
+                num = round(num, random.randint(8, 12))
+            elif num_range_choice == "very_large":
+                num = random.randint(10**10, 10**15)
+            else: # very_small
+                num = random.uniform(10**-15, 10**-10)
+                num = round(num, random.randint(12, 16))
+
+        if random.random() < 0.2: # 約 20% 機率生成負數
+            num *= -1
+        
+        # 約 5% 機率生成 0
+        if random.random() < 0.05:
+            num = 0
+
+        coeff, exp = _to_scientific_notation_tuple(num)
+        
+        # 格式化數字字串，避免顯示為 -0.0
+        num_str = f"{num:f}".rstrip('0').rstrip('.')
+        if num_str == "-0": num_str = "0"
+        
+        # 規範：凡字串包含 LaTeX 指令，嚴禁使用 f-string 或 % 格式化。
+        # 必須嚴格執行以下模板：expr = r"x = {a}".replace("{a}", str(ans_val))
+        question_template = r"請將數字 ${num_val}$ 表示成科學記號。"
+        question_text = question_template.replace("{num_val}", num_str)
+        
+        correct_answer = _format_scientific_notation(coeff, exp)
+
+    elif problem_type == "scientific_to_standard":
+        # 變體 2: 將科學記號表示成一般的數字
+        if level == 1:
+            coeff = round(random.uniform(1, 9.99), random.randint(0, 2))
+            exp = random.randint(-5, 5) # 較小範圍的指數
+        else:
+            coeff = round(random.uniform(1, 9.99), random.randint(0, 3))
+            exp = random.randint(-10, 10) # 較大範圍的指數
+
+        if random.random() < 0.2:
+            coeff *= -1
+        
+        # 約 5% 機率生成 0
+        if random.random() < 0.05:
+            coeff = 0
+
+        scientific_str = _format_scientific_notation(coeff, exp)
+        
+        standard_num = coeff * (10**exp)
+        # 格式化標準數字字串，避免顯示為 -0.0
+        correct_answer = f"{standard_num:f}".rstrip('0').rstrip('.')
+        if correct_answer == "-0": correct_answer = "0"
+
+        question_template = r"請將科學記號 ${sci_val}$ 表示成一般的數字。"
+        question_text = question_template.replace("{sci_val}", scientific_str)
+
+    else: # problem_type == "comparison_or_operation"
+        # 變體 3: 比較大小或簡單運算
+        op_type = random.choice(["compare", "multiply", "divide"])
+
+        # 生成兩個科學記號數字
+        coeff1 = round(random.uniform(1, 9.99), random.randint(0, 2))
+        exp1 = random.randint(-8, 8)
+        
+        coeff2 = round(random.uniform(1, 9.99), random.randint(0, 2))
+        exp2 = random.randint(-8, 8)
+
+        if random.random() < 0.2: coeff1 *= -1
+        if random.random() < 0.2: coeff2 *= -1
+
+        # 確保不會生成 0 用於乘除法，除非作為特例處理
+        if op_type in ["multiply", "divide"]:
+            if math.isclose(coeff1, 0.0, abs_tol=1e-12): coeff1 = round(random.uniform(1, 9.99), random.randint(0,2)) * (-1 if random.random() < 0.5 else 1)
+            if math.isclose(coeff2, 0.0, abs_tol=1e-12): coeff2 = round(random.uniform(1, 9.99), random.randint(0,2)) * (-1 if random.random() < 0.5 else 1)
+        
+        # 允許比較 0
+        if op_type == "compare" and random.random() < 0.05: coeff1 = 0
+        if op_type == "compare" and random.random() < 0.05: coeff2 = 0
+
+        sci_str1 = _format_scientific_notation(coeff1, exp1)
+        sci_str2 = _format_scientific_notation(coeff2, exp2)
+
+        if op_type == "compare":
+            # 比較大小
+            num1 = coeff1 * (10**exp1)
+            num2 = coeff2 * (10**exp2)
+            
+            question_template = r"請比較 ${val1}$ 和 ${val2}$ 的大小，並填入 $>, <, =$。"
+            question_text = question_template.replace("{val1}", sci_str1).replace("{val2}", sci_str2)
+
+            if num1 > num2:
+                correct_answer = ">"
+            elif num1 < num2:
+                correct_answer = "<"
+            else:
+                correct_answer = "="
+        
+        elif op_type == "multiply":
+            # 乘法運算: (a x 10^b) * (c x 10^d) = (a*c) x 10^(b+d)
+            result_val = (coeff1 * (10**exp1)) * (coeff2 * (10**exp2))
+
+            # 將結果正規化為科學記號形式
+            final_coeff, final_exp = _to_scientific_notation_tuple(result_val)
+
+            question_template = r"請計算 $(\text{${val1}$}) \times (\text{${val2}$})$，並將結果以科學記號表示。"
+            question_text = question_template.replace("{val1}", sci_str1).replace("{val2}", sci_str2)
+            
+            correct_answer = _format_scientific_notation(final_coeff, final_exp)
+
+        else: # op_type == "divide"
+            # 除法運算: (a x 10^b) / (c x 10^d) = (a/c) x 10^(b-d)
+            # 確保除數不為零
+            if math.isclose(coeff2, 0.0, abs_tol=1e-12): # 再次檢查，避免浮點數誤差導致的 0
+                coeff2 = random.uniform(1, 9.99)
+                if random.random() < 0.2: coeff2 *= -1
+                sci_str2 = _format_scientific_notation(coeff2, exp2)
+            
+            result_val = (coeff1 * (10**exp1)) / (coeff2 * (10**exp2))
+
+            # 將結果正規化為科學記號形式
+            final_coeff, final_exp = _to_scientific_notation_tuple(result_val)
+
+            question_template = r"請計算 $(\text{${val1}$}) \div (\text{${val2}$})$，並將結果以科學記號表示。"
+            question_text = question_template.replace("{val1}", sci_str1).replace("{val2}", sci_str2)
+
+            correct_answer = _format_scientific_notation(final_coeff, final_exp)
+
+    # 規範：返回字典必須且僅能包含 question_text, correct_answer, answer, image_base64。
+    # 規範：更新時必須將 created_at 設為 datetime.now() 並遞增 version。
+    answer = correct_answer # 依規範，答案欄位通常用於顯示，與正確答案一致
+
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer,
+        "image_base64": image_base64, # 無圖片，設為 None
+        "created_at": datetime.now().isoformat(),
+        "version": "9.6"
+    }
+
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # 2. [V10.3] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\']
+            if (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers) and "手寫" not in res.get('question_text', ''):
+                res['question_text'] += "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

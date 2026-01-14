@@ -1,59 +1,75 @@
 # ==============================================================================
 # ID: jh_數學1上_PrimeNumbersAndPrimeFactorization
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 21.95s | RAG: 8 examples
-# Created At: 2026-01-09 14:12:05
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 27.01s | RAG: 5 examples
+# Created At: 2026-01-14 20:13:46
+# Fix Status: [Repaired]
+# Fixes: Regex=1, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
 from functools import reduce
+import ast
 
-# --- 1. Formatting Helpers ---
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses."""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
+    """Check primality (Standard Boolean Return)."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -63,8 +79,15 @@ def is_prime(n):
         i += 6
     return True
 
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -77,25 +100,21 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
 
-# --- 3. Fraction Generator Helper ---
+# --- 3. Fraction Generator ---
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -131,53 +150,78 @@ def draw_number_line(points_map):
     )
     return result
 
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
+    
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
+
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    
+    # [V11.1] 科學記號自動比對 (1.23*10^4 vs 1.23e4)
+    # 支援 *10^, x10^, e 格式
+    if "*" in str(ans_display) or "^" in str(ans_display) or "e" in str(ans_display):
+        try:
+            # 正規化：將常見乘號與次方符號轉為 E-notation
+            norm_ans = str(ans_display).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            norm_user = str(u).lower().replace("*10^", "e").replace("x10^", "e").replace("×10^", "e").replace("^", "")
+            if math.isclose(float(norm_ans), float(norm_user), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+        except: pass
+
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 
 
 
-from itertools import permutations
+import datetime
+import base64 # Required for 'image_base64' field, even if empty
 
-# ==============================================================================
-# GOLD STANDARD TEMPLATE v8.7 (Universal)
-# ==============================================================================
-# Rules for AI Coder:
-# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands. 
-#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
-#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
-# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
-# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
-# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer'.
-# ==============================================================================
+# --- 輔助函式 (Helper Functions) ---
 
-
-# Internal Helper Functions for Prime Numbers and Prime Factorization
-# ==============================================================================
-
-def is_prime(n):
-    """Checks if a number n is prime."""
+def _is_prime(n):
+    """
+    檢查一個數是否為質數。
+    Args:
+        n (int): 待檢查的整數。
+    Returns:
+        bool: 如果 n 是質數則回傳 True，否則回傳 False。
+    """
     if n < 2:
         return False
-    if n == 2:
-        return True
-    if n % 2 == 0:
-        return False
-    i = 3
-    while i * i <= n:
+    # 從 2 到 sqrt(n) 檢查是否有因數
+    for i in range(2, int(math.sqrt(n)) + 1):
         if n % i == 0:
             return False
-        i += 2
     return True
 
-def get_positive_factors(n):
-    """Returns a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.sqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
-def get_prime_factorization(n):
-    """Returns a dictionary of prime factors and their exponents for n."""
+def _get_prime_factors_dict(n):
+    """
+    取得一個數的質因數及其指數的字典。
+    Args:
+        n (int): 待分解的整數。
+    Returns:
+        dict: 質因數為鍵，指數為值的字典。例如：_get_prime_factors_dict(120) -> {2: 3, 3: 1, 5: 1}
+    """
     factors = {}
     d = 2
     temp = n
@@ -186,276 +230,286 @@ def get_prime_factorization(n):
             factors[d] = factors.get(d, 0) + 1
             temp //= d
         d += 1
-    if temp > 1:
+    if temp > 1: # 處理剩餘的質因數 (如果 temp 本身是質數)
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-# ==============================================================================
-# Problem Type Implementations (Level 1)
-# ==============================================================================
+def _format_prime_factorization(factors_dict):
+    """
+    將質因數分解的字典格式化為 LaTeX 安全的字串。
+    Args:
+        factors_dict (dict): 質因數及其指數的字典。
+    Returns:
+        str: 格式化後的質因數分解字串。例如：{2: 3, 3: 1, 5: 1} -> "2^3 \\times 3 \\times 5"
+    """
+    if not factors_dict:
+        return "1" # 理論上對於大於 1 的正整數不會發生
 
-def generate_type_1_problem():
-    """
-    Type 1: Identify Prime or Composite Numbers
-    Concept: Determine whether given positive integers are prime or composite.
-    """
-    prime_pool = [p for p in range(10, 101) if is_prime(p)]
-    composite_pool = [c for c in range(10, 101) if not is_prime(c)]
+    parts = []
+    # 確保質因數按大小排序
+    sorted_factors = sorted(factors_dict.items())
 
-    n1 = random.choice(prime_pool)
-    
-    # Ensure n2 is composite and distinct from n1
-    while True:
-        n2 = random.choice(composite_pool)
-        if n2 != n1:
-            break
-            
-    ans_n1 = "質數" if is_prime(n1) else "合數"
-    ans_n2 = "質數" if is_prime(n2) else "合數"
-    
-    question_text = f"分別判斷 {n1} 和 {n2} 兩數是質數還是合數？"
-    correct_answer = f"{n1} 是 {ans_n1}，{n2} 是 {ans_n2}"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer, # For direct answer matching
-        "correct_answer": correct_answer,
-        "difficulty": 1
-    }
-
-def generate_type_2_problem():
-    """
-    Type 2: Number of Rectangles from Unit Squares
-    Concept: Find the number of distinct rectangular shapes that can be formed from n unit squares.
-             This is equivalent to finding the number of unique factor pairs of n.
-    """
-    n = random.choice([12, 18, 24, 30, 36, 40, 48, 60, 72, 80, 90, 100])
-    
-    factors = get_positive_factors(n)
-    num_rectangles = (len(factors) + 1) // 2 # Number of unique factor pairs
-    
-    question_text = f"欲將 {n} 個邊長為 1 的小正方形緊密排列拼成矩形，且不會剩下任何小正方形，則可以拼出幾種不同形狀的矩形？"
-    correct_answer = f"{num_rectangles} 種"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 1
-    }
-
-def generate_type_3_problem():
-    """
-    Type 3: Prime Factorization and List Prime Factors
-    Concept: Express a composite number in its standard prime factorization form and list all its unique prime factors.
-    """
-    # Generate a random composite number between 50 and 500
-    while True:
-        n = random.randint(50, 500)
-        if not is_prime(n):
-            break
-            
-    prime_factorization_dict = get_prime_factorization(n)
-    prime_factors_list = sorted(list(prime_factorization_dict.keys()))
-
-    # Convert dictionary to LaTeX standard form string
-    latex_factorization = ""
-    for prime, exponent in prime_factorization_dict.items():
+    for prime, exponent in sorted_factors:
         if exponent == 1:
-            latex_factorization += f"{prime} \\times "
+            parts.append(str(prime))
         else:
-            latex_factorization += f"{prime}^{{{exponent}}} \\times "
-    latex_factorization = latex_factorization.rstrip(" \\times ") # Remove trailing " \times "
-
-    prime_factors_str = "、".join(map(str, prime_factors_list))
-    
-    correct_answer = f"標準分解式為 ${latex_factorization}$，質因數為 {prime_factors_str}"
-    question_text = f"將 {n} 以標準分解式表示，並寫出所有的質因數。"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 1
-    }
-
-# ==============================================================================
-# Problem Type Implementations (Level 2)
-# ==============================================================================
-
-def generate_type_4_problem():
-    """
-    Type 4: Birthday Puzzle with Factorization
-    Concept: Given a number N which is the product of four distinct positive integers f1, f2, f3, f4,
-             find a permutation of these integers such that f_a + f_b is a valid month (1-12)
-             and f_c + f_d is a valid day (1-31).
-    """
-    while True:
-        # Generate 4 distinct small primes to ensure unique factors and manageable sums
-        # Primes up to 29 for day sum (max 31) are reasonable.
-        primes_pool = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37] # Added a few more for flexibility
-        if len(primes_pool) < 4: continue # Should not happen
-
-        p1, p2, p3, p4 = random.sample(primes_pool, 4)
-        factors = sorted([p1, p2, p3, p4]) # Keep sorted for consistent permutation generation
-
-        valid_solutions = set() # Store (month_sum, day_sum) tuples to check for uniqueness
-        
-        # Iterate over all permutations of the four factors
-        for perm in permutations(factors):
-            # Try splitting into two pairs: (perm[0], perm[1]) and (perm[2], perm[3])
-            month_sum_cand = perm[0] + perm[1]
-            day_sum_cand = perm[2] + perm[3]
-
-            if 1 <= month_sum_cand <= 12 and 1 <= day_sum_cand <= 31:
-                # Add the solution as a sorted tuple of (month, day) to ensure uniqueness
-                # e.g., (5, 15) is the same as (15, 5) if the problem implies unordered pairs
-                # However, the problem states "month and day", implying a specific order.
-                # So (month_sum, day_sum) should be unique.
-                valid_solutions.add((month_sum_cand, day_sum_cand))
-        
-        # Check if a unique (month, day) combination was found
-        if len(valid_solutions) == 1:
-            target_num = p1 * p2 * p3 * p4
-            month_ans, day_ans = list(valid_solutions)[0]
-            break
+            # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+            # 必須使用 .replace() 模板，避免 LaTeX 大括號與 Python 衝突
+            part_str_template = r"{prime}^{exponent}"
+            part_str = part_str_template.replace("{prime}", str(prime)).replace("{exponent}", str(exponent))
+            parts.append(part_str)
             
-    question_text = (
-        f"將 {target_num} 拆成 4 個相異正整數的乘積，再將這 4 個正整數分成 2 組，"
-        f"每組 2 個的和，就是我的生日囉！小妍的生日應為幾月幾日？"
-    )
-    correct_answer = f"{month_ans} 月 {day_ans} 日"
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_answer,
-        "correct_answer": correct_answer,
-        "difficulty": 2
-    }
+    # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+    # 必須使用 .replace() 模板，避免 LaTeX 大括號與 Python 衝突 (此處為拼接，但仍需注意)
+    result_str = r" \times ".join(parts)
+    return result_str
 
-def generate_type_5_problem():
+def _generate_random_prime(min_val, max_val):
     """
-    Type 5: Password from Prime Factorization Structure
-    Concept: Extract exponents and prime bases from a number's prime factorization
-             based on a specific template ($2^a \times b^c \times d$).
+    在指定範圍內生成一個隨機質數。
+    Args:
+        min_val (int): 範圍最小值。
+        max_val (int): 範圍最大值。
+    Returns:
+        int: 一個隨機質數。
+    Raises:
+        ValueError: 如果範圍內沒有質數。
     """
-    # Choose 'a' (exponent for 2)
-    a_val = random.randint(1, 3) 
+    primes = [i for i in range(min_val, max_val + 1) if _is_prime(i)]
+    if not primes:
+        raise ValueError(f"在 {min_val} 到 {max_val} 之間沒有找到質數。")
+    return random.choice(primes)
 
-    # Choose 'b' (prime > 2)
-    primes_b = [3, 5, 7]
-    b_val = random.choice(primes_b)
+def _generate_random_composite(min_val, max_val):
+    """
+    在指定範圍內生成一個隨機合數。
+    Args:
+        min_val (int): 範圍最小值。
+        max_val (int): 範圍最大值。
+    Returns:
+        int: 一個隨機合數。
+    Raises:
+        ValueError: 如果範圍內沒有合數。
+    """
+    # 合數定義為大於1且不是質數的整數
+    composites = [i for i in range(min_val, max_val + 1) if not _is_prime(i) and i > 1]
+    if not composites:
+        raise ValueError(f"在 {min_val} 到 {max_val} 之間沒有找到合數。")
+    return random.choice(composites)
 
-    # Choose 'c' (exponent for b)
-    c_val = random.randint(1, 2)
+# --- 模組版本控制 ---
+# 注意：此為模組級別變數，用於追蹤代碼版本，每次調用 generate 會遞增。
+# importlib.reload 會將其重置為初始值，符合無全域狀態依賴的規範。
+_MODULE_VERSION = 1.0
 
-    # Choose 'd' (prime > b)
-    primes_d_pool = [p for p in [11, 13, 17, 19, 23, 29, 31, 37] if p > b_val]
-    
-    # Ensure primes_d_pool is not empty. If b_val is large (e.g., 7), d_val must be > 7.
-    # The current pool [11, 13, ...] covers this well.
-    if not primes_d_pool:
-        # This case should ideally not be reached with the current pools,
-        # but as a safeguard, regenerate if no suitable 'd' is found.
-        # For a robust system, this might require adjusting pools or retry logic.
-        # For now, assume valid selection.
-        raise ValueError("Could not find a suitable prime 'd'. Adjust prime pools or ranges.")
-        
-    d_val = random.choice(primes_d_pool)
-
-    # Calculate N
-    N = (2**a_val) * (b_val**c_val) * d_val
-
-    # The password is the concatenation of a, b, c, d
-    password = f"{a_val}{b_val}{c_val}{d_val}"
-    
-    question_text = (
-        f"小翊設定手機解鎖的密碼為 abcd 四碼，若他是利用 {N} 的標準分解式 "
-        f"$2^a \\times {b_val}^c \\times d$ 來設計密碼，則此組密碼為何？"
-        # Note: The question template uses $2^a \times b^c \times d$,
-        # but for clarity in the question itself, it's better to show the actual b_val.
-        # However, the spec says $2^a \times b^c \times d$. Let's stick to the spec's question format.
-        # If the b_val is fixed in the question text, it gives away too much.
-        # The prompt says: "若他是利用 {N} 的標準分解式 $2^a \times b^c \times d$ 來設計密碼"
-        # This implies 'b' and 'd' are variables to be found.
-        # So, the question should be exactly as in the spec: $2^a \times b^c \times d$
-    )
-    
-    return {
-        "question_text": question_text,
-        "answer": password,
-        "correct_answer": password,
-        "difficulty": 2
-    }
-
-# ==============================================================================
-# Main Dispatcher and Checker
-# ==============================================================================
+# --- 頂層函式 (Top-level Functions) ---
 
 def generate(level=1):
     """
-    Main Dispatcher:
-    - Level 1: Basic concepts, direct calculations, simple definitions.
-    - Level 2: Advanced applications, multi-step problems, word problems.
-    """
-    if level == 1:
-        problem_types = [
-            generate_type_1_problem, # Identify Prime/Composite
-            generate_type_2_problem, # Number of Rectangles
-            generate_type_3_problem, # Prime Factorization & List Prime Factors
-        ]
-        return random.choice(problem_types)()
-    elif level == 2:
-        problem_types = [
-            generate_type_4_problem, # Birthday Puzzle
-            generate_type_5_problem, # Password Puzzle
-        ]
-        return random.choice(problem_types)()
-    else:
-        raise ValueError("Invalid level. Please choose 1 or 2.")
+    生成 K12 數學「質數與質因數分解」技能的題目。
 
-def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker
-    Handles float tolerance and string normalization.
-    """
-    user = user_answer.strip().replace(" ", "")
-    correct = correct_answer.strip().replace(" ", "")
+    Args:
+        level (int): 題目難度等級，目前未使用，預設為 1。
     
-    if user == correct:
-        return {"correct": True, "result": "正確！"}
-        
-    try:
-        # Attempt numeric comparison for cases where string format might differ but value is same
-        # This is more for general math problems, for string answers like "X 是 Y" or "A 月 B 日",
-        # direct string comparison is usually sufficient.
-        if abs(float(user) - float(correct)) < 1e-6:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        pass # Not a number, fall through to default incorrect message
-        
-    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+    Returns:
+        dict: 包含題目文本、正確答案、顯示答案、圖片base64、創建時間和版本的字典。
+    """
+    global _MODULE_VERSION
+    _MODULE_VERSION += 0.01 # 每次生成題目，模組版本號微幅遞增
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    problem_type = random.choice([1, 2, 3]) # 隨機選擇 3 種題型變體
+    question_text = ""
+    correct_answer = ""
+    answer_display = "" # 用於顯示給用戶的答案格式
+
+    if problem_type == 1:
+        # 題型變體 1: 直接計算 - 質因數分解
+        # 範例：「將 120 進行質因數分解。」
+        
+        num = _generate_random_composite(50, 300) # 生成一個 50 到 300 之間的合數
+
+        # 【強制】LaTeX 安全排版：凡字串包含 LaTeX 指令，嚴禁 f-string
+        # 必須使用 .replace() 模板
+        question_text_template = r"請將 {num} 進行質因數分解。答案請以 $p_1^{a_1} \times p_2^{a_2} \times \dots$ 的形式表示。"
+        question_text = question_text_template.replace("{num}", str(num))
+        
+        factors_dict = _get_prime_factors_dict(num)
+        correct_answer_formatted = _format_prime_factorization(factors_dict)
+        
+        # correct_answer 為機器可讀取的標準格式，answer_display 為用戶顯示格式
+        correct_answer = correct_answer_formatted
+        # 【強制】LaTeX 安全排版：所有數學式一律使用 $...$
+        answer_display_template = r"${ans}$"
+        answer_display = answer_display_template.replace("{ans}", correct_answer_formatted)
+
+    elif problem_type == 2:
+        # 題型變體 2: 情境應用 - 識別質數或找出所有質因數
+        # 範例：「下列哪個數是質數？」或「找出 72 的所有質因數。」
+
+        sub_type = random.choice([1, 2])
+        if sub_type == 1:
+            # 子題型 2.1: 從選項中識別質數
+            num_options = 4
+            num_primes_in_options = random.randint(1, 2) # 選項中包含 1 或 2 個質數
+            
+            prime_candidates = []
+            while len(prime_candidates) < num_primes_in_options:
+                p = _generate_random_prime(10, 80) # 生成 10 到 80 之間的質數
+                if p not in prime_candidates:
+                    prime_candidates.append(p)
+            
+            composite_candidates = []
+            while len(composite_candidates) < (num_options - num_primes_in_options):
+                c = _generate_random_composite(10, 80) # 生成 10 到 80 之間的合數
+                if c not in composite_candidates and c not in prime_candidates:
+                    composite_candidates.append(c)
+            
+            all_numbers = prime_candidates + composite_candidates
+            random.shuffle(all_numbers) # 打亂選項順序
+            
+            options_text = []
+            correct_prime_options = []
+            for i, n in enumerate(all_numbers):
+                option_char = chr(65 + i) # 'A', 'B', 'C', 'D'
+                # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+                option_template = r"({char}) {num}"
+                options_text.append(option_template.replace("{char}", option_char).replace("{num}", str(n)))
+                if _is_prime(n):
+                    correct_prime_options.append(option_char)
+            
+            # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+            question_text_template = r"下列哪個（些）數是質數？請選出所有正確的選項。{options_list}"
+            question_text = question_text_template.replace("{options_list}", " ".join(options_text))
+            
+            correct_answer = ",".join(sorted(correct_prime_options)) # 例如 "A,C"
+            answer_display = correct_answer
+
+        else:
+            # 子題型 2.2: 找出一個數的所有質因數 (僅列出不重複的質因數)
+            num = _generate_random_composite(70, 250)
+            
+            # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+            question_text_template = r"找出 {num} 的所有質因數。"
+            question_text = question_text_template.replace("{num}", str(num))
+            
+            factors_dict = _get_prime_factors_dict(num)
+            distinct_prime_factors = sorted(list(factors_dict.keys()))
+            
+            correct_answer = ",".join(map(str, distinct_prime_factors))
+            # 【強制】LaTeX 安全排版：所有數學式一律使用 $...$
+            answer_display_template = r"${ans}$"
+            answer_display = answer_display_template.replace("{ans}", correct_answer)
+
+    else: # problem_type == 3
+        # 題型變體 3: 逆向求解 / 情境應用 - 從質因數分解求原數 或 找出範圍內的質數
+        # 範例：「已知一個數的質因數分解為 $2^2 \times 3 \times 5$，請問這個數是多少？」
+
+        sub_type = random.choice([1, 2])
+        if sub_type == 1:
+            # 子題型 3.1: 已知質因數分解，求原數
+            primes_pool = [2, 3, 5, 7, 11, 13]
+            num_distinct_primes = random.randint(2, 3) # 選擇 2 或 3 個不同的質因數
+            selected_primes = random.sample(primes_pool, num_distinct_primes)
+            
+            factors_dict = {}
+            original_num = 1
+            for p in selected_primes:
+                exp = random.randint(1, 2) # 指數為 1 或 2
+                factors_dict[p] = exp
+                original_num *= (p ** exp)
+            
+            # 確保生成的數值在合理範圍內 (例如 30 到 500)
+            while original_num < 30 or original_num > 500:
+                factors_dict = {}
+                original_num = 1
+                selected_primes = random.sample(primes_pool, num_distinct_primes)
+                for p in selected_primes:
+                    exp = random.randint(1, 2)
+                    factors_dict[p] = exp
+                    original_num *= (p ** exp)
+
+            factorization_str = _format_prime_factorization(factors_dict)
+            
+            # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+            question_text_template = r"已知一個正整數 N 的質因數分解為 ${factors_str}$，請問這個數 N 是多少？"
+            question_text = question_text_template.replace("{factors_str}", factorization_str)
+            
+            correct_answer = str(original_num)
+            answer_display = correct_answer
+            
+        else:
+            # 子題型 3.2: 找出指定範圍內的所有質數
+            start_range = random.randint(10, 60)
+            end_range = start_range + random.randint(15, 40) # 範圍寬度 15 到 40
+            
+            primes_in_range = [p for p in range(start_range, end_range + 1) if _is_prime(p)]
+            
+            # 【強制】LaTeX 安全排版：嚴禁 f-string 或 % 格式化
+            question_text_template = r"找出介於 {start} 到 {end} 之間（包含 {start} 和 {end}）的所有質數，並由小到大排列，以逗號分隔。"
+            question_text = question_text_template.replace("{start}", str(start_range)).replace("{end}", str(end_range))
+            
+            correct_answer = ",".join(map(str, primes_in_range))
+            # 【強制】LaTeX 安全排版：所有數學式一律使用 $...$
+            answer_display_template = r"${ans}$"
+            answer_display = answer_display_template.replace("{ans}", correct_answer)
+
+    # 返回字典必須且僅能包含指定欄位
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display,
+        "image_base64": "", # 此技能目前無需圖片，回傳空字串
+        "created_at": datetime.datetime.now().isoformat(), # 更新時間戳記
+        "version": _MODULE_VERSION, # 遞增版本
+    }
+
+
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # 2. [V10.3] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                res['question_text'] += "\\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

@@ -1,59 +1,75 @@
 # ==============================================================================
 # ID: jh_數學1上_LawsOfExponents
-# Model: gemini-2.5-flash | Strategy: Architect-Engineer (v8.7)
-# Duration: 35.47s | RAG: 7 examples
-# Created At: 2026-01-09 14:10:57
-# Fix Status: [Clean Pass]
-# ==============================================================================
+# Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
+# Duration: 55.69s | RAG: 5 examples
+# Created At: 2026-01-14 19:39:32
+# Fix Status: [Repaired]
+# Fixes: Regex=7, Logic=0
+#==============================================================================
 
 
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from fractions import Fraction
 from functools import reduce
+import ast
 
-# --- 1. Formatting Helpers ---
+# [V10.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
+# --- 1. Formatting Helpers (V10.6 No-F-String LaTeX) ---
 def to_latex(num):
     """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
+    Convert int/float/Fraction to LaTeX using .replace() to avoid f-string conflicts.
     """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
+        
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
         
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
-def fmt_num(num):
-    """Format negative numbers with parentheses."""
-    if num < 0: return f"({to_latex(num)})"
-    return to_latex(num)
+def fmt_num(num, signed=False, op=False):
+    """
+    Format number for LaTeX (Safe Mode).
+    """
+    latex_val = to_latex(num)
+    if num == 0 and not signed and not op: return "0"
+    
+    is_neg = (num < 0)
+    abs_str = to_latex(abs(num))
+    
+    if op:
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
+    
+    if signed:
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+        
+    if is_neg: return r"({v})".replace("{v}", latex_val)
+    return latex_val
 
-# Alias for AI habits
+# Alias
 fmt_fraction_latex = to_latex 
 
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
+    """Check primality (Standard Boolean Return)."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -62,9 +78,15 @@ def is_prime(n):
         if n % i == 0 or n % (i + 2) == 0: return False
         i += 6
     return True
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
 
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -77,25 +99,21 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
 
-# --- 3. Fraction Generator Helper ---
+# --- 3. Fraction Generator ---
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
-
+    return Fraction(1, 2)
+    
 def draw_number_line(points_map):
     """[Advanced] Generate aligned ASCII number line with HTML container."""
     if not points_map: return ""
@@ -131,348 +149,390 @@ def draw_number_line(points_map):
     )
     return result
 
+# --- 4. Answer Checker (V10.6 Hardcoded Golden Standard) ---
+def check(user_answer, correct_answer):
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    # [V11.0] 暴力清理 LaTeX 冗餘符號 ($, \) 與空格
+    u = str(user_answer).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "")
+    
+    # 強制還原字典格式 (針對商餘題)
+    c_raw = correct_answer
+    if isinstance(c_raw, str) and c_raw.startswith("{") and "quotient" in c_raw:
+        try: import ast; c_raw = ast.literal_eval(c_raw)
+        except: pass
+
+    if isinstance(c_raw, dict) and "quotient" in c_raw:
+        q, r = str(c_raw.get("quotient", "")), str(c_raw.get("remainder", ""))
+        ans_display = r"{q},{r}".replace("{q}", q).replace("{r}", r)
+        try:
+            u_parts = u.replace("商", "").replace("餘", ",").split(",")
+            if int(u_parts[0]) == int(q) and int(u_parts[1]) == int(r):
+                return {"correct": True, "result": "正確！"}
+        except: pass
+    else:
+        ans_display = str(c_raw).strip()
+
+    if u == ans_display.replace(" ", ""): return {"correct": True, "result": "正確！"}
+    try:
+        import math
+        if math.isclose(float(u), float(ans_display), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", ans_display)}
 
 
 
+from datetime import datetime
+import base64
+import io
 
-# ==============================================================================
-# GOLD STANDARD TEMPLATE v8.7 (Universal)
-# ==============================================================================
-# Rules for AI Coder:
-# 1. LATEX: Use f-string with DOUBLE BRACES for LaTeX commands. 
-#    Ex: f"\\frac{{{a}}}{{{b}}}" -> \frac{a}{b}
-#    Ex: f"\\begin{{bmatrix}} {a} & {b} \\\\ {c} & {d} \\end{{bmatrix}}"
-# 2. NEGATIVES: Use fmt_num(val) to handle negative numbers like (-5).
-# 3. LEVEL: Level 1 = Basic Concept/Direct Calc. Level 2 = Application/Mixed.
-# 4. RETURN: Must return dict with 'question_text', 'answer', 'correct_answer'.
-# ==============================================================================
+# Placeholder for potential visualization, though not strictly needed for LawsOfExponents
+# If a visualization library like matplotlib were allowed and needed, it would be imported here.
+# For this skill, image_base64 will likely be empty or a simple placeholder.
 
-# ==============================================================================
-# Helper Functions (as per Architect's Spec)
-# ==============================================================================
+# --- Helper Functions (通用輔助函式) ---
 
-
-# Problem Generation Functions (Level 1)
-# ==============================================================================
-
-def generate_type_1_problem():
+def _format_latex_safe(template_str, **kwargs):
     """
-    Level 1: Product of powers with the same base (a^m × a^n = a^(m+n))
+    Formats a string, replacing placeholders like {placeholder} with values.
+    Ensures that LaTeX commands within the template_str are not broken by f-strings.
+    This function is CRITICAL for Regex=0 compliance.
     """
-    base_options = [random.randint(-5, -2), random.randint(2, 9)]
-    # Add fraction option
-    if random.random() < 0.5: # 50% chance for fraction base
-        num = random.randint(1, 9)
-        den = random.randint(2, 9)
-        base_options.append(Fraction(num, den))
-    base = random.choice(base_options)
-    
-    exp1 = random.randint(2, 6)
-    exp2 = random.randint(2, 6)
-    
-    answer_val = exp1 + exp2
-    
-    # Format base for display, especially for negative numbers and fractions
-    base_display = fmt_num(base) if isinstance(base, (int, Fraction)) else str(base)
-    if isinstance(base, Fraction):
-        base_display = f"({to_latex(base)})" # Ensure fractions are parenthesized as a base
-        
-    question_text = f"在下列□中填入適當的數，使等號成立。\n${base_display}^{exp1} \\times {base_display}^{exp2} = {base_display}^{{\\Box}}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(answer_val),
-        "correct_answer": str(answer_val),
-        "difficulty": 1
-    }
+    formatted_str = template_str
+    for key, value in kwargs.items():
+        placeholder = "{" + str(key) + "}"
+        formatted_str = formatted_str.replace(placeholder, str(value))
+    return formatted_str
 
-def generate_type_2_problem():
+def _render_exponent_str(base_str, exponent):
     """
-    Level 1: Quotient of powers with the same base (a^m ÷ a^n = a^(m-n))
+    [V11.1 Fix] 增加底數偵測，防止 Double Exponent 錯誤。
+    Renders a base string and an integer exponent into a LaTeX-safe string.
     """
-    base_options = [random.randint(-5, -2), random.randint(2, 9)]
-    if random.random() < 0.5:
-        num = random.randint(1, 9)
-        den = random.randint(2, 9)
-        base_options.append(Fraction(num, den))
-    base = random.choice(base_options)
-    
-    exp1 = random.randint(5, 9)
-    exp2 = random.randint(2, exp1 - 1) # ensure exp1 > exp2
-    
-    answer_val = exp1 - exp2
-    
-    base_display = fmt_num(base) if isinstance(base, (int, Fraction)) else str(base)
-    if isinstance(base, Fraction):
-        base_display = f"({to_latex(base)})"
-        
-    question_text = f"在下列□中填入適當的數，使等號成立。\n${base_display}^{exp1} \\div {base_display}^{exp2} = {base_display}^{{\\Box}}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(answer_val),
-        "correct_answer": str(answer_val),
-        "difficulty": 1
-    }
+    # 如果底數本身已經包含次方符號 '^' 或 '{'，則必須用括號包起來
+    safe_base = base_str
+    if "^" in str(base_str) or "{" in str(base_str):
+        safe_base = r"({b})".replace("{b}", str(base_str))
 
-def generate_type_3_problem():
-    """
-    Level 1: Power of a power ((a^m)^n = a^(m*n))
-    """
-    base_options = [random.randint(2, 9)]
-    if random.random() < 0.5:
-        num = random.randint(1, 9)
-        den = random.randint(2, 9)
-        base_options.append(Fraction(num, den))
-    base = random.choice(base_options)
-    
-    exp1 = random.randint(2, 4)
-    exp2 = random.randint(2, 4)
-    
-    answer_val = exp1 * exp2
-    
-    base_display = fmt_num(base) if isinstance(base, (int, Fraction)) else str(base)
-    if isinstance(base, Fraction):
-        base_display = f"({to_latex(base)})"
-        
-    question_text = f"在下列□中填入適當的數，使等號成立。\n$({base_display}^{exp1})^{exp2} = {base_display}^{{\\Box}}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(answer_val),
-        "correct_answer": str(answer_val),
-        "difficulty": 1
-    }
+    if exponent == 1:
+        return str(base_str) # 指數為 1 不需要括號
+    if exponent == 0:
+        # For base^0, display as base^0 explicitly
+        return _format_latex_safe(r"{base_str}^{0}", base_str=safe_base)
+    if exponent < 0:
+        # Use {{-exp}} for negative exponents to ensure correct LaTeX rendering
+        return _format_latex_safe(r"{base_str}^{{-{exp_val}}}", base_str=safe_base, exp_val=abs(exponent))
+    else:
+        return _format_latex_safe(r"{base_str}^{{{exp_val}}}", base_str=safe_base, exp_val=exponent)
 
-def generate_type_4_problem():
+def _simplify_variable_exponent(var_exponents):
     """
-    Level 1: Power of a product ((a×b)^n = a^n × b^n)
+    Simplifies a dictionary of variable exponents into a LaTeX string.
+    e.g., {'x': 2, 'y': -1, 'z': 0} -> "x^{2}y^{-1}"
+    Note: This helper is provided but not directly used in the current `simplify_with_variables`
+    section, as that section specifically handles "positive exponents only" display.
+    It's kept for potential general-purpose use.
+    Returns: str
     """
-    val1 = random.randint(2, 9)
-    val2 = random.randint(2, 9)
-    while val1 == val2: # ensure distinct values
-        val2 = random.randint(2, 9)
-    
-    exp = random.randint(2, 5)
-    
-    # The spec example includes fractions, but variable generation is int.
-    # Sticking to int for val1, val2 as per spec's variable generation.
-    val1_display = to_latex(val1)
-    val2_display = to_latex(val2)
-    
-    question_text = f"在下列□中填入適當的數，使等號成立。\n$({val1_display} \\times {val2_display})^{exp} = {val1_display}^{{\\Box}} \\times {val2_display}^{{\\Box}}$"
-    
-    return {
-        "question_text": question_text,
-        "answer": str(exp),
-        "correct_answer": str(exp),
-        "difficulty": 1
-    }
+    parts = []
+    for var, exp in sorted(var_exponents.items()):
+        if exp == 0:
+            continue # x^0 = 1, usually not displayed unless it's the only term or specifically asked
+        parts.append(_render_exponent_str(var, exp))
+    return "".join(parts) if parts else "1" # If all exponents are 0, result is 1
 
-# ==============================================================================
-# Problem Generation Functions (Level 2)
-# ==============================================================================
-
-def generate_type_5_problem():
-    """
-    Level 2: Conceptual understanding of negative bases and order of operations.
-    """
-    base = random.randint(2, 5)
-    exp_inner1 = random.randint(2, 4)
-    exp_outer1 = random.randint(2, 4)
-    while exp_inner1 == exp_outer1: # ensure distinct exponents
-        exp_outer1 = random.randint(2, 4)
-        
-    exp_inner2 = exp_outer1
-    exp_outer2 = exp_inner1
-    
-    # Calculate values
-    # -(base**exp_inner1) is -(value)
-    term1_base_val = -(base**exp_inner1)
-    term1_val = term1_base_val ** exp_outer1
-    
-    term2_base_val = -(base**exp_inner2)
-    term2_val = term2_base_val ** exp_outer2
-    
-    question_text = (
-        f"判斷 $({fmt_num(term1_base_val)})^{exp_outer1}$ 與 $({fmt_num(term2_base_val)})^{exp_outer2}$ 的值是否相同？"
-    )
-    
-    answer_text = "相同" if term1_val == term2_val else "不相同"
-    
-    return {
-        "question_text": question_text,
-        "answer": answer_text,
-        "correct_answer": answer_text,
-        "difficulty": 2
-    }
-
-def generate_type_6_problem():
-    """
-    Level 2: Mixed operations and calculation.
-    """
-    C_val = random.randint(2, 4)
-    A_val = C_val * random.randint(2, 5) # A_val is a multiple of C_val
-    
-    B_val = random.randint(2, 7)
-    while B_val == A_val or B_val == C_val: # Ensure B_val is distinct
-        B_val = random.randint(2, 7)
-        
-    N = random.randint(3, 5)
-    M = random.randint(2, N - 1)
-    
-    D_val_base = A_val // C_val # Simplified base for the (A/C)^N part
-    neg_base_prob = random.random()
-    D_signed = D_val_base if neg_base_prob < 0.5 else -D_val_base
-    
-    # Calculations
-    # (A_val/B_val)^N * (B_val/C_val)^N = ((A_val/B_val) * (B_val/C_val))^N = (A_val/C_val)^N
-    simplified_base_fraction = Fraction(A_val, C_val)
-    numerator_term_val = simplified_base_fraction ** N
-    denominator_term_val = D_signed ** M
-    
-    final_result = numerator_term_val / denominator_term_val
-    
-    question_text = (
-        f"計算下列各式的值。\n"
-        f"$({to_latex(Fraction(A_val, B_val))})^{N} \\times ({to_latex(Fraction(B_val, C_val))})^{N} \\div {fmt_num(D_signed)}^{M}$"
-    )
-    
-    return {
-        "question_text": question_text,
-        "answer": to_latex(final_result),
-        "correct_answer": to_latex(final_result),
-        "difficulty": 2
-    }
-
-def generate_type_7_problem():
-    """
-    Level 2: Error analysis in applying exponent laws.
-    """
-    A_val = random.randint(3, 6)
-    B_val = random.randint(2, A_val - 1)
-    M_exp = random.choice([4, 6, 8]) # Even exponent
-    
-    # Correct Solution Logic
-    # (-A_val)^M_exp = A_val^M_exp (since M_exp is even)
-    # (-(B_val^M_exp)) is simply -(B_val^M_exp)
-    # So, A_val^M_exp * (-(B_val^M_exp)) = -(A_val^M_exp * B_val^M_exp)
-    # = -((A_val * B_val)^M_exp)
-    correct_answer_value = -((A_val * B_val)**M_exp)
-    
-    # Student 1 (Xiao Yan) Incorrect Steps
-    # Assumes (-(B_val**M_exp)) is (-B_val)**M_exp, which is incorrect.
-    # ((-A_val) * (-B_val))^M_exp = (A_val * B_val)^M_exp
-    step1_yan = f"[({fmt_num(-A_val)}) \\times ({fmt_num(-B_val)})]^{M_exp}"
-    step2_yan = f"({A_val * B_val})^{M_exp}"
-    
-    # Student 2 (Xiao Yi) Incorrect Steps
-    # Ignores the negative sign from (-(B_val**M_exp))
-    # (-A_val)^M_exp * (B_val^M_exp) = A_val^M_exp * B_val^M_exp = (A_val * B_val)^M_exp
-    step1_yi = f"({A_val})^{M_exp} \\times ({B_val})^{M_exp}" # (-A_val)^M_exp becomes A_val^M_exp
-    step2_yi = f"({A_val * B_val})^{M_exp}"
-    
-    question_text = (
-        f"以下是小妍和小翊計算「$({fmt_num(-A_val)})^{M_exp} \\times ({fmt_num(-(B_val**M_exp))})$」的過程。判斷他們的解法是否正確？若不正確，請標出開始發生錯誤的部分，並寫出正確的解法。\n\n"
-        f"小妍：$({fmt_num(-A_val)})^{M_exp} \\times ({fmt_num(-(B_val**M_exp))}) = {step1_yan} = {step2_yan} = {to_latex((A_val*B_val)**M_exp)}$\n\n"
-        f"小翊：$({fmt_num(-A_val)})^{M_exp} \\times ({fmt_num(-(B_val**M_exp))}) = {step1_yi} = {step2_yi} = {to_latex((A_val*B_val)**M_exp)}$"
-    )
-    
-    correct_solution_steps = (
-        f"兩位同學的解法皆不正確。\n"
-        f"小妍的錯誤在於將 $({fmt_num(-(B_val**M_exp))})$ 誤認為 $({fmt_num(-B_val)})^{M_exp}$。\n"
-        f"小翊的錯誤在於忽略了 $({fmt_num(-(B_val**M_exp))})$ 中的負號。\n"
-        f"正確的解法為：\n"
-        f"$({fmt_num(-A_val)})^{M_exp} \\times ({fmt_num(-(B_val**M_exp))})$\n"
-        f"$= ({A_val})^{M_exp} \\times ({fmt_num(-(B_val**M_exp))})$\n"
-        f"$= -({A_val}^{M_exp} \\times {B_val}^{M_exp})$\n"
-        f"$= -({A_val} \\times {B_val})^{M_exp}$\n"
-        f"$= {to_latex(correct_answer_value)}$"
-    )
-    
-    return {
-        "question_text": question_text,
-        "answer": correct_solution_steps,
-        "correct_answer": correct_solution_steps,
-        "difficulty": 2
-    }
-
-# ==============================================================================
-# Main Dispatcher
-# ==============================================================================
+# --- Main Functions (主要函式) ---
 
 def generate(level=1):
     """
-    Main Dispatcher for Laws of Exponents skill.
-    - Level 1: Basic concepts, direct calculations.
-    - Level 2: Advanced applications, multi-step problems, error analysis.
+    Generates a K12 Laws of Exponents problem.
     """
-    if level == 1:
-        return random.choice([
-            generate_type_1_problem,
-            generate_type_2_problem,
-            generate_type_3_problem,
-            generate_type_4_problem,
-        ])()
-    elif level == 2:
-        return random.choice([
-            generate_type_5_problem,
-            generate_type_6_problem,
-            generate_type_7_problem,
-        ])()
-    else:
-        raise ValueError("Invalid level. Choose 1 or 2.")
+    problem_type = random.choice([
+        "direct_calculation",
+        "solve_for_unknown_exponent",
+        "simplify_with_variables"
+    ])
 
-# ==============================================================================
-# Answer Checker (Standard, not part of the generation task but often included)
-# ==============================================================================
+    question_text = ""
+    correct_answer = ""
+    answer_display = "" # This will be the user-facing answer format
+    image_base64 = ""
 
-def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker
-    Handles float tolerance and string normalization.
-    """
-    user = user_answer.strip().replace(" ", "").replace("$", "").replace("\\", "")
-    correct = correct_answer.strip().replace(" ", "").replace("$", "").replace("\\", "")
-    
-    # Try direct string comparison first
-    if user == correct:
-        return {"correct": True, "result": "正確！"}
+    if problem_type == "direct_calculation":
+        # Type 1: 直接計算 (Direct Calculation)
+        # Involves multiple exponent rules: product, quotient, power of a power, zero, negative.
+        base = random.randint(2, 5)
         
-    # Attempt numeric comparison if possible (e.g., for simple numerical answers)
-    try:
-        user_num = float(user)
-        correct_num = float(correct)
-        if abs(user_num - correct_num) < 1e-6:
-            return {"correct": True, "result": "正確！"}
-    except ValueError:
-        pass # Not a simple numeric answer, continue to more complex checks if needed
-    
-    # For complex answers like error analysis, direct string comparison is usually the only way
-    # If the question asks for a specific format, minor deviations might lead to 'incorrect'.
-    # For this skill, Type 7 especially requires exact string matching for the explanation.
-    return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
+        # Ensure exponents don't lead to excessively large numbers for K12
+        exp1 = random.randint(2, 4)
+        exp2 = random.randint(-2, 3)
+        exp3 = random.randint(0, 2)
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+        # Example forms:
+        # (base^exp1 * base^exp2) / base^exp3
+        # (base^exp1)^exp2 * base^exp3
+        # base^exp1 / (base^exp2)^exp3
+        
+        choice = random.randint(1, 3)
+        if choice == 1: # (a^m * a^n) / a^p => a^(m+n-p)
+            question_str = _format_latex_safe(
+                r"計算：$ {base_val}^{{{exp1_val}}} \times {base_val}^{{{exp2_val}}} \div {base_val}^{{{exp3_val}}} $",
+                base_val=base, exp1_val=exp1, exp2_val=exp2, exp3_val=exp3
+            )
+            result = base**(exp1 + exp2 - exp3)
+            correct_answer = str(result)
+            answer_display = str(result)
+        elif choice == 2: # (a^m)^n * a^p => a^(m*n+p)
+            question_str = _format_latex_safe(
+                r"計算：$ ({base_val}^{{{exp1_val}}})^{{{exp2_val}}} \times {base_val}^{{{exp3_val}}} $",
+                base_val=base, exp1_val=exp1, exp2_val=exp2, exp3_val=exp3
+            )
+            result = base**(exp1 * exp2 + exp3)
+            correct_answer = str(result)
+            answer_display = str(result)
+        else: # (a^m / a^n)^p => a^((m-n)*p)
+            # Ensure m >= n for positive base and integer result in intermediate step, or handle fractions
+            exp1 = random.randint(3, 6) # Make exp1 generally larger
+            exp2 = random.randint(1, 2)
+            # Ensure exp1 - exp2 is not too small or negative
+            while exp1 <= exp2:
+                exp1 = random.randint(3, 6)
+            exp3 = random.randint(1, 2)
+            question_str = _format_latex_safe(
+                r"計算：$ ({base_val}^{{{exp1_val}}} \div {base_val}^{{{exp2_val}}})^{{{exp3_val}}} $",
+                base_val=base, exp1_val=exp1, exp2_val=exp2, exp3_val=exp3
+            )
+            result = base**((exp1 - exp2) * exp3)
+            correct_answer = str(result)
+            answer_display = str(result)
+
+        question_text = question_str + r" 請寫出最終的數值答案。"
+
+    elif problem_type == "solve_for_unknown_exponent":
+        # Type 2: 逆向求解 (Solving for an Unknown Exponent)
+        base = random.choice([2, 3, 5])
+        
+        # Equation form: base^(Ax+B) = base^C
+        # Ax+B = C => Ax = C-B => x = (C-B)/A
+        A = random.choice([1, 2, 3]) # Coefficient of x
+        B = random.randint(-3, 3) # Constant term
+        C = random.randint(2, 4) # Target exponent (Reduced range for pedagogical optimization)
+        
+        # Ensure x is an integer for K12 by adjusting C
+        # Adjust C to make (C - B) divisible by A
+        if (C - B) % A != 0:
+            C = A * random.randint(1, 4) + B 
+            # Re-check C. Ensure C-B is not excessively small or negative for reasonable x.
+            while C < B and A > 0: # Avoid negative target exponent if B is large positive, for simpler K12 problems
+                 C = A * random.randint(1, 4) + B
+            
+        target_value = base**C
+        
+        # Construct exponent expression A*x + B using string concatenation for LaTeX safety (Regex=0)
+        exponent_expr_parts = []
+        if A != 1:
+            exponent_expr_parts.append(str(A) + "x")
+        else:
+            exponent_expr_parts.append("x")
+            
+        if B != 0:
+            if B > 0:
+                exponent_expr_parts.append("+" + str(B))
+            else: # B is negative
+                exponent_expr_parts.append(str(B)) # str(B) already includes '-'
+        
+        exponent_expr = "".join(exponent_expr_parts)
+        
+        question_text = _format_latex_safe(
+            r"若 $ {base_val}^{{{exponent_expr_val}}} = {target_val} $，求 $ x $ 的值。",
+            base_val=base, exponent_expr_val=exponent_expr, target_val=target_value
+        )
+        
+        x_val = (C - B) // A
+        correct_answer = str(x_val)
+        answer_display = str(x_val)
+
+    else: # simplify_with_variables
+        # Type 3: 情境應用 (Simplification with Variables)
+        # Applying exponent rules to expressions with variables.
+        # Example: Simplify $(x^a y^b)^c / (x^d y^e)$
+        
+        variables = random.sample(['x', 'y', 'z'], random.randint(2, 3))
+        
+        term1_exponents = {v: random.randint(-2, 3) for v in variables}
+        term2_exponents = {v: random.randint(-2, 3) for v in variables}
+        power_c = random.randint(1, 2) # Power for the first term
+
+        # Construct the expression
+        expr_parts = []
+        
+        # Part 1: (x^a y^b)^c
+        inner_expr_parts = []
+        for var in variables:
+            # Only include variables with non-zero exponents in the inner part for cleaner display
+            if term1_exponents[var] != 0:
+                inner_expr_parts.append(_render_exponent_str(var, term1_exponents[var]))
+        
+        # Handle cases where inner_expr_parts might be empty (all exponents are 0 for term1)
+        if not inner_expr_parts:
+            term1_str = _render_exponent_str("1", power_c) # (1)^c = 1
+        elif len(inner_expr_parts) > 1:
+            term1_str = _render_exponent_str("(" + "".join(inner_expr_parts) + ")", power_c)
+        else: # len == 1
+            # 強制加上括號保護，避免 x^{2}^{3} 這種錯誤格式
+            inner_content = "".join(inner_expr_parts)
+            term1_str = _render_exponent_str(r"({c})".replace("{c}", inner_content), power_c)
+            
+        expr_parts.append(term1_str)
+        
+        # Part 2: divided by x^d y^e
+        term2_str_parts = []
+        for var in variables:
+            if term2_exponents[var] != 0:
+                term2_str_parts.append(_render_exponent_str(var, term2_exponents[var]))
+
+        if term2_str_parts:
+            expr_parts.append(r"\div")
+            if len(term2_str_parts) > 1:
+                expr_parts.append("(" + "".join(term2_str_parts) + ")")
+            else:
+                expr_parts.append("".join(term2_str_parts))
+        # If term2_str_parts is empty, it means we are dividing by 1, so no division symbol needed.
+
+        question_text = _format_latex_safe(
+            r"簡化下列各式，並以正指數表示：$ {expression} $",
+            expression=" ".join(expr_parts)
+        )
+
+        # Calculate final exponents
+        final_exponents = {}
+        for var in variables:
+            final_exp = (term1_exponents.get(var, 0) * power_c) - term2_exponents.get(var, 0)
+            final_exponents[var] = final_exp
+        
+        # Format correct answer with positive exponents only for display
+        numerator_terms = []
+        denominator_terms = []
+
+        for var in sorted(final_exponents.keys()):
+            exp = final_exponents[var]
+            if exp > 0:
+                numerator_terms.append(_render_exponent_str(var, exp))
+            elif exp < 0:
+                # Move to denominator with positive exponent
+                denominator_terms.append(_render_exponent_str(var, abs(exp)))
+            # If exp == 0, it's 1 and not displayed unless it's the only term
+
+        numerator_str = "".join(numerator_terms) if numerator_terms else "1"
+        denominator_str = "".join(denominator_terms) if denominator_terms else "1"
+
+        if numerator_str == "1" and denominator_str == "1":
+            correct_answer_str = "1"
+        elif denominator_str == "1":
+            correct_answer_str = numerator_str
+        else:
+            correct_answer_str = _format_latex_safe(r"\frac{{{numerator_val}}}{{{denominator_val}}}",
+                                                    numerator_val=numerator_str,
+                                                    denominator_val=denominator_str)
+
+        correct_answer = correct_answer_str
+        answer_display = correct_answer_str
+        
+    question_text += ""
+    return {
+        "question_text": question_text,
+        "correct_answer": correct_answer,
+        "answer": answer_display, # Display format for students
+        "image_base64": image_base64,
+        "input_mode": "handwriting", # V11.2 Handwriting Mode
+        "created_at": datetime.now().isoformat(),
+        "version": "1.1" # Version Bump
+    }
+
+
+if __name__ == "__main__":
+    print("--- K12 指數律問題生成測試 ---")
+    for _ in range(5):
+        problem = generate()
+        print(f"Question: {problem['question_text']}")
+        print(f"Correct Answer (internal): {problem['correct_answer']}")
+        print(f"Answer (display): {problem['answer']}")
+        print(f"Check 'user_answer={problem['answer']}' against correct: {check(problem['answer'], problem['correct_answer'])}")
+        print("-" * 30)
+
+    # Test specific type for LaTeX safety
+    print("\n--- LaTeX 安全性測試 (變數簡化) ---")
+    problem = generate(level=1)
+    while "簡化下列各式" not in problem["question_text"]:
+        problem = generate(level=1)
+    print(f"Question: {problem['question_text']}")
+    print(f"Correct Answer (internal): {problem['correct_answer']}")
+    print(f"Answer (display): {problem['answer']}")
+    print(f"Check 'user_answer={problem['answer']}' against correct: {check(problem['answer'], problem['correct_answer'])}")
+    print("-" * 30)
+
+    # Test edge case for simplification to '1'
+    print("\n--- 簡化為 '1' 的測試 (手動模擬) ---")
+    # 模擬一個結果為 '1' 的簡化題，例如：(x^2 y^-1)^1 / (x^2 y^-1)
+    # 為了測試目的，我們直接構建預期的答案。
+    test_correct_answer_str_one = "1"
+    print(f"模擬答案為 '1' 的情況: {test_correct_answer_str_one}")
+    print(f"檢查 '1' vs '{test_correct_answer_str_one}': {check('1', test_correct_answer_str_one)}")
+    print("-" * 30)
+
+    # Test `check` function
+    print("\n--- check 函式測試 ---")
+    print(f"檢查 '5' vs '5.0': {check('5', '5.0')}") # 預期: 正確！
+    print(f"檢查 '5' vs '6': {check('5', '6')}")   # 預期: 答案錯誤...
+    print(f"檢查 'x^2y' vs 'x^2y': {check('x^2y', 'x^2y')}") # 預期: 正確！
+    print(f"檢查 'x^2y' vs 'x^2z': {check('x^2y', 'x^2z')}") # 預期: 答案錯誤...
+    print(f"檢查 '2.000000001' vs '2.0': {check('2.000000001', '2.0')}") # 預期: 正確！
+    print(f"檢查 'x^{{2}}y^{{-1}}' vs 'x^{{2}}y^{{-1}}': {check(r'x^{2}y^{-1}', r'x^{2}y^{-1}')}") # 預期: 正確！
+    print(f"檢查 'x' vs 'x': {check('x', 'x')}") # 預期: 正確！
+    print(f"檢查 '1' vs '1': {check('1', '1')}") # 預期: 正確！
+    print(f"檢查 '1/x' vs '\frac{1}{x}': {check('1/x', r'\frac{1}{x}')}") # 預期: 答案錯誤... (嚴格字串比對)
+    print("-" * 30)
+
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # 2. [V10.3] 解決 r-string 導致的 \n 換行失效問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                res['question_text'] = res['question_text'].replace("\\n", "\n")
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', '_', ',', '|', '(', '[', '{', '\\']
+            if (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers) and "手寫" not in res.get('question_text', ''):
+                res['question_text'] += "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)
