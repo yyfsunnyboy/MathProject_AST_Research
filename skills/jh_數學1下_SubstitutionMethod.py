@@ -1,81 +1,64 @@
 # ==============================================================================
 # ID: jh_數學1下_SubstitutionMethod
 # Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
-# Duration: 60.90s | RAG: 3 examples
-# Created At: 2026-01-11 22:23:17
+# Duration: 41.64s | RAG: 3 examples
+# Created At: 2026-01-15 13:12:30
 # Fix Status: [Repaired]
+# Fixes: Regex=1, Logic=0
 #==============================================================================
 
 
+# [V12.3 Elite Standard Math Tools]
 import random
 import math
+import matplotlib
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from fractions import Fraction
 from functools import reduce
+import ast
+import base64
+import io
+import re
 
-# --- 1. Formatting Helpers ---
+# [V11.6 Elite Font & Style] - Hardcoded
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
+
 def to_latex(num):
-    """
-    Convert int/float/Fraction to LaTeX.
-    Handles mixed numbers automatically for Fractions.
-    """
     if isinstance(num, int): return str(num)
     if isinstance(num, float): num = Fraction(str(num)).limit_denominator(100)
     if isinstance(num, Fraction):
+        if num == 0: return "0"
         if num.denominator == 1: return str(num.numerator)
-        # Logic for negative fractions
         sign = "-" if num < 0 else ""
         abs_num = abs(num)
-        
         if abs_num.numerator > abs_num.denominator:
             whole = abs_num.numerator // abs_num.denominator
             rem_num = abs_num.numerator % abs_num.denominator
-            if rem_num == 0: return f"{sign}{whole}"
-            return f"{sign}{whole} \\frac{{{rem_num}}}{{{abs_num.denominator}}}"
-        return f"\\frac{{{num.numerator}}}{{{num.denominator}}}"
+            if rem_num == 0: return r"{s}{w}".replace("{s}", sign).replace("{w}", str(whole))
+            return r"{s}{w} \frac{{n}}{{d}}".replace("{s}", sign).replace("{w}", str(whole)).replace("{n}", str(rem_num)).replace("{d}", str(abs_num.denominator))
+        return r"\frac{{n}}{{d}}".replace("{n}", str(num.numerator)).replace("{d}", str(num.denominator))
     return str(num)
 
 def fmt_num(num, signed=False, op=False):
-    """
-    Format number for LaTeX.
-    
-    Args:
-        num: The number to format.
-        signed (bool): If True, always show sign (e.g., "+3", "-5").
-        op (bool): If True, format as operation with spaces (e.g., " + 3", " - 5").
-    """
     latex_val = to_latex(num)
     if num == 0 and not signed and not op: return "0"
-    
     is_neg = (num < 0)
-    abs_val = to_latex(abs(num))
-    
+    abs_str = to_latex(abs(num))
     if op:
-        # e.g., " + 3", " - 3"
-        return f" - {abs_val}" if is_neg else f" + {abs_val}"
-    
+        if is_neg: return r" - {v}".replace("{v}", abs_str)
+        return r" + {v}".replace("{v}", abs_str)
     if signed:
-        # e.g., "+3", "-3"
-        return f"-{abs_val}" if is_neg else f"+{abs_val}"
-        
-    # Default behavior (parentheses for negative)
-    if is_neg: return f"({latex_val})"
+        if is_neg: return r"-{v}".replace("{v}", abs_str)
+        return r"+{v}".replace("{v}", abs_str)
+    if is_neg: return r"({v})".replace("{v}", latex_val)
     return latex_val
 
-# Alias for AI habits
-fmt_fraction_latex = to_latex 
-
 # --- 2. Number Theory Helpers ---
-def get_positive_factors(n):
-    """Return a sorted list of positive factors of n."""
-    factors = set()
-    for i in range(1, int(math.isqrt(n)) + 1):
-        if n % i == 0:
-            factors.add(i)
-            factors.add(n // i)
-    return sorted(list(factors))
-
 def is_prime(n):
-    """Check primality."""
     if n <= 1: return False
     if n <= 3: return True
     if n % 2 == 0 or n % 3 == 0: return False
@@ -85,8 +68,15 @@ def is_prime(n):
         i += 6
     return True
 
+def get_positive_factors(n):
+    factors = set()
+    for i in range(1, int(math.isqrt(n)) + 1):
+        if n % i == 0:
+            factors.add(i)
+            factors.add(n // i)
+    return sorted(list(factors))
+
 def get_prime_factorization(n):
-    """Return dict {prime: exponent}."""
     factors = {}
     d = 2
     temp = n
@@ -99,347 +89,530 @@ def get_prime_factorization(n):
         factors[temp] = factors.get(temp, 0) + 1
     return factors
 
-def gcd(a, b): return math.gcd(a, b)
-def lcm(a, b): return abs(a * b) // math.gcd(a, b)
+def gcd(a, b): return math.gcd(int(a), int(b))
+def lcm(a, b): return abs(int(a) * int(b)) // math.gcd(int(a), int(b))
 
-# --- 3. Fraction Generator Helper ---
+# --- 3. Fraction Generator & Helpers ---
+def simplify_fraction(n, d):
+    common = math.gcd(n, d)
+    return n // common, d // common
+
+def _calculate_distance_1d(a, b):
+    return abs(a - b)
+
 def get_random_fraction(min_val=-10, max_val=10, denominator_limit=10, simple=True):
-    """
-    Generate a random Fraction within range.
-    simple=True ensures it's not an integer.
-    """
     for _ in range(100):
         den = random.randint(2, denominator_limit)
         num = random.randint(min_val * den, max_val * den)
         if den == 0: continue
         val = Fraction(num, den)
-        if simple and val.denominator == 1: continue # Skip integers
+        if simple and val.denominator == 1: continue 
         if val == 0: continue
         return val
-    return Fraction(1, 2) # Fallback
+    return Fraction(1, 2)
 
-def draw_number_line(points_map):
-    """[Advanced] Generate aligned ASCII number line with HTML container."""
-    if not points_map: return ""
-    values = []
-    for v in points_map.values():
-        if isinstance(v, (int, float)): values.append(float(v))
-        elif isinstance(v, Fraction): values.append(float(v))
-        else: values.append(0.0)
-    if not values: values = [0]
-    min_val = math.floor(min(values)) - 1
-    max_val = math.ceil(max(values)) + 1
-    if max_val - min_val > 15:
-        mid = (max_val + min_val) / 2
-        min_val = int(mid - 7); max_val = int(mid + 8)
-    unit_width = 6
-    line_str = ""; tick_str = ""
-    range_len = max_val - min_val + 1
-    label_slots = [[] for _ in range(range_len)]
-    for name, val in points_map.items():
-        if isinstance(val, Fraction): val = float(val)
-        idx = int(round(val - min_val))
-        if 0 <= idx < range_len: label_slots[idx].append(name)
-    for i in range(range_len):
-        val = min_val + i
-        line_str += "+" + "-" * (unit_width - 1)
-        tick_str += f"{str(val):<{unit_width}}"
-    final_label_str = ""
-    for labels in label_slots:
-        final_label_str += f"{labels[0]:<{unit_width}}" if labels else " " * unit_width
-    result = (
-        f"<div style='font-family: Consolas, monospace; white-space: pre; overflow-x: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; line-height: 1.2;'>"
-        f"{final_label_str}\n{line_str}+\n{tick_str}</div>"
-    )
-# --- 4. Standard Answer Checker (Auto-Injected) ---
+# --- 7 下 強化組件 A: 數線區間渲染器 (針對不等式) ---
+def draw_number_line(points_map, x_min=None, x_max=None, intervals=None, **kwargs):
+    """
+    intervals: list of dict, e.g., [{'start': 3, 'direction': 'right', 'include': False}]
+    """
+    values = [float(v) for v in points_map.values()] if points_map else [0]
+    if intervals:
+        for inter in intervals: values.append(float(inter['start']))
+    
+    if x_min is None: x_min = math.floor(min(values)) - 2
+    if x_max is None: x_max = math.ceil(max(values)) + 2
+    
+    fig = Figure(figsize=(8, 2))
+    ax = fig.add_subplot(111)
+    ax.plot([x_min, x_max], [0, 0], 'k-', linewidth=1.5)
+    ax.plot(x_max, 0, 'k>', markersize=8, clip_on=False)
+    ax.plot(x_min, 0, 'k<', markersize=8, clip_on=False)
+    
+    # 數線刻度規範
+    ax.set_xticks([0])
+    ax.set_xticklabels(['0'], fontsize=18, fontweight='bold')
+    
+    # 繪製不等式區間 (7 下 關鍵)
+    if intervals:
+        for inter in intervals:
+            s = float(inter['start'])
+            direct = inter.get('direction', 'right')
+            inc = inter.get('include', False)
+            color = 'red'
+            # 畫圓點 (空心/實心)
+            ax.plot(s, 0.2, marker='o', mfc='white' if not inc else color, mec=color, ms=10, zorder=5)
+            # 畫折線射線
+            target_x = x_max if direct == 'right' else x_min
+            ax.plot([s, s, target_x], [0.2, 0.5, 0.5], color=color, lw=2)
+
+    for label, val in points_map.items():
+        v = float(val)
+        ax.plot(v, 0, 'ro', ms=7)
+        ax.text(v, 0.08, label, ha='center', va='bottom', fontsize=16, fontweight='bold', color='red')
+
+    ax.set_yticks([]); ax.axis('off')
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+# --- 7 下 強化組件 B: 直角坐標系渲染器 (針對方程式圖形) ---
+def draw_coordinate_system(lines=None, points=None, x_range=(-5, 5), y_range=(-5, 5)):
+    """
+    繪製標準坐標軸與直線方程式
+    """
+    fig = Figure(figsize=(5, 5))
+    ax = fig.add_subplot(111)
+    ax.set_aspect('equal') # 鎖死比例
+    
+    # 繪製網格與軸線
+    ax.grid(True, linestyle=':', alpha=0.6)
+    ax.axhline(0, color='black', lw=1.5)
+    ax.axvline(0, color='black', lw=1.5)
+    
+    # 繪製直線 (y = mx + k)
+    if lines:
+        import numpy as np
+        for line in lines:
+            m, k = line.get('m', 0), line.get('k', 0)
+            x = np.linspace(x_range[0], x_range[1], 100)
+            y = m * x + k
+            ax.plot(x, y, lw=2, label=line.get('label', ''))
+
+    # 繪製點 (x, y)
+    if points:
+        for p in points:
+            ax.plot(p[0], p[1], 'ro')
+            ax.text(p[0]+0.2, p[1]+0.2, p.get('label', ''), fontsize=14, fontweight='bold')
+
+    ax.set_xlim(x_range); ax.set_ylim(y_range)
+    # 隱藏刻度，僅保留 0
+    ax.set_xticks([0]); ax.set_yticks([0])
+    
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+def draw_geometry_composite(polygons, labels, x_limit=(0,10), y_limit=(0,10)):
+    """[V11.6 Ultra Visual] 物理級幾何渲染器 (Physical Geometry Renderer)"""
+    fig = Figure(figsize=(5, 4))
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.set_aspect('equal', adjustable='datalim')
+    all_x, all_y = [], []
+    for poly_pts in polygons:
+        polygon = patches.Polygon(poly_pts, closed=True, fill=False, edgecolor='black', linewidth=2)
+        ax.add_patch(polygon)
+        for p in poly_pts:
+            all_x.append(p[0])
+            all_y.append(p[1])
+    for text, pos in labels.items():
+        all_x.append(pos[0])
+        all_y.append(pos[1])
+        ax.text(pos[0], pos[1], text, fontsize=20, fontweight='bold', ha='center', va='center',
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.8, pad=1))
+    if all_x and all_y:
+        min_x, max_x = min(all_x), max(all_x)
+        min_y, max_y = min(all_y), max(all_y)
+        rx = (max_x - min_x) * 0.3 if (max_x - min_x) > 0 else 1.0
+        ry = (max_y - min_y) * 0.3 if (max_y - min_y) > 0 else 1.0
+        ax.set_xlim(min_x - rx, max_x + rx)
+        ax.set_ylim(min_y - ry, max_y + ry)
+    else:
+        ax.set_xlim(x_limit)
+        ax.set_ylim(y_limit)
+    ax.axis('off')
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
+    del fig
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+# --- 4. Answer Checker (V11.6 Smart Formatting Standard) ---
 def check(user_answer, correct_answer):
-    """
-    Standard Answer Checker
-    Handles float tolerance and string normalization (LaTeX spaces).
-    """
-    if user_answer is None: return {"correct": False, "result": r"""答案錯誤。正確答案為：{ans}""".replace("{ans}", str(correct_answer))}
-    return result
+    if user_answer is None: return {"correct": False, "result": "未提供答案。"}
+    
+    # 將字典或複雜格式轉為乾淨字串
+    def _format_ans(a):
+        if isinstance(a, dict):
+            if "quotient" in a: 
+                return r"{q}, {r}".replace("{q}", str(a.get("quotient",""))).replace("{r}", str(a.get("remainder","")))
+            return ", ".join([r"{k}={v}".replace("{k}", str(k)).replace("{v}", str(v)) for k, v in a.items()])
+        return str(a)
+
+    def _clean(s):
+        # 雙向清理：剝除 LaTeX 符號與空格
+        return str(s).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "").lower()
+    
+    u = _clean(user_answer)
+    c_raw = _format_ans(correct_answer)
+    c = _clean(c_raw)
+    
+    if u == c: return {"correct": True, "result": "正確！"}
+    
+    try:
+        import math
+        if math.isclose(float(u), float(c), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
+    except: pass
+    
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", c_raw)}
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-import io
+import datetime
+
 import base64
 
-# Environment tools (to_latex, fmt_num) are injected and should not be defined here.
-# For local testing, you might use stubs:
-# def to_latex(n):
-#     # This stub assumes n is a number or a string that should be treated as LaTeX math.
-#     # For equation strings like "2x+3y=7", it should ideally return them as-is
-#     # when used inside a LaTeX math environment (like `cases`).
-#     # For numbers, it would typically format them for math mode.
-#     if isinstance(n, (int, float)):
-#         return f"${n}$"
-#     return str(n) # Assume equation strings are already in a suitable format
+# --- Helper Functions ---
+# All helper functions must return a value.
+# If used in question_text, return value must be string.
+# Visualisation functions (N/A here) must only receive known data, not answers.
 
-# def fmt_num(n):
-#     # This stub formats numbers for display in regular text.
-#     return str(n) if isinstance(n, int) else f"{n:.2f}"
+def _format_equation(coeff_x, coeff_y, constant, var1='x', var2='y'):
+    """
+    Helper function to format a linear equation (Ax + By = C) into a LaTeX-safe string.
+    Ensures adherence to LaTeX safety rules by using .replace() method only.
+    e.g., 2x - 3y = 5
+    """
+    parts = []
 
+    # Handle x term
+    if coeff_x == 1:
+        parts.append(var1)
+    elif coeff_x == -1:
+        parts.append(r"-{v}".replace("{v}", var1))
+    elif coeff_x != 0:
+        parts.append(r"{cx}{v}".replace("{cx}", str(coeff_x)).replace("{v}", var1))
 
-def generate_problem():
-    # 1. Generate integer solutions for x and y
-    x_sol = random.randint(-4, 4)
-    y_sol = random.randint(-4, 4)
-
-    # Helper function to format a coefficient with its variable (e.g., "x", "-y", "2x")
-    def format_term(coeff, variable):
-        if coeff == 0:
-            return ""
-        elif coeff == 1:
-            return f"{variable}"
-        elif coeff == -1:
-            return f"-{variable}"
-        else:
-            return f"{coeff}{variable}"
-
-    # Helper function to combine x and y terms into an equation side string
-    def combine_terms(x_term, y_term):
-        if not x_term and not y_term:
-            return "0"  # Should not happen if coefficients are properly generated
-        elif not x_term:
-            return y_term
-        elif not y_term:
-            return x_term
-        else:
-            # Handle sign for y_term when combining
-            if y_term.startswith('-'):
-                return f"{x_term}{y_term}"
+    # Handle y term
+    if coeff_y != 0:
+        if coeff_y == 1:
+            if parts:
+                parts.append(r"+ {v}".replace("{v}", var2))
             else:
-                return f"{x_term}+{y_term}"
-
-    # Helper function to generate coefficients (A, B, C) for an equation Ax + By = C
-    # given a solution (x_s, y_s), ensuring A and B are not both zero.
-    def get_coeffs(x_s, y_s):
-        while True:
-            a = random.randint(-5, 5)
-            b = random.randint(-5, 5)
-            if a == 0 and b == 0:  # Avoid trivial equation 0 = C
-                continue
-            c = a * x_s + b * y_s
-            return a, b, c
-
-    # Enforce structural diversity by choosing one of 3 equation structures
-    equation_structure_type = random.choice([1, 2, 3])
-
-    eq1_str = ""
-    eq2_str = ""
-    line1_params = {}  # Parameters for plotting the first line
-    line2_params = {}  # Parameters for plotting the second line
-
-    if equation_structure_type == 1:
-        # Structure 1: A1x + B1y = C1 and A2x + B2y = C2 (Standard form for both)
-        while True:
-            a1, b1, c1 = get_coeffs(x_sol, y_sol)
-            a2, b2, c2 = get_coeffs(x_sol, y_sol)
-            # Ensure a unique solution by checking the determinant (A1*B2 - A2*B1 != 0)
-            if a1 * b2 - a2 * b1 != 0:
-                break
-        
-        x1_term = format_term(a1, 'x')
-        y1_term = format_term(b1, 'y')
-        eq1_str = f"{combine_terms(x1_term, y1_term)} = {c1}"
-
-        x2_term = format_term(a2, 'x')
-        y2_term = format_term(b2, 'y')
-        eq2_str = f"{combine_terms(x2_term, y2_term)} = {c2}"
-
-        line1_params = {'type': 'standard', 'coeffs': (a1, b1, c1)}
-        line2_params = {'type': 'standard', 'coeffs': (a2, b2, c2)}
-
-    elif equation_structure_type == 2:
-        # Structure 2: y = M1x + B_const1 and A2x + B2y = C2 (Slope-intercept + Standard)
-        m1 = random.randint(-3, 3)  # Slope for the first equation
-        b_const1 = y_sol - m1 * x_sol # Calculate y-intercept based on solution
-
-        # Format y = M1x + B_const1
-        if m1 == 0:
-            eq1_str = f"y = {b_const1}"
-        elif m1 == 1:
-            eq1_str = f"y = x"
-            if b_const1 != 0:
-                eq1_str += f" + {b_const1}" if b_const1 > 0 else f" {b_const1}"
-        elif m1 == -1:
-            eq1_str = f"y = -x"
-            if b_const1 != 0:
-                eq1_str += f" + {b_const1}" if b_const1 > 0 else f" {b_const1}"
+                parts.append(var2)
+        elif coeff_y == -1:
+            parts.append(r"- {v}".replace("{v}", var2))
         else:
-            eq1_str = f"y = {m1}x"
-            if b_const1 != 0:
-                eq1_str += f" + {b_const1}" if b_const1 > 0 else f" {b_const1}"
-        
-        # Generate coefficients for A2x + B2y = C2
-        while True:
-            a2, b2, c2 = get_coeffs(x_sol, y_sol)
-            # Ensure unique solution:
-            # If B2 is 0, the second equation is a vertical line (A2x = C2), unique if A2 != 0.
-            # If B2 is not 0, substitute y = M1x + B_const1 into A2x + B2y = C2.
-            # This gives (A2 + B2*M1)x = C2 - B2*B_const1. Unique if (A2 + B2*M1) != 0.
-            if (b2 == 0 and a2 != 0) or (b2 != 0 and (a2 + b2 * m1) != 0):
-                break
+            if coeff_y > 0:
+                if parts:
+                    parts.append(r"+ {cy}{v}".replace("{cy}", str(coeff_y)).replace("{v}", var2))
+                else:
+                    parts.append(r"{cy}{v}".replace("{cy}", str(coeff_y)).replace("{v}", var2))
+            else: # coeff_y < 0
+                parts.append(r"- {abs_cy}{v}".replace("{abs_cy}", str(abs(coeff_y))).replace("{v}", var2))
 
-        x2_term = format_term(a2, 'x')
-        y2_term = format_term(b2, 'y')
-        eq2_str = f"{combine_terms(x2_term, y2_term)} = {c2}"
-        
-        line1_params = {'type': 'slope_intercept', 'coeffs': (m1, b_const1)}
-        line2_params = {'type': 'standard', 'coeffs': (a2, b2, c2)}
+    # If both coefficients are zero, this is an invalid equation for this context for a system with a unique solution
+    if not parts:
+        return r"0 = {c}".replace("{c}", str(constant))
 
-    else: # equation_structure_type == 3
-        # Structure 3: A1x + B1y = C1 and M2y = N2x + P2 (Standard + Rearranged)
-        while True:
-            a1, b1, c1 = get_coeffs(x_sol, y_sol)
-            
-            m2 = random.randint(-4, 4) # Coefficient of y in the second equation
-            n2 = random.randint(-4, 4) # Coefficient of x in the second equation
-            
-            if m2 == 0 and n2 == 0: # Avoid trivial 0 = P2
-                continue
-            
-            p2 = m2 * y_sol - n2 * x_sol # Calculate constant term based on solution
+    equation_str = " ".join(parts)
+    equation_str = r"{eq_str} = {c}".replace("{eq_str}", equation_str).replace("{c}", str(constant))
+    return equation_str
 
-            # Ensure unique solution:
-            # The system is A1x + B1y = C1 and -N2x + M2y = P2.
-            # Determinant is A1*M2 - B1*(-N2) = A1*M2 + B1*N2. This must be non-zero.
-            if a1 * m2 + b1 * n2 != 0:
-                break
-        
-        x1_term = format_term(a1, 'x')
-        y1_term = format_term(b1, 'y')
-        eq1_str = f"{combine_terms(x1_term, y1_term)} = {c1}"
+def _format_isolated_equation(coeff_other_var, const_term, var_isolated='y', var_other='x'):
+    """
+    Helper function to format an equation where one variable is isolated (e.g., y = Ax + B or x = Ay + B).
+    Ensures adherence to LaTeX safety rules by using .replace() method only.
+    """
+    rhs_parts = []
 
-        n2_term = format_term(n2, 'x')
-        m2_term = format_term(m2, 'y')
-        
-        # Format M2y = N2x + P2
-        if m2 == 0: # This means it's a vertical line: N2x = -P2
-            eq2_str = f"{n2_term} = {-p2}" 
-        elif n2 == 0: # This means it's a horizontal line: M2y = P2
-            eq2_str = f"{m2_term} = {p2}"
-        else:
-            eq2_str = f"{m2_term} = {n2_term}"
-            if p2 != 0:
-                eq2_str += f" + {p2}" if p2 > 0 else f" {p2}"
+    # Handle term with 'var_other'
+    if coeff_other_var == 1:
+        rhs_parts.append(var_other)
+    elif coeff_other_var == -1:
+        rhs_parts.append(r"-{v}".replace("{v}", var_other))
+    elif coeff_other_var != 0:
+        rhs_parts.append(r"{cx}{v}".replace("{cx}", str(coeff_other_var)).replace("{v}", var_other))
 
-        line1_params = {'type': 'standard', 'coeffs': (a1, b1, c1)}
-        line2_params = {'type': 'rearranged', 'coeffs': (m2, n2, p2)} # M2y = N2x + P2
-
-    # --- Plotting the intersection ---
-    fig, ax = plt.subplots(figsize=(6, 6))
-
-    # Determine plot range dynamically based on solution, with some padding
-    x_range_padding = max(abs(x_sol) + 2, 5) 
-    y_range_padding = max(abs(y_sol) + 2, 5)
-    x_plot_min, x_plot_max = x_sol - x_range_padding, x_sol + x_range_padding
-    y_plot_min, y_plot_max = y_sol - y_range_padding, y_sol + y_range_padding
-
-    x_vals = np.linspace(x_plot_min, x_plot_max, 400)
-
-    # Helper function to plot a line based on its parameters
-    def plot_line(params, ax, label, color):
-        line_type = params['type']
-        if line_type == 'standard': # Ax + By = C
-            A, B, C = params['coeffs']
-            if B == 0:  # Vertical line Ax = C => x = C/A
-                if A != 0:
-                    ax.axvline(x=C/A, color=color, linestyle='--', label=label)
-            else:  # By = -Ax + C => y = (-A/B)x + (C/B)
-                y_vals = (-A/B) * x_vals + (C/B)
-                ax.plot(x_vals, y_vals, color=color, label=label)
-        elif line_type == 'slope_intercept': # y = Mx + B_const
-            m, b = params['coeffs']
-            y_vals = m * x_vals + b
-            ax.plot(x_vals, y_vals, color=color, label=label)
-        elif line_type == 'rearranged': # M2y = N2x + P2
-            M2, N2, P2 = params['coeffs']
-            if M2 == 0:  # Vertical line N2x = -P2 => x = -P2/N2
-                if N2 != 0:
-                    ax.axvline(x=-P2/N2, color=color, linestyle='--', label=label)
-            else:  # y = (N2/M2)x + (P2/M2)
-                y_vals = (N2/M2) * x_vals + (P2/M2)
-                ax.plot(x_vals, y_vals, color=color, label=label)
-
-    plot_line(line1_params, ax, 'L1', 'blue')
-    plot_line(line2_params, ax, 'L2', 'green')
-
-    # Plot the intersection point
-    ax.plot(x_sol, y_sol, 'ro', markersize=8, label=f'交點 ({fmt_num(x_sol)}, {fmt_num(y_sol)})')
+    # Handle constant term
+    if const_term != 0:
+        if const_term > 0:
+            if rhs_parts:
+                rhs_parts.append(r"+ {abs_c}".replace("{abs_c}", str(const_term)))
+            else:
+                rhs_parts.append(str(const_term))
+        else: # const_term < 0
+            rhs_parts.append(r"- {abs_c}".replace("{abs_c}", str(abs(const_term))))
     
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_title('幾何圖形解')
-    ax.grid(True)
-    ax.axhline(0, color='black',linewidth=0.5)
-    ax.axvline(0, color='black',linewidth=0.5)
-    ax.set_aspect('equal', adjustable='box')
-    ax.legend()
-
-    # Set plot limits to ensure visibility of the intersection and surrounding area
-    ax.set_xlim(x_plot_min, x_plot_max)
-    ax.set_ylim(y_plot_min, y_plot_max)
-
-    # Save plot to a BytesIO object and encode to Base64
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    plt.close(fig) # Close the plot to free memory
-    image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-
-    # --- Construct problem text and correct answer ---
-    # Equation strings (eq1_str, eq2_str) are assumed to be in a format
-    # suitable for direct inclusion within a LaTeX math environment like `cases`.
-    question_text = f"請解以下聯立方程式：\n" \
-                    f"\\begin{{cases}}\n" \
-                    f"  {eq1_str} \\\\\n" \
-                    f"  {eq2_str}\n" \
-                    f"\\end{{cases}}\n" \
-                    f"(答案格式：x=_, y=_)"
-
-    # Correct answer must be in the exact specified format
-    correct_answer = f"x={x_sol},y={y_sol}"
-
-    return {
-        "question_text": question_text,
-        "correct_answer": correct_answer,
-        "visual_aids": [{"type": "image/png", "value": image_base64}]
-    }
-
-
-# [Auto-Injected Smart Dispatcher v8.7]
-def generate(level=1):
-    if level == 1:
-        types = ['generate_problem']
-        selected = random.choice(types)
+    # If both are zero, just return 0
+    if not rhs_parts:
+        rhs_str = "0"
     else:
-        types = ['generate_problem']
-        selected = random.choice(types)
-    if selected == 'generate_problem': return generate_problem()
-    return generate_problem()
+        rhs_str = " ".join(rhs_parts)
 
-# [Auto-Injected Patch v10.4] Universal Return, Linebreak & Chinese Fixer
+    equation_str = r"{v_iso} = {rhs_s}".replace("{v_iso}", var_isolated).replace("{rhs_s}", rhs_str)
+    return equation_str
+
+
+# --- Top-level Functions ---
+
+def generate(level=1):
+    """
+    【任務說明】
+    生成一個 K12 數學「代入消去法」的聯立方程式題目。
+    題目數據嚴格遵循隨機生成與反向計算原則，確保整數解。
+
+    【題型鏡射 (Problem Mirroring)】
+    - 隨機分流: 根據 random.choice 選擇兩種主要題型。
+    - 範例: 所有係數、常數和解均為動態生成，而非硬編碼。
+    - 不設計新題目，僅隨機化 RAG 中的現有題型。
+
+    【數據禁絕常數 (Data Prohibition)】
+    - 隨機生成: 所有係數和常數均使用 random.randint 生成。
+    - 公式計算: 先生成整數解 (x_sol, y_sol)，然後反向構建方程式，確保解的正確性。
+
+    【排版與 LaTeX 安全 (Elite Guardrails)】
+    - 語法零修復 (Regex=0): 所有包含 LaTeX 指令的字串均嚴格使用 .replace() 方法。
+    - 嚴禁使用 f-string 或 % 格式化於 LaTeX 字串中。
+    - 數學式一律使用 $...$。
+    - 嚴禁使用 \par 或 \[...\].
+
+    Args:
+        level (int): 難度等級 (目前未實作差異化，所有題目均為中等難度，確保整數解)。
+
+    Returns:
+        dict: 包含 question_text, correct_answer, answer, image_base64 等標準欄位。
+    """
+    
+    # 隨機選擇題型
+    # Type 1 (Maps to RAG Ex 1 & Ex 2): 一個變數已明確被表示出來 (e.g., x=2y or y=3-9x)
+    # Type 2 (Maps to RAG Ex 3): 某個變數的係數是 1 或 -1，易於代入消去 (e.g., x+4y=-1 or 5x-y=16)
+    problem_type = random.choice([1, 2])
+    
+    # 1. 數據禁絕常數：隨機生成整數解
+    x_sol = random.randint(-5, 5)
+    y_sol = random.randint(-5, 5)
+
+    # 避免過於瑣碎的解 (例如 x=0, y=0)
+    # 確保至少一個非零，或兩個都非零
+    while x_sol == 0 and y_sol == 0:
+        x_sol = random.randint(-5, 5)
+        y_sol = random.randint(-5, 5)
+
+    question_text = ""
+    correct_answer = {'x': x_sol, 'y': y_sol}
+    
+    # 係數和常數的隨機範圍
+    coeff_min = -5
+    coeff_max = 5
+
+    if problem_type == 1:
+        # Type 1 (Maps to RAG Ex 1 & Ex 2): 一個變數已明確被表示出來 (e.g., x=2y or y=3-9x)
+        # 方程式 1: isolated_var = a * other_var + b
+        # 方程式 2: c*x + d*y = e
+
+        isolated_var_name = random.choice(['x', 'y'])
+        other_var_name = 'y' if isolated_var_name == 'x' else 'x'
+
+        while True:
+            # 1.1 生成方程式 1: isolated_var = a * other_var + b
+            a = random.randint(coeff_min, coeff_max)
+            # 避免 isolated_var = b (過於簡單，例如 y=5)
+            if a == 0: 
+                continue 
+            
+            # 公式計算: 確保 (x_sol, y_sol) 滿足方程式 1
+            if isolated_var_name == 'y':
+                b = y_sol - a * x_sol
+            else: # isolated_var_name == 'x'
+                b = x_sol - a * y_sol
+
+            # 1.2 生成方程式 2: cx + dy = e
+            c = random.randint(coeff_min, coeff_max)
+            d = random.randint(coeff_min, coeff_max)
+            
+            # 避免方程式 2 係數皆為零 (0 = e)
+            if c == 0 and d == 0: 
+                continue
+
+            # 公式計算: 確保 (x_sol, y_sol) 滿足方程式 2
+            e = c * x_sol + d * y_sol
+
+            # 檢查是否有唯一解 (行列式不為零)
+            # 系統可寫為:
+            # 若 isolated_var_name == 'y': -ax + 1y = b, cx + dy = e => 行列式 = (-a)*d - (1)*c = -ad - c
+            # 若 isolated_var_name == 'x': 1x - ay = b, cx + dy = e => 行列式 = (1)*d - (-a)*c = d + ac
+            
+            determinant = 0
+            if isolated_var_name == 'y':
+                determinant = (-a * d - c)
+            else: # isolated_var_name == 'x'
+                determinant = (d + a * c)
+
+            if determinant != 0:
+                # 避免係數過於簡單 (例如全部都是 1 或 -1，且常數也小)
+                # 這是一個啟發式檢查，旨在增加題目多樣性，非數學必要條件
+                if not (abs(a) <= 1 and abs(b) <=1 and abs(c) <= 1 and abs(d) <= 1 and abs(e) <=1):
+                    break
+            
+        eq1_str = _format_isolated_equation(a, b, isolated_var_name, other_var_name)
+        eq2_str = _format_equation(c, d, e, 'x', 'y')
+
+        question_text = r"請使用代入消去法解下列聯立方程式：$\begin{cases} " + \
+                        eq1_str.replace("=", "&=") + r" \\ " + \
+                        eq2_str.replace("=", "&=") + r" \end{cases}$"
+
+    elif problem_type == 2:
+        # Type 2 (Maps to RAG Ex 3): 某個變數的係數是 1 或 -1，易於代入消去
+        # 方程式 1: ax + by = c (其中 a 或 b 為 1 或 -1)
+        # 方程式 2: dx + ey = f
+
+        while True:
+            # 2.1 生成方程式 1: 確保某個變數係數為 1 或 -1
+            a, b = 0, 0
+            choice_coeff_eq1 = random.choice(['x_coeff", "y_coeff'])
+            coeff_val_for_easy_isolation = random.choice([1, -1])
+
+            if choice_coeff_eq1 == 'x_coeff':
+                a = coeff_val_for_easy_isolation
+                b = random.randint(coeff_min, coeff_max)
+                # 避免 ax = c (過於簡單，例如 x=5)
+                if b == 0: continue 
+            else: # choice_coeff_eq1 == 'y_coeff'
+                a = random.randint(coeff_min, coeff_max)
+                # 避免 by = c (過於簡單，例如 y=5)
+                if a == 0: continue 
+                b = coeff_val_for_easy_isolation
+            
+            # 增加複雜度：如果 Eq1 的兩個係數都為 1 或 -1 (例如 x+y=C)，隨機增大其中一個
+            if abs(a) == 1 and abs(b) == 1:
+                if random.random() < 0.5: # 增大 'a'
+                    a = random.randint(2, coeff_max) * random.choice([1, -1])
+                else: # 增大 'b'
+                    b = random.randint(2, coeff_max) * random.choice([1, -1])
+                # 重新檢查是否變為過於簡單 (例如增大後變成 0)
+                if a == 0 or b == 0: continue
+
+            # 公式計算: 確保 (x_sol, y_sol) 滿足方程式 1
+            c = a * x_sol + b * y_sol
+
+            # 2.2 生成方程式 2: dx + ey = f
+            d = random.randint(coeff_min, coeff_max)
+            e = random.randint(coeff_min, coeff_max)
+            
+            # 避免方程式 2 係數皆為零 (0 = f)
+            if d == 0 and e == 0: 
+                continue
+
+            # 公式計算: 確保 (x_sol, y_sol) 滿足方程式 2
+            f = d * x_sol + e * y_sol
+
+            # 檢查是否有唯一解 (行列式不為零)
+            # 行列式 = ae - bd
+            determinant = (a * e - b * d)
+            
+            if determinant != 0:
+                # 避免係數過於簡單 (例如全部都是 1 或 -1，且常數也小)
+                # 這是一個啟發式檢查，旨在增加題目多樣性，非數學必要條件
+                if not (abs(a) <= 1 and abs(b) <= 1 and abs(c) <= 1 and abs(d) <= 1 and abs(e) <= 1 and abs(f) <= 1):
+                    break
+            
+        eq1_str = _format_equation(a, b, c, 'x', 'y')
+        eq2_str = _format_equation(d, e, f, 'x', 'y')
+
+        question_text = r"請使用代入消去法解下列聯立方程式：$\begin{cases} " + \
+                        eq1_str.replace("=", "&=") + r" \\ " + \
+                        eq2_str.replace("=", "&=") + r" \end{cases}$"
+
+    else:
+        # 如果 problem_type 不在預期範圍內，拋出錯誤
+        raise ValueError("Selected problem type is not implemented.")
+
+    # 7. 數據與欄位 (Standard Fields)
+    # 欄位鎖死: 必須且僅能包含 question_text, correct_answer, answer, image_base64
+    # 時間戳記: 更新時必須將 created_at 設為 datetime.now() 並遞增 version。
+    output = {
+        "question_text": question_text,
+        "correct_answer": correct_answer, # dict {'x': val, 'y': val} for internal comparison
+        "answer": f"x={x_sol}, y={y_sol}", # string for display (f-string allowed here as it's not LaTeX)
+        "image_base64": "", # 無圖形，因此為空字串
+        "created_at": datetime.datetime.now().isoformat(),
+        "version": "1.0"
+    }
+    return output
+
+
+    """
+    【任務說明】
+    檢查用戶答案的正確性。
+
+    Args:
+        user_answer (str): 用戶提交的答案，例如 "x=3, y=2" 或 "x=3\ny=2"。
+        correct_answer (dict): 正確答案，例如 {'x': 3, 'y': 2}。
+
+    Returns:
+        bool: 如果用戶答案正確則為 True，否則為 False。
+    """
+    try:
+        # 標準化用戶答案字串：轉小寫、去除空格、將換行符替換為逗號以利解析
+        user_answer_normalized = user_answer.lower().replace(" ", "").replace("\n", ",")
+        
+        parsed_user_ans = {}
+        parts = user_answer_normalized.split(',')
+        for part in parts:
+            if '=' in part:
+                var, val_str = part.split('=')
+                parsed_user_ans[var.strip()] = int(val_str.strip())
+            
+        # 比較解析後的用戶答案與正確答案
+        # 確保 'x' 和 'y' 都存在且值匹配
+        is_correct = (parsed_user_ans.get('x') == correct_answer.get('x') and
+                      parsed_user_ans.get('y') == correct_answer.get('y'))
+        
+        return is_correct
+    except (ValueError, KeyError, IndexError):
+        # 處理用戶答案格式不正確的情況
+        return False
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
     def wrapper(*args, **kwargs):
         res = func(*args, **kwargs)
-        if func.__name__ == "check" and isinstance(res, bool):
-            return {"correct": res, "result": "正確！" if res else "答案錯誤"}
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
         if isinstance(res, dict):
-            if "question_text" in res and isinstance(res["question_text"], str):
-                res["question_text"] = res["question_text"].replace("\\n", "\n")
-            if func.__name__ == "check" and "result" in res:
-                msg = str(res["result"]).lower()
-                if any(w in msg for w in ["correct", "right", "success"]): res["result"] = "正確！"
-                elif any(w in msg for w in ["incorrect", "wrong", "error"]):
-                    if "正確答案" not in res["result"]: res["result"] = "答案錯誤"
-            if "answer" not in res and "correct_answer" in res: res["answer"] = res["correct_answer"]
-            if "answer" in res: res["answer"] = str(res["answer"])
-            if "image_base64" not in res: res["image_base64"] = ""
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \n 問題
+                res['question_text'] = re.sub(r'\n', '\n', res['question_text'])
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            triggers = ['^', '/', ',', '|', '(', '[', '{', '\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                res['input_mode'] = 'handwriting'
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
         return res
     return wrapper
+
 import sys
 for _name, _func in list(globals().items()):
-    if callable(_func) and (_name.startswith("generate") or _name == "check"):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
         globals()[_name] = _patch_all_returns(_func)

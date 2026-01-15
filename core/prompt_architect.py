@@ -84,6 +84,60 @@ def generate_v9_spec(skill_id, model_tag='cloud_pro', prompt_strategy='standard'
     - [隨機生成]：Spec 必須明確要求 Coder 使用 random.randint 生成所有幾何長度、角度與面積。
     - [公式計算]：嚴禁硬編碼 (Hardcode) 答案或座標。所有目標答案與圖形座標必須根據隨機生成的數據，透過幾何公式反向計算得出。
 
+
+    11. [V10.2 座標平面專用硬化規格 (Coordinate Hardening Spec)]
+
+    #### A. 資料結構鎖死 (Prevent Unpacking Error):
+    - 必須指示 Coder 定義 `_generate_coordinate_value()` 並統一回傳固定格式：`(float_val, (int_part, num, den, is_neg))`。
+    - 格式化函式必須嚴格執行 `int_part, num, den, is_neg = data[1]` 的解包方式。
+    - 若為整數，`num` 與 `den` 設為 0；若為分數，則 `int_part` 為帶分數整數部。
+
+    #### B. 標點題防洩漏協定 (Anti-Leak Protocol):
+    - 針對「在平面上標出點」的題型 (Plotting Type)，Spec 必須明確指示 Coder：
+      - 在呼叫繪圖函式時，`points` 參數必須傳入 **空列表 `[]`**。
+      - 圖形僅能顯示網格與坐標軸，學生需根據題目文字自行判斷位置。
+    - 針對「讀取坐標」題型 (Reading Type)，則需顯示點與標籤。
+
+    #### C. LaTeX 模板規範 (No Double Braces):
+    - 嚴禁指示 Coder 使用 `f"{{...}}"` 這種寫法。
+    - 必須規範 LaTeX 模板使用單層大括號（如 `{n}`, `{d}`），並搭配 `.replace("{n}", str(num))` 進行代換，以確保輸出的 LaTeX 不會出現 `{{1}}` 冗餘。
+
+    #### D. 視覺一致性 (V10.2 Pure Style):
+    - 必須鎖定 `ax.set_aspect('equal')` 確保網格為正方形。 
+    - 坐標軸標註：僅顯示原點 `0` (18號加粗)，點標籤須加白色光暈 (bbox)。
+
+
+
+    12. [V12.6 邏輯驗證硬化規約]:
+    - 【禁絕映射】：嚴禁指示 Coder 使用字典映射答案（如 "Q1" -> "第一象限"）。
+    - 【強制運算】：必須指示 Coder 先產生隨機數 a, b，計算新的座標 (x', y')，最後透過 if/elif 判斷 x', y' 正負號來回傳象限名稱。
+    - 【結構鎖死】：指示 check() 必須實作「數值序列比對」，只要用戶輸入的數字順序與正確座標一致，即回傳 True。
+
+    13. [V13.0 座標教學邏輯硬化規約]:
+    - 【座標選取控制】：必須指示 Coder 生成座標時使用 `random.randint(-8, 8)` 或 `random.randint(-8, 8) + 0.5`。
+    - 【標註權限隔離】：
+      - 指示 Coder：`ax.text` 標註的 string 只能是點的名稱（Label），絕對不能包含座標值。座標值只能出現在 `correct_answer` 欄位中。
+    - 【格式精確要求】：指示 Coder 必須使用 `str(int(val))` 處理整數，確保回饋給學生的答案是 "(5, 4)" 而非 "(5.0, 4.0)"。
+    - 【格線對齊】：座標軸範圍必須是對稱整數（如 -10 到 10），且 `xticks` 間隔必須固定為 1。
+
+    14. [V13.1 教學正確性補正]:
+    - 【禁絕假分數】：指示 Coder 在生成座標時，若有分數部，必須檢查 `numerator < denominator` 且 `denominator > 1`。
+    - 【答案格式標準化】：
+      - 座標題：正確答案格式為 A(3, 5)。
+      - 屬性題：正確答案格式為純數字列表，如 2, -1, 1, 2（不要括號）。
+    - 【標籤純淨化】：明確要求 Coder 在繪圖時 `ax.text` 的內容只能是標籤文字（Label），座標值（Values）只能存在於文字敘述與 correct_answer 中。
+
+    15. [V13.5 最終硬化規約]:
+    - 【標籤隔離】：強制要求 Coder 在繪圖時將「標籤文字」與「座標數值」完全隔離。ax.text 只能標註點名稱。
+    - 【整數優先】：指示 Coder 生成座標後必須判斷 `if val.is_integer(): val = int(val)`，確保輸出的答案如 (5, 4) 而非 (5.0, 4.0)。
+    - 【禁絕複雜比對】：嚴禁指示 Coder 在 check() 內寫 if/else 字串拆解，統一要求使用數字序列比對。
+    - 【座標範圍】：座標範圍必須對稱且寬裕（如 -8 到 8），確保點與標籤不會被邊框切掉。
+
+    16. [V13.6 API Hardened Spec]:
+    - 【Arrow Ban】：嚴禁在 axhline/axvline 使用 arrowprops（會導致 API 錯誤）。必須指示使用 `ax.plot(limit, 0, ">k", clip_on=False)` 繪製箭頭。
+    - 【Strict Labeling】：強制檢查點名稱是否在白名單內。
+    - 【Exact Check Logic】：指示 Coder 必須逐字複製 4-line check logic，不得自行發揮。
+
     """
 
     user_prompt = f"### SKILL: {skill.skill_ch_name} ({skill.skill_id})\n### STRATEGY: {tier_scope}\n### EXECUTE:"

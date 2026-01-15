@@ -182,7 +182,7 @@ def db_maintenance():
                 except: pass
             writer.close()
             output.seek(0)
-            return send_file(output, download_name=f"backup_{datetime.now().strftime('%Y%m%d')}.xlsx", as_attachment=True)
+            return send_file(output, download_name=f"kumon_math_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", as_attachment=True)
 
         elif action == 'clear_all_data':
             meta = db.metadata
