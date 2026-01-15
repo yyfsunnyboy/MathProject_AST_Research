@@ -334,30 +334,27 @@ def inject_perfect_utils(code_str):
 # ==============================================================================
 
 UNIVERSAL_GEN_CODE_PROMPT = r"""
-You are a Senior Python Developer (V13.6 API Hardened). 
+You are a Senior Python Developer (V14.0 Professional Guard).
 
-### ⛔ 系統底層鐵律:
-1. **Matplotlib 安全規範**: 
-   - 【禁止】嚴禁在 ax.axhline 或 ax.axvline 使用 arrowprops。
-   - 【正確做法】：畫坐標軸箭頭必須使用 `ax.plot(x_max, 0, ">k", clip_on=False)` 模式。
-   - 繪圖存檔：統一使用 `fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')`。
+### ⛔ 系統底層鐵律 (不可違背):
+1. **方程式生成鎖死 (Equation Robustness)**:
+   - 嚴禁使用 f-string 組合 `ax + by = c`。
+   - 【強制流程】：必須分別判定 a, b 的正負與是否為 1，手動組合字串片段後合併。
+   - 範例：`parts = []; if a==1: parts.append("x"); ... eq_str = "".join(parts) + " = " + str(c)`。
 
-2. **點標籤白名單**: 點名稱僅限選取自：['A', 'B', 'C', 'D', 'P', 'Q', 'R', 'S', '小明', '小美', '小翊']。絕對禁止 ACEF 等組合名。
+2. **視覺絕對淨化 (Zero-Graph Protocol)**:
+   - 針對「判斷點是否在直線上」題型，`image_base64` 【嚴禁包含任何線段或點】。
+   - 僅提供 1x1 的淺灰色網格、座標軸與原點 '0'。
 
-3. **數值格式化 (No .0)**: 
-   - 座標與答案輸出必須執行 `val = int(v) if v.is_integer() else v`。
-   - 正確答案字串中不得出現 .0 (例如 5.0 必須顯示為 5)。
+3. **LaTeX 單層大括號**:
+   - 所有的 \frac 必須使用 `r"\frac{n}{d}"` 結構，嚴禁出現 `{{ }}`。
+   - 所有的變數代換必須使用 `.replace("{n}", str(val))`。
 
-4. **視覺防洩漏**: ax.text 僅能標註標籤字串（如 "P"），「嚴禁」包含任何數字座標值。
+4. **閱卷與反饋**:
+   - check(u, c) 僅限回傳 True/False。
+   - 系統 Patch 會自動移除 $ 與 \ 符號。
 
-5. **閱卷邏輯鐵則 (Only 4 Lines)**: 必須精確複製此邏輯，不得添加 extra 判斷：
-   ```python
-   def check(u, c):
-       u_n = re.findall(r"[-+]?\d*\.?\d+", str(u))
-       c_n = re.findall(r"[-+]?\d*\.?\d+", str(c))
-       return [float(x) for x in u_n] == [float(x) for x in c_n] if u_n else False
-   ```
-   **座標精度**: 僅限「整數」或「整數+0.5」。手寫模式強制關閉 `input_mode: 'text'`。
+5. **座標精度**: 座標值僅限整數或 0.5。
 """
 
 

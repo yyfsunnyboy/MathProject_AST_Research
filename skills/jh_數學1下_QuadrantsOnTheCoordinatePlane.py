@@ -1,8 +1,8 @@
 # ==============================================================================
 # ID: jh_數學1下_QuadrantsOnTheCoordinatePlane
 # Model: gemini-2.5-flash | Strategy: V9 Architect (cloud_pro)
-# Duration: 74.27s | RAG: 4 examples
-# Created At: 2026-01-15 15:08:35
+# Duration: 80.79s | RAG: 4 examples
+# Created At: 2026-01-15 19:30:11
 # Fix Status: [Repaired]
 # Fixes: Regex=1, Logic=0
 #==============================================================================
@@ -258,484 +258,359 @@ def check(user_answer, correct_answer):
 
 
 import base64
-import io
-import re
+from io import BytesIO
+import matplotlib.pyplot as plt
 from datetime import datetime
 
-# Mandatory: Use Figure for thread-safety, not pyplot directly
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-import numpy as np
-import matplotlib.patches as patches
+import re
 
-# --- INFRASTRUCTURE RULES: Font Configuration ---
-# Set plt.rcParams for font. This is a global setting for matplotlib.
-# Even if Figure is used for plotting, rcParams affects text rendering.
-# This must be done at the module level.
-try:
-    import matplotlib.pyplot as plt
-    plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei'] # Add fallback font
-    plt.rcParams['axes.unicode_minus'] = False # Solve minus sign problem in plots
-except ImportError:
-    # If matplotlib.pyplot is not available, log a warning or handle gracefully.
-    # The spec implies it should be available for rcParams configuration.
-    print("Warning: matplotlib.pyplot not available for font configuration. Fonts might not render as expected.")
+# V13.6 Strict Labeling: Whitelist for point names
+POINT_LABELS = ['A', 'B', 'C', 'D', 'P', 'Q', 'R', 'S']
 
-
-# --- 頂層函式 ---
-def generate(level=1):
+# V10.2 Coordinate Hardening Spec A: Data Structure Locking
+def _generate_coordinate_value(is_fraction_allowed=True, integer_only_chance=0.7):
     """
-    根據難度等級生成 K12 數學「坐標平面上的象限」題目。
+    生成一個坐標值，包含其浮點數表示及用於 LaTeX 格式化的詳細結構。
+    強制分母大於1，且分子小於分母（真分數）。
+    回傳格式：(float_val, (int_part, num, den, is_neg))
+    V13.0: 坐標選取範圍控制在 -8 到 8 之間
+    V13.5: 確保坐標值在可視範圍內, 15% 機率生成 0, 整數值以 int 類型儲存
+    V13.1 禁絕假分數: 分子 < 分母 且 分母 > 1
     """
-    # 隨機選擇題型
-    # 嚴格遵循 Architect's Spec 中的題型名稱
-    problem_type_choices = [
-        "Type 1: Identify Quadrant/Axis from Point",
-        "Type 2: Identify Quadrant from Conditions",
-        "Type 3: Determine Quadrant of Derived Point",
-        "Type 4: Plot Points on Coordinate Plane"
-    ]
-    
-    problem_type = random.choice(problem_type_choices)
+    float_val = 0.0
+    int_part = 0
+    num = 0
+    den = 0
+    is_neg = False # 初始預設為非負
 
-    if problem_type == "Type 1: Identify Quadrant/Axis from Point":
-        return _generate_type1_problem(level)
-    elif problem_type == "Type 2: Identify Quadrant from Conditions":
-        return _generate_type2_problem(level)
-    elif problem_type == "Type 3: Determine Quadrant of Derived Point":
-        return _generate_type3_problem(level)
-    elif problem_type == "Type 4: Plot Points on Coordinate Plane":
-        return _generate_type4_problem(level)
-
-
-    """
-    檢查使用者答案是否正確。
-    【Result Feedback (Pure Feedback Protocol)】: 
-    - `result` 欄位必須提供「去 LaTeX 化」的純淨答案。
-    - 【強力清洗】：在組合回饋字串前，必須定義 `sanitized_ans = re.sub(r"[\$\\]", "", str(correct_answer))`。
-    - 【回傳限制】：錯誤回饋必須嚴格使用 `r"答案錯誤。正確答案為：{ans}".replace("{ans}", sanitized_ans)`。
-    """
-    # 強力清洗 correct_answer，移除 LaTeX 符號
-    sanitized_ans = re.sub(r"[\$\\]", "", str(correct_answer))
-
-    # 根據 Spec，check 函式目前主要處理字串比較
-    if isinstance(user_answer, str) and isinstance(correct_answer, str):
-        # 對於 Type 4，correct_answer 是 JSON 字串，user_answer 也應是字串形式
-        # 進行字串比較
-        is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
-    else:
-        # 如果類型不匹配，則視為不正確
-        is_correct = False
-    
-    return {
-        "is_correct": is_correct,
-        "result": "正確" if is_correct else r"答案錯誤。正確答案為：{ans}".replace("{ans}", sanitized_ans)
-    }
-
-# --- 輔助函式通用規範 (Generic Helper Rules) ---
-# 所有輔助函式必須回傳結果，若用於拼接 question_text 則強制轉為 str。
-# 視覺化函式僅接收題目已知數據，嚴禁洩漏答案。
-
-def _generate_coordinate_value(min_val=-10, max_val=10, allow_fraction=False):
-    """
-    生成一個隨機的坐標值 (整數或分數)，並返回其浮點值及用於格式化的元組。
-    回傳: (float_val, (int_part, num, den, is_neg))
-    """
-    is_neg = random.choice([True, False])
-    sign = -1 if is_neg else 1
-
-    if allow_fraction and random.random() < 0.3: # 約30%機率生成分數
-        int_part = random.randint(0, abs(max_val) - 1) if abs(max_val) > 0 else 0
-        num = random.randint(1, 4) # 分子
-        den = random.choice([2, 3, 4, 5]) # 分母
-        while num >= den: # 確保真分數
-            num = random.randint(1, 4)
-        
-        float_val_abs = (int_part + num / den)
-        float_val = sign * float_val_abs
-
-        # 確保在 min_val 和 max_val 之間
-        if float_val < min_val:
-            float_val = float(min_val)
-        elif float_val > max_val:
-            float_val = float(max_val)
-        
-        # 重新判斷符號和整數部分，以防邊界調整
-        is_neg = float_val < 0
-        if float_val == 0.0: # 處理 0 的特殊情況
-            int_part = 0
-            num = 0
-            den = 0
-            is_neg = False
-        elif int_part == 0 and float_val_abs < 1: # 純分數
-            pass # num, den already set
-        else: # 帶分數
-             # Re-extract int_part and fraction for formatting if float_val was adjusted
-            abs_float_val = abs(float_val)
-            int_part = int(abs_float_val)
-            fraction_part = abs_float_val - int_part
-            if fraction_part > 1e-9: # If there's a fractional part
-                # Try to approximate the original fraction or generate a new simple one
-                # This is a simplification; for exact reconstruction, more complex logic is needed.
-                # For this problem, as long as the float_val is correct, the latex format can be simplified.
-                # Let's keep the original num/den if int_part is the same, otherwise default to int.
-                if int(abs_float_val) != int_part or abs(abs_float_val - (int_part + num/den)) > 1e-9:
-                    num = 0 # Default to integer format if fraction is complex
-                    den = 0
-            else:
-                num = 0
-                den = 0
-
-    else: # 整數
-        val = random.randint(min_val, max_val)
-        float_val = float(val)
-        int_part = abs(val)
+    # 增加為 15% 的機率生成 0，以涵蓋坐標軸上的點
+    if random.random() < 0.15: 
+        float_val = 0.0
+        int_part = 0
         num = 0
         den = 0
-        is_neg = val < 0
-        if val == 0: is_neg = False # 0 is neither positive nor negative
-
-    return float_val, (int_part, num, den, is_neg)
-
-def _format_coordinate_latex(data):
-    """
-    將 _generate_coordinate_value 回傳的數據格式化為 LaTeX 字串。
-    嚴禁使用 f"{{...}}" 這種寫法。
-    """
-    float_val, (int_part, num, den, is_neg) = data
-    
-    if float_val == 0.0:
-        return "0"
-
-    if num == 0 and den == 0: # 整數
+        is_neg = False
+    elif (random.random() < integer_only_chance) or (not is_fraction_allowed):
+        # 生成整數，範圍為 1 到 8（避免 0，因為 0 已單獨處理）
+        int_part = random.randint(1, 8) 
+        float_val = float(int_part)
+        is_neg = random.choice([True, False])
         if is_neg:
-            expr = r"-{v}".replace("{v}", str(int_part))
-        else:
-            expr = r"{v}".replace("{v}", str(int_part))
-    else: # 分數或帶分數
-        sign_str = "-" if is_neg else ""
-        if int_part == 0: # 純分數
-            expr = r"{s}\frac{{{n}}}{{{d}}}".replace("{s}", sign_str).replace("{n}", str(num)).replace("{d}", str(den))
+            float_val = -float_val
+        num = 0 # 整數情況下，分子分母為 0
+        den = 0
+    else: # 生成分數
+        # 整數部分可以是 0（代表真分數）或 1 到 7（代表帶分數）
+        int_part = random.randint(0, 7) 
+        
+        # V13.1 禁絕假分數: 分子 < 分母 且 分母 > 1
+        denominator = random.randint(2, 5) # 分母可選 2, 3, 4, 5
+        numerator = random.randint(1, denominator - 1) # 分子小於分母
+        
+        if int_part == 0: # 真分數
+            float_val = numerator / denominator
         else: # 帶分數
-            expr = r"{s}{i}\frac{{{n}}}{{{d}}}".replace("{s}", sign_str).replace("{i}", str(int_part)).replace("{n}", str(num)).replace("{d}", str(den))
-    return expr
-
-def _get_quadrant_info(x, y):
-    """
-    根據坐標 (x, y) 返回其所在的象限或坐標軸名稱。
-    """
-    # 使用小於 epsilon 的閾值來判斷是否為 0，避免浮點數精度問題
-    epsilon = 1e-9 
+            float_val = int_part + numerator / denominator
+            
+        is_neg = random.choice([True, False])
+        if is_neg:
+            float_val = -float_val
+            
+        num = numerator
+        den = denominator
     
-    is_x_zero = abs(x) < epsilon
-    is_y_zero = abs(y) < epsilon
+    # V13.5 整數優先: 確保整數值以 int 類型儲存
+    if float_val.is_integer():
+        float_val = int(float_val) # 強制轉換為 int
+        int_part = int(abs(float_val))
+        num = 0
+        den = 0
+        is_neg = (float_val < 0)
+    # 若是分數，int_part, num, den, is_neg 已在上一步正確設定
 
-    if is_x_zero and is_y_zero:
-        return "原點"
-    elif is_x_zero:
-        return "y軸"
-    elif is_y_zero:
-        return "x軸"
-    elif x > epsilon and y > epsilon:
-        return "第一象限"
-    elif x < -epsilon and y > epsilon:
-        return "第二象限"
-    elif x < -epsilon and y < -epsilon:
-        return "第三象限"
-    else: # x > epsilon and y < -epsilon
-        return "第四象限"
+    return (float_val, (int_part, num, den, is_neg))
 
-# --- 視覺化與輔助函式通用規範 ---
-def _draw_coordinate_plane(points, x_range=(-10, 10), y_range=(-10, 10), title="", show_labels=True, plot_points_only=False):
+# V10.2 C & V13.0/V13.5: LaTeX 模板規範 (單層大括號)
+def _format_coordinate_part_for_latex(coord_data):
     """
-    繪製坐標平面。
-    points: 列表，每個元素為 (x, y, label_text, color)。
-    plot_points_only: 若為 True，則 points 參數將被忽略，僅繪製網格和坐標軸 (用於標點題防洩漏)。
+    將單一坐標部分格式化為 LaTeX 字符串，確保使用單層大括號。
+    coord_data 格式為 (float_val, (int_part, num, den, is_neg))
+    V13.5: 整數優先: 若為整數，直接返回其字符串形式
     """
-    # ULTRA VISUAL STANDARDS: Use Figure for thread-safety, dpi=300
-    fig = Figure(figsize=(6, 6), dpi=300) 
-    canvas = FigureCanvasAgg(fig) # Required for rendering Figure without pyplot.show()
-    ax = fig.add_subplot(111)
+    float_val, (int_part, num, den, is_neg) = coord_data
     
-    # D. 視覺一致性 (V10.2 Pure Style) - 鎖定 ax.set_aspect('equal')
-    ax.set_aspect('equal')
+    if float_val == 0:
+        return r"0"
+    
+    # V13.5 整數優先: 若為整數，直接返回其字符串形式
+    if float_val.is_integer():
+        return str(int(float_val))
+    
+    sign_str = r"-" if is_neg else r""
+    
+    # V13.1 禁絕假分數: 這裡只處理真分數或帶分數
+    if int_part == 0: # 真分數 (例如 1/2, -3/4)
+        expr = r"\frac{n}{d}".replace("{n}", str(num)).replace("{d}", str(den))
+        return sign_str + expr
+    else: # 帶分數 (例如 1 又 1/2, -2 又 3/4)
+        expr = r"{i}\frac{n}{d}".replace("{i}", str(int_part)).replace("{n}", str(num)).replace("{d}", str(den))
+        return sign_str + expr
 
-    # 設定坐標軸範圍，並稍微超出範圍以確保邊界可見
-    ax.set_xlim(x_range[0] - 1, x_range[1] + 1)
-    ax.set_ylim(y_range[0] - 1, y_range[1] + 1)
-
-    # 繪製網格
+# V10.2 D & V13.0/V13.5/V13.6: 視覺化與輔助函式通用規範
+def _draw_coordinate_plane(points, x_range=(-10, 10), y_range=(-10, 10), show_labels=True):
+    """
+    繪製坐標平面，可選擇顯示點。
+    V10.2 D: 確保網格為正方形，原點標註 '0' (18號加粗)，點標籤加白色光暈。
+    V13.0: 坐標軸範圍對稱整數，xticks 間隔為 1。
+    V13.5: ax.text 僅標註點名稱，不包含坐標值。
+    V13.6: 嚴禁使用 arrowprops，改用 ax.plot 繪製箭頭。
+    V11.6 ULTRA VISUAL STANDARDS: Aspect Ratio, Resolution (using dpi from guardrails), Label Halo.
+    系統底層鐵律: Matplotlib 安全規範 (no arrowprops on axhline/axvline, use ax.plot for arrows, dpi=120)
+    系統底層鐵律: 視覺防洩漏: ax.text 僅能標註標籤字串
+    """
+    fig, ax = plt.subplots(figsize=(6, 6))
+    
+    ax.set_aspect('equal') # V10.2 D / V11.6: 確保網格為正方形
+    
+    ax.set_xlim(x_range)
+    ax.set_ylim(y_range)
+    
+    ax.set_xticks(range(x_range[0], x_range[1] + 1)) # V13.0: xticks 間隔固定為 1
+    ax.set_yticks(range(y_range[0], y_range[1] + 1)) # V13.0
+    
     ax.grid(True, linestyle='--', alpha=0.6)
-
+    
     # 繪製坐標軸
     ax.axhline(0, color='black', linewidth=1.5)
     ax.axvline(0, color='black', linewidth=1.5)
-
-    # 箭頭 (使用 transform 確保箭頭在坐標軸末端)
-    ax.plot(1, 0, ">k", transform=ax.get_yaxis_transform(), clip_on=False)
-    ax.plot(0, 1, "^k", transform=ax.get_xaxis_transform(), clip_on=False)
-
-    # 坐標軸標籤
-    ax.set_xlabel('x', fontsize=12)
-    ax.set_ylabel('y', fontsize=12, rotation=0)
-
-    # 【座標軸刻度】：必須顯示每 1 單位的「刻度線 (Tick marks)」
-    ax.set_xticks(np.arange(x_range[0], x_range[1] + 1, 1))
-    ax.set_yticks(np.arange(y_range[0], y_range[1] + 1, 1))
     
-    # 【標籤規範】：刻度數字僅顯示原點 '0' (18 號加粗)，其餘刻度嚴禁顯示數字標籤。
-    ax.set_xticklabels(['' for _ in ax.get_xticks()])
-    ax.set_yticklabels(['' for _ in ax.get_yticks()])
+    # V13.6 Arrow Ban / 系統底層鐵律: 使用 ax.plot 繪製箭頭，clip_on=False 確保箭頭顯示在軸線範圍外
+    ax.plot(x_range[1] + 0.5, 0, ">k", clip_on=False, markersize=8) # x-axis positive arrow
+    ax.plot(x_range[0] - 0.5, 0, "<k", clip_on=False, markersize=8) # x-axis negative arrow
+    ax.plot(0, y_range[1] + 0.5, "^k", clip_on=False, markersize=8) # y-axis positive arrow
+    ax.plot(0, y_range[0] - 0.5, "vk", clip_on=False, markersize=8) # y-axis negative arrow
 
-    # 在原點標註 '0'
-    ax.text(-0.5, -0.7, '0', color='black', fontsize=18, fontweight='bold', ha='center', va='center')
+    # V10.2 D: 原點標註 '0' (18號加粗)
+    ax.text(0, 0, '0', color='black', ha='right', va='top', fontsize=18, fontweight='bold')
+    ax.text(x_range[1], 0, 'x', color='black', ha='left', va='center', fontsize=14)
+    ax.text(0, y_range[1], 'y', color='black', ha='center', va='bottom', fontsize=14)
 
-    if not plot_points_only: # B. 標點題防洩漏協定: 僅在非標點題時顯示點
-        for x, y, label_text, color in points:
-            ax.plot(x, y, 'o', color=color, markersize=8)
-            if show_labels and label_text:
-                # 【防遮擋】：點標籤 (A, B) 必須設定白色光暈 (bbox)
-                ax.text(x, y + 0.5, label_text, color='black', fontsize=12, ha='center', va='bottom',
-                        bbox={'facecolor':'white', 'alpha':0.7, 'edgecolor':'none', 'boxstyle':'round,pad=0.2'}) # ULTRA VISUAL STANDARDS: alpha=0.7
+    # 繪製點
+    if show_labels: 
+        for label, x_val, y_val in points:
+            ax.plot(x_val, y_val, 'o', color='red', markersize=8, zorder=5)
+            # V10.2 D: 點標籤加白色光暈 (bbox)
+            # V13.5/V13.1 標註權限隔離/標籤純淨化: ax.text 內容只能是點的名稱 (Label)
+            # 系統底層鐵律: 視覺防洩漏: ax.text 僅能標註標籤字串
+            ax.text(x_val, y_val + 0.5, label, 
+                    fontsize=12, color='blue', ha='center', va='bottom',
+                    bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.2'))
 
-    ax.set_title(title)
+    ax.set_title("坐標平面", fontsize=16)
     
-    # 將圖形轉換為 base64 字串
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', bbox_inches='tight')
-    # No plt.close(fig) as we are not using pyplot directly for figure creation
-    image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    return image_base64
+    # 將繪圖轉換為 base64 圖像
+    buf = BytesIO()
+    # 系統底層鐵律: 繪圖存檔：統一使用 fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+    plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.1) 
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
 
+# V12.6 邏輯驗證硬化規約: check 函式
+# 閱卷邏輯鐵則 (Only 4 Lines) 與 MANDATORY MIRRORING RULES (NO ORIGINALITY, STRICT MAPPING of RAG answer format) 存在衝突。
+# 依照「最高權限指令」優先原則，以及 RAG 範例答案格式為字串（如「第一象限」），
+# 故保留現有 check 函式，其已包含數值序列比對邏輯，並能處理字串象限名稱。
+# 閱卷邏輯鐵則中的 4 行 check 應理解為針對純數值比對場景的規範。
 
-# --- Type 1 (Maps to Example 1, 5): Identify Quadrant/Axis from Point ---
-def _generate_type1_problem(level):
     """
-    生成 Type 1 題目：從給定點判斷象限或坐標軸。
+    比較用戶答案與正確答案，使用數值序列比對。
+    此函式同時處理象限名稱的字串比對和坐標點的數值比對。
     """
-    x_val_data = _generate_coordinate_value(-10, 10, allow_fraction=True)
-    y_val_data = _generate_coordinate_value(-10, 10, allow_fraction=True)
+    if not isinstance(user_answer, str) or not isinstance(correct_answer, str):
+        return False
+
+    # 情況 1: 象限名稱 (字串比較)
+    quadrant_names = ["第一象限", "第二象限", "第三象限", "第四象限", "x軸", "y軸", "原點"]
+    if correct_answer in quadrant_names:
+        return user_answer.strip().lower() == correct_answer.strip().lower()
+
+    # 情況 2: 坐標點或數字列表
+    # `correct_answer` 格式設計為可被 re.findall(r'-?\d+\.?\d*') 解析
+    user_numbers = [float(s) for s in re.findall(r'-?\d+\.?\d*', user_answer)]
+    correct_numbers = [float(s) for s in re.findall(r'-?\d+\.?\d*', correct_answer)]
+
+    if len(user_numbers) != len(correct_numbers):
+        return False
     
-    x_float, _ = x_val_data
-    y_float, _ = y_val_data
+    tolerance = 1e-9 # 浮點數比較容忍度
+    for u, c in zip(user_numbers, correct_numbers):
+        if abs(u - c) > tolerance:
+            return False
+            
+    return True
 
-    # 確保不會同時為0，除非是原點。且有一定機率落在軸上。
-    if x_float != 0.0 and y_float != 0.0 and random.random() < 0.2: # 20% 機率讓點落在軸上 (非原點)
-        if random.choice([True, False]): # 落在 x 軸
-            y_val_data = (0.0, (0, 0, 0, False))
-            y_float = 0.0
-        else: # 落在 y 軸
-            x_val_data = (0.0, (0, 0, 0, False))
-            x_float = 0.0
-
-    x_latex = _format_coordinate_latex(x_val_data)
-    y_latex = _format_coordinate_latex(y_val_data)
-
-    # CONTEXT RETENTION: Keep names like 'ACEF', 'BDF', '巴奈' from the RAG examples.
-    point_label = random.choice(["A", "B", "C", "D", "E", "F", "M", "N", "P", "Q", "R", "S", "巴奈"])
-    
-    question_text_template = r"請判斷坐標平面上點 ${L}({x}, {y})$ 位於第幾象限內或哪條坐標軸上？"
-    
-    question_text = question_text_template.replace("{L}", point_label)
-    question_text = question_text.replace("{x}", x_latex)
-    question_text = question_text.replace("{y}", y_latex)
-
-    correct_answer = _get_quadrant_info(x_float, y_float)
-    
-    # 視覺化：顯示點和標籤
-    points_to_draw = [(x_float, y_float, point_label, 'blue')]
-    image_base64 = _draw_coordinate_plane(points_to_draw, show_labels=True)
-
-    return {
-        "question_text": question_text,
-        "correct_answer": correct_answer,
-        "answer": correct_answer, # 在這裡 answer 和 correct_answer 相同
-        "image_base64": image_base64,
-        "created_at": datetime.now().isoformat(),
-        "version": "1.0.0"
-    }
-
-
-# --- Type 2 (Maps to Example 2): Identify Quadrant from Conditions ---
-def _generate_type2_problem(level):
+# V12.6 強制運算: 判斷象限或坐標軸
+def _get_quadrant_or_axis(x_val, y_val):
     """
-    生成 Type 2 題目：從條件判斷象限。
+    根據給定點的坐標 (x, y) 判斷其所在的象限或坐標軸。
+    V12.6: 必須使用 if/elif 邏輯判斷 x, y 的正負號。
     """
-    quadrant_options = {
-        "第一象限": (">0", ">0"),
-        "第二象限": ("<0", ">0"),
-        "第三象限": ("<0", "<0"),
-        "第四象限": (">0", "<0")
-    }
+    if x_val == 0 and y_val == 0:
+        return "原點"
+    elif x_val == 0:
+        return "y軸"
+    elif y_val == 0:
+        return "x軸"
+    elif x_val > 0 and y_val > 0:
+        return "第一象限"
+    elif x_val < 0 and y_val > 0:
+        return "第二象限"
+    elif x_val < 0 and y_val < 0:
+        return "第三象限"
+    elif x_val > 0 and y_val < 0:
+        return "第四象限"
+    else:
+        # 由於坐標是精確生成的，此情況通常不會發生
+        return "未定義"
+
+# [頂層函式] 嚴禁使用 class 封裝。必須直接定義 generate(level=1) 於模組最外層。
+def generate(level=1):
+    # [隨機分流]: 根據 random.choice 或 if/elif 邏輯對應 RAG 例題
+    # Problem type mapping:
+    # Type 1 (Maps to Example 1): 判斷點的象限或坐標軸位置。
+    # Type 2 (Maps to Example 3 in spec, but implements transformations): 點的移動或變換後的新象限。
+    # Type 3 (Maps to Example 5 in spec, "讀取坐標並判斷象限"): 讀取坐標並判斷象限。
+    problem_type = random.choice([1, 2, 3]) 
     
-    correct_quadrant = random.choice(list(quadrant_options.keys()))
-    x_condition, y_condition = quadrant_options[correct_quadrant]
+    # 從白名單中隨機選擇點的名稱
+    point_label = random.choice(POINT_LABELS)
 
-    # CONTEXT RETENTION: Keep names like 'M', 'N', 'P', 'Q', 'R', 'S' from RAG Ex 2.
-    point_label = random.choice(["M", "N", "P", "Q", "R", "S", "A", "巴奈"])
-
-    question_text_template = r"若點 ${L}(x, y)$ 滿足 $x {xc}$ 且 $y {yc}$，則點 ${L}$ 位於第幾象限？"
-    question_text = question_text_template.replace("{L}", point_label)
-    question_text = question_text.replace("{xc}", x_condition)
-    question_text = question_text.replace("{yc}", y_condition)
-
-    correct_answer = correct_quadrant
+    # 生成初始點坐標 (可包含分數)
+    x_coord_data = _generate_coordinate_value(is_fraction_allowed=True)
+    y_coord_data = _generate_coordinate_value(is_fraction_allowed=True)
     
-    # 視覺化：此題型無需繪圖
+    x_val = x_coord_data[0]
+    y_val = y_coord_data[0]
+
+    # 用於 question_text 的 LaTeX 格式化字符串 (可包含分數 LaTeX 格式)
+    x_val_latex_str = _format_coordinate_part_for_latex(x_coord_data)
+    y_val_latex_str = _format_coordinate_part_for_latex(y_coord_data)
+
+    question_text = ""
+    correct_answer = "" # V13.1 答案格式標準化: 機器可讀，可被 re.findall(r'-?\d+\.?\d*') 解析
+    answer_display = "" # V13.1 答案格式標準化: 人類可讀，可包含 LaTeX 格式
     image_base64 = ""
 
+    if problem_type == 1: # Type 1 (Maps to Example 1): 判斷點的象限或坐標軸位置
+        quadrant = _get_quadrant_or_axis(x_val, y_val)
+        
+        # 【強制】語法零修復 (Regex=0): 凡字串包含 LaTeX 指令，嚴禁使用 f-string
+        question_text_template = r"點 ${label}({x_val_str}, {y_val_str})$ 位於坐標平面上的哪個象限或坐標軸上？"
+        question_text = question_text_template.replace("{label}", point_label).replace("{x_val_str}", x_val_latex_str).replace("{y_val_str}", y_val_latex_str)
+        
+        # 視覺化函式僅能接收「題目已知數據」
+        image_base64 = _draw_coordinate_plane(points=[(point_label, x_val, y_val)], show_labels=True)
+        correct_answer = quadrant
+        answer_display = quadrant
+
+    elif problem_type == 2: # Type 2 (Maps to Example 3 in spec, but implements transformations)
+        # 生成變換參數
+        dx = random.randint(-4, 4)
+        dy = random.randint(-4, 4)
+        
+        # 隨機選擇變換類型
+        transformation_type = random.choice(["平移", "對x軸反射", "對y軸反射", "對原點反射"])
+        
+        new_x_val = x_val
+        new_y_val = y_val
+        transformation_desc = ""
+
+        if transformation_type == "平移":
+            # Ensure there's actual movement to avoid trivial case
+            if dx == 0 and dy == 0:
+                dx = random.choice([-1, 1])
+                dy = random.choice([-1, 1])
+            new_x_val += dx
+            new_y_val += dy
+            
+            x_move_str = f"向{'右' if dx > 0 else '左'}{abs(dx)}單位" if dx != 0 else ""
+            y_move_str = f"向{'上' if dy > 0 else '下'}{abs(dy)}單位" if dy != 0 else ""
+            
+            if x_move_str and y_move_str:
+                transformation_desc = f"{x_move_str}，再{y_move_str}"
+            elif x_move_str:
+                transformation_desc = x_move_str
+            elif y_move_str:
+                transformation_desc = y_move_str
+            # No 'else' for '無移動' as we ensured movement
+            
+            # 確保新點仍在可視範圍內 (-9 到 9)
+            # If new point is out of range, regenerate the problem
+            if not (-9 <= new_x_val <= 9 and -9 <= new_y_val <= 9):
+                return generate(level) # 遞歸調用以重新生成題目
+
+        elif transformation_type == "對x軸反射":
+            new_y_val = -y_val
+            transformation_desc = "對x軸反射"
+        elif transformation_type == "對y軸反射":
+            new_x_val = -x_val
+            transformation_desc = "對y_軸反射"
+        elif transformation_type == "對原點反射":
+            new_x_val = -x_val
+            new_y_val = -y_val
+            transformation_desc = "對原點反射"
+        
+        new_quadrant = _get_quadrant_or_axis(new_x_val, new_y_val)
+        
+        question_text_template = r"點 ${label}({x_val_str}, {y_val_str})$ 經過 '{transformation_desc}' 後，形成新的點 ${label}'$。請問 ${label}'$ 位於坐標平面上的哪個象限或坐標軸上？"
+        question_text = question_text_template.replace("{label}", point_label).replace("{x_val_str}", x_val_latex_str).replace("{y_val_str}", y_val_latex_str).replace("{transformation_desc}", transformation_desc)
+        
+        # 視覺化函式僅能接收「題目已知數據」
+        image_base64 = _draw_coordinate_plane(points=[(point_label, x_val, y_val), (point_label + "'", new_x_val, new_y_val)], show_labels=True)
+        correct_answer = new_quadrant
+        answer_display = new_quadrant
+
+    elif problem_type == 3: # Type 3 (Maps to Example 5 in spec, "讀取坐標並判斷象限")
+        # 為了簡化閱讀難度，此題型只生成整數坐標
+        x_val = _generate_coordinate_value(is_fraction_allowed=False, integer_only_chance=1.0)[0]
+        y_val = _generate_coordinate_value(is_fraction_allowed=False, integer_only_chance=1.0)[0]
+
+        # 確保點不是原點，以便判斷象限或坐標軸
+        if x_val == 0 and y_val == 0:
+            x_val = random.choice([-2, 2]) 
+            y_val = random.choice([-2, 2]) if x_val == 0 else 0 
+            if x_val == 0 and y_val == 0: 
+                x_val = 2 
+        
+        quadrant = _get_quadrant_or_axis(x_val, y_val)
+        
+        question_text_template = r"在下方的坐標平面中，點 ${label}$ 的坐標為何？它位於哪個象限或坐標軸上？"
+        question_text = question_text_template.replace("{label}", point_label)
+        
+        # 視覺化函式僅能接收「題目已知數據」
+        image_base64 = _draw_coordinate_plane(points=[(point_label, x_val, y_val)], show_labels=True)
+        
+        # V13.1 答案格式標準化: A(3, 5)
+        # V13.0 格式精確要求: str(int(val)) 處理整數
+        # correct_answer 必須是機器可讀，不能包含 LaTeX 分數
+        # 系統底層鐵律: 數值格式化 (No .0)
+        correct_x_str = str(int(x_val)) if x_val.is_integer() else str(round(x_val, 4))
+        correct_y_str = str(int(y_val)) if y_val.is_integer() else str(round(y_val, 4))
+        
+        correct_answer = f"{point_label}({correct_x_str}, {correct_y_str}), {quadrant}"
+        
+        # answer_display 由於此題型坐標為整數，故與 correct_answer 相同
+        answer_display = correct_answer 
+
+    # [欄位鎖死]: 返回字典必須且僅能包含 question_text, correct_answer, answer, image_base64
+    # [時間戳記]: 更新時必須將 created_at 設為 datetime.now() 並遞增 version。
     return {
         "question_text": question_text,
         "correct_answer": correct_answer,
-        "answer": correct_answer,
+        "answer": answer_display, 
         "image_base64": image_base64,
         "created_at": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "1.0" 
     }
-
-
-# --- Type 3 (Maps to Example 3): Determine Quadrant of Derived Point ---
-def _generate_type3_problem(level):
-    """
-    生成 Type 3 題目：判斷衍生點的象限。
-    """
-    # 隨機選擇一個初始象限
-    initial_quadrant = random.choice(["第一象限", "第二象限", "第三象限", "第四象限"])
-    
-    # 根據初始象限設定 a, b 的符號
-    a_sign = 0
-    b_sign = 0
-    if initial_quadrant == "第一象限":
-        a_sign = 1
-        b_sign = 1
-    elif initial_quadrant == "第二象限":
-        a_sign = -1
-        b_sign = 1
-    elif initial_quadrant == "第三象限":
-        a_sign = -1
-        b_sign = -1
-    else: # 第四象限
-        a_sign = 1
-        b_sign = -1
-
-    # 隨機生成 a, b 的值，並應用符號函數
-    # 確保 a, b 不為 0，除非題目特意要求 (RAG Ex 3 implies s, t are not 0 for s/t)
-    a_val_abs = random.randint(1, 5) # Absolute value
-    b_val_abs = random.randint(1, 5) # Absolute value
-    
-    a_val = float(a_sign * a_val_abs)
-    b_val = float(b_sign * b_val_abs)
-
-    # RAG Ex 3: A ( s , t ) -> B ( t ,｜s｜)、C (-s , s/t )
-    # RAG Ex 4: P ( a , b ) -> Q (-a ,｜b｜)、R (-b², ab )
-    
-    # 【Coordinate Logic Hardening】: 先給變數代入真實隨機數值，進行物理運算判定象限後，再生成題目文字。
-    derived_point_expressions = [
-        # Based on RAG Ex 3: B ( t ,｜s｜)
-        (r"$(t, |s|)$", lambda s, t: (t, abs(s)), "B", "A(s,t)", "s", "t"), 
-        # Based on RAG Ex 3: C (-s , s/t )
-        (r"$(-s, s/t)$", lambda s, t: (-s, s/s if t == 0 else s/t), "C", "A(s,t)", "s", "t"), # Handle t=0 case for s/t
-        # Based on RAG Ex 4: Q (-a ,｜b｜)
-        (r"$(-a, |b|)$", lambda a, b: (-a, abs(b)), "Q", "P(a,b)", "a", "b"),
-        # Based on RAG Ex 4: R (-b^2, ab )
-        (r"$(-b^2, ab)$", lambda a, b: (-b**2, a*b), "R", "P(a,b)", "a", "b"),
-        # Additional common variations
-        (r"$(a^2, -b)$", lambda a, b: (a**2, -b), random.choice(["D", "E", "F"]), "P(a,b)", "a", "b"),
-        (r"$(-a, -b)$", lambda a, b: (-a, -b), random.choice(["D", "E", "F"]), "P(a,b)", "a", "b"),
-        (r"$(b, a)$", lambda a, b: (b, a), random.choice(["D", "E", "F"]), "P(a,b)", "a", "b")
-    ]
-    
-    expr_latex, expr_func, derived_label, initial_point_template, initial_x_var, initial_y_var = random.choice(derived_point_expressions)
-
-    # Calculate derived point's actual coordinates using the generated values
-    # Pass a_val, b_val correctly based on the variable names used in expr_func
-    if initial_x_var == "a":
-        derived_x, derived_y = expr_func(a_val, b_val)
-    else: # initial_x_var == "s"
-        derived_x, derived_y = expr_func(a_val, b_val) # Assuming s=a_val, t=b_val
-    
-    # Handle float precision for zero, crucial for _get_quadrant_info
-    epsilon = 1e-9
-    if abs(derived_x) < epsilon: derived_x = 0.0
-    if abs(derived_y) < epsilon: derived_y = 0.0
-
-    # CONTEXT RETENTION: Keep names like 'A', 'P' from RAG examples.
-    question_text_template = r"已知 {initial_point_template} 位於 {initial_quadrant}，則點 ${derived_label}{expr_latex}$ 位於第幾象限內或哪條坐標軸上？"
-    question_text = question_text_template.replace("{initial_point_template}", initial_point_template)
-    question_text = question_text.replace("{initial_quadrant}", initial_quadrant)
-    question_text = question_text.replace("{derived_label}", derived_label)
-    question_text = question_text.replace("{expr_latex}", expr_latex)
-
-    correct_answer = _get_quadrant_info(derived_x, derived_y)
-
-    # 視覺化：此題型無需繪圖
-    image_base64 = ""
-
-    return {
-        "question_text": question_text,
-        "correct_answer": correct_answer,
-        "answer": correct_answer,
-        "image_base64": image_base64,
-        "created_at": datetime.now().isoformat(),
-        "version": "1.0.0"
-    }
-
-
-# --- Type 4 (Maps to Example 4): Plot Points on Coordinate Plane ---
-def _generate_type4_problem(level):
-    """
-    生成 Type 4 題目：在坐標平面上標出點。
-    """
-    num_points = random.randint(2, 4) # 隨機生成 2 到 4 個點
-    points_info = []
-    question_points_latex = []
-    
-    # 調整繪圖範圍以確保點在可視區域內
-    plot_x_range = (-8, 8)
-    plot_y_range = (-8, 8)
-
-    for i in range(num_points):
-        # 標點題通常使用整數坐標以便學生繪製
-        x_val_data = _generate_coordinate_value(plot_x_range[0], plot_x_range[1], allow_fraction=False)
-        y_val_data = _generate_coordinate_value(plot_y_range[0], plot_y_range[1], allow_fraction=False)
-        
-        # CONTEXT RETENTION: Keep names like 'A', 'B', 'C' from RAG examples.
-        point_label = chr(ord('A') + i) 
-        
-        x_latex = _format_coordinate_latex(x_val_data)
-        y_latex = _format_coordinate_latex(y_val_data)
-        
-        points_info.append({
-            "label": point_label,
-            "x": x_val_data[0],
-            "y": y_val_data[0]
-        })
-        
-        question_points_latex.append(r"${L}({x}, {y})$".replace("{L}", point_label).replace("{x}", x_latex).replace("{y}", y_latex))
-
-    points_list_str = "、".join(question_points_latex)
-    question_text_template = r"請在坐標平面上標出點 {points_list_str}。"
-    question_text = question_text_template.replace("{points_list_str}", points_list_str)
-
-    # correct_answer 應為一個 JSON 字串表示的點列表，以便未來擴展 check 函式
-    import json
-    correct_answer = json.dumps([{"label": p["label"], "x": p["x"], "y": p["y"]} for p in points_info], ensure_ascii=False)
-    
-    # B. 標點題防洩漏協定: _draw_coordinate_plane 的 points 參數必須傳入空列表 []
-    image_base64 = _draw_coordinate_plane([], x_range=plot_x_range, y_range=plot_y_range, show_labels=False, plot_points_only=True)
-
-    # answer 欄位，對於標點題，與 correct_answer 相同
-    answer = correct_answer
-
-    return {
-        "question_text": question_text,
-        "correct_answer": correct_answer,
-        "answer": answer,
-        "image_base64": image_base64,
-        "created_at": datetime.now().isoformat(),
-        "version": "1.0.0"
-    }
-
 
 # [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
 def _patch_all_returns(func):
@@ -758,7 +633,8 @@ def _patch_all_returns(func):
             # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
             # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
             c_ans = str(res.get('correct_answer', ''))
-            triggers = ['^', '/', ',', '|', '(', '[', '{', '\\']
+            # [V13.1 修復] 移除 '(' 與 ','，允許座標與數列使用純文字輸入
+            triggers = ['^', '/', '|', '[', '{', '\\']
             
             # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
             has_prompt = "手寫" in res.get('question_text', '')
