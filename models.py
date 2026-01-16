@@ -306,7 +306,15 @@ def init_db(engine):
         ('prompt_tokens', 'INTEGER DEFAULT 0'), ('completion_tokens', 'INTEGER DEFAULT 0'), ('total_tokens', 'INTEGER DEFAULT 0'),
         ('code_complexity', 'INTEGER DEFAULT 0'),
         ('gpu_usage', 'REAL DEFAULT 0'), ('gpuram_usage', 'REAL DEFAULT 0'),
-        ('raw_output_length', 'INTEGER DEFAULT 0'), ('perfect_utils_length', 'INTEGER DEFAULT 0')
+        ('raw_output_length', 'INTEGER DEFAULT 0'), ('perfect_utils_length', 'INTEGER DEFAULT 0'),
+        # [科研新增欄位]
+        ('start_time', 'REAL'), ('prompt_len', 'INTEGER'), ('code_len', 'INTEGER'),
+        ('error_msg', 'TEXT'), ('repaired', 'BOOLEAN DEFAULT 0'),
+        ('model_size_class', 'TEXT'), ('prompt_level', 'TEXT'),
+        ('raw_response', 'TEXT'), ('final_code', 'TEXT'),
+        ('score_syntax', 'REAL DEFAULT 0.0'), ('score_math', 'REAL DEFAULT 0.0'), ('score_visual', 'REAL DEFAULT 0.0'),
+        ('healing_duration', 'REAL'), ('is_executable', 'BOOLEAN'),
+        ('ablation_id', 'INTEGER'), ('missing_imports_fixed', 'TEXT'), ('resource_cleanup_flag', 'BOOLEAN')
     ]
     for col, definition in new_log_cols:
         add_column_if_not_exists('experiment_log', col, definition)
@@ -656,59 +664,42 @@ class SystemSetting(db.Model):
 
 # [新增] ExperimentLog 模型 (科展實驗數據記錄)
 class ExperimentLog(db.Model):
-    """
-    科展實驗數據記錄表
-    用於記錄每一次 AI 生成的詳細效能指標與修復狀況
-    """
     __tablename__ = 'experiment_log'
-
     id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, comment="實驗時間")
+    skill_id = db.Column(db.String(50), nullable=False)
+    start_time = db.Column(db.Float)
+    duration_seconds = db.Column(db.Float)
+    prompt_len = db.Column(db.Integer)
+    code_len = db.Column(db.Integer)
+    is_success = db.Column(db.Boolean)
+    error_msg = db.Column(db.Text)
+    repaired = db.Column(db.Boolean, default=False)
+    model_name = db.Column(db.String(50))
     
-    # --- 控制變因 ---
-    skill_id = db.Column(db.String(64), comment="測試的技能ID")
-    ai_provider = db.Column(db.String(20), comment="AI 引擎 (local/gemini)")
-    model_name = db.Column(db.String(64), comment="模型版本")
-    
-    # --- 效能指標 ---
-    duration_seconds = db.Column(db.Float, comment="生成耗時 (秒)")
-    input_length = db.Column(db.Integer, comment="Prompt 字數")
-    output_length = db.Column(db.Integer, comment="總 Code 字數 (含 Utils)")
-    raw_output_length = db.Column(db.Integer, default=0, comment="AI 原始字數")
-    perfect_utils_length = db.Column(db.Integer, default=0, comment="工具庫字數")
-    is_success = db.Column(db.Boolean, default=False, comment="最終是否可用")
-    syntax_error_initial = db.Column(db.Text, nullable=True, comment="原始語法錯誤訊息 (若無則空)")
-    ast_repair_triggered = db.Column(db.Boolean, default=False, comment="是否觸發 AST 修復")
-    
+    # --- [科研新增欄位] ---
+    model_size_class = db.Column(db.String(20))     # '7B', '14B', 'Cloud'
+    prompt_level = db.Column(db.String(20))          # 'Bare', 'Engineered', 'Self-Healing'
+    raw_response = db.Column(db.Text)               # LLM 原始輸出
+    final_code = db.Column(db.Text)                 # 最終修復代碼
+    score_syntax = db.Column(db.Float, default=0.0) # 語法分
+    score_math = db.Column(db.Float, default=0.0)   # 邏輯分
+    score_visual = db.Column(db.Float, default=0.0) # 視覺分
+    healing_duration = db.Column(db.Float)          # 自癒耗時
+    is_executable = db.Column(db.Boolean)           # 是否可執行成功
+    ablation_id = db.Column(db.Integer)             # 對應實驗組 ID
+    missing_imports_fixed = db.Column(db.Text)      # 紀錄補上的庫
+    resource_cleanup_flag = db.Column(db.Boolean)    # 資源釋放標記
+    # ----------------------
 
-
-    # --- 系統資源 ---
-    cpu_usage = db.Column(db.Float, nullable=True, comment="CPU 使用率 (%)")
-    ram_usage = db.Column(db.Float, nullable=True, comment="RAM 使用率 (%)")
-    gpu_usage = db.Column(db.Float, default=0.0, comment="GPU 使用率 (%)")
-    gpuram_usage = db.Column(db.Float, default=0.0, comment="GPU RAM 使用率 (%)")
-
-    # [v9.0 新增 - 實驗設定]
-    experiment_batch = db.Column(db.String(50))    # 批次標籤 (如 'YS_Run_1')
-    prompt_strategy = db.Column(db.String(50))     # 使用策略
-    prompt_version = db.Column(db.Integer)         # 使用的 Prompt 版本 ID
-    
-    # [v9.0 新增 - 錯誤分析]
-    error_category = db.Column(db.String(100))     # 錯誤分類 (SyntaxError, Timeout, etc.)
-    
-    # [v9.0 新增 - 自癒機制成效]
-    regex_fix_count = db.Column(db.Integer, default=0)   # Regex 修復次數
-    logic_fix_count = db.Column(db.Integer, default=0)   # Import 修復次數
-    ast_repair_count = db.Column(db.Integer, default=0)  # AST 重構次數
-    
-    # [v9.0 新增 - 成本與複雜度 - Coder Phase]
-    prompt_tokens = db.Column(db.Integer, default=0)      # 輸入 (Cost)
-    completion_tokens = db.Column(db.Integer, default=0)  # 輸出 (Richness)
-    total_tokens = db.Column(db.Integer, default=0)       # 總計
-    code_complexity = db.Column(db.Integer, default=0)    # 生成程式碼的行數
+    # 原有 Token 欄位
+    prompt_tokens = db.Column(db.Integer, default=0)
+    completion_tokens = db.Column(db.Integer, default=0)
+    total_tokens = db.Column(db.Integer, default=0)
+    code_complexity = db.Column(db.Integer, default=0)
 
     def __repr__(self):
-        return f"<Log {self.model_name}: {self.duration_seconds}s, Success={self.is_success}>"
+        return f"<ExperimentLog {self.model_name}: {self.duration_seconds}s>"
+
 
 # [補上缺漏] 練習歷程紀錄相關表格
 class Question(db.Model):

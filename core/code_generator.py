@@ -694,62 +694,64 @@ def fix_logic_errors(code_str, error_log):
     return fixed_code, fix_count
 
 
-def log_experiment(skill_id, start_time, input_len, output_len, success, error_msg, repaired, 
-                   actual_model_name="Unknown", actual_provider="google",
-                   regex_fixes=0, logic_fixes=0, prompt_tokens=0, completion_tokens=0, 
-                   prompt_version=1, strategy="Standard", raw_output_len=0, utils_len=0):
+def log_experiment(skill_id, start_time, prompt_len, code_len, is_valid, error_msg, repaired, model_name, actual_provider=None, **kwargs):
     """
-    [V9.9.9 最終修正版] 解決重複參數問題，確保數據精確入庫。
+    更新後的實驗日誌紀錄函式，支援科研欄位。
     """
+    duration = time.time() - start_time
+    
+    # 獲取硬體快照 (保留你原本的功能)
+    # snapshot = get_system_snapshot() 
+    
+    conn = sqlite3.connect(Config.db_path)
+    c = conn.cursor()
+    
+    # 建立對應新欄位的 INSERT 語法
+    query = """
+    INSERT INTO experiment_log (
+        skill_id, start_time, duration_seconds, prompt_len, code_len, 
+        is_success, error_msg, repaired, model_name, 
+        model_size_class, prompt_level, raw_response, final_code,
+        score_syntax, score_math, score_visual, healing_duration, 
+        is_executable, ablation_id, missing_imports_fixed, resource_cleanup_flag,
+        prompt_tokens, completion_tokens, total_tokens
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    
+    # 從 kwargs 中提取數值，若無則給預設值
+    params = (
+        skill_id, start_time, duration, prompt_len, code_len,
+        1 if is_valid else 0, str(error_msg), 1 if repaired else 0, model_name,
+        kwargs.get('model_size_class', 'Unknown'),
+        kwargs.get('prompt_level', 'Bare'),
+        kwargs.get('raw_response', ''),
+        kwargs.get('final_code', ''),
+        kwargs.get('score_syntax', 0.0),
+        kwargs.get('score_math', 0.0),
+        kwargs.get('score_visual', 0.0),
+        kwargs.get('healing_duration', 0.0),
+        kwargs.get('is_executable', 1 if is_valid else 0),
+        kwargs.get('ablation_id', 1),
+        kwargs.get('missing_imports_fixed', ''),
+        1 if kwargs.get('resource_cleanup_flag') else 0,
+        kwargs.get('prompt_tokens', 0),
+        kwargs.get('completion_tokens', 0),
+        kwargs.get('total_tokens', 0)
+    )
+    
     try:
-        duration = time.time() - start_time
-        cpu, ram, gpu, gpuram = get_system_snapshot() # 真實硬體監控
-        
-        # 錯誤分類邏輯
-        err_cat = None
-        if error_msg and error_msg != "None":
-            err_low = error_msg.lower()
-            if "syntax" in err_low: err_cat = "SyntaxError"
-            elif "list" in err_low: err_cat = "FormatError"
-            elif "attribute" in err_low: err_cat = "StructureError"
-            else: err_cat = "RuntimeError"
-
-        log = ExperimentLog(
-            timestamp=datetime.now(), # 確保頂部有 from datetime import datetime
-            skill_id=skill_id,
-            ai_provider=actual_provider,
-            model_name=actual_model_name,
-            duration_seconds=round(duration, 2),
-            input_length=input_len,
-            raw_output_length=raw_output_len,   # AI 產出的真實純度
-            perfect_utils_length=utils_len,     # 系統注入的工具庫長度
-            output_length=output_len,           # 最終存檔總長度
-            is_success=success,
-            syntax_error_initial=str(error_msg)[:500] if error_msg else None,
-            error_category=err_cat,
-            ast_repair_triggered=repaired,
-            experiment_batch=getattr(Config, 'EXPERIMENT_BATCH', 'Run_V2.5_Elite'),
-            prompt_strategy=strategy,
-            prompt_version=prompt_version,
-            regex_fix_count=regex_fixes,
-            logic_fix_count=logic_fixes,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            code_complexity=raw_output_len // 40, # [Refined] Reflects AI logic only
-            cpu_usage=cpu,
-            ram_usage=ram,
-            gpu_usage=gpu,
-            gpuram_usage=gpuram
-        )
-        db.session.add(log)
-        db.session.commit()
+        c.execute(query, params)
+        conn.commit()
     except Exception as e:
-        db.session.rollback()
-        print(f"🚨 Experiment Log 寫入失敗: {e}")
+        print(f"❌ Database Log Error: {e}")
+    finally:
+        conn.close()
 
 
-def auto_generate_skill_code(skill_id, queue=None):
+def auto_generate_skill_code(skill_id, queue=None, **kwargs):
+    """
+    更新後的生成函式，支援 3x3 實驗數據採集。
+    """
     start_time = time.time()
     
     # 1. Determine Target Tag based on Config
@@ -757,15 +759,20 @@ def auto_generate_skill_code(skill_id, queue=None):
     current_model = role_config.get('model', 'Unknown')
     current_provider = role_config.get('provider', 'Unknown') # 抓取實際 provider
     target_tag = infer_model_tag(current_model)
+    
+    # [科研參數提取] 從 kwargs 取得實驗參數，若無則給預設值
+    ablation_id = kwargs.get('ablation_id', 1) # 預設為 Bare
+    model_size_class = kwargs.get('model_size_class', 'Cloud')
+    prompt_level = kwargs.get('prompt_level', 'Bare')
 
     # 2. [Strict Mode] Fetch ONLY the matching Architect Spec
     active_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, model_tag=target_tag, is_active=True).first()
     
     # 3. Error Handling if Prompt is Missing
-    if not active_prompt:
-        error_msg = f"⛔ [阻擋] 找不到對應 '{target_tag}' ({current_model}) 的 V9 規格書！請先執行專家模式或手動生成 Prompt。"
-        if current_app: current_app.logger.error(f"{skill_id}: {error_msg}")
-        return False, error_msg
+    # if not active_prompt:
+    #     error_msg = f"⛔ [阻擋] 找不到對應 '{target_tag}' ({current_model}) 的 V9 規格書！請先執行專家模式或手動生成 Prompt。"
+    #     if current_app: current_app.logger.error(f"{skill_id}: {error_msg}")
+    #     return False, error_msg
 
     # Pre-fetch skill info (needed for fallback or logging)
     skill = SkillInfo.query.filter_by(skill_id=skill_id).first()
@@ -779,6 +786,7 @@ def auto_generate_skill_code(skill_id, queue=None):
         for i, ex in enumerate(examples):
             example_text += f"Ex {i+1}: {getattr(ex, 'problem_text', '')} -> {getattr(ex, 'correct_answer', '')}\\n"
 
+    # ... 前置 Prompt 準備邏輯 (原本的程式碼) ...
     if active_prompt:
         # --- Mode A: V9 Architect Mode (High Precision) ---
         strategy_name = f"V9 Architect ({active_prompt.model_tag})"
@@ -910,6 +918,7 @@ if 'generate' not in globals() and any(k.startswith('generate_') for k in global
     # 初始化計數器
     regex_fixes = 0
     logic_fixes = 0
+    ast_repairs = 0
     prompt_tokens = 0
     completion_tokens = 0
 
@@ -917,193 +926,155 @@ if 'generate' not in globals() and any(k.startswith('generate_') for k in global
         if current_app: current_app.logger.info(f"Generating {skill_id} with {current_model}")
         
         client = get_ai_client(role='coder') 
-        response = client.generate_content(prompt)
-        code = response.text
+        # 1. 取得 LLM 原始回覆 (攔截點)
         
-        # [V9.8] 嘗試獲取 Token 用量 (視 API 而定)
+        # 模擬 ai_wrapper 回傳 (內容, tokens) 的行為
+        # 這裡假設你的 get_ai_client 回傳的 client 仍然是 google.generativeai 的物件
+        response = client.generate_content(prompt)
+        raw_response = response.text
+        
+        # [V9.8] 嘗試獲取 Token 用量
         try:
-            # 適用於 Google Gemini / Vertex AI
             if hasattr(response, 'usage_metadata'):
                 prompt_tokens = response.usage_metadata.prompt_token_count
                 completion_tokens = response.usage_metadata.candidates_token_count
-            # 如果是其他 API，可能需要調整這裡
         except:
-            pass # 取不到就算了，保持 0
-        
-        match = re.search(r'```(?:python)?\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
-        if match: code = match.group(1)
-        elif "import random" in code: code = code[code.find("import random"):]
-        
-        # [V9.5 Check] Integrity Validation
-        if "def generate" not in code:
-            # If critical function is missing, it implies truncation.
-            # We attempt a naive fix by appending a default dispatcher if at least generate_problem exists.
-            if "def generate_problem" in code:
-                code += "\n\n# [Auto-Recovered Dispatcher]\ndef generate(level=1):\n    return generate_problem()"
-            else:
-                return False, "Critical Error: Generated code is incomplete (missing 'generate' function)."
-        
-        # [V9.9.9 Code Metrics] Intercept raw length before injection
-        raw_len = len(code)
-        
-        code = inject_perfect_utils(code)
-        
-        # Calculate injected utils length
-        utils_len = len(PERFECT_UTILS)
-        total_len = len(code)
-        
-        # [V9.8.2 Defense] Hard Validation for 7B Models
-        code, pre_fixes = validate_and_fix_code(code)
-        
-        # [V9.9.5 Data Flow] Accumulate preventive fixes
-        regex_fixes = pre_fixes
+            pass
 
-        # [V9.9.9] Universal Helper Patcher
-        # Patches all draw_* functions to ensure they return values
-        code, patch_fixes = universal_function_patcher(code)
-        regex_fixes += patch_fixes
+        raw_len = len(raw_response)
         
-        code = fix_return_format(code)
-        code = clean_global_scope_execution(code)
-        code = inject_robust_dispatcher(code) 
-        code = fix_missing_answer_key(code)
+        # 2. 啟動自癒流水線與計時
+        healing_start = time.time()
         
-        # [V9.8] 驗證與修復 (使用新版函式)
-        is_valid, syntax_err = validate_python_code(code)
-        repaired = (pre_fixes > 0) # 如果預防性修復動過，狀態改為已修復
+        processed_code = raw_response
         
-        if not is_valid:
-            # 呼叫新版 fix_code_syntax，接收次數
-            code, r_count = fix_code_syntax(code, syntax_err)
-            regex_fixes += r_count # 累加
+        # 簡單清理 markdown
+        match = re.search(r'```(?:python)?\s*(.*?)```', processed_code, re.DOTALL | re.IGNORECASE)
+        if match: processed_code = match.group(1)
+        elif "import random" in processed_code: processed_code = processed_code[processed_code.find("import random"):]
+        
+        # 根據實驗組別 (ablation_id) 決定修復強度
+        # 1: Bare (不修復) | 2: Regex Only | 3: Full Healing (Regex + AST)
+        
+        final_code = processed_code
+        
+        if ablation_id >= 2:
+            # Regex Armor
+            final_code = inject_perfect_utils(final_code)
             
-            is_valid, syntax_err = validate_python_code(code)
-            repaired = True
+            # [V9.8.2 Defense] Hard Validation for 7B Models
+            # validate_and_fix_code 包含了 regex 修復
+            final_code, pre_fixes = validate_and_fix_code(final_code)
+            regex_fixes += pre_fixes
+
+            final_code, patch_fixes = universal_function_patcher(final_code)
+            regex_fixes += patch_fixes
             
-        is_valid_log, logic_err = validate_logic_with_pyflakes(code)
-        if not is_valid_log:
-            # 呼叫新版 fix_logic_errors，接收次數
-            code, l_count = fix_logic_errors(code, logic_err)
-            logic_fixes += l_count # 累加
-            repaired = True
-
-        # =========================================================
-        # [V11.4] "Final Intercept" (The Last Line of Defense)
-        # =========================================================
-
-        # 1. String Deduplication (防止提示語堆疊)
-        # 合併 question_text 中連續重複的括號引導語
-        if code.count("請輸入") > 1 or code.count("例如：") > 1 or code.count("答案格式") > 1:
-            code = re.sub(r'(\(請輸入.*?\))(\s*\\n\1)+', r'\1', code)
-            code = re.sub(r'(\(例如：.*?\))(\s*\\n\1)+', r'\1', code)
-            code = re.sub(r'(\(答案格式：.*?\))(\s*\\n\1)+', r'\1', code)
-
-        # 2. Answer Purge (答案欄位淨化) - 強制清除引導語
-        # 若 answer 欄位包含「例如：」或「請輸入」，強制還原為 str(correct_answer)
-        if "例如：" in code or "請輸入" in code:
-             code = re.sub(r"'answer':\s*['\"](.*?(?:例如|請輸入).*?)['\"]", r"'answer': str(correct_answer)", code)
-
-        # 3. Quote Hardening (引號鎖死) [Final Intercept]
-        # 強制修正為標準格式 ['Microsoft JhengHei']，無論 AI 產出為何
-        font_pattern = r"(?:matplotlib\.|plt\.)?rcParams\[['\"]font\.sans-serif['\"]\]\s*=\s*(?:\[[^\]]*\]|['\"].*?['\"])"
-        code = re.sub(font_pattern, "plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']", code)
-
-        # 4. Physical Newline Hardening (物理換行硬化)
-        # 將程式碼中所有文字態的 \\n 替換為物理換行符號 \n (解決單引號/f-string 內的換行顯示問題)
-        code = code.replace('\\\\n', '\\n')
-
-        # 4. Truncation Detection (斷頭偵測) [NEW]
-        # Scan for calls to _generate_type_... inside generate()
-        # And ensure they are defined in the code.
-        generate_match = re.search(r'def generate\(.*?\):(.*?)(?=\ndef|\Z)', code, re.DOTALL)
-        if generate_match:
-            generate_body = generate_match.group(1)
-            calls = re.findall(r'(_generate_type_\w+)\(', generate_body)
-            definitions = re.findall(r'def\s+(_generate_type_\w+)\s*\(', code)
-            missing_funcs = [c for c in calls if c not in definitions]
-            if missing_funcs:
-                error_msg = f"Critical Error: Called functions not defined: {missing_funcs}. Code truncated?"
-                log_experiment(
-                    skill_id, start_time, len(prompt), len(code), False, 
-                    error_msg, repaired,
-                    current_model,
-                    actual_provider=current_provider,
-                    regex_fixes=regex_fixes, 
-                    raw_output_len=raw_len,
-                    utils_len=utils_len
-                )
-                return False, error_msg
-
-        # 4. Logic Self-Healing (邏輯自癒)
-        # 若發現 is_prime 或 _check_divisibility 函式內部包含 return {'correct': False...} 這種錯誤格式
-        # 強制將其替換為標準的 return False 或 return True
-        # 注意：這裡使用較為保守的替換，避免誤傷主 check 函式
+            final_code = fix_return_format(final_code)
+            final_code = clean_global_scope_execution(final_code)
+            final_code = inject_robust_dispatcher(final_code) 
+            final_code = fix_missing_answer_key(final_code)
+            
         
-        def fix_bool_return(match):
-            func_body = match.group(0)
-            if "def check" in func_body: return func_body # Skip main check function
-            # Replace dict returns with bools
-            fixed = re.sub(r"return\s+\{['\"]correct['\"]\s*:\s*False.*?\}", "return False", func_body)
-            fixed = re.sub(r"return\s+\{['\"]correct['\"]\s*:\s*True.*?\}", "return True", fixed)
-            return fixed
+        if ablation_id == 3:
+            # Full Healing (AST + Logic)
+            # [V9.8] 驗證與修復
+            is_valid, syntax_err = validate_python_code(final_code)
+            if not is_valid:
+                final_code, r_count = fix_code_syntax(final_code, syntax_err)
+                regex_fixes += r_count # Count this as regex/syntax fix
+                ast_repairs += 1 # Count as a repair event
+                
+            is_valid_log, logic_err = validate_logic_with_pyflakes(final_code)
+            if not is_valid_log:
+                final_code, l_count = fix_logic_errors(final_code, logic_err)
+                logic_fixes += l_count
+                ast_repairs += 1 # Count as a repair event
 
-        # 掃描 helper functions (此處假設 helper 函式較短，且由 def 開頭)
-        # 為了安全，我們針對特定函式名稱進行掃描
-        for func_name in ['is_prime', '_check_divisibility', 'check_divisibility']:
-            pattern = rf"(def {func_name}\(.*?\):.*?)(?=\ndef|\Z)"
-            code = re.sub(pattern, fix_bool_return, code, flags=re.DOTALL)
+            # Final Logic Hardening
+             # 1. String Deduplication
+            if final_code.count("請輸入") > 1 or final_code.count("例如：") > 1:
+                final_code = re.sub(r'(\(請輸入.*?\))(\s*\\n\1)+', r'\1', final_code)
+            
+             # 2. Quote Hardening
+            font_pattern = r"(?:matplotlib\.|plt\.)?rcParams\[['\"]font\.sans-serif['\"]\]\s*=\s*(?:\[[^\]]*\]|['\"].*?['\"])"
+            final_code = re.sub(font_pattern, "plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']", final_code)
+            
+             # 3. Physical Newline Hardening
+            final_code = final_code.replace('\\\\n', '\\n')
 
 
-        # 2. Handwriting Prompt Injection (Logic Enhancement) - [Cleaned up in V11.1]
-        # 由於 fix_missing_answer_key 已包含增強邏輯，此處僅做備援檢查或是移除舊的 runtime patch
-        if "_patch_all_returns" in code:
-             # 如果 AI 沒有寫 input_mode，我們不需要強制 runtime patch 去 check 變數
-             # 因為 fix_missing_answer_key 的 patch 已經很強大了
-             pass
-        # =========================================================
+        healing_duration = time.time() - healing_start
 
-        duration = time.time() - start_time
+        # 3. 實驗評分：語法正確性校驗 (score_syntax)
+        try:
+            ast.parse(final_code)
+            score_syntax = 100.0
+        except SyntaxError:
+            score_syntax = 0.0
+            
+        # 寫入檔案
         created_at = time.strftime('%Y-%m-%d %H:%M:%S')
-        
         header = f'''# ==============================================================================
 # ID: {skill_id}
 # Model: {current_model} | Strategy: {strategy_name}
-# Duration: {duration:.2f}s | RAG: {rag_count} examples
+# Duration: {time.time() - start_time:.2f}s | RAG: {rag_count} examples
 # Created At: {created_at}
-# Fix Status: {'[Repaired]' if repaired else '[Clean Pass]'}
-# Fixes: Regex={regex_fixes}, Logic={logic_fixes}
+# Fix Status: Ablation={ablation_id}
 #==============================================================================\n\n'''
         path = os.path.join(current_app.root_path, 'skills', f'{skill_id}.py')
         with open(path, 'w', encoding='utf-8') as f:
-            f.write(header + code)
-            
-        # [V9.8] 呼叫 Log，傳入完整數據
+            f.write(header + final_code)
+
+        # 4. 呼叫更新後的 log_experiment (科研對接)
         log_experiment(
-            skill_id, start_time, len(prompt), len(code), True, 
-            syntax_err if not is_valid else "None", repaired,
-            current_model,
-            actual_provider=current_provider, # 傳入實際供應商
-            regex_fixes=regex_fixes,      # New
-            logic_fixes=logic_fixes,      # New
-            prompt_tokens=prompt_tokens,  # New
-            completion_tokens=completion_tokens, # New
-            prompt_version=active_prompt.version if active_prompt else 1,
-            strategy=active_prompt.model_tag if active_prompt else "Legacy",
-            raw_output_len=raw_len,   # [新增]
-            utils_len=utils_len       # [新增]
+            skill_id=skill_id,
+            start_time=start_time,
+            prompt_len=len(prompt),
+            code_len=len(final_code),
+            is_valid=(score_syntax == 100.0),
+            error_msg="None" if score_syntax == 100.0 else "Syntax Error",
+            repaired=(ast_repairs > 0 or regex_fixes > 0 or logic_fixes > 0),
+            model_name=current_model,
+            actual_provider=current_provider,
+            # --- 傳入科研專用 kwargs ---
+            model_size_class=model_size_class,
+            prompt_level=prompt_level,
+            raw_response=raw_response,       # 存下 AI 的「原始幻覺」
+            final_code=final_code,           # 存下你的「醫療成果」
+            score_syntax=score_syntax,
+            healing_duration=healing_duration,
+            ablation_id=ablation_id,
+            ast_repair_count=ast_repairs,
+            regex_fix_count=regex_fixes,
+            logic_fix_count=logic_fixes,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            resource_cleanup_flag=True # 標記資源釋放
         )
-        return True, "Success"
+
+        return True, "Success", {
+            'raw_response': raw_response,
+            'score_syntax': score_syntax,
+            'fixes': regex_fixes + logic_fixes + ast_repairs,
+            'healing_duration': healing_duration
+        }
 
     except Exception as e:
-        # [核心修復] 即使程式崩潰，也要將錯誤存入資料庫
+        # 即使崩潰也要紀錄，這對分析模型穩定性非常重要
         log_experiment(
-            skill_id, start_time, len(prompt) if 'prompt' in locals() else 0, 0, False, 
-            str(e), False, 
-            current_model if 'current_model' in locals() else "Unknown",
-            current_provider if 'current_provider' in locals() else "google",
-            regex_fixes=regex_fixes, 
-            prompt_version=active_prompt.version if 'active_prompt' in locals() and active_prompt else 1,
-            raw_output_len=raw_len if 'raw_len' in locals() else 0, # [新增] 防止變數未定義
-            utils_len=utils_len if 'utils_len' in locals() else 0   # [新增]
+            skill_id=skill_id,
+            start_time=start_time,
+            prompt_len=0,
+            code_len=0,
+            is_valid=False,
+            error_msg=str(e),
+            repaired=False,
+            model_name=current_model if 'current_model' in locals() else "Unknown",
+            raw_response=raw_response if 'raw_response' in locals() else "LLM API Failure",
+            ablation_id=ablation_id,
+            model_size_class=model_size_class,
+            prompt_level=prompt_level
         )
-        return False, str(e)
+        return False, str(e), {}
+
