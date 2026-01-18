@@ -405,15 +405,18 @@ class SkillGenCodePrompt(db.Model):
 
     # [模型分級策略]
     # 值範例: 'category:teacher', 'category:cloud_tutor', 'category:local_edge'
+    # 這裡也作為 MASTER_SPEC 的標籤存放處 (V15.3 Research)
     model_tag = db.Column(db.String(50), default='default', nullable=False)
     
-    # [提示策略]
-    # 值範例: 'Architect-Engineer', 'CoT_Decomposed'
+    # [提示策略] & 標籤系統
+    # 值範例: 'Architect-Engineer', 'CoT_Decomposed', 'MASTER_SPEC'
+    prompt_type = db.Column(db.String(50), default='standard')
     prompt_strategy = db.Column(db.String(50), default='standard')
     
     # [內容核心]
     system_prompt = db.Column(db.Text)          # 系統角色設定
-    user_prompt_template = db.Column(db.Text)   # 使用者指令模板 (架構師生成的 Spec)
+    user_prompt_template = db.Column(db.Text)   # 使用者指令模板 (舊版)
+    prompt_content = db.Column(db.Text)         # [MASTER_SPEC] 統一存放完整 Spec 內容
     
     # [成本追蹤 - Architect Phase] (記錄生成此 Prompt 花費的 tokens)
     creation_prompt_tokens = db.Column(db.Integer, default=0)      # 輸入
@@ -436,7 +439,8 @@ class SkillGenCodePrompt(db.Model):
             'id': self.id,
             'skill_id': self.skill_id,
             'model_tag': self.model_tag,
-            'prompt_strategy': self.prompt_strategy,
+            'prompt_type': self.prompt_type,
+            'prompt_content': self.prompt_content,
             'version': self.version,
             'is_active': self.is_active
         }
@@ -725,3 +729,34 @@ class QuizAttempt(db.Model):
     
     # 關聯 (方便從 User 反查)
     user = db.relationship('User', backref=db.backref('quiz_attempts', lazy=True))
+
+class ExecutionSample(db.Model):
+    """
+    [V1.3 Research Edition] 
+    紀錄程式產出的「題目樣本」。用於分析 14B 模型的出題品質與穩定性。
+    """
+    __tablename__ = 'execution_samples'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    skill_id = db.Column(db.String(100), nullable=False)
+    
+    # 實驗變因
+    mode = db.Column(db.Integer)                  # 模式 (1-6)
+    ablation_id = db.Column(db.Integer)           # 自癒等級 (1-3)
+    sample_index = db.Column(db.Integer)          # 採樣序號 (1-20)
+    
+    # 生成內容
+    question_text = db.Column(db.Text)            # 題目文字
+    correct_answer = db.Column(db.Text)           # 正確答案
+    image_base64 = db.Column(db.Text)             # 圖片編碼
+    
+    # 品質指標
+    is_crash = db.Column(db.Integer, default=0)         # 是否執行崩潰
+    is_logic_correct = db.Column(db.Integer, default=0)  # 閱卷自檢是否通過
+    score_complexity = db.Column(db.Integer, default=0)  # 題目難度分數
+    duration_seconds = db.Column(db.Float)               # 生成耗時
+    
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<ExecutionSample {self.skill_id} Mode {self.mode} #{self.sample_index}>"

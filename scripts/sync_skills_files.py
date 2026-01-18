@@ -37,7 +37,7 @@ from app import create_app
 from models import db, SkillInfo, SkillCurriculum, TextbookExample
 # [Research] Import requested functions
 from core.code_generator import auto_generate_skill_code, inject_robust_dispatcher
-from core.prompt_architect import generate_v9_spec
+from core.prompt_architect import generate_v15_spec
 from config import Config
 
 PROTECTED_FILES = {
@@ -177,7 +177,7 @@ def run_expert_pipeline(skill_ids, arch_model, current_model, ablation_id, model
         try:
              # [Research] Prompt Level could potentially influence Architect too, but mostly Coder
              # For now, we keep Architect standard
-            result = generate_v9_spec(skill_id, model_tag=target_tag, architect_model=arch_model)
+            result = generate_v15_spec(skill_id, model_tag=target_tag, architect_model=arch_model)
             success = result.get('success', False)
         except Exception as e:
             tqdm.write(f"   ❌ {skill_id} Architect Error: {e}")
@@ -216,11 +216,19 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
             )
 
             if is_ok:
-                success_count += 1
-                # Research Feedback
-                repair_info = f"Fixes={metrics.get('fixes',0)}" if metrics.get('fixes',0) > 0 else "Clean Pass"
-                score = f"Score={metrics.get('score_syntax', 0)}"
-                tqdm.write(f"   ✅ {skill_id}: Success | {score} | {repair_info}")
+                # [Research] Check Syntax Score
+                score_val = metrics.get('score_syntax', 0)
+                is_failed = score_val < 100
+                
+                if is_failed:
+                    fail_count += 1
+                    error_msg = "Syntax Error"
+                    tqdm.write(f"   ⚠️ {skill_id}: Validation Failed | Score={score_val}")
+                else:
+                    success_count += 1
+                    repair_info = f"Fixes={metrics.get('fixes',0)}" if metrics.get('fixes',0) > 0 else "Clean Pass"
+                    score = f"Score={score_val}"
+                    tqdm.write(f"   ✅ {skill_id}: Success | {score} | {repair_info}")
                 
                 # Post-Validation Patching
                 try:
@@ -229,14 +237,41 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
                         with open(skill_path, 'r', encoding='utf-8') as f:
                             content = f.read()
                         
-                        patched_content = auto_patch_missing_functions(content, skill_id)
+                        # --- 確保實驗純淨度：只有 Ab3 能享受最後的 AST 補丁 ---
+                        if ablation_id == 3:
+                            patched_content = auto_patch_missing_functions(content, skill_id)
+                        else:
+                            patched_content = content # Ab1, Ab2 保持「原始慘狀」以利數據對比
+                        
+                        # 1. Update the main file (Latest Run) - Only if success? User didn't specify, but implies fails should be isolated.
+                        # But code_generator already wrote the file to skill_path.
+                        # We will patch it regardless.
                         
                         if patched_content != content:
                             with open(skill_path, 'w', encoding='utf-8') as f:
                                 f.write(patched_content)
                             tqdm.write(f"   🔧 {skill_id}: Patched missing functions.")
+                        
+                        # 2. [Versioned Storage Strategy] (Research Last Will)
+                        current_ablation_id = ablation_id
+                        
+                        if is_failed:
+                            # 💥 [科研遺書機制]: 失敗也要存
+                            file_name = f"{skill_id}_Ab{ablation_id}_FAILED.py"
+                            tqdm.write(f"   💾 保存壞標本: {file_name}")
+                        else:
+                            file_name = f"{skill_id}_Ab{ablation_id}.py"
+
+                        file_path = os.path.join(SKILLS_DIR, file_name)
+                        
+                        with open(file_path, "w", encoding="utf-8") as f:
+                            f.write(patched_content)
+                            
+                        if not is_failed:
+                            tqdm.write(f"   📦 Isolated Save: {file_name}")
+
                 except Exception as e:
-                     tqdm.write(f"   ❌ {skill_id} Patching Error: {e}")
+                     tqdm.write(f"   ❌ {skill_id} Patching/Saving Error: {e}")
 
             else:
                 fail_count += 1
@@ -254,7 +289,7 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
 if __name__ == "__main__":
     app = create_app()
     
-    SKILLS_DIR = os.path.join(app.root_path, 'skills')
+    SKILLS_DIR = os.path.join(project_root, 'skills')
     if not os.path.exists(SKILLS_DIR):
         print(f"❌ 找不到技能目錄: {SKILLS_DIR}")
         sys.exit(1)
@@ -350,47 +385,30 @@ if __name__ == "__main__":
             print("✅ 範圍內無技能或無需操作，結束。")
             sys.exit(0)
 
-        # [Research] Enhanced Menu
+        # [Research Edition] 整合模式 3 與參數提升
         print("\n請選擇操作模式:")
         print("   [1] 僅生成缺失檔案 (Safe Mode)")
         print("   [2] 強制重新生成範圍內所有檔案 (Overwrite All)")
+        print("   [3] 僅生成選定範圍內尚未生成的檔案 (Incremental Scope)") 
         print("   [4] 專家分工模式：全部重跑 (Full Pipeline + AST Healing)") 
         if to_delete:
             print("   [5] 清理孤兒檔案 (Delete Orphans)")
         
         mode = input("👉 請輸入選項: ").strip()
         
-        list_to_process = sorted(list(set()))
+        list_to_process = []
         run_full_pipeline = False
         
-        # [Research Default]
-        ablation_id = 1
-        model_size_class = "Unknown"
-        prompt_level = "Bare"
-
+        # 判斷處理清單
         if mode == '1':
             list_to_process = sorted(list(to_create))
         elif mode == '2':
-            list_to_process = sorted(list(to_create.union(existing_in_scope)))
+            list_to_process = sorted(list(target_skill_ids)) # 強制範圍內全跑
+        elif mode == '3':
+            list_to_process = sorted(list(target_skill_ids.intersection(to_create))) # 範圍內且缺失
         elif mode == '4':
-            list_to_process = sorted(list(to_create.union(existing_in_scope)))
+            list_to_process = sorted(list(target_skill_ids))
             run_full_pipeline = True
-            
-            # [Research] Mode 4 Auto Configuration
-            print("\n� [實驗參數模式] 請設定實驗變數:")
-            print("   Ablation ID (1=Bare, 2=Regex, 3=Full Healing)")
-            ab_input = input("   👉 輸入 Ablation ID (Default 3): ").strip()
-            ablation_id = int(ab_input) if ab_input.isdigit() else 3
-            
-            print("   Model Size Class (e.g. 7B, 14B, Cloud)")
-            ms_input = input("   👉 輸入 Model Size (Default Cloud): ").strip()
-            model_size_class = ms_input if ms_input else "Cloud"
-            
-            prompt_level = "Expert" # Expert mode assumes high quality propmt
-            
-            print(f"\n🚀 [專家模式] 將對 {len(list_to_process)} 個技能執行完整重建")
-            print(f"   🧪 Config: Ablation={ablation_id}, Size={model_size_class}")
-
         elif mode == '5' and to_delete:
             print("\n🗑️  正在清理孤兒檔案...")
             for skill_id in tqdm(to_delete, desc="Deleting"):
@@ -403,6 +421,26 @@ if __name__ == "__main__":
         else:
             print("❌ 無效選項或無操作。")
             sys.exit(0)
+
+# --- [Research] 實驗參數設定提升 (V15.2 Research Edition) ---
+        if mode in ['1', '2', '3', '4']:
+            print("\n" + "="*60)
+            print("🧪 [實驗變因控制] 請選擇本次生成的 Ablation 層級:")
+            print("   1: Bare (Baseline)    -> 簡單 Prompt + 無修復 (測試原生能力)")
+            print("   2: Engineered (Prompt) -> V15.1 Spec + 無修復 (測試提示工程貢獻)")
+            print("   3: Full Healing (Sys)  -> V15.1 Spec + Regex/AST 修復 (測試系統全能力)")
+            print("="*60)
+            
+            ab_input = input("   👉 輸入 Ablation ID (1/2/3, 預設 3): ").strip()
+            ablation_id = int(ab_input) if ab_input in ['1', '2', '3'] else 3
+            
+            # 對應實驗描述，方便日誌紀錄
+            ab_desc = {1: "Bare", 2: "Engineered-Only", 3: "Full-Healing"}
+            print(f"✅ 已設定實驗組別：{ab_desc[ablation_id]}")
+
+            ms_input = input("\n   👉 輸入 Model Size Class (預設 14B): ").strip()
+            model_size_class = ms_input if ms_input else "14B"
+            prompt_level = ab_desc[ablation_id] # Update prompt_level to match description
 
         if not list_to_process:
             print("✅ 沒有需要處理的檔案。")

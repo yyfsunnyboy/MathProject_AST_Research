@@ -19,3 +19,4 @@ tools
 pypandoc
 pytesseract
 Pillow
+psutil

@@ -2,7 +2,10 @@ import os
 import glob
 import re
 
-SKILLS_DIR = r"d:\Python\Mathproject\skills"
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+SKILLS_DIR = os.path.join(project_root, 'skills')
 
 def fix_missing_except(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:

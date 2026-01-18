@@ -15,7 +15,13 @@ import os
 import requests
 import json
 import logging
-import google.generativeai as genai
+# [Fix] Migrate from deprecated 'google.generativeai' to 'google.genai'
+try:
+    from google import genai
+except ImportError:
+    # Fallback to old package if new one is not installed (though warning suggests it's deprecated)
+    import google.generativeai as genai # Compat
+    print("⚠️ Warning: Using deprecated 'google.generativeai'. Please upgrade to 'google-genai'.")
 from flask import current_app
 from config import Config
 

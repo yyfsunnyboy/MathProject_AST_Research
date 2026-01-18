@@ -1,20 +1,10 @@
-# ==============================================================================
-# ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
-# Model: qwen2.5-coder:14b | Strategy: V15 Architect (Hardening)
-# Ablation ID: 3 (Full Healing) | Env: RTX 5060 Ti 16GB
-# Performance: 11.53s | Tokens: In=0, Out=0
-# RAG Context: 8 examples | Temp: 0.05
-# Created At: 2026-01-18 23:38:08
-# Fix Status: [Repaired] | Fixes: Regex=1, AST=0
-# Verification: Internal Logic Check = PASSED
-# ==============================================================================
 
 import random, math, io, base64, re, ast
 from fractions import Fraction
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-# [Injected Utils]
+# [INJECTED UTILS]
 
 # [V12.3 Elite Standard Math Tools]
 import random
@@ -228,6 +218,7 @@ def draw_geometry_composite(polygons, labels, x_limit=(0,10), y_limit=(0,10)):
         ax.set_ylim(min_y - ry, max_y + ry)
     else:
         ax.set_xlim(x_limit)
+        ax.set_ylim(y_limit)
     ax.axis('off')
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
@@ -263,51 +254,182 @@ def check(user_answer, correct_answer):
     
     return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", c_raw)}
 
+# --- [V15.5 新增：全能解析工具] ---
+def parse_num(s):
+    """解析字串(整數, 小數, 分數, 帶分數)為 float，供 check() 比對"""
+    s = str(s).strip().replace(" ", "").replace("＋", "+").replace("－", "-")
+    if not s: return None
+    try:
+        if "/" in s:
+            # 處理帶分數 (例如 -4 2/3 -> 需處理為 -(4 + 2/3))
+            is_neg = s.startswith("-")
+            s = s.lstrip("-")
+            # 尋找是否存在空格（帶分數格式）
+            match = re.match(r"(\d+)?(?:(\d+)/(\d+))", s)
+            if match:
+                whole = float(match.group(1)) if match.group(1) else 0.0
+                num = float(match.group(2))
+                den = float(match.group(3))
+                val = whole + (num / den)
+                return -val if is_neg else val
+        return float(s)
+    except: return None
+
+# --- [V15.5 新增：標準出題工具] ---
+def generate_val(v_range=(-15, 15), exclude=[0], type_choice=['int', 'float', 'frac']):
+    """標準化隨機數生成，支援多種格式"""
+    t = random.choice(type_choice)
+    for _ in range(100):
+        if t == 'int': val = random.randint(v_range[0], v_range[1])
+        elif t == 'float': val = round(random.uniform(v_range[0], v_range[1]), 1)
+        else: # frac
+            d = random.randint(2, 10)
+            n = random.randint(v_range[0]*d, v_range[1]*d)
+            val = Fraction(n, d)
+        if val not in exclude: return val
+    return random.randint(1, 5)
+
+def check_standard(u, c):
+    """科研級標準比對：支援字串、數字與 LaTeX 符號"""
+    if u is None or c is None: return False
+    u_p, c_p = parse_num(u), parse_num(c)
+    
+    # 數值比對 (處理 0.5 vs 1/2)
+    if u_p is not None and c_p is not None:
+        return math.isclose(u_p, c_p, abs_tol=1e-7)
+    
+    # 字串比對 (移除空格與常見干擾)
+    u_s = str(u).strip().replace(" ", "").replace("。", "")
+    c_s = str(c).strip().replace(" ", "").replace("。", "")
+    return u_s == c_s
+    return u_s == c_s
+
+# [END UTILS]
+
 def generate(mode=1, **kwargs):
+    """
+    [V16 Skeleton] Logic Filling Mode
+    """
     q, a = "", ""
     # [AI LOGIC START]
+    SCENARIO_DB = [
+        {"主題": "學校位置", "正向描述": "東邊", "負向描述": "西邊", "單位": "公里"},
+        {"主題": "考試成績變化", "正向描述": "進步", "負向描述": "退步", "單位": "分"},
+        {"主題": "交易盈虧", "正向描述": "賺錢", "負向描述": "賠錢", "單位": "元"},
+        {"主題": "數字集合分類", "正向描述": "正數集合", "負向描述": "負數集合", "單位": "數值"}
+    ]
+
     if mode == 1:
-        import random
+        q = f'情境主題: {input["情境主題"]}, 方向: {input["方向"]}, 數值: {input["數值"]}, 單位: {input["單位"]}'
+        for s in SCENARIO_DB:
+            if s["主題"] == input["情境主題"]:
+                if input["方向"] == s["正向描述"]:
+                    a = f'+{input["數值"]}'
+                else:
+                    a = f'-{input["數值"]}'
+                break
 
-        # 隨機生成 2 或 3 個整數
-        N = random.randint(2, 3)
-        numbers = [random.randint(-100, 100) for _ in range(N)]
+    if mode == 2:
+        q = f'情境主題: {input["情境主題"]}, 數字: {input["數字"]}, 單位: {input["單位"]}'
+        sign = input["數字"][0]
+        for s in SCENARIO_DB:
+            if s["主題"] == input["情境主題"]:
+                dir_desc = s["正向描述"] if sign == '+' else s["負向描述"]
+                a = f'{dir_desc} {abs(float(input["數字"][1:]))} {s["單位"]}'
+                break
 
-        # 確保不為零
-        while 0 in numbers:
-            numbers = [random.randint(-100, 100) for _ in range(N)]
+    if mode == 3:
+        q = f'情境主題: {input["情境主題"]}, 成本: {input["成本"]}, 售價: {input["售價"]}, 單位: {input["單位"]}'
+        profit = input["售價"] - input["成本"]
+        a = f'{ "+" if profit > 0 else "-"}{abs(profit)}'
 
-        # 隨機生成 N-1 個運算符號 (+ 或 -)
-        operators = ['+' if random.random() < 0.5 else '-' for _ in range(N-1)]
+    if mode == 4:
+        q = f'情境主題: {input["情境主題"]}, 數字: {input["數字"]}, 單位: {input["單位"]}'
+        sign = input["數字"][0]
+        for s in SCENARIO_DB:
+            if s["主題"] == input["情境主題"]:
+                result = s["正向描述"] if sign == '+' else s["負向描述"]
+                a = f'{result} {abs(float(input["數字"][1:]))} {s["單位"]}'
+                break
 
-        # 構造題目字串
-        q_parts = []
-        for i in range(N):
-            num_str = f"({numbers[i]})" if numbers[i] < 0 else str(numbers[i])
-            q_parts.append(num_str)
-            if i < N - 1:
-                q_parts.append(operators[i])
+    if mode == 5:
+        q = f'數字清單: {input["數字清單"]}, 篩選條件: {input["篩選條件"]}'
+        lst = input["數字清單"]
+        cond = input["篩選條件"]
+        result = []
+        for item in lst:
+            num = item
+            if isinstance(num, str):
+                if ' ' in num:
+                    int_part, frac = num.split(' ')
+                    frac_num = frac.split('/')
+                    num = float(int_part) + float(frac_num[0])/float(frac_num[1])
+                else:
+                    num = float(num)
+            if cond == "負數" and num < 0:
+                result.append(num)
+            elif cond == "整數" and num.is_integer():
+                result.append(num)
+            elif cond == "與-2.4同號數" and num < 0:
+                result.append(num)
+        a = str(result)
 
-        q = "計算下列各式的值。 " + " ".join(q_parts)
-
-        # 計算正確答案
-        a = numbers[0]
-        for i in range(1, N):
-            if operators[i-1] == '+':
-                a += numbers[i]
+    if mode == 6:
+        q = f'數字: {input["數字"]}'
+        num = input["數字"]
+        attrs = []
+        if isinstance(num, str):
+            if ' ' in num:
+                int_part, frac = num.split(' ')
+                frac_num = frac.split('/')
+                num = float(int_part) + float(frac_num[0])/float(frac_num[1])
             else:
-                a -= numbers[i]
+                num = float(num)
+        if num > 0:
+            attrs.append("正數")
+        elif num < 0:
+            attrs.append("負數")
+        else:
+            attrs.append("非正非負")
+        if isinstance(num, float) and not num.is_integer():
+            attrs.append("非整數")
+        else:
+            attrs.append("整數")
+        a = str({"屬性": attrs})
 
-        a = str(a)
     # [AI LOGIC END]
+    
+    # [V16.1 Auto-Handwriting Detection]
+    # Check if answer contains LaTeX symbols that require handwriting interface
     c_ans = str(a)
-    if any(t in c_ans for t in ['^', '/', '|', '[', '{', '\\']):
-        if 'input_mode' not in kwargs:
-            kwargs['input_mode'] = 'handwriting'
-            if "(請在手寫區作答!)" not in q: q = q.rstrip() + "\\n(請在手寫區作答!)"
-    return {'question_text': q, 'correct_answer': a, 'mode': mode, 'input_mode': kwargs.get('input_mode', 'text')}
+    triggers = ['^', '/', '|', '[', '{', '\\']
+    if any(t in c_ans for t in triggers):
+         if 'input_mode' not in locals(): locals()['input_mode'] = 'text' # init if missing
+         # simpler: just use a new dict key to signal
+         pass # Actually, we can't easily modify kwargs inside this tail unless we assume kwargs exists.
+         # But the generation skeleton has `def generate(mode=1, **kwargs):`
+         if 'input_mode' not in kwargs:
+             kwargs['input_mode'] = 'handwriting'
+             if "(請在手寫區作答!)" not in q:
+                 q = q.rstrip() + "\\n(請在手寫區作答!)"
+
+    # Final Safety Return
+    ret = {'question_text': q, 'correct_answer': a, 'mode': mode}
+    if 'input_mode' in kwargs: ret['input_mode'] = kwargs['input_mode']
+    return ret
 
 def check(user_answer, correct_answer):
-    u_s = str(user_answer).strip().replace(" ", "").replace("$", "")
-    c_s = str(correct_answer).strip().replace(" ", "").replace("$", "")
-    return {'correct': u_s == c_s, 'result': '正確！' if u_s == c_s else '錯誤'}
+    """
+    Standard Research Checker
+    """
+    # 使用 PERFECT_UTILS 中的標準比對函式
+    if 'check_standard' in globals():
+        res = check_standard(user_answer, correct_answer)
+        return {'correct': res, 'result': '正確' if res else '錯誤'}
+        
+    # Fallback Logic
+    u_val = parse_num(user_answer)
+    c_val = parse_num(correct_answer)
+    if u_val is not None and c_val is not None:
+        return {'correct': math.isclose(u_val, c_val, abs_tol=1e-7), 'result': '...'}
+    return {'correct': str(user_answer).strip() == str(correct_answer).strip(), 'result': '...'}

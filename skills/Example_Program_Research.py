@@ -86,19 +86,6 @@ def _logic_variant_1(is_reverse=False):
         "answer": ans
     }
 
-def _logic_variant_2(is_reverse=False):
-    """
-    對應 RAG 例題 2 的變體邏輯 (Stub)
-    """
-    # Simple reuse for robustness in few-shot
-    return _logic_variant_1(is_reverse)
-
-def _logic_variant_3(is_reverse=False):
-    """
-    對應 RAG 例題 3 的變體邏輯 (Stub)
-    """
-    return _logic_variant_1(is_reverse)
-
 # ==============================================================================
 # 3. 視覺化渲染規範 (V14.0 Pure Style)
 # ==============================================================================

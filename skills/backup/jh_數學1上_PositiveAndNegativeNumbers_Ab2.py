@@ -1,20 +1,13 @@
 # ==============================================================================
-# ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
+# ID: jh_數學1上_PositiveAndNegativeNumbers_Ab2
 # Model: qwen2.5-coder:14b | Strategy: V15 Architect (Hardening)
-# Ablation ID: 3 (Full Healing) | Env: RTX 5060 Ti 16GB
-# Performance: 11.53s | Tokens: In=0, Out=0
-# RAG Context: 8 examples | Temp: 0.05
-# Created At: 2026-01-18 23:38:08
+# Ablation ID: 2 (Regex Only) | Env: RTX 5060 Ti 16GB
+# Performance: 47.85s | Tokens: In=0, Out=0
+# RAG Context: 3 examples | Temp: 0.2
+# Created At: 2026-01-18 00:56:10
 # Fix Status: [Repaired] | Fixes: Regex=1, AST=0
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================
-
-import random, math, io, base64, re, ast
-from fractions import Fraction
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-
-# [Injected Utils]
 
 # [V12.3 Elite Standard Math Tools]
 import random
@@ -32,7 +25,7 @@ import io
 import re
 
 # [V11.6 Elite Font & Style] - Hardcoded
-plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['font.sans-serif"] = ["Microsoft JhengHei']
 plt.rcParams['axes.unicode_minus'] = False
 
 def to_latex(num):
@@ -228,6 +221,7 @@ def draw_geometry_composite(polygons, labels, x_limit=(0,10), y_limit=(0,10)):
         ax.set_ylim(min_y - ry, max_y + ry)
     else:
         ax.set_xlim(x_limit)
+        ax.set_ylim(y_limit)
     ax.axis('off')
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
@@ -263,51 +257,169 @@ def check(user_answer, correct_answer):
     
     return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", c_raw)}
 
-def generate(mode=1, **kwargs):
-    q, a = "", ""
-    # [AI LOGIC START]
+
+import io
+import base64
+import matplotlib.pyplot as plt
+
+COORD_MIN = -10
+COORD_MAX = 10
+
+def _generate_number_line_plot(points):
+    fig, ax = plt.subplots(figsize=(8, 2), dpi=300)
+    ax.set_aspect('equal')
+    
+    for value, label, color in points:
+        ax.plot(value, 0, 'o', markersize=10, color=color)
+        ax.text(value, -0.5, label, ha='center', va='top', fontsize=12, bbox=dict(facecolor='white', edgecolor='none', pad=3))
+    
+    ax.set_xlim(COORD_MIN - 1, COORD_MAX + 1)
+    ax.set_ylim(-1, 1)
+    ax.axis('off')
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    image_base64 = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close(fig)
+    
+    return image_base64
+
+def generate(level=1, **kwargs):
+    mode = random.randint(1, 6) if 'force_mode' not in locals() else force_mode
+    
     if mode == 1:
-        import random
+        a = random.randint(COORD_MIN + 1, COORD_MAX - 1)
+        question_text = r"在數線上，點 A 在原點的左邊還是右邊？距離原點幾個單位長？"
+        correct_answer = [f"{'左邊' if a < 0 else '右邊'}", str(abs(a))]
+        image_base64 = _generate_number_line_plot([(a, 'A', 'blue')])
+    
+    elif mode == 2:
+        a = random.randint(COORD_MIN + 1, COORD_MAX - 1)
+        question_text = r"點 A 表示的數是 {a}。請問在數線上，點 A 在原點的左邊還是右邊？距離原點幾個單位長？"
+        correct_answer = [f"{'左邊' if a < 0 else '右邊'}", str(abs(a))]
+        image_base64 = _generate_number_line_plot([(a, 'A', 'blue')])
+    
+    elif mode == 3:
+        a = random.randint(COORD_MIN, COORD_MAX)
+        b = random.randint(COORD_MIN, COORD_MAX)
+        while a == b:
+            b = random.randint(COORD_MIN, COORD_MAX)
+        question_text = r"比較 {a} 和 {b} 的大小關係，請填入 '<'、'>' 或 '='。"
+        correct_answer = [f"{'<' if a < b else '>' if a > b else '='}"]
+        image_base64 = _generate_number_line_plot([(a, 'A', 'blue'), (b, 'B', 'red')])
+    
+    elif mode == 4:
+        op = random.choice(['<', '>'])
+        val_A = random.randint(COORD_MIN + 1 if op == '<' else COORD_MIN, COORD_MAX - 1 if op == '>' else COORD_MAX)
+        val_B = random.randint(val_A + 1 if op == '<' else val_A - 1, COORD_MAX) if op == '<' else random.randint(COORD_MIN, val_A - 1)
+        question_text = r"已知 A {op} B，請找出符合此關係的兩個整數 A 和 B。"
+        correct_answer = [str(val_A), str(val_B)]
+        image_base64 = _generate_number_line_plot([(val_A, 'A', 'blue'), (val_B, 'B', 'red')])
+    
+    elif mode == 5:
+        a = random.randint(COORD_MIN, COORD_MAX)
+        question_text = r"請問數 {a} 的絕對值是多少？它的相反數又是多少？"
+        correct_answer = [str(abs(a)), str(-a)]
+        image_base64 = _generate_number_line_plot([(a, 'A', 'blue'), (abs(a), r'$|A|$', 'green'), (-a, r'$-A$', 'red')])
+    
+    elif mode == 6:
+        sub_mode = random.choice([1, 2])
+        if sub_mode == 1:
+            abs_val = random.randint(1, COORD_MAX)
+            question_text = r"已知某數的絕對值是 {abs_val}，且該數為負數，請問這個數是多少？"
+            correct_answer = [str(-abs_val)]
+            image_base64 = _generate_number_line_plot([(-abs_val, 'X', 'blue')])
+        else:
+            opposite_val = random.randint(COORD_MIN, COORD_MAX)
+            question_text = r"已知某數的相反數是 {opposite_val}，請問這個數是多少？"
+            correct_answer = [str(-opposite_val)]
+            image_base64 = _generate_number_line_plot([(-opposite_val, 'X', 'blue')])
+    
+    return {
+        'question_text': question_text,
+        'correct_answer': correct_answer,
+        'answer': None,
+        'image_base64': image_base64,
+        'mode': mode
+    }
 
-        # 隨機生成 2 或 3 個整數
-        N = random.randint(2, 3)
-        numbers = [random.randint(-100, 100) for _ in range(N)]
+def check(u, c):
+    if isinstance(u, str):
+        u = [u]
+    
+    if len(u) != len(c):
+        return False
+    
+    for user_ans, correct_ans in zip(u, c):
+        if user_ans.strip().lower() == correct_ans.strip().lower():
+            continue
+        try:
+            user_num = float(user_ans)
+            correct_num = float(correct_ans)
+            if not math.isclose(user_num, correct_num, rel_tol=1e-6, abs_tol=1e-6):
+                return False
+        except ValueError:
+            return False
+    
+    return True
 
-        # 確保不為零
-        while 0 in numbers:
-            numbers = [random.randint(-100, 100) for _ in range(N)]
+# Example usage:
+# result = generate()
+# print(result)
+# is_correct = check(['左邊', '3'], result['correct_answer'])
+# print(is_correct)
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
+def _patch_all_returns(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+        
+        if isinstance(res, dict):
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \\n 問題
+                res['question_text'] = re.sub(r'\\n', '\n', res['question_text'])
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            # [V13.1 修復] 移除 '(' 與 ','，允許座標與數列使用純文字輸入
+            triggers = ['^', '/', '|', '[', '{', '\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                res['input_mode'] = 'handwriting'
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\\n(請在手寫區作答!)"
 
-        # 隨機生成 N-1 個運算符號 (+ 或 -)
-        operators = ['+' if random.random() < 0.5 else '-' for _ in range(N-1)]
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
+        return res
+    return wrapper
 
-        # 構造題目字串
-        q_parts = []
-        for i in range(N):
-            num_str = f"({numbers[i]})" if numbers[i] < 0 else str(numbers[i])
-            q_parts.append(num_str)
-            if i < N - 1:
-                q_parts.append(operators[i])
-
-        q = "計算下列各式的值。 " + " ".join(q_parts)
-
-        # 計算正確答案
-        a = numbers[0]
-        for i in range(1, N):
-            if operators[i-1] == '+':
-                a += numbers[i]
-            else:
-                a -= numbers[i]
-
-        a = str(a)
-    # [AI LOGIC END]
-    c_ans = str(a)
-    if any(t in c_ans for t in ['^', '/', '|', '[', '{', '\\']):
-        if 'input_mode' not in kwargs:
-            kwargs['input_mode'] = 'handwriting'
-            if "(請在手寫區作答!)" not in q: q = q.rstrip() + "\\n(請在手寫區作答!)"
-    return {'question_text': q, 'correct_answer': a, 'mode': mode, 'input_mode': kwargs.get('input_mode', 'text')}
-
-def check(user_answer, correct_answer):
-    u_s = str(user_answer).strip().replace(" ", "").replace("$", "")
-    c_s = str(correct_answer).strip().replace(" ", "").replace("$", "")
-    return {'correct': u_s == c_s, 'result': '正確！' if u_s == c_s else '錯誤'}
+import sys
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
+        globals()[_name] = _patch_all_returns(_func)

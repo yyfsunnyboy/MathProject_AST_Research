@@ -1,20 +1,13 @@
 # ==============================================================================
-# ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
+# ID: jh_數學1上_PositiveAndNegativeNumbers_Ab3
 # Model: qwen2.5-coder:14b | Strategy: V15 Architect (Hardening)
 # Ablation ID: 3 (Full Healing) | Env: RTX 5060 Ti 16GB
-# Performance: 11.53s | Tokens: In=0, Out=0
-# RAG Context: 8 examples | Temp: 0.05
-# Created At: 2026-01-18 23:38:08
+# Performance: 21.84s | Tokens: In=0, Out=0
+# RAG Context: 3 examples | Temp: 0.2
+# Created At: 2026-01-18 15:00:42
 # Fix Status: [Repaired] | Fixes: Regex=1, AST=0
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================
-
-import random, math, io, base64, re, ast
-from fractions import Fraction
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-
-# [Injected Utils]
 
 # [V12.3 Elite Standard Math Tools]
 import random
@@ -228,6 +221,7 @@ def draw_geometry_composite(polygons, labels, x_limit=(0,10), y_limit=(0,10)):
         ax.set_ylim(min_y - ry, max_y + ry)
     else:
         ax.set_xlim(x_limit)
+        ax.set_ylim(y_limit)
     ax.axis('off')
     buf = io.BytesIO()
     fig.savefig(buf, format='png', bbox_inches='tight', transparent=True, dpi=300)
@@ -263,51 +257,196 @@ def check(user_answer, correct_answer):
     
     return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", c_raw)}
 
-def generate(mode=1, **kwargs):
-    q, a = "", ""
-    # [AI LOGIC START]
-    if mode == 1:
-        import random
+# --- [V15.5 新增：全能解析工具] ---
+def parse_num(s):
+    """解析字串(整數, 小數, 分數, 帶分數)為 float，供 check() 比對"""
+    s = str(s).strip().replace(" ", "").replace("＋", "+").replace("－", "-")
+    if not s: return None
+    try:
+        if "/" in s:
+            # 處理帶分數 (例如 -4 2/3 -> 需處理為 -(4 + 2/3))
+            is_neg = s.startswith("-")
+            s = s.lstrip("-")
+            # 尋找是否存在空格（帶分數格式）
+            match = re.match(r"(\d+)?(?:(\d+)/(\d+))", s)
+            if match:
+                whole = float(match.group(1)) if match.group(1) else 0.0
+                num = float(match.group(2))
+                den = float(match.group(3))
+                val = whole + (num / den)
+                return -val if is_neg else val
+        return float(s)
+    except: return None
 
-        # 隨機生成 2 或 3 個整數
-        N = random.randint(2, 3)
-        numbers = [random.randint(-100, 100) for _ in range(N)]
+# --- [V15.5 新增：標準出題工具] ---
+def generate_val(v_range=(-15, 15), exclude=[0], type_choice=['int', 'float', 'frac']):
+    """標準化隨機數生成，支援多種格式"""
+    t = random.choice(type_choice)
+    for _ in range(100):
+        if t == 'int': val = random.randint(v_range[0], v_range[1])
+        elif t == 'float': val = round(random.uniform(v_range[0], v_range[1]), 1)
+        else: # frac
+            d = random.randint(2, 10)
+            n = random.randint(v_range[0]*d, v_range[1]*d)
+            val = Fraction(n, d)
+        if val not in exclude: return val
+    return random.randint(1, 5)
 
-        # 確保不為零
-        while 0 in numbers:
-            numbers = [random.randint(-100, 100) for _ in range(N)]
+def check_standard(u, c):
+    """科研級標準比對：支援字串、數字與 LaTeX 符號"""
+    if u is None or c is None: return False
+    u_p, c_p = parse_num(u), parse_num(c)
+    
+    # 數值比對 (處理 0.5 vs 1/2)
+    if u_p is not None and c_p is not None:
+        return math.isclose(u_p, c_p, abs_tol=1e-7)
+    
+    # 字串比對 (移除空格與常見干擾)
+    u_s = str(u).strip().replace(" ", "").replace("。", "")
+    c_s = str(c).strip().replace(" ", "").replace("。", "")
+    return u_s == c_s
 
-        # 隨機生成 N-1 個運算符號 (+ 或 -)
-        operators = ['+' if random.random() < 0.5 else '-' for _ in range(N-1)]
 
-        # 構造題目字串
-        q_parts = []
-        for i in range(N):
-            num_str = f"({numbers[i]})" if numbers[i] < 0 else str(numbers[i])
-            q_parts.append(num_str)
-            if i < N - 1:
-                q_parts.append(operators[i])
 
-        q = "計算下列各式的值。 " + " ".join(q_parts)
+# 模擬從資料庫中隨機選擇一個場景
+scenario = random.choice([
+    {
+        "主題": "學校位置",
+        "正向描述": "東邊",
+        "負向描述": "西邊",
+        "單位": "公里"
+    },
+    {
+        "主題": "小考成績",
+        "正向描述": "進步",
+        "負向描述": "退步",
+        "單位": "分"
+    },
+    {
+        "主題": "交易盈虧",
+        "正向描述": "賺錢",
+        "負向描述": "賠錢",
+        "單位": "元"
+    },
+    {
+        "主題": "高度變化",
+        "正向描述": "上升",
+        "負向描述": "下降",
+        "單位": "公尺"
+    }
+])
 
-        # 計算正確答案
-        a = numbers[0]
-        for i in range(1, N):
-            if operators[i-1] == '+':
-                a += numbers[i]
-            else:
-                a -= numbers[i]
+# 隨機選擇一個模式
+mode = random.choice(["M1", "M3"])
 
-        a = str(a)
-    # [AI LOGIC END]
-    c_ans = str(a)
-    if any(t in c_ans for t in ['^', '/', '|', '[', '{', '\\']):
-        if 'input_mode' not in kwargs:
-            kwargs['input_mode'] = 'handwriting'
-            if "(請在手寫區作答!)" not in q: q = q.rstrip() + "\\n(請在手寫區作答!)"
-    return {'question_text': q, 'correct_answer': a, 'mode': mode, 'input_mode': kwargs.get('input_mode', 'text')}
+if mode == "M1":
+    # M1 模式：位置記錄
+    pos = scenario["正向描述"]
+    neg = scenario["負向描述"]
+    unit = scenario["單位"]
+    
+    d1 = random.randint(1, 10)
+    d2 = random.randint(1, 10)
+    
+    name1 = "小妍"
+    name2 = "老闆"
+    
+    s1 = "+" if pos == "東邊" else "-"
+    
+    q = f"以{scenario['主題']}為基準，若{name1}在{pos}{d1}{unit}記作{s1}{d1}，則{name2}在{neg}{d2}{unit}應記作？"
+    a = f"-{d2}"
+    
+elif mode == "M3":
+    # M3 模式：盈虧計算與記錄
+    cost = random.randint(50, 200)
+    price = random.randint(cost - 100, cost + 100)
+    
+    profit_or_loss = price - cost
+    
+    q = f"老闆以{cost}元買進一批花，若以{price}元售出，則這筆交易應記錄為多少元？"
+    a = str(profit_or_loss)
 
-def check(user_answer, correct_answer):
-    u_s = str(user_answer).strip().replace(" ", "").replace("$", "")
-    c_s = str(correct_answer).strip().replace(" ", "").replace("$", "")
-    return {'correct': u_s == c_s, 'result': '正確！' if u_s == c_s else '錯誤'}
+# 回傳格式
+result = {'question_text': q, 'correct_answer': a, 'mode': mode}
+print(result)
+{
+    'question_text': '以交易盈虧為基準，若老闆以120元買進一批花，若以150元售出，則這筆交易應記錄為多少元？',
+    'correct_answer': '30',
+    'mode': 'M3'
+}
+
+# [Auto-Injected Smart Dispatcher v8.7]
+def generate(level=1):
+    if level == 1:
+        types = ['generate_val']
+        selected = random.choice(types)
+    else:
+        types = ['generate_val']
+        selected = random.choice(types)
+    if selected == 'generate_val': return generate_val()
+    return generate_val()
+
+# [Auto-Injected Patch v11.0] Universal Return, Linebreak & Handwriting Fixer
+def _patch_all_returns(func):
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        
+        # 1. 針對 check 函式的布林值回傳進行容錯封裝
+        if func.__name__ == 'check' and isinstance(res, bool):
+            return {'correct': res, 'result': '正確！' if res else '答案錯誤'}
+
+        # --- [V15.6 防禦升級] ---
+        # 如果回傳的是數字或字串，強制轉化為標準科研字典格式
+        if not isinstance(res, dict):
+            res = {
+                'question_text': f"題目生成異常，原始數據為: {res}",
+                'correct_answer': str(res),
+                'mode': 0
+            }
+        # -----------------------
+        
+        if isinstance(res, dict):
+            # [V11.3 Standard Patch] - 解決換行與編碼問題
+            if 'question_text' in res and isinstance(res['question_text'], str):
+                # 僅針對「文字反斜線+n」進行物理換行替換，不進行全局編碼轉換
+                import re
+                # 解決 r-string 導致的 \n 問題
+                res['question_text'] = re.sub(r'\n', '\n', res['question_text'])
+            
+            # --- [V11.0] 智能手寫模式偵測 (Auto Handwriting Mode) ---
+            # 判定規則：若答案包含複雜運算符號，強制提示手寫作答
+            # 包含: ^ / _ , | ( [ { 以及任何 LaTeX 反斜線
+            c_ans = str(res.get('correct_answer', ''))
+            # [V13.1 修復] 移除 '(' 與 ','，允許座標與數列使用純文字輸入
+            triggers = ['^', '/', '|', '[', '{', '\\']
+            
+            # [V11.1 Refined] 僅在題目尚未包含提示時注入，避免重複堆疊
+            has_prompt = "手寫" in res.get('question_text', '')
+            should_inject = (res.get('input_mode') == 'handwriting') or any(t in c_ans for t in triggers)
+            
+            if should_inject and not has_prompt:
+                res['input_mode'] = 'handwriting'
+                # [V11.3] 確保手寫提示語在最後一行
+                res['question_text'] = res['question_text'].rstrip() + "\n(請在手寫區作答!)"
+
+            # 3. 確保反饋訊息中文
+            if func.__name__ == 'check' and 'result' in res:
+                if res['result'].lower() in ['correct!', 'correct', 'right']:
+                    res['result'] = '正確！'
+                elif res['result'].lower() in ['incorrect', 'wrong', 'error']:
+                    res['result'] = '答案錯誤'
+            
+            # 4. 確保欄位完整性
+            if 'answer' not in res and 'correct_answer' in res:
+                res['answer'] = res['correct_answer']
+            if 'answer' in res:
+                res['answer'] = str(res['answer'])
+            if 'image_base64' not in res:
+                res['image_base64'] = ""
+        return res
+    return wrapper
+
+import sys
+for _name, _func in list(globals().items()):
+    if callable(_func) and (_name.startswith('generate') or _name == 'check'):
+        globals()[_name] = _patch_all_returns(_func)

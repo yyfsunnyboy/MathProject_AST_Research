@@ -1,20 +1,10 @@
-# ==============================================================================
-# ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
-# Model: qwen2.5-coder:14b | Strategy: V15 Architect (Hardening)
-# Ablation ID: 3 (Full Healing) | Env: RTX 5060 Ti 16GB
-# Performance: 11.53s | Tokens: In=0, Out=0
-# RAG Context: 8 examples | Temp: 0.05
-# Created At: 2026-01-18 23:38:08
-# Fix Status: [Repaired] | Fixes: Regex=1, AST=0
-# Verification: Internal Logic Check = PASSED
-# ==============================================================================
 
 import random, math, io, base64, re, ast
 from fractions import Fraction
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-# [Injected Utils]
+# [V12.3 Injected Utils]
 
 # [V12.3 Elite Standard Math Tools]
 import random
@@ -267,39 +257,42 @@ def generate(mode=1, **kwargs):
     q, a = "", ""
     # [AI LOGIC START]
     if mode == 1:
-        import random
+        # Mode 1-1 (基礎加減乘除)
+        if sub_mode == 1:
+            num1 = random.randint(-20, 20)
+            num2 = random.randint(-20, 20)
+            num3 = random.randint(-20, 20)
 
-        # 隨機生成 2 或 3 個整數
-        N = random.randint(2, 3)
-        numbers = [random.randint(-100, 100) for _ in range(N)]
+            # Ensure no division by zero
+            while num3 == 0:
+                num3 = random.randint(-20, 20)
 
-        # 確保不為零
-        while 0 in numbers:
-            numbers = [random.randint(-100, 100) for _ in range(N)]
+            op1 = random.choice(['+', '-'])
+            op2 = random.choice(['+', '-'])
 
-        # 隨機生成 N-1 個運算符號 (+ 或 -)
-        operators = ['+' if random.random() < 0.5 else '-' for _ in range(N-1)]
+            q = f"計算下列各式的值。\n{num1} {op1} {num2} {op2} {num3}"
+            a = str(eval(q))
 
-        # 構造題目字串
-        q_parts = []
-        for i in range(N):
-            num_str = f"({numbers[i]})" if numbers[i] < 0 else str(numbers[i])
-            q_parts.append(num_str)
-            if i < N - 1:
-                q_parts.append(operators[i])
+        # Mode 1-2 (混合運算)
+        elif sub_mode == 2:
+            num1 = random.randint(-15, 15)
+            num2 = random.randint(-15, 15)
+            num3 = random.randint(-15, 15)
+            num4 = random.randint(-15, 15)
 
-        q = "計算下列各式的值。 " + " ".join(q_parts)
+            # Ensure no division by zero
+            while num3 == 0 or num4 == 0:
+                num3 = random.randint(-15, 15)
+                num4 = random.randint(-15, 15)
 
-        # 計算正確答案
-        a = numbers[0]
-        for i in range(1, N):
-            if operators[i-1] == '+':
-                a += numbers[i]
-            else:
-                a -= numbers[i]
+            op1 = random.choice(['+', '-'])
+            op2 = random.choice(['×', '÷'])
+            op3 = random.choice(['+', '-'])
 
-        a = str(a)
+            q = f"計算下列各式的值。\n{num1} {op1} {num2} {op2} {num3} {op3} {num4}"
+            a = str(eval(q))
     # [AI LOGIC END]
+    # [V16.1 Auto-Handwriting Detection]
     c_ans = str(a)
     if any(t in c_ans for t in ['^', '/', '|', '[', '{', '\\']):
         if 'input_mode' not in kwargs:
@@ -308,6 +301,7 @@ def generate(mode=1, **kwargs):
     return {'question_text': q, 'correct_answer': a, 'mode': mode, 'input_mode': kwargs.get('input_mode', 'text')}
 
 def check(user_answer, correct_answer):
+    # 使用標準比對邏輯
     u_s = str(user_answer).strip().replace(" ", "").replace("$", "")
     c_s = str(correct_answer).strip().replace(" ", "").replace("$", "")
     return {'correct': u_s == c_s, 'result': '正確！' if u_s == c_s else '錯誤'}

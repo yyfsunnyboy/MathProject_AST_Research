@@ -59,7 +59,6 @@ class Config:
     # ★ 關鍵修改：角色與模型的對照表
     # 格式：'角色': {'provider': '供應商', 'model': '模型名稱'}
     MODEL_ROLES = {
-        # [新增] 架構師角色：負責讀題、設計邏輯 (使用 Phi-4-mini 3.8B)
         'architect': {
             #'provider': 'local',
             #'model': 'phi4-mini', 
@@ -70,19 +69,17 @@ class Config:
         },        
         # 1. 工程師：專門寫 Code (精準、強迫症)
         'coder': {
-            #'provider': 'local',
-            #'model': 'qwen2.5-coder:7b',
-            #'model': 'deepseek-coder-v2:lite',
-            #'temperature': 0.1,
-            #'num_ctx': 8192     # [建議新增] 確保它讀得懂長長的教案  
-            'provider': 'google',
-            'model': 'gemini-2.5-flash'
-
-            #'model': 'qwen3-coder:30b'
-            #'model': 'qwen2.5-coder:14b'
-            #'model': 'freehuntx/qwen3-coder:14b' # rtx2060 跑不動     
-            #'model': 'freehuntx/qwen3-coder:8b'
-            
+            'provider': 'local',
+            #'model': 'qwen3:14b',  # 依然使用 Qwen 3 的強大核心
+            'model': 'qwen2.5-coder:14b',  #  Qwen 2.5
+            'temperature': 0.05,    # 保持低溫，確保程式碼生成的一致性 [cite: 112]
+            'num_ctx': 4096,       # ⚠️ 縮小上下文視窗，防止模型去想太遠的事情
+            'options': {
+                'num_gpu': 1,      # 完全使用你的 5060 Ti [cite: 112]
+                'enable_thinking': False,  # 🚀 關鍵：將這裡改為 False
+                'num_predict': 800,       # 強制限制輸出長度，防止它寫太多廢話
+                'num_thread': 8
+            }      
         },
         
         # 2. 助教：專門解釋觀念 (溫柔、話多)

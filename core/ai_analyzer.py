@@ -11,7 +11,13 @@
 """
 """此模組負責與 Google Gemini AI 模型進行互動，提供圖片分析、手寫辨識、題目技能識別以及從圖片生成測驗等功能。"""
 # core/ai_analyzer.py
-import google.generativeai as genai
+# [Fix] Migrate from deprecated 'google.generativeai' to 'google.genai'
+try:
+    from google import genai
+except ImportError:
+    # Fallback to old package if new one is not installed (though warning suggests it's deprecated)
+    import google.generativeai as genai # Compat
+    print("⚠️ Warning: Using deprecated 'google.generativeai'. Please upgrade to 'google-genai'.")
 import base64
 import json
 import tempfile

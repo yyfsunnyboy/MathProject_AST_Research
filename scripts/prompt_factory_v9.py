@@ -23,7 +23,7 @@ if project_root not in sys.path:
 
 from app import create_app
 from models import db, SkillInfo, SkillCurriculum, SkillGenCodePrompt
-from core.prompt_architect import generate_v9_spec
+from core.prompt_architect import generate_v15_spec
 
 def get_user_selection(options, prompt_text):
     """移植自 v8.6.2 的選單功能"""
@@ -73,7 +73,7 @@ def run_architect_factory(skill_ids, model_tag_choice):
             print(f"   -> Generating {tag} spec...", end=" ", flush=True)
             try:
                 # 呼叫修改後的核心架構師
-                result = generate_v9_spec(skill_id, model_tag=tag)
+                result = generate_v15_spec(skill_id, model_tag=tag)
                 
                 if result.get('success'):
                     print(f"✅ (V{result['version']})")
