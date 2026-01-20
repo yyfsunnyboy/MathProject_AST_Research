@@ -1,16 +1,17 @@
 # ==============================================================================
 # ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
 # Model: qwen2.5-coder:14b | Strategy: V15 Architect (Hardening)
-# Ablation ID: 3 | Env: RTX 5060 Ti 16GB
-# Performance: 9.55s | Tokens: In=0, Out=0
-# Created At: 2026-01-20 23:10:05
-# Fix Status: [Repaired] | Fixes: Regex=5, AST=0
+# Ablation ID: 3 (Full Healing) | Env: RTX 5060 Ti 16GB
+# Performance: 11.53s | Tokens: In=0, Out=0
+# RAG Context: 8 examples | Temp: 0.05
+# Created At: 2026-01-18 23:38:08
+# Fix Status: [Repaired] | Fixes: Regex=1, AST=0
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================
 
 import random, math, io, base64, re, ast
 from fractions import Fraction
-from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
 # [Injected Utils]
@@ -21,7 +22,7 @@ import math
 import matplotlib
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from fractions import Fraction
 from functools import reduce
@@ -31,8 +32,8 @@ import io
 import re
 
 # [V11.6 Elite Font & Style] - Hardcoded
-matplotlib.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
-matplotlib.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+plt.rcParams['axes.unicode_minus'] = False
 
 def to_latex(num):
     if isinstance(num, int): return str(num)
@@ -193,7 +194,7 @@ def draw_coordinate_system(lines=None, points=None, x_range=(-5, 5), y_range=(-5
             ax.text(p[0]+0.2, p[1]+0.2, p.get('label', ''), fontsize=14, fontweight='bold')
 
     ax.set_xlim(x_range); ax.set_ylim(y_range)
-    # 隱藏刻度, 僅保留 0
+    # 隱藏刻度，僅保留 0
     ax.set_xticks([0]); ax.set_yticks([0])
     
     buf = io.BytesIO()
@@ -246,8 +247,8 @@ def check(user_answer, correct_answer):
         return str(a)
 
     def _clean(s):
-        # 雙向清理: 剝除 LaTeX 符號與空格
-        return str(s).strip().replace(" ", "").replace(", ", ",").replace("$", "").replace("\\", "").lower()
+        # 雙向清理：剝除 LaTeX 符號與空格
+        return str(s).strip().replace(" ", "").replace("，", ",").replace("$", "").replace("\\", "").lower()
     
     u = _clean(user_answer)
     c_raw = _format_ans(correct_answer)
@@ -260,38 +261,51 @@ def check(user_answer, correct_answer):
         if math.isclose(float(u), float(c), abs_tol=1e-6): return {"correct": True, "result": "正確！"}
     except: pass
     
-    return {"correct": False, "result": r"答案錯誤。正確答案為: {ans}".replace("{ans}", c_raw)}
+    return {"correct": False, "result": r"答案錯誤。正確答案為：{ans}".replace("{ans}", c_raw)}
 
-    return template.format(**safe_values)
-
-
-# ==============================================================================
-# BASIC ARITHMETIC SKELETON (Dynamic)
-# ==============================================================================
-def generate(level=1, **kwargs):
+def generate(mode=1, **kwargs):
     q, a = "", ""
-    
-    # [CODER_START] - Implement logic
-    # ----------------------------------------------------------------------
-    # Example:
-    # n = random.randint(1, 100)
-    # q, a = f"${n}$", str(n)
-    # ----------------------------------------------------------------------
-    
-    n1 = random.randint(-100, 100)
-    n2 = random.randint(-100, 100)
-    n3 = random.randint(1, 50)
-    op1, op2 = random.choice(['+', '-']), random.choice(['+', '-'])
-    q = f"${fmt_num(n1)} {op1} {fmt_num(n2)} {op2} {fmt_num(n3)}$"
-    a = str(eval(f"{n1} {op1} {n2} {op2} {n3}"))
+    # [AI LOGIC START]
+    if mode == 1:
+        import random
 
+        # 隨機生成 2 或 3 個整數
+        N = random.randint(2, 3)
+        numbers = [random.randint(-100, 100) for _ in range(N)]
+
+        # 確保不為零
+        while 0 in numbers:
+            numbers = [random.randint(-100, 100) for _ in range(N)]
+
+        # 隨機生成 N-1 個運算符號 (+ 或 -)
+        operators = ['+' if random.random() < 0.5 else '-' for _ in range(N-1)]
+
+        # 構造題目字串
+        q_parts = []
+        for i in range(N):
+            num_str = f"({numbers[i]})" if numbers[i] < 0 else str(numbers[i])
+            q_parts.append(num_str)
+            if i < N - 1:
+                q_parts.append(operators[i])
+
+        q = "計算下列各式的值。 " + " ".join(q_parts)
+
+        # 計算正確答案
+        a = numbers[0]
+        for i in range(1, N):
+            if operators[i-1] == '+':
+                a += numbers[i]
+            else:
+                a -= numbers[i]
+
+        a = str(a)
     # [AI LOGIC END]
     c_ans = str(a)
     if any(t in c_ans for t in ['^', '/', '|', '[', '{', '\\']):
         if 'input_mode' not in kwargs:
             kwargs['input_mode'] = 'handwriting'
             if "(請在手寫區作答!)" not in q: q = q.rstrip() + "\\n(請在手寫區作答!)"
-    return {'question_text': q, 'correct_answer': a, 'input_mode': kwargs.get('input_mode', 'text')}
+    return {'question_text': q, 'correct_answer': a, 'mode': mode, 'input_mode': kwargs.get('input_mode', 'text')}
 
 def check(user_answer, correct_answer):
     u_s = str(user_answer).strip().replace(" ", "").replace("$", "")

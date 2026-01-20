@@ -304,9 +304,8 @@ if __name__ == "__main__":
         arch_model = arch_config.get('model', 'Unknown')
 
         print(f"🚀 開始同步資料庫與實體檔案 (Research Edition)")
-        print(f"🤖 工程師模型 (Coder): \033[1;36m{current_model}\033[0m") 
-        print(f"🧠 架構師模型 (Architect): \033[1;35m{arch_model}\033[0m")
-        
+        print(f"🧠 架構師模型 (Architect): \033[1;35m{arch_model}\033[0m")        
+        print(f"🤖 工程師模型 (Coder): \033[1;36m{current_model}\033[0m")         
         # --- 1. 互動篩選 (保留原邏輯) ---
         curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).order_by(SkillCurriculum.curriculum).all()]
         selected_curr = get_user_selection(curriculums, "請選擇課綱:")

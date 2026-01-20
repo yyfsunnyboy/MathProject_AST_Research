@@ -1,9 +1,9 @@
 # ==============================================================================
-# ID: jh_數學1上_MixedIntegerAdditionAndSubtraction
+# ID: jh_數學1上_FourArithmeticOperationsOfIntegers
 # Model: qwen2.5-coder:14b | Strategy: V15 Architect (Hardening)
 # Ablation ID: 3 | Env: RTX 5060 Ti 16GB
 # Performance: 9.55s | Tokens: In=0, Out=0
-# Created At: 2026-01-20 23:10:05
+# Created At: 2026-01-20 23:17:50
 # Fix Status: [Repaired] | Fixes: Regex=5, AST=0
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================

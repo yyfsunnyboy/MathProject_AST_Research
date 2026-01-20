@@ -165,9 +165,37 @@ DEFAULT_CHAT_PROMPT = """
 
 def configure_gemini(api_key, model_name):
     global gemini_model, gemini_chat
-    genai.configure(api_key=api_key)
-    gemini_model = genai.GenerativeModel(model_name)
-    gemini_chat = gemini_model.start_chat(history=[])  # 動態設定！
+    
+    if hasattr(genai, 'configure'):
+        # Old SDK
+        genai.configure(api_key=api_key)
+        gemini_model = genai.GenerativeModel(model_name)
+        gemini_chat = gemini_model.start_chat(history=[])
+    elif hasattr(genai, 'Client'):
+        # New SDK Adapter
+        print("⚠️  Initializing Legacy Analyzer with New GenAI SDK Adapter")
+        client = genai.Client(api_key=api_key)
+        
+        class GenAIAdapter:
+            def __init__(self, client, model):
+                self.client = client
+                self.model = model
+            
+            def generate_content(self, contents, generation_config=None):
+                # Basic Mapping
+                return self.client.models.generate_content(
+                    model=self.model, 
+                    contents=contents, 
+                    config=generation_config
+                )
+            
+            def start_chat(self, history=None):
+                return self.client.chats.create(model=self.model, history=history or [])
+                
+        gemini_model = GenAIAdapter(client, model_name)
+        gemini_chat = gemini_model.start_chat(history=[])
+    else:
+        print("❌ Error: Could not configure Gemini AI. Unknown SDK version.")
 
 def get_model():
     if gemini_model is None:

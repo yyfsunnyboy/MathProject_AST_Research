@@ -72,6 +72,7 @@ class Config:
             'provider': 'local',
             #'model': 'qwen3:14b',  # 依然使用 Qwen 3 的強大核心
             'model': 'qwen2.5-coder:14b',  #  Qwen 2.5
+            #'model': 'vanilj/supernova-medius:q6_k',
             'temperature': 0.05,    # 保持低溫，確保程式碼生成的一致性 [cite: 112]
             'num_ctx': 4096,       # ⚠️ 縮小上下文視窗，防止模型去想太遠的事情
             'options': {

@@ -85,15 +85,36 @@ class GoogleAIClient:
             logger.error("❌ GEMINI_API_KEY not found! Please check your config.py or .env file.")
             raise ValueError("GEMINI_API_KEY is missing. 無法啟動 Google AI Client。")
 
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+        # [SDK Compat] Check if using new SDK (google.genai) or old SDK (google.generativeai)
+        if hasattr(genai, 'Client'):
+            # New SDK (google.genai)
+            self.client = genai.Client(api_key=api_key)
+            self.model_name = model_name
+            self.is_new_sdk = True
+        else:
+            # Old SDK (google.generativeai)
+            if hasattr(genai, 'configure'):
+                genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel(model_name)
+            self.is_new_sdk = False
+            
         self.temperature = temperature
 
     def generate_content(self, prompt):
         try:
-            config = genai.GenerationConfig(temperature=self.temperature)
-            response = self.model.generate_content(prompt, generation_config=config)
-            return response
+            if getattr(self, 'is_new_sdk', False):
+                # New SDK usage
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config={"temperature": self.temperature}
+                )
+                return response
+            else:
+                # Old SDK usage
+                config = genai.GenerationConfig(temperature=self.temperature)
+                response = self.model.generate_content(prompt, generation_config=config)
+                return response
         except Exception as e:
             error_msg = f"Google AI Error: {str(e)}"
             logger.error(error_msg)

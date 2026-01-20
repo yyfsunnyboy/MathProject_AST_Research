@@ -194,7 +194,7 @@ def process_textbook_file(file_path, curriculum_info, queue, skip_code_gen=False
             for idx, skill_id in enumerate(processed_skill_ids):
                 queue.put(f"INFO: [{idx+1}/{len(processed_skill_ids)}] 正在生成 {skill_id}.py ...")
                 try:
-                    success, msg = auto_generate_skill_code(skill_id, queue)
+                    success, msg, _ = auto_generate_skill_code(skill_id, queue)
                     if success:
                         queue.put(f"INFO: {skill_id} 生成成功！")
                     else:

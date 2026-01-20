@@ -1,4 +1,4 @@
-# 資料庫 Table Schema 詳細資料 (2026-01-17)
+# MathProject_AST_Research 資料庫 Table Schema 詳細資料 (2026-01-17)
 
 本文件詳細列出 MathProject_AST_Research 專案目前所有資料庫表格的 Schema、功能說明、Primary Key 及主要關聯程式。
 
@@ -80,9 +80,11 @@
 | skill_id | TEXT | 技能 ID | FK -> skills_info.skill_id |
 | architect_model | TEXT | 設計者模型 | Default: 'human' |
 | model_tag | TEXT | 模型標籤 | Default: 'default' |
+| prompt_type | TEXT | 提示類型 | Default: 'standard' |
 | prompt_strategy | TEXT | 提示策略 | Default: 'standard' |
-| system_prompt | TEXT | 系統提示詞 | |
+| system_prompt | TEXT | 系統角色設定 | |
 | user_prompt_template | TEXT | 使用者指令模板 | |
+| prompt_content | TEXT | [MASTER_SPEC] 完整內容 | |
 | creation_prompt_tokens | INTEGER | 建立時 Prompt Tokens | Cost Tracking |
 | creation_completion_tokens | INTEGER | 建立時 Completion Tokens | Cost Tracking |
 | creation_total_tokens | INTEGER | 建立時 Total Tokens | Cost Tracking |
