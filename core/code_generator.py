@@ -84,6 +84,7 @@ import io
 import re
 
 # [V11.6 Elite Font & Style] - Hardcoded
+# [修正點]：全部改為單引號，確保對稱
 plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -469,17 +470,19 @@ def get_dynamic_skeleton(skill_id):
 # UNIVERSAL SYSTEM PROMPT (v9.2 Optimized - Lean & Powerful)
 # 結合了「規則防護」與「範例引導」，用最少的 Token 達到最強的約束力
 # ==============================================================================
-UNIVERSAL_GEN_CODE_PROMPT = r"""【極嚴格指令】：
-1. 僅輸出 Python 邏輯。嚴禁文字解釋。
-2. **[零常數原則]**：嚴禁在 q = f"..." 中直接書寫任何具體數字（如 10, 30, 2）。
-3. **[變數化要求]**：所有數字必須先通過 n = random.randint(...) 產生變數，再由 {fmt_num(n)} 調用。
-4. **[範例結構]**：
-   n1 = random.randint(-100, 100)
-   n2 = random.randint(-100, 100)
-   n3 = random.randint(1, 50)  # 連最後一項也要變數化
-   op1, op2 = random.choice(['+', '-']), random.choice(['+', '-'])
-   q = f"${fmt_num(n1)} {op1} {fmt_num(n2)} {op2} {fmt_num(n3)}$"
-   a = str(eval(f"{n1} {op1} {n2} {op2} {n3}"))
+# [UNIVERSAL_GEN_CODE_PROMPT] V40.0 - 整函式替換協議
+UNIVERSAL_GEN_CODE_PROMPT = r"""【Python 邏輯生成指令】：
+1. **[任務目標]**：請根據 MASTER_SPEC，寫出完整的 `generate` 函式。
+2. **[核心要求]**：
+   - 輸出必須包含完整的函式定義：`def generate(level=1, **kwargs):`
+   - 必須自行處理函式內部的所有縮進 (4 spaces)。
+   - 嚴禁只輸出邏輯片段。
+3. **[變數規範]**：
+   - 題目賦值給 `q`，答案賦值給 `a`。
+   - 數字生成使用 `random` 模組。
+4. **[格式潔癖]**：
+   - `q` 嚴禁包含「計算」、「求解」等引導語。
+   - `a` 嚴禁包含計算過程，只保留最終答案。
 """
 
 
@@ -510,46 +513,19 @@ def infer_model_tag(model_name):
 # --- Dispatcher Injection (v8.7 Level-Aware) ---
 # ==============================================================================
 def inject_perfect_utils(code_str):
-    """
-    [精簡化注入引擎 V17.5] 
-    1. 注入 PERFECT_UTILS 核心庫。
-    2. 採用行級掃描技術移除重複的 import，提升代碼潔淨度。
-    """
-    # 步驟 1: 強力清掃 AI 生成內容中常見的重複定義或 Markdown 殘留
-    patterns = [
-        r'def\s+_patch_all_returns\(.*?\):.*?(?=\n\S|$)',
-        r'def\s+check\(user_answer, correct_answer\):.*?(?=\n\S|$)',
-        r'for _name, _func in list\(globals\(\)\.items\(\)\):.*',
-        r'```python', r'```'
-    ]
-    for pat in patterns:
-        code_str = re.sub(pat, '', code_str, flags=re.DOTALL | re.MULTILINE)
-
-    # 步驟 2: 合併完美工具箱與生成內容
     full_content = PERFECT_UTILS + "\n" + code_str
-    
-    # 步驟 3: [去重邏輯] 行級掃描處理 import
     lines = full_content.splitlines()
-    cleaned_lines = []
-    seen_imports = set()
+    cleaned_lines, seen_imports = [], set()
     
     for line in lines:
-        stripped = line.strip()
-        # 針對 import 語句進行去重，不論其出現在檔案何處
-        if stripped.startswith("import ") or stripped.startswith("from "):
-            if stripped not in seen_imports:
+        s = line.strip()
+        if s.startswith("import ") or s.startswith("from "):
+            if s not in seen_imports:
                 cleaned_lines.append(line)
-                seen_imports.add(stripped)
-            else:
-                continue # 發現重複，直接過濾掉
-        else:
-            cleaned_lines.append(line)
-
-    # 步驟 4: 移除連續空行，讓結構符合工程美學
-    result = "\n".join(cleaned_lines)
-    result = re.sub(r'\n{3,}', '\n\n', result)
-    
-    return result
+                seen_imports.add(s)
+            continue # 跳過重複項
+        cleaned_lines.append(line)
+    return "\n".join(cleaned_lines)
 
 # ==============================================================================
 # --- Dispatcher Injection (v8.7 Level-Aware) ---
@@ -749,35 +725,49 @@ def fix_code_syntax(code_str, error_msg=""):
 
 def validate_and_fix_code(code_content):
     """
-    [V9.9.5] 預防性框架修復與變數對齊
+    [V40.2] 預防性框架修復與引號校準
     """
     total_fixes = 0
     
-    # 1. 繪圖框架安全化 (Matplotlib thread-safety)
+    # 1. [精準打擊] 修復錯誤的 Matplotlib 引號設定
+    # 你的 Log 顯示錯誤為: plt.rcParams['font.sans-serif"] = ["Microsoft JhengHei']
+    # 我們直接針對這個錯誤字串進行置換
+    bad_line_1 = "plt.rcParams['font.sans-serif\"] = [\"Microsoft JhengHei']"
+    bad_line_2 = 'plt.rcParams["font.sans-serif\'] = [\'Microsoft JhengHei"]'
+    
+    target_line = "plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']"
+    
+    if bad_line_1 in code_content:
+        code_content = code_content.replace(bad_line_1, target_line)
+        total_fixes += 1
+        
+    if bad_line_2 in code_content:
+        code_content = code_content.replace(bad_line_2, target_line)
+        total_fixes += 1
+        
+    # 通用引號修復 (防止其他變種)
+    code_content = re.sub(
+        r"plt\.rcParams\[\s*['\"]font\.sans-serif['\"]\s*\]\s*=\s*\[\s*['\"]Microsoft JhengHei['\"]\s*\]",
+        target_line,
+        code_content
+    )
+
+    # 2. 繪圖框架安全化 (Matplotlib thread-safety)
     if "import matplotlib.pyplot" in code_content or "plt." in code_content:
-        # 將 plt.rcParams 替換為 matplotlib.rcParams
         if "matplotlib.rcParams" not in code_content:
              code_content = code_content.replace("plt.rcParams", "matplotlib.rcParams")
         
-        # 強力修正引號損毀問題 (針對 14B 模型常犯的錯誤)
-        code_content = code_content.replace("['font.sans-serif\"]", "['font.sans-serif']")
-        code_content = code_content.replace('["Microsoft JhengHei\']', "['Microsoft JhengHei']")
-        
-        # 移除會導致 GUI 報錯的 plt 引用，全部轉為物件導向
         code_content = code_content.replace("import matplotlib.pyplot as plt", "from matplotlib.figure import Figure")
         code_content = code_content.replace("plt.subplots(", "Figure(")
-        
-        # 移除任何 plt.show() 或 plt.close()
         code_content = re.sub(r'plt\.(show|close|axis|grid|plot|text)\(.*?\)', '', code_content)
         
         total_fixes += 1
 
-    # 2. 修正舊版變數
+    # 3. 修正舊版變數
     if "def generate_math_question" in code_content:
         code_content = code_content.replace("def generate_math_question", "def generate")
         total_fixes += 1
 
-    # ... 其餘邏輯保持不變 ...
     return code_content, total_fixes
 
 
@@ -874,153 +864,184 @@ def log_experiment(skill_id, start_time, prompt_len, code_len, is_valid, error_m
     finally:
         conn.close()
 
+# [core/code_generator.py] V19.5 結構清洗引擎
+def clean_and_reindent_logic(raw_logic):
+    """
+    [V19.5 絕對對齊器]
+    1. 移除每行首尾多餘空格，消除 AI 隨機跳格。
+    2. 映射常見變數名 (question_text -> q, correct_answer -> a)。
+    3. 統一施加 4 空格縮進。
+    """
+    lines = raw_logic.splitlines()
+    cleaned_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or "return {" in stripped or "return q, a" in stripped:
+            continue
+        
+        # 變數自動對齊 (Mapping)
+        stripped = stripped.replace("question_text", "q").replace("correct_answer", "a")
+        
+        # 處理 if/elif/else/for 的基礎縮進保護
+        # 如果這一行以關鍵字結尾或是下一行需要縮進，我們這邊維持扁平化
+        # 讓系統透過接下來的結構化處理補齊
+        cleaned_lines.append(stripped)
+
+    # 重新構建邏輯塊，並補上基本縮進
+    # 注意：如果 AI 寫了 if，下一行我們需要手動判斷，但更保險的做法是強制模型寫扁平代碼
+    return "\n".join(["    " + l for l in cleaned_lines])
 
 # ==============================================================================
 # 核心生成函式
 # ==============================================================================
+# [core/code_generator.py] V40.0 - Full Function Replacement (斷頭台策略)
 def auto_generate_skill_code(skill_id, queue=None, **kwargs):
     start_time = time.time()
     role_config = Config.MODEL_ROLES.get('coder', Config.MODEL_ROLES.get('default'))
     current_model = role_config.get('model', 'Unknown')
     ablation_id = kwargs.get('ablation_id', 3)
     
-    # 1. 取得規格書與樣板
-    active_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, model_tag='local_14b').order_by(SkillGenCodePrompt.created_at.desc()).first()
-    spec = active_prompt.user_prompt_template if active_prompt else ""
+    # 1. 讀取 Spec
+    active_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, prompt_type="MASTER_SPEC").order_by(SkillGenCodePrompt.created_at.desc()).first()
+    spec = active_prompt.prompt_content if active_prompt else "生成簡單數學題。"
     full_template = get_dynamic_skeleton(skill_id)
-
-    # 2. 構建 Prompt (確保使用 .replace 避開大括號衝突)
-    prompt = UNIVERSAL_GEN_CODE_PROMPT + f"\n\n### MASTER_SPEC:\n{spec}\n\n### TEMPLATE:\n{full_template}"
+    
+    # Prompt: 要求完整函式
+    prompt = UNIVERSAL_GEN_CODE_PROMPT + f"\n\n### MASTER_SPEC:\n{spec}\n\n### SKELETON CONTEXT (For Import Reference):\n{full_template}"
     
     try:
-        # ★★★ 關鍵：必須先定義 client ★★★
         client = get_ai_client(role='coder') 
-        
-        # 3. 執行生成
         response = client.generate_content(prompt)
         raw_output = response.text
         
-        # 4. [科研強化] 捕捉真實 Token (支援 Ollama/OpenAI/Gemini)
+        # ---------------------------------------------------------
+        # [V40.1 Fix] 通用 Token 統計 (兼容 OpenAI 與 Gemini)
+        # ---------------------------------------------------------
         prompt_tokens = 0
         completion_tokens = 0
         
-        # 優先檢查 Google Gemini 格式
-        if hasattr(response, 'usage_metadata'):
-            prompt_tokens = response.usage_metadata.prompt_token_count
-            completion_tokens = response.usage_metadata.candidates_token_count
-        # 檢查 Ollama / OpenAI 字典格式
-        elif hasattr(response, 'usage'):
-            u = response.usage
-            if isinstance(u, dict):
-                prompt_tokens = u.get('prompt_tokens', 0)
-                completion_tokens = u.get('completion_tokens', 0)
-            else:
-                prompt_tokens = getattr(u, 'prompt_tokens', 0)
-                completion_tokens = getattr(u, 'completion_tokens', 0)
-        # 檢查 Ollama 原生 Metadata 格式 (常見於某些 Python Wrapper)
-        elif hasattr(response, 'metadata'):
-            m = response.metadata
-            prompt_tokens = m.get('prompt_eval_count', 0)
-            completion_tokens = m.get('eval_count', 0)
+        try:
+            # 情況 A: Google Gemini (Native API)
+            if hasattr(response, 'usage_metadata'):
+                # Google 的欄位名稱比較特別
+                prompt_tokens = response.usage_metadata.prompt_token_count
+                completion_tokens = response.usage_metadata.candidates_token_count
+                
+            # 情況 B: OpenAI / Ollama / Common Format
+            elif hasattr(response, 'usage'):
+                u = response.usage
+                if isinstance(u, dict):
+                    prompt_tokens = u.get('prompt_tokens', 0)
+                    completion_tokens = u.get('completion_tokens', 0)
+                else:
+                    # 有些物件是用 dot notation
+                    prompt_tokens = getattr(u, 'prompt_tokens', 0)
+                    completion_tokens = getattr(u, 'completion_tokens', 0)
+                    
+        except Exception as e:
+            print(f"⚠️ Token extraction failed: {e}")
+            prompt_tokens, completion_tokens = 0, 0
+        # ---------------------------------------------------------
 
-        # 5. [強力清洗] 移除廢話並解決縮排問題
-        # 先剝離所有 Markdown 與雜訊
-        clean_code = re.sub(r'```python|```|#{1,4}\s+.*?\n', '', raw_output, flags=re.DOTALL)
-        # 移除中文廢話
-        clean_code = re.sub(r'(在這個範例中|具體步驟|結論|如下所示|程式碼實現).*?(\n|$)', '', clean_code)
+        # --- [V40.0] 整函式替換引擎 ---
         
-        # [V17.4 Ultimate Surgical Unwrapper]
-        # 使用 Regex 直接抓取 def generate(...) 內部的邏輯，無視前面的雜訊
-        # 1. 嘗試抓取 def generate 的 Body
-        match = re.search(r"def\s+generate\s*\(.*?\)\s*:(.*)", clean_code, re.DOTALL)
+        # 1. 提取 AI 寫的完整函式
+        clean_code = re.sub(r'```python|```', '', raw_output, flags=re.DOTALL)
+        
+        ai_function_code = ""
+        # 尋找 def generate(level=1, **kwargs): ... 結尾
+        # 我們假設 AI 只有寫這一個函式，或者這是它輸出的主要內容
+        match = re.search(r"(def\s+generate\s*\(.*?\)\s*:.*)", clean_code, re.DOTALL)
         
         if match:
-             raw_body = match.group(1)
-             # 2. 如果後面還有 def check 或其他 def，切斷
-             # 使用 lookahead 確保我們切在下一個 def 的開頭
-             split_body = re.split(r"\n\s*def\s+\w+", raw_body)
-             body_content = split_body[0]
+            ai_function_code = match.group(1)
         else:
-             # 沒有 wrapper，整段視為邏輯 (但要小心 AI 是否自帶 check)
-             split_body = re.split(r"\n\s*def\s+check", clean_code) 
-             body_content = split_body[0]
-        
-        # 3. 過濾掉任何可能的 return 字典 (因為我們要用自己的 skeleton return)
-        final_lines = []
-        for line in body_content.splitlines():
-            if "return {" in line or "return q, a" in line: continue
-            final_lines.append(line)
-        body_content = "\n".join(final_lines)
+            # 如果 AI 還是只給片段，我們只好手動幫它加上頭 (Fallback)
+            print("⚠️ AI didn't provide full function header. Wrapping it.")
+            ai_function_code = "def generate(level=1, **kwargs):\n" + textwrap.indent(clean_code, '    ')
 
-        # 4. 使用 Dedent 還原 (這是修復 Indentation Error 的最後一道防線)
-        dedented_logic = textwrap.dedent(body_content).strip()
-        
-        # 5. 重新 Indent (4 spaces)
-        indented_logic = textwrap.indent(dedented_logic, '    ')
-        
-        # 7. [精確注入]
-        code = full_template.replace("    # [RAG_LOGIC_HERE]", indented_logic)
+        # 2. 準備清洗邏輯 (Sanitizer)
+        sanitizer_block = """
+    # [Auto-Sanitizer]
+    if isinstance(q, str):
+        q = re.sub(r'^計算下列各式的值[。:：]?', '', q).strip()
+        q = re.sub(r'^[\\(（]?\\d+[\\)）]?', '', q).strip()
+    if isinstance(a, str):
+        if "=" in a:
+            a = a.split("=")[-1].strip()
+        """
 
-        # [V16.8 Research Pipeline Injection]
-        # 1. Pipeline Execution
-        # (已移除舊版 Body-Only偵測，因上方已涵蓋)
+        # 3. 將 Sanitizer 注入到 AI 函式的 return 之前
+        # 簡單策略：找到最後一個 return，在它上面插入
+        if "return " in ai_function_code:
+            # 使用 rsplit 只切分最後一次出現的 return
+            parts = ai_function_code.rsplit("return ", 1)
+            # 確保 sanitizer 的縮進與 return 一致 (通常是 4 格)
+            # 但因為 ai_function_code 是整塊的，我們直接假設標準縮進
+            ai_function_code = parts[0] + sanitizer_block + "\n    return " + parts[1]
+        else:
+            # 如果沒 return (不太可能)，就直接加在最後
+            ai_function_code += "\n" + sanitizer_block
 
+        # 4. 處理骨架 (Skeleton) - 斷頭手術
+        # 找到骨架中原本的 def generate... 位置，切掉
+        if "def generate" in full_template:
+            skeleton_head = full_template.split("def generate")[0]
+        else:
+            skeleton_head = full_template # Should not happen
+
+        # 5. 組合：頭部 (Imports/Utils) + AI 完整函式
+        final_code = skeleton_head + "\n" + ai_function_code
+        
+        # 6. AST 最終驗證 (確保 AI 自己的縮進是對的)
+        ast_fixes = 0
+        try:
+            tree = ast.parse(final_code)
+            # 如果能 parse，做一次正規化排版
+            final_code = ast.unparse(tree)
+            ast_fixes = 1
+        except Exception as e:
+            print(f"⚠️ AST Normalization Failed: {e}. Saving raw combination.")
+            ast_fixes = 0
+
+        # 7. 寫檔與記錄
         regex_fixes = 0
-        
-        # Apply Regex Armor
-        code, r_fixes = fix_code_syntax(code)
+        final_code, r_fixes = fix_code_syntax(final_code)
         regex_fixes += r_fixes
         
-        # Apply Structure Fixes
-        code, s_fixes = validate_and_fix_code(code)
-        regex_fixes += s_fixes
+        is_valid, error_msg = validate_python_code(final_code)
+        repaired = (regex_fixes > 0 or ast_fixes > 0)
         
-        # Validation
-        is_valid, error_msg = validate_python_code(code)
-        logic_fixes = 0 
-        repaired = (regex_fixes > 0)
-        
-        # 2. Prepare Dynamic Data
+        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         duration = time.time() - start_time
-        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        gpu_env = "RTX 5060 Ti 16GB" 
-        fix_status = "[Repaired]" if repaired else "[Clean Pass]"
-        strategy_name = kwargs.get('prompt_strategy', 'standard')
-        # [Research Header Generation]
-        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        healing_duration = time.time() - start_time - 0 # Simplified
         
         header = f"""# ==============================================================================
 # ID: {skill_id}
-# Model: {current_model} | Strategy: V15 Architect (Hardening)
+# Model: {current_model} | Strategy: V40.0 Full-Function-Replace
 # Ablation ID: {ablation_id} | Env: RTX 5060 Ti 16GB
 # Performance: {duration:.2f}s | Tokens: In={prompt_tokens}, Out={completion_tokens}
 # Created At: {created_at}
-# Fix Status: {'[Repaired]' if repaired else '[Clean Pass]'} | Fixes: Regex={regex_fixes}, AST={logic_fixes}
+# Fix Status: {'[Repaired]' if repaired else '[Clean Pass]'} | Fixes: Regex={regex_fixes}, AST={ast_fixes}
 # Verification: Internal Logic Check = {'PASSED' if is_valid else 'FAILED'}
 # ==============================================================================
 """
-
-        # 4. 執行寫檔
         output_dir = os.path.join(current_app.root_path, 'skills')
         os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, f'{skill_id}.py')
+        with open(os.path.join(output_dir, f'{skill_id}.py'), 'w', encoding='utf-8') as f:
+            f.write(header + final_code)
+
+        log_experiment(
+            skill_id, start_time, len(prompt), len(final_code), is_valid, 
+            str(error_msg) if not is_valid else "Success", repaired, current_model,
+            prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            ablation_id=ablation_id, final_code=final_code, raw_response=raw_output,
+            score_syntax=ast_fixes
+        )
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(header + code)
-            
-        # 5. 記錄日誌
-        log_experiment(skill_id, start_time, len(prompt), len(code), is_valid, str(error_msg) if not is_valid else "Success", repaired, current_model)
-        
-        return True, "生成成功", {
-            'score_syntax': 100 if is_valid else 0,
-            'fixes': regex_fixes + logic_fixes,
-            'regex_fixes': regex_fixes,
-            'logic_fixes': logic_fixes,
-            'prompt_tokens': prompt_tokens,
-            'completion_tokens': completion_tokens
-        }
+        return True, "V40.0 Code Generated", {'tokens': prompt_tokens + completion_tokens}
 
     except Exception as e:
-        log_experiment(skill_id, start_time, 0, 0, False, str(e), False, current_model)
-        return False, f"生成失敗: {str(e)}", {}
+        print(f"Generate Error: {e}")
+        return False, str(e), {}

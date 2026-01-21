@@ -46,26 +46,41 @@ class LocalAIClient:
             "stream": False,
             "options": {
                 "temperature": self.temperature,
-                "num_ctx": 4096  # 確保上下文足夠長，避免程式碼被截斷
+                "num_ctx": 8192,          # 建議加大到 8192 或 16384，避免程式碼被截斷
+                "num_predict": 2048       # 限制最大輸出 token，避免過長
             }
         }
         
         try:
-            response = requests.post(self.api_url, json=payload, timeout=600) # 延長 Timeout 防止 8B 模型回應過慢
+            response = requests.post(self.api_url, json=payload, timeout=600)
             response.raise_for_status()
             result = response.json()
             
-            # 模擬 Google Response 物件介面
+            # 取出 Ollama 回傳的真正內容與 token 計數
+            generated_text = result.get("response", "")
+            prompt_tokens = result.get("prompt_eval_count", 0)
+            completion_tokens = result.get("eval_count", 0)
+            
+            # 建立一個帶 usage 的 MockResponse（模擬 OpenAI / Gemini 風格）
             class MockResponse:
-                def __init__(self, text): self.text = text
-            return MockResponse(result.get("response", ""))
+                def __init__(self, text, prompt_t, comp_t):
+                    self.text = text
+                    self.usage = type('Usage', (), {})()   # 簡單的 namespace
+                    self.usage.prompt_tokens = prompt_t
+                    self.usage.completion_tokens = comp_t
+                    self.usage.total_tokens = prompt_t + comp_t
+            
+            return MockResponse(generated_text, prompt_tokens, completion_tokens)
             
         except requests.exceptions.RequestException as e:
-            error_msg = f"Local AI (Ollama) Error: {str(e)}\n請確認 Ollama 應用程式是否已啟動？"
+            error_msg = f"Local AI (Ollama) Error: {str(e)}\n請確認 Ollama 是否正在運行於 {self.api_url}"
             logger.error(error_msg)
-            # 回傳錯誤訊息，確保主流程不中斷
             class MockResponse:
-                def __init__(self, text): self.text = error_msg
+                def __init__(self, text): 
+                    self.text = error_msg
+                    self.usage = type('Usage', (), {})()
+                    self.usage.prompt_tokens = 0
+                    self.usage.completion_tokens = 0
             return MockResponse(error_msg)
 
 class GoogleAIClient:

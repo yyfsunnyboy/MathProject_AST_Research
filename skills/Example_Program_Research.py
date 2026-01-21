@@ -18,21 +18,15 @@ def generate(level=1, **kwargs):
     """
     # 預設變數初始化 (防止 UnboundLocalError)
     q = "題目生成中..."
-    a = "N/A"
-    
+    a = "N/A"   
     # ========================== [RAG_LOGIC_START] ==========================
     # 指導：請在此處根據課本例題的數學結構，實作數值隨機化與題目字串生成。
     # 提醒：請務必使用 fmt_num() 處理所有 LaTeX 輸出的數值。
-    
-    
     # [請在此處填入邏輯，例如：]
     # n1 = random.randint(-100, 100)
     # q = f"計算 ${fmt_num(n1)} + 5$ 的值"
     # a = str(n1 + 5)
-    
-    
     # =========================== [RAG_LOGIC_END] ===========================
-
     return {
         'question_text': q, 
         'correct_answer': a, 
