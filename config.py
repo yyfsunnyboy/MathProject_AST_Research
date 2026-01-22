@@ -72,9 +72,9 @@ class Config:
             # 'provider': 'google',        # <--- 改用 Gemini 擔任工程師
             # 'model': 'gemini-2.5-flash'
 
-            'provider': 'local',  # 建議改用 openai 協議連接本地 Ollama
+            'provider': 'local',  
             'model': 'qwen2.5-coder:14b',             
-            # --- 核心參數 ---
+            #--- 核心參數 ---
             'temperature': 0.05,   # 極低溫，確保邏輯鎖死
             'max_tokens': 4096,    # [修正] 800太危險，開大一點防止截斷            
             # --- Ollama 特定參數 (透過 extra_body 傳遞) ---

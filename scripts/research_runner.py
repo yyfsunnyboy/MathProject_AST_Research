@@ -79,7 +79,7 @@ def render_latex_to_buffer(latex_str):
 # ==========================================
 # 3. Excel 匯出邏輯 (重點修改區)
 # ==========================================
-def export_to_excel(skill_id, ablation_id=3, model_size="14B"):
+def export_to_excel(skill_id, ablation_id=3):
     """ 
     匯出 Excel：
     1. 保留 question_text 原始字串 (C欄)
@@ -99,7 +99,7 @@ def export_to_excel(skill_id, ablation_id=3, model_size="14B"):
 
     tag_timestamp = time.strftime('%Y%m%d_%H%M')
     base_id = skill_id.replace(f"_Ab{ablation_id}", "") 
-    file_name = f"{base_id}_Ab{ablation_id}_{model_size}_{tag_timestamp}.xlsx"
+    file_name = f"{base_id}_Ab{ablation_id}_{tag_timestamp}.xlsx"
     file_path = os.path.join(REPORTS_DIR, file_name)
 
     # 使用 xlsxwriter 引擎

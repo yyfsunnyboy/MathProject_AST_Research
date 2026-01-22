@@ -1,10 +1,10 @@
 # ==============================================================================
 # ID: jh_數學1上_FourArithmeticOperationsOfIntegers
-# Model: qwen2.5-coder:14b | Strategy: V44.2 Standard-Template
+# Model: qwen2.5-coder:14b | Strategy: V44.9 Hybrid-Healing
 # Ablation ID: 3 | Env: RTX 5060 Ti 16GB
-# Performance: 43.18s | Tokens: In=6366, Out=1342
-# Created At: 2026-01-22 15:37:03
-# Fix Status: [Repaired] | Fixes: Regex=14, AST=0
+# Performance: 43.25s | Tokens: In=3941, Out=1532
+# Created At: 2026-01-22 20:52:46
+# Fix Status: [Repaired] | Fixes: Regex=20, AST=0
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================
 
@@ -103,7 +103,7 @@ def generate(level=1, **kwargs):
     VAR_SMALL_INT_RANGE = list(range(-12, -1)) + list(range(1, 13))
     VAR_MEDIUM_INT_RANGE = list(range(-30, -1)) + list(range(1, 31))
     VAR_LARGE_INT_RANGE = list(range(-100, -1)) + list(range(1, 101))
-    VAR_FINAL_RESULT_RANGE = range(-150, 151)
+    VAR_FINAL_RESULT_RANGE = list(range(-150, -1)) + list(range(1, 151))
     OPERATORS_MD = ['*', '/']
     OPERATORS_AS = ['+', '-']
     ALL_OPERATORS = ['+', '-', '*', '/']
@@ -118,12 +118,12 @@ def generate(level=1, **kwargs):
 
     while True:
         mode = random.choice(['A.1', 'A.2', 'B.1'])
-
+        
         if mode == 'A.1':
             k_final = random.choice(VAR_SMALL_INT_RANGE)
             op2_char = random.choice(OPERATORS_MD)
             n3_raw = random.choice(VAR_SMALL_INT_RANGE)
-
+            
             if op2_char == '/':
                 n3 = n3_raw
                 intermediate_val_target = k_final * n3
@@ -132,13 +132,13 @@ def generate(level=1, **kwargs):
                     n3_raw = random.choice(VAR_SMALL_INT_RANGE)
                 n3 = n3_raw
                 intermediate_val_target = k_final // n3
-
+            
             if abs(intermediate_val_target) > VAR_LARGE_INT_RANGE[-1]:
                 continue
-
+            
             op1_char = random.choice(OPERATORS_MD)
             n2_raw = random.choice(VAR_SMALL_INT_RANGE)
-
+            
             if op1_char == '/':
                 n2 = n2_raw
                 n1 = intermediate_val_target * n2
@@ -147,17 +147,22 @@ def generate(level=1, **kwargs):
                     n2_raw = random.choice(VAR_SMALL_INT_RANGE)
                 n2 = n2_raw
                 n1 = intermediate_val_target // n2
-
+            
             if abs(n1) > VAR_LARGE_INT_RANGE[-1] or abs(n2) > VAR_LARGE_INT_RANGE[-1] or abs(n3) > VAR_LARGE_INT_RANGE[-1]:
                 continue
-
+            
             final_answer = eval(f"{n1} {op1_char} {n2} {op2_char} {n3}")
-
+            
+            if abs(final_answer) > VAR_FINAL_RESULT_RANGE[-1]:
+                continue
+            
+            q = f"${fmt_num(n1)} {op1_char} {fmt_num(n2)} {op2_char} {fmt_num(n3)}$"
+        
         elif mode == 'A.2':
             n1 = random.choice(VAR_MEDIUM_INT_RANGE)
             op1_char = random.choice(OPERATORS_AS)
             op2_char = random.choice(OPERATORS_MD)
-
+            
             if op2_char == '*':
                 n2 = random.choice(VAR_SMALL_INT_RANGE)
                 n3 = random.choice(VAR_SMALL_INT_RANGE)
@@ -165,16 +170,22 @@ def generate(level=1, **kwargs):
                 n2_dividend, n3_divisor, _ = generate_integer_division_pair(VAR_LARGE_INT_RANGE[-1], VAR_SMALL_INT_RANGE[-1], VAR_SMALL_INT_RANGE[-1])
                 n2 = n2_dividend
                 n3 = n3_divisor
-
+            
             if abs(n2 * n3) > VAR_LARGE_INT_RANGE[-1] and op2_char == '*':
                 continue
             elif abs(n2 / n3) > VAR_LARGE_INT_RANGE[-1] and op2_char == '/':
                 continue
-
+            
             final_answer = eval(f"{n1} {op1_char} ({n2} {op2_char} {n3})")
-
+            
+            if abs(final_answer) > VAR_FINAL_RESULT_RANGE[-1]:
+                continue
+            
+            q = f"${fmt_num(n1)} {op1_char} ({fmt_num(n2)} {op2_char} {fmt_num(n3)})$"
+        
         elif mode == 'B.1':
             op1_char = random.choice(OPERATORS_MD)
+            
             if op1_char == '*':
                 n1 = random.choice(VAR_SMALL_INT_RANGE)
                 n2 = random.choice(VAR_SMALL_INT_RANGE)
@@ -184,11 +195,12 @@ def generate(level=1, **kwargs):
                 n1 = n1_dividend
                 n2 = n2_divisor
                 term1_val = n1 // n2
-
+            
             if abs(term1_val) > VAR_LARGE_INT_RANGE[-1]:
                 continue
-
+            
             op3_char = random.choice(OPERATORS_MD)
+            
             if op3_char == '*':
                 n3 = random.choice(VAR_SMALL_INT_RANGE)
                 n4 = random.choice(VAR_SMALL_INT_RANGE)
@@ -198,23 +210,31 @@ def generate(level=1, **kwargs):
                 n3 = n3_dividend
                 n4 = n4_divisor
                 term2_val = n3 // n4
-
+            
             if abs(term2_val) > VAR_LARGE_INT_RANGE[-1]:
                 continue
-
+            
             op2_char = random.choice(OPERATORS_AS)
+            
             final_answer = eval(f"{term1_val} {op2_char} {term2_val}")
-
-        if abs(final_answer) > VAR_FINAL_RESULT_RANGE[-1]:
-            continue
-
-        q = f"${fmt_num(n1)} \\times {fmt_num(n2)} \\div {fmt_num(n3)}$"
+            
+            if abs(final_answer) > VAR_FINAL_RESULT_RANGE[-1]:
+                continue
+            
+            q = f"${fmt_num(term1_val)} {op2_char} {fmt_num(term2_val)}$"
+        
         a = str(final_answer)
-
-        # Sanitization
+        
         if isinstance(q, str):
             q = re.sub(r'^計算下列.*[: :]?', '', q).strip()
-        if isinstance(a, str) and "=" in a:
-            a = a.split("=")[-1].strip()
-
-        return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+            q = re.sub(r'^\(?\d+[\)）]\.?\s*', '', q).strip()
+        if isinstance(a, str):
+            if "=" in a: 
+                a = a.split("=")[-1].strip()
+        
+        return {
+            'question_text': q, 
+            'correct_answer': a, 
+            'answer': a,      # 用於自動批改
+            'mode': 1         # 題型編號
+        }
