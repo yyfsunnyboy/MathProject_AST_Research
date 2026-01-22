@@ -3,10 +3,10 @@
 =============================================================================
 模組名稱 (Module Name): scripts/research_runner.py
 功能說明 (Description): 執行大規模題目採樣，數據存入 execution_samples 後自動
-                       匯出 Excel 報表至 reports/ 目錄。
-執行語法 (Usage): 
-
-版本資訊 (Version): V1.4 (Auto-Export Research Edition)
+                        匯出 Excel 報表。
+                        [V1.6] 保留原始 LaTeX 字串 (Column C) 並在後方新增渲染圖。
+執行語法 (Usage): python scripts/research_runner.py
+版本資訊 (Version): V1.6 (Raw + Render Comparison Edition)
 =============================================================================
 """
 import os
@@ -15,8 +15,11 @@ import time
 import sqlite3
 import importlib.util
 import glob
+import io
+import base64
 import pandas as pd
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 # ==========================================
 # 1. 環境初始化 (Environment Setup)
@@ -43,11 +46,45 @@ def get_skill_menu():
     return sorted(skill_list)
 
 # ==========================================
-# 2. Excel 匯出邏輯 (Export Logic)
+# 2. LaTeX 渲染核心
+# ==========================================
+def render_latex_to_buffer(latex_str):
+    """
+    將 LaTeX 字串渲染為圖片 Buffer。
+    用於在 Excel 中顯示數學式。
+    """
+    try:
+        # 設定繪圖參數：無框線、透明背景
+        # figsize=(寬, 高) -> 單位是英吋，配合 Excel 儲存格大小
+        fig = plt.figure(figsize=(3, 0.8), dpi=100) 
+        fig.patch.set_alpha(0) # 背景透明
+        
+        # 處理文字：Matplotlib 需要 $ 包裹才能渲染 MathText
+        text_val = latex_str if '$' in latex_str else f"${latex_str}$"
+        
+        # 繪製文字
+        plt.text(0.5, 0.5, text_val, size=14, ha='center', va='center')
+        plt.axis('off') # 關閉座標軸
+        
+        # 存入 Buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1)
+        plt.close(fig)
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        # 若渲染失敗(例如語法錯誤)，回傳 None，Excel 該格會留空
+        return None
+
+# ==========================================
+# 3. Excel 匯出邏輯 (重點修改區)
 # ==========================================
 def export_to_excel(skill_id, ablation_id=3, model_size="14B"):
-    """ 從資料庫抓取最新採樣數據並匯出「含嵌入圖片」的 Excel """
-    import io, base64 # 確保引入必要工具
+    """ 
+    匯出 Excel：
+    1. 保留 question_text 原始字串 (C欄)
+    2. 新增 渲染後的圖片 (K欄)
+    """
     conn = sqlite3.connect(DB_PATH)
     
     query = f"""
@@ -61,42 +98,80 @@ def export_to_excel(skill_id, ablation_id=3, model_size="14B"):
     conn.close()
 
     tag_timestamp = time.strftime('%Y%m%d_%H%M')
-    # 修正檔名：移除重複的 Ab，加入 model_size
     base_id = skill_id.replace(f"_Ab{ablation_id}", "") 
     file_name = f"{base_id}_Ab{ablation_id}_{model_size}_{tag_timestamp}.xlsx"
     file_path = os.path.join(REPORTS_DIR, file_name)
 
-    # 使用 xlsxwriter 引擎進行圖片處理
+    # 使用 xlsxwriter 引擎
     writer = pd.ExcelWriter(file_path, engine='xlsxwriter')
-    # 移除 Base64 文字欄位後匯出其餘數據，避免 Excel 內容過長
-    df.drop(columns=['image_base64']).to_excel(writer, sheet_name='ResearchData', index=False)
+    
+    # 建立一個不包含 image_base64 的 DataFrame (文字資料)
+    # 注意：這裡保留了 question_text
+    display_df = df.drop(columns=['image_base64'])
+    
+    # 重新命名欄位，讓報表更清楚 (Optional)
+    display_df = display_df.rename(columns={'question_text': 'Raw LaTeX Code (原始碼)'})
+
+    display_df.to_excel(writer, sheet_name='ResearchData', index=False)
     
     workbook  = writer.book
     worksheet = writer.sheets['ResearchData']
     
-    # 在第 K 欄 (索引 10) 插入圖片標題與調整寬度
-    worksheet.write(0, 10, "題目圖片 (Visual)")
-    worksheet.set_column('K:K', 40) 
+    # -------------------------------------------------------
+    # 格式設定 (Visual Tuning)
+    # -------------------------------------------------------
+    # C欄: 原始 LaTeX 代碼 (設寬一點，方便對照)
+    worksheet.set_column('C:C', 45) 
+    
+    # 定義新欄位位置 (根據 DataFrame 欄位數量推算，或手動指定)
+    # 目前 display_df 欄位約 9 個，所以 K=10, L=11
+    col_latex_render = 10  # K欄: 數學式預覽
+    col_visual_img = 11    # L欄: 題目附圖 (原本的 image_base64)
 
-    for idx, b64_str in enumerate(df['image_base64']):
-        if b64_str and len(b64_str) > 100: # 確保有圖片數據
+    # 寫入圖片欄位的標題
+    header_format = workbook.add_format({'bold': True, 'bg_color': '#D7E4BC', 'align': 'center', 'valign': 'vcenter'})
+    
+    worksheet.write(0, col_latex_render, "數學式預覽 (Rendered)", header_format)
+    worksheet.write(0, col_visual_img, "幾何/題目附圖 (Visual)", header_format)
+    
+    worksheet.set_column(col_latex_render, col_latex_render, 35) # 設定預覽欄寬度
+    worksheet.set_column(col_visual_img, col_visual_img, 40)     # 設定附圖欄寬度
+
+    print("🎨 正在渲染 LaTeX 數學式並生成 Excel 圖片...")
+
+    # -------------------------------------------------------
+    # 圖片處理迴圈
+    # -------------------------------------------------------
+    for idx, row in df.iterrows():
+        row_num = idx + 1
+        worksheet.set_row(row_num, 65) # 設定列高，讓圖片顯示清楚
+
+        # --- A. 處理 LaTeX 渲染 (讀取原始 question_text) ---
+        q_text = row['question_text']
+        if q_text:
+            img_buf = render_latex_to_buffer(q_text)
+            if img_buf:
+                # 插入圖片到 K 欄
+                worksheet.insert_image(row_num, col_latex_render, f'latex_{idx}.png', 
+                                       {'image_data': img_buf, 'x_scale': 0.8, 'y_scale': 0.8, 'object_position': 2})
+
+        # --- B. 處理 Base64 附圖 (讀取 image_base64) ---
+        b64_str = row['image_base64']
+        if b64_str and len(b64_str) > 100:
             try:
                 img_data = base64.b64decode(b64_str)
                 img_file = io.BytesIO(img_data)
-                
-                # 設定列高以容納圖片
-                worksheet.set_row(idx + 1, 120) 
-                # 插入圖片並縮放至適合儲存格大小
-                worksheet.insert_image(idx + 1, 10, f'img_{idx}.png', 
-                                       {'image_data': img_file, 'x_scale': 0.35, 'y_scale': 0.35})
+                # 插入圖片到 L 欄
+                worksheet.insert_image(row_num, col_visual_img, f'vis_{idx}.png', 
+                                       {'image_data': img_file, 'x_scale': 0.35, 'y_scale': 0.35, 'object_position': 2})
             except Exception as e:
-                worksheet.write(idx + 1, 10, f"圖片損毀: {e}")
+                worksheet.write(row_num, col_visual_img, "圖片損毀")
 
     writer.close()
     return file_path
 
 # ==========================================
-# 3. 核心採樣流程
+# 4. 核心採樣流程 (保持不變)
 # ==========================================
 def run_research_samples(skill_id, n_samples=20, ablation_id=3):
     """
@@ -104,7 +179,6 @@ def run_research_samples(skill_id, n_samples=20, ablation_id=3):
     """
     skill_file = os.path.join(SKILLS_DIR, f"{skill_id}.py")
     
-    # 動態加載技能模組
     spec = importlib.util.spec_from_file_location(skill_id, skill_file)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -116,38 +190,29 @@ def run_research_samples(skill_id, n_samples=20, ablation_id=3):
     
     for i in tqdm(range(n_samples), desc="採樣進度"):
         start_time = time.time()
-        # 初始狀態標記
         is_crash = 0
         is_logic_correct = 0
         res = {}
         
         try:
-            # 讓程式產出一道題目
             res = module.generate()
 
-            # 增加檢查：如果不是字典，報警但不要崩潰
             if not isinstance(res, dict):
-                print(f"⚠️ 警告: 模式 [{skill_id}] 回傳了非字典格式: {type(res)}")
+                print(f"⚠️ 警告: 模式 [{skill_id}] 回傳了非字典格式")
                 continue
             
-            # [自檢邏輯]: 將正確答案餵回 check()，檢查內部一致性
             check_res = module.check(res['correct_answer'], res['correct_answer'])
             is_logic_correct = 1 if check_res.get('correct') else 0
             
         except Exception as e:
-            # 紀錄崩潰狀態
             is_crash = 1
             print(f"\n❌ 第 {i+1} 題生成失敗: {str(e)}")
 
         duration = time.time() - start_time
-        
-        # 計算難度分數 (簡易演算法: 題目字數越多通常越複雜)
         q_text = res.get('question_text', '')
+        # 簡單複雜度計算
         score = min(10, len(q_text) // 10) if q_text else 0
 
-        # ------------------------------------------------------------------
-        # 3. 數據寫入 (對應 Phase 4 欄位)
-        # ------------------------------------------------------------------
         cursor.execute("""
             INSERT INTO execution_samples (
                 skill_id, mode, sample_index, question_text, correct_answer, 
@@ -156,7 +221,7 @@ def run_research_samples(skill_id, n_samples=20, ablation_id=3):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             skill_id, 
-            res.get('mode', 0),    # 擷取產出的模式 (1-6)
+            res.get('mode', 0), 
             i + 1, 
             q_text, 
             str(res.get('correct_answer', '')),
@@ -170,17 +235,16 @@ def run_research_samples(skill_id, n_samples=20, ablation_id=3):
         conn.commit()
 
     conn.close()
-    print(f"\n✅ 採樣完成！20 道題目已存入 execution_samples 表格。")
+    print(f"\n✅ 採樣完成！")
 
-    # (執行完成後呼叫匯出)
-    print(f"\n📦 正在產生科研報表...")
+    print(f"\n📦 正在產生科研報表 (含 Raw Code + Render 預覽)...")
     report_path = export_to_excel(skill_id, ablation_id)
     if report_path:
         print(f"✅ 報表已匯出: {report_path}")
 
 if __name__ == "__main__":
     print("="*60)
-    print("🔬 Math AI Research Runner (V1.4 - Auto Export)")
+    print("🔬 Math AI Research Runner (V1.6 - Code & Render Compare)")
     print("="*60)
     
     skills = get_skill_menu()

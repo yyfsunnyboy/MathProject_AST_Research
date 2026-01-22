@@ -217,18 +217,17 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
 
             if is_ok:
                 # [Research] Check Syntax Score
-                score_val = metrics.get('score_syntax', 0)
-                is_failed = score_val < 100
+                is_valid = metrics.get('is_valid', False)
+                is_failed = not is_valid
                 
                 if is_failed:
                     fail_count += 1
-                    error_msg = "Syntax Error"
-                    tqdm.write(f"   ⚠️ {skill_id}: Validation Failed | Score={score_val}")
+                    tqdm.write(f"   ⚠️ {skill_id}: Validation Failed | Score=0")
                 else:
                     success_count += 1
-                    repair_info = f"Fixes={metrics.get('fixes',0)}" if metrics.get('fixes',0) > 0 else "Clean Pass"
-                    score = f"Score={score_val}"
-                    tqdm.write(f"   ✅ {skill_id}: Success | {score} | {repair_info}")
+                    fixes = metrics.get('fixes', 0)
+                    repair_info = f"Fixes={fixes}" if fixes > 0 else "Clean Pass"
+                    tqdm.write(f"   ✅ {skill_id}: Success | Score=100 | {repair_info}")
                 
                 # Post-Validation Patching
                 try:
@@ -257,10 +256,10 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
                         
                         if is_failed:
                             # 💥 [科研遺書機制]: 失敗也要存
-                            file_name = f"{skill_id}_Ab{ablation_id}_FAILED.py"
+                            file_name = f"{skill_id}_{model_size_class}_Ab{ablation_id}_FAILED.py"
                             tqdm.write(f"   💾 保存壞標本: {file_name}")
                         else:
-                            file_name = f"{skill_id}_Ab{ablation_id}.py"
+                            file_name = f"{skill_id}_{model_size_class}_Ab{ablation_id}.py"
 
                         file_path = os.path.join(SKILLS_DIR, file_name)
                         
@@ -437,8 +436,20 @@ if __name__ == "__main__":
             ab_desc = {1: "Bare", 2: "Engineered-Only", 3: "Full-Healing"}
             print(f"✅ 已設定實驗組別：{ab_desc[ablation_id]}")
 
-            ms_input = input("\n   👉 輸入 Model Size Class (預設 14B): ").strip()
-            model_size_class = ms_input if ms_input else "14B"
+            # --- [UI Improvement] Model Size Class Selection ---
+            print("\n" + "="*60)
+            print("📏 [實驗變因控制] 請選擇 Model Size Class:")
+            print("   1: Cloud     -> 大型模型 (如 Gemini, GPT-4)")
+            print("   2: Local 14B -> 中型模型 (如 Qwen 2.5-14B)")
+            print("   3: Edge 7B   -> 小型模型 (如 Llama 3-8B, Phi-3)")
+            print("="*60)
+            
+            size_map = {'1': 'Cloud', '2': '14B', '3': '7B'}
+            ms_input = input("   👉 輸入選項 (1/2/3, 預設 1): ").strip()
+            # 預設為 'Cloud'
+            model_size_class = size_map.get(ms_input, 'Cloud')
+            print(f"✅ 已設定模型量級：{model_size_class}")
+            
             prompt_level = ab_desc[ablation_id] # Update prompt_level to match description
 
         if not list_to_process:

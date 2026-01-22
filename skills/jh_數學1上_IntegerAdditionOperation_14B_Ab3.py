@@ -1,17 +1,13 @@
 # ==============================================================================
 # ID: jh_數學1上_IntegerAdditionOperation
-# Model: gemini-2.5-flash | Strategy: V44.2 Standard-Template
+# Model: qwen2.5-coder:14b | Strategy: V44.2 Standard-Template
 # Ablation ID: 3 | Env: RTX 5060 Ti 16GB
-# Performance: 21.67s | Tokens: In=1824, Out=696
-# Created At: 2026-01-21 23:46:59
-# Fix Status: [Repaired] | Fixes: Regex=3, AST=0
+# Performance: 10.85s | Tokens: In=4911, Out=302
+# Created At: 2026-01-22 15:42:02
+# Fix Status: [Repaired] | Fixes: Regex=7, AST=0
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================
 
-import random
-import math
-import re
-from fractions import Fraction
 
 # [INJECTED UTILS]
 
@@ -102,62 +98,32 @@ def check(user_answer, correct_answer):
 # [AI GENERATED CODE]
 # ---------------------------------------------------------
 
-import random
-import re
-
-# Helper function to format numbers for LaTeX, ensuring negative numbers are in parentheses
-def fmt_num(n):
-    if n < 0:
-        return f"({n})"
-    return str(n)
 
 def generate(level=1, **kwargs):
-    # 1. 變數定義 (Variable Definition)
-    # 隨機生成 abs_val1 (範圍 [1, 15])
+    # 生成基礎數值
     abs_val1 = random.randint(1, 15)
-    # 隨機生成 abs_val2 (範圍 [1, 15])
     abs_val2 = random.randint(1, 15)
     
-    # 隨機決定 sign_n1 (True 為正數, False 為負數)
+    # 決定運算元 n1 和 n2 的實際值
     sign_n1 = random.choice([True, False])
-    # 隨機決定 sign_n2 (True 為正數, False 為負數)
     sign_n2 = random.choice([True, False])
-
-    # 2. 運算邏輯 (Operation Logic)
-    # 根據 sign_n1 決定 n1 的實際值
+    
     n1 = abs_val1 if sign_n1 else -abs_val1
-    # 根據 sign_n2 決定 n2 的實際值
     n2 = abs_val2 if sign_n2 else -abs_val2
-
+    
     # 計算最終答案
-    result_answer = n1 + n2
-
-    # 3. 格式要求 (Format Requirements)
-    # 題目 q (LaTeX 格式)
-    # 構建 n1 的 LaTeX 字串表示 (使用 fmt_num 處理負數括號)
-    n1_latex_str = fmt_num(n1)
-
-    # 構建 n2 的 LaTeX 字串表示, 並包含加號, 確保格式如 "$A + B$"
-    # 根據 MASTER_SPEC 範例, 加號前後有空格
-    n2_latex_str_with_op = f"+ {fmt_num(n2)}"
+    answer = n1 + n2
     
-    # 組合最終題目字串
-    q = f"${n1_latex_str} {n2_latex_str_with_op}$"
+    # 格式化題目
+    n1_str = str(n1) if n1 >= 0 else f"({n1})"
+    n2_str = f"+ {str(n2)}" if n2 >= 0 else f"+ ({n2})"
     
-    # 答案 a (僅輸出最終計算結果的數值字串)
-    a = str(result_answer)
-
-    # 格式潔癖 (Sanitization)
+    q = f"${n1_str}{n2_str}$"
+    
+    # Sanitization
     if isinstance(q, str):
         q = re.sub(r'^計算下列.*[: :]?', '', q).strip()
-        q = re.sub(r'^\(?\d+[\)）]\.?\s*', '', q).strip()
-    if isinstance(a, str):
-        if "=" in a: a = a.split("=")[-1].strip()
-
-    # 回傳格式 (Research Standard)
-    return {
-        'question_text': q, 
-        'correct_answer': a, 
-        'answer': a,      # 必須包含此欄位
-        'mode': 1         # 必須包含此欄位
-    }
+    if isinstance(answer, str) and "=" in answer:
+        answer = answer.split("=")[-1].strip()
+    
+    return {'question_text': q, 'correct_answer': str(answer), 'answer': str(answer), 'mode': 1}

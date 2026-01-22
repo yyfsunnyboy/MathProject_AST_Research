@@ -155,10 +155,6 @@ def check(user_answer, correct_answer):
 # 3. 骨架與 Prompt 定義
 # ==============================================================================
 CALCULATION_SKELETON = r'''
-import random
-import math
-import re
-from fractions import Fraction
 
 # [INJECTED UTILS]
 ''' + PERFECT_UTILS + r'''
@@ -174,54 +170,350 @@ UNIVERSAL_GEN_CODE_PROMPT = r"""【角色設定】
 你是由 Google DeepMind 開發的高級數學演算法工程師。
 你的任務是根據 MASTER_SPEC，撰寫符合「科研專用標準樣板」的 Python 程式碼。
 
-【任務目標】
-撰寫一個完整的 `generate(level=1, **kwargs)` 函式。
+【環境說明 (Tool Definition)】
+系統已預先載入以下工具，**請勿重複 Import，否則會導致變數遮蔽 (Shadowing) 錯誤**：
+- `import random`
+- `import math`
+- `import re`
+- `from fractions import Fraction`
 
-【嚴格代碼規範】
-1. **結構要求**：
-   - 輸出完整的函式定義：`def generate(level=1, **kwargs):`
-   - 務必自行處理函式內部的縮進 (4 spaces)。
-   
-2. **回傳格式 (Research Standard)**：
-   - 必須回傳如下的字典格式 (包含 answer 與 mode)：
-     ```python
+可用的工具函式包括：
+- `fmt_num(num, signed=False, op=False)`: 格式化數字為 LaTeX
+- `to_latex(num)`: 將分數轉為 LaTeX 格式
+- `is_prime(n)`, `gcd(a, b)`, `lcm(a, b)`, `get_factors(n)`: 數論工具
+- `check(user_answer, correct_answer)`: 標準批改函式（已預先定義）
+
+### ⚠️ 核心開發原則 (Universal Rules):
+
+**1. 環境約束 (Environment Constraints)**
+   - ✅ 僅使用預載工具 (`random`, `math`, `re`, `Fraction`)
+   - ❌ 禁止 Import 任何模組（包括重複 import 預載工具）
+   - ❌ 禁止使用 `numpy`, `matplotlib`, `sympy` 等外部套件
+   - ❌ 禁止使用 `eval()` 或 `exec()`
+   - ✅ Python 3 語法：`list(range())` 而非 `range() + range()`
+
+**2. 數值計算原則 (Numerical Computing)**
+   - ✅ 整數運算使用 `//` (整除) 和 `%` (取餘)
+   - ✅ 分數運算使用 `Fraction(a, b)`
+   - ✅ 三角函數使用 `math.sin()`, `math.cos()` 等
+   - ✅ 浮點數比較使用 `math.isclose(a, b, rel_tol=1e-9)`
+   - ❌ 避免直接使用 `/` 導致意外的浮點數
+
+**3. LaTeX 渲染規範 (LaTeX Rendering)**
+   - ✅ 整個題目用一對 `$...$` 包裹（外層單一環境）
+   - ✅ 數字使用 `fmt_num(n)` 自動處理括號
+   - ✅ 運算符轉換：
+```python
+     # 四則運算
+     '*' → '\\times'
+     '/' → '\\div'
+     '+' → '+'
+     '-' → '-'
+     
+     # 進階運算
+     '**' → '^{...}'        # 次方
+     'sqrt' → '\\sqrt{...}' # 根號
+     'frac' → '\\frac{...}{...}' # 分數
+```
+   - ❌ 禁止碎片化：`f"${a}$ + ${b}$"` ❌
+
+**4. 程式結構規範 (Code Structure)**
+   - ✅ 必須定義 `def generate(level=1, **kwargs):`
+   - ✅ 必須回傳：
+```python
      return {
-         'question_text': q, 
-         'correct_answer': a, 
-         'answer': a,      # 必須包含此欄位
-         'mode': 1         # 必須包含此欄位
+         'question_text': q,      # 題目文字 (LaTeX 格式)
+         'correct_answer': a,     # 正確答案
+         'answer': a,             # 用於批改
+         'mode': 1                # 題型編號
      }
-     ```
-
-3. **數學邏輯**：
-   - 題目 `q` 必須是 LaTeX 格式 (如 `$(-3) \times (-5)$`)。
-   - 答案 `a` 必須是最終數值字串 (如 `15`)。
-   - **強制使用** `fmt_num(n)` 來格式化所有 LaTeX 數字，確保負號括號正確。
-
-4. **格式潔癖 (Sanitization)**：
-   - 在 return 前，**必須**包含以下清洗代碼：
-     ```python
+```
+   - ✅ 在 return 前必須執行 Sanitization：
+```python
      if isinstance(q, str):
          q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
          q = re.sub(r'^\(?\d+[\)）]\.?\s*', '', q).strip()
      if isinstance(a, str):
          if "=" in a: a = a.split("=")[-1].strip()
-     ```
+```
 
-【輸出限制】
-- 僅輸出 Python 程式碼，不包含 ```python 標籤。
-- **嚴禁**使用 matplotlib、numpy。
-- **嚴禁**定義額外的 class。
+### 🚨 常見錯誤與修正 (Common Pitfalls):
+
+| 錯誤類型 | 錯誤寫法 | 正確寫法 | 適用領域 |
+|---------|---------|---------|---------|
+| **Range 串接** | `range(-5,0) + range(1,6)` | `list(range(-5,0)) + list(range(1,6))` | 所有領域 |
+| **自創工具** | `def format_num(n): ...` | 直接使用 `fmt_num(n)` | 所有領域 |
+| **運算符未轉換** | `f"${a} * {b}$"` | `f"${fmt_num(a)} \\times {fmt_num(b)}$"` | 四則運算 |
+| **浮點數除法** | `a = n1 / n2` | `a = n1 // n2` 或 `Fraction(n1, n2)` | 整數/分數 |
+| **使用 eval** | `eval(f"{a}+{b}")` | `a + b` | 所有領域 |
+| **分數格式** | `f"{a}/{b}"` | `to_latex(Fraction(a, b))` | 分數運算 |
+| **三角函數** | `sin(x)` | `math.sin(math.radians(x))` | 三角函數 |
+| **次方運算** | `f"${a}^{b}$"` | `f"${a}^{{{b}}}$"` (三層大括號) | 多項式 |
+
+### 📚 領域專用範例 (Domain-Specific Examples):
+
+**範例 1: 整數四則運算**
+```python
+def generate(level=1, **kwargs):
+    n1 = random.randint(-12, 12)
+    n2 = random.randint(2, 12)
+    
+    op_char = random.choice(['*', '/'])
+    op_latex = '\\times' if op_char == '*' else '\\div'
+    
+    a = n1 * n2 if op_char == '*' else n1 // n2
+    q = f"${fmt_num(n1)} {op_latex} {fmt_num(n2)}$"
+    
+    # Sanitization
+    if isinstance(q, str):
+        q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
+    if isinstance(a, str) and "=" in a:
+        a = a.split("=")[-1].strip()
+    
+    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+```
+
+**範例 2: 分數運算**
+```python
+def generate(level=1, **kwargs):
+    # 生成兩個真分數
+    num1, den1 = random.randint(1, 9), random.randint(2, 12)
+    num2, den2 = random.randint(1, 9), random.randint(2, 12)
+    
+    frac1 = Fraction(num1, den1)
+    frac2 = Fraction(num2, den2)
+    
+    # 加法運算
+    result = frac1 + frac2
+    
+    # LaTeX 格式化
+    q = f"${to_latex(frac1)} + {to_latex(frac2)}$"
+    a = to_latex(result)
+    
+    # Sanitization
+    if isinstance(q, str):
+        q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
+    if isinstance(a, str) and "=" in a:
+        a = a.split("=")[-1].strip()
+    
+    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+```
+
+**範例 3: 一元二次方程式**
+```python
+def generate(level=1, **kwargs):
+    # 生成標準式 ax² + bx + c = 0
+    a_coef = random.choice([1, 2, 3])
+    b_coef = random.randint(-10, 10)
+    c_coef = random.randint(-10, 10)
+    
+    # 判別式
+    discriminant = b_coef**2 - 4*a_coef*c_coef
+    
+    # 確保有實數解
+    if discriminant < 0:
+        c_coef = -abs(c_coef)  # 強制有解
+    
+    # 生成題目
+    if a_coef == 1:
+        a_str = "x^{2}"
+    else:
+        a_str = f"{a_coef}x^{{{2}}}"
+    
+    b_str = fmt_num(b_coef, op=True) + "x"
+    c_str = fmt_num(c_coef, op=True)
+    
+    q = f"${a_str}{b_str}{c_str} = 0$"
+    
+    # 計算解（使用公式解）
+    sqrt_disc = math.sqrt(discriminant)
+    x1 = (-b_coef + sqrt_disc) / (2 * a_coef)
+    x2 = (-b_coef - sqrt_disc) / (2 * a_coef)
+    
+    if math.isclose(x1, x2):
+        a = f"{x1:.2f}"
+    else:
+        a = f"{x1:.2f}, {x2:.2f}"
+    
+    # Sanitization
+    if isinstance(q, str):
+        q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
+    if isinstance(a, str) and "=" in a:
+        a = a.split("=")[-1].strip()
+    
+    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+```
+
+**範例 4: 三角函數**
+```python
+def generate(level=1, **kwargs):
+    # 生成特殊角
+    angle = random.choice([0, 30, 45, 60, 90])
+    func = random.choice(['sin', 'cos', 'tan'])
+    
+    # 計算答案
+    rad = math.radians(angle)
+    if func == 'sin':
+        a = math.sin(rad)
+        func_latex = '\\sin'
+    elif func == 'cos':
+        a = math.cos(rad)
+        func_latex = '\\cos'
+    else:
+        a = math.tan(rad) if angle != 90 else 'undefined'
+        func_latex = '\\tan'
+    
+    # 格式化答案（保留常見值）
+    if isinstance(a, float):
+        if math.isclose(a, 0): a = "0"
+        elif math.isclose(a, 1): a = "1"
+        elif math.isclose(a, 0.5): a = "\\frac{1}{2}"
+        elif math.isclose(a, math.sqrt(3)/2): a = "\\frac{\\sqrt{3}}{2}"
+        else: a = f"{a:.4f}"
+    
+    q = f"${func_latex}({angle}^\\circ)$"
+    
+    # Sanitization
+    if isinstance(q, str):
+        q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
+    if isinstance(a, str) and "=" in a:
+        a = a.split("=")[-1].strip()
+    
+    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+```
+
+**範例 5: 微積分（導數）**
+```python
+def generate(level=1, **kwargs):
+    # 生成簡單多項式 ax^n
+    coef = random.randint(1, 10)
+    power = random.randint(2, 5)
+    
+    # 原函式
+    if coef == 1:
+        q = f"$x^{{{power}}}$"
+    else:
+        q = f"${coef}x^{{{power}}}$"
+    
+    # 計算導數
+    deriv_coef = coef * power
+    deriv_power = power - 1
+    
+    if deriv_power == 0:
+        a = str(deriv_coef)
+    elif deriv_power == 1:
+        a = f"{deriv_coef}x" if deriv_coef != 1 else "x"
+    else:
+        a = f"{deriv_coef}x^{{{deriv_power}}}"
+    
+    q = f"對 {q} 求導"
+    
+    # Sanitization
+    if isinstance(q, str):
+        q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
+    if isinstance(a, str) and "=" in a:
+        a = a.split("=")[-1].strip()
+    
+    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+```
+
+### 🎯 開發流程建議 (Development Workflow):
+
+**第 1 步：理解 MASTER_SPEC**
+- 識別數學領域（整數、分數、代數、幾何、微積分等）
+- 確認輸入輸出格式（數值、表達式、方程式等）
+
+**第 2 步：選擇合適工具**
+- 整數運算 → `random.randint()`, `//`, `%`
+- 分數運算 → `Fraction(a, b)`
+- 三角函數 → `math.sin/cos/tan()`, `math.radians()`
+- 複雜表達式 → 先計算數值，再轉為 LaTeX
+
+**第 3 步：構建題目邏輯**
+- 生成數值 → 計算答案 → 格式化為 LaTeX
+- 確保每個運算符都正確轉換
+
+**第 4 步：執行 Sanitization**
+- 使用標準清洗代碼（見上方）
+
+**第 5 步：自我檢查**
+- [ ] 沒有重複 import
+- [ ] 沒有使用 eval()
+- [ ] LaTeX 格式正確（單一 $ 環境）
+- [ ] Python 3 語法（list(range())）
+- [ ] 回傳格式完整
+
+### 📖 LaTeX 速查表 (Quick Reference):
+
+| 數學符號 | LaTeX 語法 | 使用場景 |
+|---------|-----------|---------|
+| 乘法 | `\\times` | 整數、分數 |
+| 除法 | `\\div` | 整數 |
+| 分數 | `\\frac{a}{b}` | 分數運算 |
+| 次方 | `x^{n}` | 多項式、指數 |
+| 根號 | `\\sqrt{x}` | 根式運算 |
+| 絕對值 | `|x|` | 數值分析 |
+| 三角函數 | `\\sin, \\cos, \\tan` | 三角函數 |
+| 微分 | `\\frac{d}{dx}` | 微積分 |
+| 積分 | `\\int` | 微積分 |
+| 極限 | `\\lim_{x \\to a}` | 極限 |
+| 總和 | `\\sum_{i=1}^{n}` | 級數 |
+| 矩陣 | `\\begin{pmatrix}...\\end{pmatrix}` | 線性代數 |
+
+【任務目標】
+撰寫一個完整的 `generate(level=1, **kwargs)` 函式。
+
+【嚴格代碼規範】
+（保持原有內容...）
+
+【輸出限制 (最重要的防火牆)】
+- 僅輸出 Python 程式碼，不包含 Markdown 標籤。
+- **嚴禁**使用 matplotlib, numpy。
+- **嚴禁**使用 `eval()` 函式。
+- **嚴禁**寫入任何 `import` 語句 (random, math, re, fractions 皆已預載，重複寫入會導致系統崩潰)。
+- **嚴禁**重新定義 `fmt_num` 或 `to_latex`。
+- **嚴禁**自創任何格式化函式（如 `format_number_for_latex`）。
 """
 
 # ==============================================================================
 # 4. 修復與驗證工具
 # ==============================================================================
+# [NEW] 新增這個函式來過濾 import
+def clean_redundant_imports(code_str):
+    """
+    移除 AI 生成程式碼中重複的 Import 語句。
+    這能防止變數遮蔽 (Shadowing) 並確保 AST 解析乾淨。
+    """
+    lines = code_str.split('\n')
+    cleaned_lines = []
+    removed_count = 0  # ✅ 新增計數器
+    removed_list = []
+    
+    # 定義要過濾的關鍵字 (只要以此開頭就殺掉)
+    FORBIDDEN_PREFIXES = (
+        'import random', 
+        'import math', 
+        'import re', 
+        'from fractions', 
+        'import fractions',
+        'from math' 
+    )
+    
+    for line in lines:
+        stripped = line.strip()
+        # 如果這一行是 forbidden import，直接跳過 (刪除)
+        if stripped.startswith(FORBIDDEN_PREFIXES):
+            removed_count += 1  # ✅ 計數
+            removed_list.append(stripped)
+            continue
+        cleaned_lines.append(line)
+        
+    return '\n'.join(cleaned_lines), removed_count, removed_list  # ✅ 回傳三個值
+
 def fix_code_syntax(code_str, error_msg=""):
     """自動修復常見語法錯誤"""
     fixed_code = code_str.replace("，", ", ").replace("：", ": ")
     fixed_code = re.sub(r'###.*?\n', '', fixed_code) 
-    fixed_code = re.sub(r'```.*?(\n|$)', '', fixed_code)
     
     total_fixes = 0
     def apply_fix(pattern, replacement, code):
@@ -347,31 +639,109 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         regex_fixes = 0
         ast_fixes = 0
         
-        # 移除 Markdown
+        # Step 1: 移除 Markdown
         clean_code, n = re.subn(r'```python|```', '', raw_output, flags=re.DOTALL)
-        clean_code = clean_code.strip()
         regex_fixes += n
 
-        # [V44.3 新增] 移除 AI 雞婆寫的重複 Import
-        lines = clean_code.split('\n')
-        filtered_lines = []
-        for line in lines:
-            # 如果這行是 import 開頭，且骨架裡已經有了，就跳過
-            if line.strip().startswith(('import random', 'import math', 'import re', 'from fractions')):
-                continue
-            filtered_lines.append(line)
-        clean_code = '\n'.join(filtered_lines)
+        # Step 2: 清洗特殊空格
+        original_len = len(clean_code)
+        clean_code = clean_code.replace('\xa0', ' ').replace('　', ' ').strip()
+        if len(clean_code) != original_len:
+            regex_fixes += 1  # ✅ 新增計數
+
+        # Step 3: 移除重複 Import
+        clean_code, import_removed, removed_list = clean_redundant_imports(clean_code)  # ✅ 接收三個值
+        regex_fixes += import_removed  # ✅ 累加
         
-        # Fallback: 包裹函式
+        # Step 4: 包裹函式
         if "def generate" not in clean_code:
-            clean_code = "def generate(level=1, **kwargs):\n" + textwrap.indent(clean_code, '    ')
+            # [FIX] 這裡手動輸入標準的 4 個 ASCII 空格 ( )，不要用 Tab 或 NBSP
+            indent_str = '    ' 
+            clean_code = "def generate(level=1, **kwargs):\n" + textwrap.indent(clean_code, indent_str)
+            
             if "return" not in clean_code:
+                # 這裡的換行後縮排也確保是標準空格
                 clean_code += "\n    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}"
             regex_fixes += 1
 
         # 6. 語法修復
+        healing_start = time.time()
         clean_code, r_fixes = fix_code_syntax(clean_code)
         regex_fixes += r_fixes
+
+        # ========================================
+        # 6.5. 通用語法修復（適用所有領域）
+        # ========================================
+        qwen_fixes = 0
+
+        # A. 移除自創工具函式（通用 pattern）
+        forbidden_funcs = ['format_number_for_latex', 'format_num', 'latex_format']
+        for func_name in forbidden_funcs:
+            if f'def {func_name}' in clean_code:
+                lines = clean_code.split('\n')
+                cleaned_lines = []
+                skip_mode = False
+                indent_level = 0
+                
+                for line in lines:
+                    if f'def {func_name}' in line:
+                        skip_mode = True
+                        indent_level = len(line) - len(line.lstrip())
+                        continue
+                    
+                    if skip_mode:
+                        current_indent = len(line) - len(line.lstrip())
+                        if not line.strip() or line.strip().startswith('#'):
+                            continue
+                        if current_indent <= indent_level and line.strip():
+                            skip_mode = False
+                        else:
+                            continue
+                    
+                    cleaned_lines.append(line)
+                
+                clean_code = '\n'.join(cleaned_lines)
+                qwen_fixes += 1
+
+        # B. 替換自創函式為標準工具（通用替換）
+        for old_func in forbidden_funcs:
+            clean_code, n = re.subn(f'{old_func}\\(', 'fmt_num(', clean_code)
+            qwen_fixes += n
+
+        # C. 修復 Python 3 語法錯誤
+        clean_code, n = re.subn(
+            r'range\(([^)]+)\)\s*\+\s*range\(([^)]+)\)',
+            r'list(range(\1)) + list(range(\2))',
+            clean_code
+        )
+        qwen_fixes += n
+
+        # D. 修復整數除法（適用於整數運算領域）
+        clean_code, n = re.subn(
+            r'(\w+)\s*=\s*(\w+)\s*/\s*(\w+)(?=\s*(?:#|$))',
+            r'\1 = \2 // \3',
+            clean_code,
+            flags=re.MULTILINE
+        )
+        qwen_fixes += n
+
+        # E. 通用警告（無法自動修復）
+        warnings = []
+        if 'eval(' in clean_code:
+            warnings.append("使用了 eval()")
+        if 'def generate' in clean_code:
+             if 'import ' in clean_code.split('def generate')[0]:
+                warnings.append("重複 import")
+        elif 'import ' in clean_code:
+             warnings.append("重複 import")
+        if '{op_latex}' in clean_code and 'op_latex =' not in clean_code:
+            warnings.append("op_latex 未定義")
+
+        if warnings:
+            print(f"⚠️ [{skill_id}] 偵測到問題: {', '.join(warnings)}")
+
+        regex_fixes += qwen_fixes
+        healing_duration = time.time() - healing_start
 
         # 組合
         final_code = CALCULATION_SKELETON + "\n" + clean_code
@@ -409,18 +779,31 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
             code_len=len(final_code),
             is_valid=is_valid,
             error_msg=error_msg,
-            repaired=(regex_fixes > 0),
+            repaired=(regex_fixes > 0 or ast_fixes > 0),
             model_name=current_model,
             final_code=final_code,
             raw_response=raw_output,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=prompt_tokens + completion_tokens,
-            score_syntax=1.0 if is_valid else 0.0,
-            ablation_id=ablation_id
+            score_syntax=100.0 if is_valid else 0.0,
+            ablation_id=ablation_id,
+            model_size_class=kwargs.get('model_size_class', 'cloud'),
+            prompt_level=kwargs.get('prompt_level', 'Full-Healing'),
+            healing_duration=healing_duration,
+            is_executable=1 if is_valid else 0,
+            missing_imports_fixed=', '.join(removed_list) if removed_list else '',
+            score_math=0.0,
+            score_visual=0.0,
+            resource_cleanup_flag=False
         )
 
-        return True, "V44.2 Generated", {'tokens': prompt_tokens + completion_tokens}
+        return True, "V44.2 Generated", {
+            'tokens': prompt_tokens + completion_tokens,
+            'score_syntax': 100.0 if is_valid else 0.0,
+            'fixes': regex_fixes + ast_fixes,
+            'is_valid': is_valid
+        }
 
     except Exception as e:
         print(f"Generate Error: {e}")
