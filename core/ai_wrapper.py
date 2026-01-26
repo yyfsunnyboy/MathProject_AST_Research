@@ -33,22 +33,34 @@ class LocalAIClient:
     處理 Local Ollama API 的客戶端
     負責與本地運行的 Ollama 服務 (預設 Port 11434) 進行通訊。
     """
-    def __init__(self, model_name, temperature=0.7):
+    def __init__(self, model_name, temperature=0.7, **kwargs):
         # [Config Adaption] 自動讀取 config.py 中的 LOCAL_API_URL，若無則使用預設值
         self.api_url = getattr(Config, 'LOCAL_API_URL', "http://localhost:11434/api/generate")
         self.model = model_name
         self.temperature = temperature
+        
+        # [V2.1 Refactor] 動態接收配置參數
+        self.max_tokens = kwargs.get('max_tokens', 4096)
+        self.extra_options = kwargs.get('extra_body', {})
 
     def generate_content(self, prompt):
+        # 基礎 options
+        options = {
+            "temperature": self.temperature,
+            "num_predict": self.max_tokens,
+            "num_ctx": 8192  # Default fallback
+        }
+        
+        # 合併 extra_body 中的參數 (如 num_ctx, num_gpu 等)
+        # config.py 的設定優先權高於預設值
+        if self.extra_options:
+            options.update(self.extra_options)
+
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {
-                "temperature": self.temperature,
-                "num_ctx": 8192,          # 建議加大到 8192 或 16384，避免程式碼被截斷
-                "num_predict": 2048       # 限制最大輸出 token，避免過長
-            }
+            "options": options
         }
         
         try:
@@ -154,13 +166,17 @@ def get_ai_client(role='default'):
     provider = role_config.get('provider', 'local').lower()
     model_name = role_config.get('model', 'qwen2.5-coder:7b')
     temperature = role_config.get('temperature', 0.7)
+    
+    # [V2.1 Refactor] 提取更多配置參數
+    max_tokens = role_config.get('max_tokens', 4096)
+    extra_body = role_config.get('extra_body', {})
 
     # 2. 智慧派發 (Smart Dispatch)
     # 同時支援 'google' 和 'gemini' 標籤，增加設定檔的容錯率
     if provider in ['google', 'gemini']:
         return GoogleAIClient(model_name, temperature)
     elif provider == 'local':
-        return LocalAIClient(model_name, temperature)
+        return LocalAIClient(model_name, temperature, max_tokens=max_tokens, extra_body=extra_body)
     else:
         logger.warning(f"⚠️ 未知的 Provider: {provider}，強制切換至 Local 模式")
-        return LocalAIClient(model_name, temperature)
+        return LocalAIClient(model_name, temperature, max_tokens=max_tokens, extra_body=extra_body)

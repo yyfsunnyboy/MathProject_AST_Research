@@ -1,0 +1,102 @@
+```python
+def generate(level=1, **kwargs):
+    # [Step 1] 模板選擇
+    template = 'chained_integer_operations'
+    
+    # [Step 2] 變數生成
+    def _rand_num():
+        return random.randint(-50, 50)
+    
+    def _rand_non_zero_num():
+        while True:
+            num = random.randint(-50, 50)
+            if num != 0:
+                return num
+    
+    num_ops = random.choice([2, 3])
+    operators_list = []
+    operand_list = [_rand_num()]
+    
+    for i in range(num_ops):
+        op_i = random.choice(['+', '-', '*', '/'])
+        operators_list.append(op_i)
+        
+        if op_i in ['*', '+', '-']:
+            next_n = _rand_num()
+        elif op_i == '/':
+            previous_operand = operand_list[-1]
+            divisor = _rand_non_zero_num()
+            quotient = random.randint(-10, 10)
+            modified_previous_operand = divisor * quotient
+            operand_list[-1] = modified_previous_operand
+            next_n = divisor
+        
+        operand_list.append(next_n)
+    
+    # [Step 3] 運算
+    temp_expr = []
+    for i in range(len(operand_list)):
+        if i < len(operators_list):
+            temp_expr.append(operand_list[i])
+            temp_expr.append(operators_list[i])
+        else:
+            temp_expr.append(operand_list[i])
+    
+    # 處理乘除運算
+    i = 0
+    while i < len(temp_expr):
+        if temp_expr[i] == '*' or temp_expr[i] == '/':
+            op = temp_expr[i]
+            left = temp_expr[i-1]
+            right = temp_expr[i+1]
+            if op == '*':
+                result = left * right
+            elif op == '/':
+                result = left // right
+            temp_expr = temp_expr[:i-1] + [result] + temp_expr[i+2:]
+        else:
+            i += 1
+    
+    # 處理加減運算
+    i = 0
+    while i < len(temp_expr):
+        if temp_expr[i] == '+' or temp_expr[i] == '-':
+            op = temp_expr[i]
+            left = temp_expr[i-1]
+            right = temp_expr[i+1]
+            if op == '+':
+                result = left + right
+            elif op == '-':
+                result = left - right
+            temp_expr = temp_expr[:i-1] + [result] + temp_expr[i+2:]
+        else:
+            i += 1
+    
+    result = temp_expr[0]
+    
+    # [Step 4] 題幹
+    q = ""
+    for i in range(len(operand_list)):
+        if i < len(operators_list):
+            q += f"{fmt_num(operand_list[i])} {op_latex[operators_list[i]]} "
+        else:
+            q += fmt_num(operand_list[i])
+    
+    # [Step 5] 清洗
+    q = clean_latex_output(q)
+    
+    # [Step 6] 答案
+    a = fmt_num(result)
+    
+    # [Step 7] 清洗變數名
+    if isinstance(a, str) and "=" in a:
+        a = a.split("=")[-1].strip()
+    
+    # [Step 8] 回傳
+    return {
+        'question_text': q,
+        'correct_answer': a,
+        'answer': a,
+        'mode': 1
+    }
+```

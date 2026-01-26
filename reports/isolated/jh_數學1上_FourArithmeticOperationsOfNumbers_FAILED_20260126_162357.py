@@ -2,10 +2,10 @@
 # ID: jh_數學1上_FourArithmeticOperationsOfNumbers
 # Model: qwen2.5-coder:14b | Strategy: V44.9 Hybrid-Healing
 # Ablation ID: 3 | Env: RTX 5060 Ti 16GB
-# Performance: 71.07s | Tokens: In=5230, Out=2543
-# Created At: 2026-01-26 22:04:42
-# Fix Status: [Repaired] | Fixes: Regex=11, AST=0
-# Verification: Internal Logic Check = PASSED
+# Performance: 60.36s | Tokens: In=5311, Out=2048
+# Created At: 2026-01-26 16:23:57
+# Fix Status: [Repaired] | Fixes: Regex=6, AST=0
+# Verification: Internal Logic Check = FAILED
 # ==============================================================================
 
 
@@ -325,193 +325,171 @@ def fmt_vec(*coords):
     inner = ", ".join(fmt_num(x) for x in coords)
     return "\\langle " + inner + " \\rangle"
 
-# ✅ 預設的 LaTeX 運算子映射（四則）- 全域可用
-op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
-
 
 # [AI GENERATED CODE]
 # ---------------------------------------------------------
 
 
 def generate(level=1, **kwargs):
-    op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
-    template = random.choice(['chained_rational_operations', 'distributive_property_simplification'])
-    if template == 'chained_rational_operations':
+    # [Step 1] 模板選擇
+    template = random.choice(['chained_arithmetic_operations', 'distributive_property_expression'])
+    
+    if template == 'chained_arithmetic_operations':
+        # [Step 2] 變數生成
         num_operands = random.randint(3, 5)
-        operand_types = ['integer', 'proper_fraction', 'improper_fraction', 'terminating_decimal_as_fraction']
-        operators_sequence = []
-        parentheses_structure = random.choice(['none', 'left_grouped', 'right_grouped', 'nested_random'])
-        negative_numbers_allowed = random.choice([True, False])
-        operands = []
-        for _ in range(num_operands):
-            operand_type = random.choice(operand_types)
-            if operand_type == 'integer':
-                num = random.randint(-1000, 1000)
-                while num == 0:
-                    num = random.randint(-1000, 1000)
-                operands.append(Fraction(num))
-            elif operand_type == 'proper_fraction':
-                numerator = random.randint(1, 999)
-                denominator = random.randint(2, 100)
-                while gcd(numerator, denominator) != 1:
-                    numerator = random.randint(1, 999)
-                    denominator = random.randint(2, 100)
-                operands.append(Fraction(numerator, denominator))
-            elif operand_type == 'improper_fraction':
-                numerator = random.randint(100, 1000)
-                denominator = random.randint(1, 100)
-                while gcd(numerator, denominator) != 1:
-                    numerator = random.randint(100, 1000)
-                    denominator = random.randint(1, 100)
-                operands.append(Fraction(numerator, denominator))
-            elif operand_type == 'terminating_decimal_as_fraction':
-                decimal_places = random.choice([1, 2])
-                numerator = random.randint(1, 999) * 10 ** decimal_places
-                denominator = 10 ** decimal_places
-                operands.append(Fraction(numerator, denominator))
-        for _ in range(num_operands - 1):
-            operator_symbol = random.choice(['+', '-', '*', '/'])
-            while len(operators_sequence) > 0 and operators_sequence[-1] == operator_symbol:
-                operator_symbol = random.choice(['+', '-', '*', '/'])
-            operators_sequence.append(operator_symbol)
-        result = operands[0]
-        for i in range(num_operands - 1):
-            if operators_sequence[i] == '+':
-                result += operands[i + 1]
-            elif operators_sequence[i] == '-':
-                result -= operands[i + 1]
-            elif operators_sequence[i] == '*':
-                result *= operands[i + 1]
-            elif operators_sequence[i] == '/':
-                while operands[i + 1] == 0:
-                    operand_type = random.choice(operand_types)
-                    if operand_type == 'integer':
-                        num = random.randint(-1000, 1000)
-                        while num == 0:
-                            num = random.randint(-1000, 1000)
-                        operands[i + 1] = Fraction(num)
-                    elif operand_type == 'proper_fraction':
-                        numerator = random.randint(1, 999)
-                        denominator = random.randint(2, 100)
-                        while gcd(numerator, denominator) != 1:
-                            numerator = random.randint(1, 999)
-                            denominator = random.randint(2, 100)
-                        operands[i + 1] = Fraction(numerator, denominator)
-                    elif operand_type == 'improper_fraction':
-                        numerator = random.randint(100, 1000)
-                        denominator = random.randint(1, 100)
-                        while gcd(numerator, denominator) != 1:
-                            numerator = random.randint(100, 1000)
-                            denominator = random.randint(1, 100)
-                        operands[i + 1] = Fraction(numerator, denominator)
-                    elif operand_type == 'terminating_decimal_as_fraction':
-                        decimal_places = random.choice([1, 2])
-                        numerator = random.randint(1, 999) * 10 ** decimal_places
-                        denominator = 10 ** decimal_places
-                        operands[i + 1] = Fraction(numerator, denominator)
-                result /= operands[i + 1]
-        q = ''
-        for i in range(num_operands - 1):
-            if parentheses_structure == 'left_grouped' and i == 0:
-                q += f'$\\left({fmt_num(operands[i])} {op_latex[operators_sequence[i]]} {fmt_num(operands[i + 1])}\\right)'
-            elif parentheses_structure == 'right_grouped' and i == num_operands - 2:
-                q += f'{fmt_num(operands[i])} {op_latex[operators_sequence[i]]} \\left({fmt_num(operands[i + 1])}\\right)$'
+        operand_types_distribution = [random.choice(['operand_integer', 'operand_simple_fraction', 'operand_mixed_number', 'operand_decimal']) for _ in range(num_operands)]
+        operators_list = [random.choice(['+', '-', '*', '/']) for _ in range(num_operands - 1)]
+        
+        # 隨機選擇括號結構
+        parentheses_structure = random.choice(['無括號', '優先級括號', '嵌套括號', '分組括號'])
+        
+        # 生成數值列表
+        values = []
+        for operand_type in operand_types_distribution:
+            if operand_type == 'operand_integer':
+                value = Fraction(random.randint(-100, 100))
+                while value == 0:
+                    value = Fraction(random.randint(-100, 100))
+            elif operand_type == 'operand_simple_fraction':
+                numerator = random.randint(-50, 50)
+                denominator = random.randint(2, 20)
+                while numerator % denominator == 0 or denominator == 0:
+                    numerator = random.randint(-50, 50)
+                    denominator = random.randint(2, 20)
+                value = Fraction(numerator, denominator)
+            elif operand_type == 'operand_mixed_number':
+                integer_part = random.randint(-10, 10)
+                while integer_part == 0:
+                    integer_part = random.randint(-10, 10)
+                numerator = random.randint(1, 50)
+                denominator = random.randint(2, 20)
+                while numerator % denominator == 0 or denominator == 0:
+                    numerator = random.randint(1, 50)
+                    denominator = random.randint(2, 20)
+                value = Fraction(integer_part * denominator + numerator, denominator)
+            elif operand_type == 'operand_decimal':
+                value = Fraction(str(random.uniform(-10.0, 10.0)))
+                while value.denominator > 100:
+                    value = Fraction(str(random.uniform(-10.0, 10.0)))
+        
+        # [Step 3] 運算
+        result = values[0]
+        for i in range(len(operators_list)):
+            if operators_list[i] == '+':
+                result += values[i + 1]
+            elif operators_list[i] == '-':
+                result -= values[i + 1]
+            elif operators_list[i] == '*':
+                result *= values[i + 1]
+            elif operators_list[i] == '/':
+                while values[i + 1] == 0:
+                    values[i + 1] = Fraction(random.randint(-100, 100))
+                result /= values[i + 1]
+        
+        # [Step 4] 題幹
+        op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
+        q_parts = []
+        for i in range(len(operators_list)):
+            if parentheses_structure == '無括號':
+                q_parts.append(f"{fmt_num(values[i])} {op_latex[operators_list[i]]}")
+            elif parentheses_structure == '優先級括號' and (operators_list[i] == '*' or operators_list[i] == '/'):
+                q_parts.append(f"({fmt_num(values[i])} {op_latex[operators_list[i]]})")
             else:
-                q += f'{fmt_num(operands[i])} {op_latex[operators_sequence[i]]}'
-        q += fmt_num(operands[-1])
+                q_parts.append(fmt_num(values[i]))
+        q_parts.append(fmt_num(values[-1]))
+        
+        if parentheses_structure == '嵌套括號':
+            q = f"(({q_parts[0]} {op_latex[operators_list[0]]} ({q_parts[1]} {op_latex[operators_list[1]]} {q_parts[2]})))"
+        elif parentheses_structure == '分組括號' and num_operands >= 4:
+            q = f"({q_parts[0]} {op_latex[operators_list[0]]} {q_parts[1]}) {op_latex[operators_list[1]]} ({q_parts[2]} {op_latex[operators_list[2]]} {q_parts[3]})"
+        else:
+            q = " ".join(q_parts)
+        
+        # [Step 5] 清洗
         q = clean_latex_output(q)
+        
+        # [Step 6] 答案
         a = fmt_num(result)
-        if isinstance(a, str) and '=' in a:
-            a = a.split('=')[-1].strip()
-        return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
-    elif template == 'distributive_property_simplification':
-        common_factor_type = random.choice(['integer', 'proper_fraction', 'improper_fraction', 'terminating_decimal_as_fraction'])
-        other_terms_type = random.choice(['integer', 'proper_fraction', 'improper_fraction', 'terminating_decimal_as_fraction'])
-        main_operator = random.choice(['+', '-'])
-        common_factor_placement = random.choice(['left', 'right'])
-        negative_numbers_allowed = random.choice([True, False])
-        if common_factor_type == 'integer':
-            num = random.randint(-1000, 1000)
-            while num == 0:
-                num = random.randint(-1000, 1000)
-            c = Fraction(num)
-        elif common_factor_type == 'proper_fraction':
-            numerator = random.randint(1, 999)
-            denominator = random.randint(2, 100)
-            while gcd(numerator, denominator) != 1:
-                numerator = random.randint(1, 999)
-                denominator = random.randint(2, 100)
-            c = Fraction(numerator, denominator)
-        elif common_factor_type == 'improper_fraction':
-            numerator = random.randint(100, 1000)
-            denominator = random.randint(1, 100)
-            while gcd(numerator, denominator) != 1:
-                numerator = random.randint(100, 1000)
-                denominator = random.randint(1, 100)
-            c = Fraction(numerator, denominator)
-        elif common_factor_type == 'terminating_decimal_as_fraction':
-            decimal_places = random.choice([1, 2])
-            numerator = random.randint(1, 999) * 10 ** decimal_places
-            denominator = 10 ** decimal_places
-            c = Fraction(numerator, denominator)
-        if other_terms_type == 'integer':
-            num = random.randint(-1000, 1000)
-            while num == 0:
-                num = random.randint(-1000, 1000)
-            a = Fraction(num)
-        elif other_terms_type == 'proper_fraction':
-            numerator = random.randint(1, 999)
-            denominator = random.randint(2, 100)
-            while gcd(numerator, denominator) != 1:
-                numerator = random.randint(1, 999)
-                denominator = random.randint(2, 100)
-            a = Fraction(numerator, denominator)
-        elif other_terms_type == 'improper_fraction':
-            numerator = random.randint(100, 1000)
-            denominator = random.randint(1, 100)
-            while gcd(numerator, denominator) != 1:
-                numerator = random.randint(100, 1000)
-                denominator = random.randint(1, 100)
-            a = Fraction(numerator, denominator)
-        elif other_terms_type == 'terminating_decimal_as_fraction':
-            decimal_places = random.choice([1, 2])
-            numerator = random.randint(1, 999) * 10 ** decimal_places
-            denominator = 10 ** decimal_places
-            a = Fraction(numerator, denominator)
-        if other_terms_type == 'integer':
-            num = random.randint(-1000, 1000)
-            while num == 0:
-                num = random.randint(-1000, 1000)
-            b = Fraction(num)
-        elif other_terms_type == 'proper_fraction':
-            numerator = random.randint(1, 999)
-            denominator = random.randint(2, 100)
-            while gcd(numerator, denominator) != 1:
-                numerator = random.randint(1, 999)
-                denominator = random.randint(2, 100)
-            b = Fraction(numerator, denominator)
-        elif other_terms_type == 'improper_fraction':
-            numerator = random.randint(100, 1000)
-            denominator = random.randint(1, 100)
-            while gcd(numerator, denominator) != 1:
-                numerator = random.randint(100, 1000)
-                denominator = random.randint(1, 100)
-            b = Fraction(numerator, denominator)
-        elif other_terms_type == 'terminating_decimal_as_fraction':
-            decimal_places = random.choice([1, 2])
-            numerator = random.randint(1, 999) * 10 ** decimal_places
-            denominator = 10 ** decimal_places
-            b = Fraction(numerator, denominator)
-        if common_factor_placement == 'left':
-            result = c * (a + b)
-        elif common_factor_placement == 'right':
-            result = (a + b) * c
-        if common_factor_placement == 'left':
-            q = f'$\\left({fmt_num(c)} \\times {fmt_num(a)}\\right) {op_latex[main_operator]} \\left({fmt_num(c)} \\times {fmt_num(b)}\\right)$'
-        elif common_factor_placement == 'right':
-            q = f'${fmt_num(a)} \\times {fmt_num(c)} {op_latex[main_operator]} {fmt_num(b)} \\times {fmt_num(c)}$'
-        q = clean_latex_output(q)
-        a = fmt_num(result)
-        if isinstance(a, str) and '=' in a:
-            a = a.split('=')[-1].strip()
-        return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+        
+    elif template == 'distributive_property_expression':
+        # [Step 2] 變數生成
+        factor_a_type = random.choice(['operand_integer', 'operand_simple_fraction', 'operand_mixed_number'])
+        factor_b_type = random.choice(['operand_integer', 'operand_simple_fraction', 'operand_mixed_number'])
+        common_multiplier_type = random.choice(['operand_integer', 'operand_simple_fraction', 'operand_mixed_number'])
+        
+        if factor_a_type == 'operand_integer':
+            factor_a = Fraction(random.randint(-20, 20))
+            while factor_a == 0:
+                factor_a = Fraction(random.randint(-20, 20))
+        elif factor_a_type == 'operand_simple_fraction':
+            numerator = random.randint(-20, 20)
+            denominator = random.randint(2, 10)
+            while numerator % denominator == 0 or denominator == 0:
+                numerator = random.randint(-20, 20)
+                denominator = random.randint(2, 10)
+            factor_a = Fraction(numerator, denominator)
+        elif factor_a_type == 'operand_mixed_number':
+            integer_part = random.randint(-5, 5)
+            while integer_part == 0:
+                integer_part = random.randint(-5, 5)
+            numerator = random.randint(1, 20)
+            denominator = random.randint(2, 10)
+            while numerator % denominator == 0 or denominator == 0:
+                numerator = random.randint(1, 20)
+                denominator = random.randint(2, 10)
+            factor_a = Fraction(integer_part * denominator + numerator, denominator)
+        
+        if factor_b_type == 'operand_integer':
+            factor_b = Fraction(random.randint(-20, 20))
+            while factor_b == 0 or factor_b == factor_a:
+                factor_b = Fraction(random.randint(-20, 20))
+        elif factor_b_type == 'operand_simple_fraction':
+            numerator = random.randint(-20, 20)
+            denominator = random.randint(2, 10)
+            while numerator % denominator == 0 or denominator == 0 or Fraction(numerator, denominator) == factor_a:
+                numerator = random.randint(-20, 20)
+                denominator = random.randint(2, 10)
+            factor_b = Fraction(numerator, denominator)
+        elif factor_b_type == 'operand_mixed_number':
+            integer_part = random.randint(-5, 5)
+            while integer_part == 0 or integer_part * Fraction(denominator) + numerator == factor_a:
+                integer_part = random.randint(-5, 5)
+            numerator = random.randint(1, 20)
+            denominator = random.randint(2, 10)
+            while numerator % denominator == 0 or denominator == 0 or Fraction(integer_part * denominator + numerator, denominator) == factor_a:
+                numerator = random.randint(1, 20)
+                denominator = random.randint(2, 10)
+            factor_b = Fraction(integer_part * denominator + numerator, denominator)
+        
+        if common_multiplier_type == 'operand_integer':
+            common_multiplier = Fraction(random.randint(-10, 10))
+            while common_multiplier == 0 or common_multiplier == 1 or common_multiplier == -1:
+                common_multiplier = Fraction(random.randint(-10, 10))
+        elif common_multiplier_type == 'operand_simple_fraction':
+            numerator = random.randint(-10, 10)
+            denominator = random.randint(2, 10)
+            while numerator % denominator == 0 or denominator == 0 or Fraction(numerator, denominator) in [1, -1]:
+                numerator = random.randint(-10, 10)
+                denominator = random.randint(2, 10)
+            common_multiplier = Fraction(numerator, denominator)
+        elif common_multiplier_type == 'operand_mixed_number':
+            integer_part = random.randint(-5, 5)
+            while integer_part == 0 or integer_part * Fraction(denominator) + numerator in [1, -1]:
+                integer_part = random.randint(-5, 5)
+            numerator = random.randint(1, 10)
+            denominator = random.randint(2, 10)
+            while numerator % denominator == 0 or denominator == 0 or Fraction(integer_part * denominator + numerator, denominator) in [1, -1]:
+                numerator = random.randint(1, 10)
+                denominator = random.randint(2, 10)
+            common_multiplier = Fraction(integer_part * denominator + numerator, denominator)
+        
+        operator_between_factors = random.choice(['+', '-'])
+        
+        # [Step 3] 運算
+        if operator_between_factors == '+':
+            result = (factor_a + factor_b) * common_multiplier
+        else:
+            result = (factor_a - factor_b) * common_multiplier
+        
+        # [Step 4] 題幹
+        op_latex = {'+': '+', '-': '-', '*': '\\times',
