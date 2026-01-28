@@ -17,7 +17,7 @@ try:
 except ImportError:
     # Fallback to old package if new one is not installed (though warning suggests it's deprecated)
     import google.generativeai as genai # Compat
-    print("⚠️ Warning: Using deprecated 'google.generativeai'. Please upgrade to 'google-genai'.")
+    print("[WARN] Using deprecated 'google.generativeai'. Please upgrade to 'google-genai'.")
 import base64
 import json
 import tempfile
@@ -166,6 +166,13 @@ DEFAULT_CHAT_PROMPT = """
 def configure_gemini(api_key, model_name):
     global gemini_model, gemini_chat
     
+    # Fix: Fallback to environment variable if api_key is None
+    if not api_key:
+        import os
+        api_key = os.environ.get('GEMINI_API_KEY')
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is not set in environment variables or config")
+    
     if hasattr(genai, 'configure'):
         # Old SDK
         genai.configure(api_key=api_key)
@@ -174,7 +181,12 @@ def configure_gemini(api_key, model_name):
     elif hasattr(genai, 'Client'):
         # New SDK Adapter
         print("⚠️  Initializing Legacy Analyzer with New GenAI SDK Adapter")
-        client = genai.Client(api_key=api_key)
+        
+        # Initialize client with explicit api_key parameter
+        client = genai.Client(
+            api_key=api_key,
+            http_options={'api_version': 'v1beta'}  # Explicitly set API version
+        )
         
         class GenAIAdapter:
             def __init__(self, client, model):

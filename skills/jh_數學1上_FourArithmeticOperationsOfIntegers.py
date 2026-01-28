@@ -1,10 +1,10 @@
 # ==============================================================================
 # ID: jh_數學1上_FourArithmeticOperationsOfIntegers
 # Model: qwen2.5-coder:14b | Strategy: V44.9 Hybrid-Healing
-# Ablation ID: 3 | Env: RTX 5060 Ti 16GB
-# Performance: 28.16s | Tokens: In=4427, Out=956
-# Created At: 2026-01-26 21:54:15
-# Fix Status: [Repaired] | Fixes: Regex=5, AST=2
+# Ablation ID: 3 | Healer: ON
+# Performance: 24.86s | Tokens: In=3805, Out=828
+# Created At: 2026-01-28 15:03:48
+# Fix Status: [Repaired] | Fixes: Regex=19, AST=4
 # Verification: Internal Logic Check = PASSED
 # ==============================================================================
 
@@ -19,6 +19,13 @@ import ast
 import operator
 
 # [Research Standard Utils]
+
+def safe_choice(seq):
+    """
+    [Auto-Injected] 安全的 random.choice，避免空序列崩潰
+    """
+    if not seq: return 1
+    return random.choice(seq)
 
 def to_latex(num):
     """
@@ -172,28 +179,74 @@ def get_factors(n):
 
 def clean_latex_output(q_str):
     """
-    [V46.6 Fix] LaTeX 格式清洗器 (移除帶分數大括號邏輯)
-    修復常見的 LaTeX 運算符錯誤與格式問題
+    [V9.2.6 Fix] LaTeX 格式清洗器 - 智能分离中文与数学式
+    问题：中文字不能放在 LaTeX 数学模式 $...$ 内
+    解决：只包裹数学表达式，中文文字保留在外面
     """
     if not isinstance(q_str, str): return str(q_str)
     clean_q = q_str.replace('$', '').strip()
     import re
     
-    # 1. 修復運算符：* -> \times, / -> \div
+    # 1. 修复运算符：* -> \times, / -> \div
     clean_q = re.sub(r'(?<![\\a-zA-Z])\s*\*\s*', r' \\times ', clean_q)
     clean_q = re.sub(r'(?<![\\a-zA-Z])\s*/\s*(?![{}])', r' \\div ', clean_q)
     
-    # 2. 修復雙重括號 ((...)) -> (...)
+    # 2. 修复双重括号 ((...)) -> (...)
     clean_q = re.sub(r'\(\(([^()]+)\)\)', r'(\1)', clean_q)
     
-    # 3. [REMOVED V46.6] 不再自動添加帶分數大括號
-    # 原邏輯: clean_q = re.sub(r'(\d+)\s*(\\frac)', r'{\1}\2', clean_q)
-    # 原因: to_latex() 已經正確處理格式，此步驟會誤傷
-    
-    # 4. 移除多餘空白
+    # 3. 移除多余空白
     clean_q = re.sub(r'\s+', ' ', clean_q).strip()
     
-    return f"${clean_q}$"
+    # 4. [V9.2.6 NEW] 智能分离中文与数学式
+    # 检测是否包含中文字符
+    has_chinese = bool(re.search(r'[\u4e00-\u9fff]', clean_q))
+    
+    if has_chinese:
+        # 策略：将字符串分割为"中文部分"和"数学部分"
+        # 数学部分：包含数字、运算符、括号、LaTeX 命令的连续区域
+        # 中文部分：中文字、标点符号
+        
+        # Pattern: 匹配数学表达式（数字、运算符、括号、LaTeX 命令、单字母变量）
+        # 改进：更精确地匹配整个数学表达式块
+        math_pattern = r'(?:[\d\-+*/()（）\[\]【】\\]|\\[a-z]+(?:\{[^}]*\})?|[a-zA-Z])+(?:\s+(?:[\d\-+*/()（）\[\]【】\\]|\\[a-z]+(?:\{[^}]*\})?|[a-zA-Z])+)*'
+        
+        parts = []
+        last_end = 0
+        
+        for match in re.finditer(math_pattern, clean_q):
+            start, end = match.span()
+            
+            # 添加之前的文本（中文部分）
+            if start > last_end:
+                text_part = clean_q[last_end:start].strip()
+                if text_part:
+                    parts.append(text_part)
+            
+            # 添加数学部分（需要包裹 $）
+            math_part = match.group().strip()
+            if math_part:
+                parts.append(f'${math_part}$')
+            
+            last_end = end
+        
+        # 添加剩余的文本
+        if last_end < len(clean_q):
+            text_part = clean_q[last_end:].strip()
+            if text_part:
+                parts.append(text_part)
+        
+        # 合并并清理多余空格
+        result = ' '.join(parts)
+        result = re.sub(r'\s+', ' ', result).strip()
+        
+        # 清理连续的 $ 符号：$...$ $...$ -> $... ...$
+        result = re.sub(r'\$\s+\$', ' ', result)
+        
+        return result
+    else:
+        # 没有中文：直接包裹整个表达式
+        return f"${clean_q}$"
+
 
 def check(user_answer, correct_answer):
     """
@@ -333,80 +386,67 @@ op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
 # ---------------------------------------------------------
 
 
+def fmt_num(x):
+    if x < 0:
+        return f'({x})'
+    else:
+        return str(x)
+op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
+
 def generate(level=1, **kwargs):
-    op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
-    template = 'integer_mixed_operations_chain'
-
-    def _rand_num(min_val, max_val, exclude_zero=False):
-        for _safety_loop_var in range(1000):
-            num = random.randint(min_val, max_val)
-            if not (exclude_zero and num == 0):
-                return num
-
-    def _generate_operands(num_operations):
-        operands = []
-        operands.append(_rand_num(-15, -1) if random.random() < 0.5 else _rand_num(1, 15))
-        for i in range(num_operations):
-            if operators[i] == '/':
-                divisor = _rand_num(-10, -1) if random.random() < 0.5 else _rand_num(1, 10)
-                quotient = _rand_num(-10, -1) if random.random() < 0.5 else _rand_num(1, 10)
-                operands.append(divisor)
-                operands[i] = divisor * quotient
-                while abs(operands[i]) > 100:
-                    divisor = _rand_num(-10, -1) if random.random() < 0.5 else _rand_num(1, 10)
-                    quotient = _rand_num(-10, -1) if random.random() < 0.5 else _rand_num(1, 10)
-                    operands[i] = divisor * quotient
+    max_attempts = 50
+    while max_attempts > 0:
+        n1 = random.randint(-20, 20)
+        if n1 == 0:
+            continue
+        n2 = random.randint(-20, 20)
+        if n2 == 0:
+            continue
+        n3 = random.randint(-10, 10)
+        if n3 == 0:
+            continue
+        n4 = random.randint(-10, 10)
+        if n4 == 0:
+            continue
+        if all((x > 0 for x in [n1, n2, n3, n4])):
+            if safe_choice([True, False]):
+                n1 = -n1
+            elif safe_choice([True, False]):
+                n2 = -n2
             else:
-                operands.append(_rand_num(-15, -1) if random.random() < 0.5 else _rand_num(1, 15))
-        return operands
-
-    def _generate_operators(num_operations):
-        for _safety_loop_var in range(1000):
-            operators = [random.choice(['+', '-', '*', '/']) for _ in range(num_operations)]
-            has_high_priority = any((op in ['*', '/'] for op in operators))
-            has_low_priority = any((op in ['+', '-'] for op in operators))
-            if num_operations > 1 and (has_high_priority and has_low_priority):
-                return operators
-    num_operations = random.choice([2, 3])
-    operators = _generate_operators(num_operations)
-    operands = _generate_operands(num_operations)
-    sequence = []
-    for i in range(len(operands)):
-        sequence.append(operands[i])
-        if i < len(operators):
-            sequence.append(operators[i])
-
-    def _calculate(sequence):
-        while '*' in sequence or '/' in sequence:
-            for i, op in enumerate(sequence):
-                if op == '*':
-                    result = sequence[i - 1] * sequence[i + 1]
-                    sequence[i - 1:i + 2] = [result]
-                    break
-                elif op == '/':
-                    result = sequence[i - 1] // sequence[i + 1]
-                    sequence[i - 1:i + 2] = [result]
-                    break
-
-    def _calculate_add_sub(sequence):
-        while '+' in sequence or '-' in sequence:
-            for i, op in enumerate(sequence):
-                if op == '+':
-                    result = sequence[i - 1] + sequence[i + 1]
-                    sequence[i - 1:i + 2] = [result]
-                    break
-                elif op == '-':
-                    result = sequence[i - 1] - sequence[i + 1]
-                    sequence[i - 1:i + 2] = [result]
-                    break
-    _calculate(sequence)
-    _calculate_add_sub(sequence)
-    result = sequence[0]
-    q = ''
-    for i in range(len(operands)):
-        q += f'{fmt_num(operands[i])} {op_latex[operators[i]]} ' if i < len(operators) else fmt_num(operands[i])
-    q = clean_latex_output(q)
-    a = fmt_num(result)
-    if isinstance(a, str) and '=' in a:
-        a = a.split('=')[-1].strip()
-    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}
+                n3 = -n3
+        op1 = safe_choice(['+', '-', '*'])
+        op2 = safe_choice(['+', '-', '*', '/'])
+        op3 = safe_choice(['+', '-', '*', '/'])
+        if all((op not in ['*', '/'] for op in [op1, op2, op3])):
+            continue
+        temp1 = safe_eval(f'{n1} {op1} {n2}')
+        if abs(temp1) > 100:
+            max_attempts -= 1
+            continue
+        if op2 == '/':
+            if temp1 % n3 != 0 or n3 == 0:
+                divisors = [d for d in range(-10, 11) if d != 0 and temp1 % d == 0]
+                if not divisors:
+                    max_attempts -= 1
+                    continue
+                n3 = safe_choice(divisors)
+        temp2 = safe_eval(f'{temp1} {op2} {n3}')
+        if abs(temp2) > 100:
+            max_attempts -= 1
+            continue
+        if op3 == '/':
+            if temp2 % n4 != 0 or n4 == 0:
+                divisors = [d for d in range(-10, 11) if d != 0 and temp2 % d == 0]
+                if not divisors:
+                    max_attempts -= 1
+                    continue
+                n4 = safe_choice(divisors)
+        final_result = safe_eval(f'{temp2} {op3} {n4}')
+        if abs(final_result) > 200 or not isinstance(final_result, int):
+            max_attempts -= 1
+            continue
+        math_expr = f'[{fmt_num(n1)} {op_latex[op1]} {fmt_num(n2)}] {op_latex[op2]} {fmt_num(n3)} {op_latex[op3]} {fmt_num(n4)}'
+        q_str = clean_latex_output(f'計算 ${math_expr}$ 的值')
+        return {'question_text': q_str, 'answer': str(final_result), 'mode': 1}
+    raise Exception('Failed to generate a valid arithmetic problem within the specified constraints.')

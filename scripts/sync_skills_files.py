@@ -1,11 +1,35 @@
 # -*- coding: utf-8 -*-
 # ==============================================================================
 # ID: sync_skills_files.py
-# Version: v9.0.0 (Research Edition - AST Self-Healing & 3x3 Experiment)
-# Description:
-#   負責同步資料庫中的技能清單與本地實體檔案。
-#   [Experiment]: 支援 3x3 實驗 (3 Model Sizes x 3 Prompt Levels/Ablation IDs)
-#   [Self-Healing]: 整合 AST 修復引擎與 auto_patch_missing_functions
+# Version: V9.2.0 (Scientific Standard Edition)
+# Last Updated: 2026-01-27
+# Author: Math AI Research Team (Advisor & Student)
+#
+# [Description]:
+#   本程式是科展實驗的核心執行控制台 (Experiment Runner)，負責驅動「自動出題與修復流水線」。
+#   它主要用於執行 3x3 矩陣實驗 (3 Model Sizes x 3 Ablation Levels)，
+#   藉此量化 AST/Regex 自癒機制如何提升小模型 (Local 14B/7B) 的代碼生成能力。
+#
+#   [Scientific Control Strategy]:
+#   為了確保實驗數據具備統計學意義與可比性，本程式在執行「專家分工模式 (Mode 4)」時，
+#   採取「單一黃金標準 (Unified Golden Standard)」策略：
+#   無論當前測試的模型大小為何，架構師 (Architect) 階段強制生成並鎖定 'standard_14b' 規格書。
+#   這確保了所有實驗組別 (Experimental Groups) 面對的都是同一份標準難度的題目規格 (Control Variable)。
+#
+# [Database Schema Usage]:
+#   1. Read:  SkillInfo, SkillCurriculum (篩選目標技能範圍)
+#   2. Read:  SkillGenCodePrompt (讀取 MASTER_SPEC 供 Coder 實作)
+#   3. Write: SkillInfo.gemini_prompt (清理舊有 Prompt 標記)
+#   4. Write: experiment_log (關鍵！記錄 Token 消耗、AST 修復次數、成功率等實驗數據)
+#   5. Write: Local File System (寫入最終通過驗證的 .py 技能檔或失敗樣本)
+#
+# [Logic Flow]:
+#   1. Range Selection    -> 使用者篩選課綱/年級/章節，鎖定測試範圍。
+#   2. Gap Analysis       -> 比對資料庫與本地檔案，找出缺失或需更新的技能。
+#   3. Experiment Config  -> 設定 Ablation ID (1:Bare, 2:Engineered, 3:Full-Healing) 與 Model Class。
+#   4. Phase 1 Architect  -> (若選 Mode 4) 強制生成標準規格書 (Tag: standard_14b)。
+#   5. Phase 2 Coder      -> 呼叫 code_generator 進行生成、AST/Regex 修復與沙盒驗證。
+#   6. Data Logging       -> 將完整實驗過程寫入 experiment_log 以供後續分析。
 # ==============================================================================
 
 import sys
@@ -34,9 +58,9 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from app import create_app
-from models import db, SkillInfo, SkillCurriculum, TextbookExample
+from models import db, SkillInfo, SkillCurriculum, TextbookExample, SkillGenCodePrompt
 # [Research] Import requested functions
-from core.code_generator import auto_generate_skill_code, inject_robust_dispatcher
+from core.code_generator import auto_generate_skill_code
 from core.prompt_architect import generate_v15_spec
 from config import Config
 
@@ -73,9 +97,13 @@ def reset_skill_prompts(skill_ids):
     """
     if not skill_ids: return
     try:
+        # 注意: 這裡是清空 gemini_prompt 欄位 (舊欄位)，雖然現在主要用 SkillGenCodePrompt 表
+        # 但為了保持相容性，我們還是清一下
         SkillInfo.query.filter(SkillInfo.skill_id.in_(skill_ids)).update({SkillInfo.gemini_prompt: ""}, synchronize_session=False)
         db.session.commit()
-        tqdm.write(f"🧹 已清空 {len(skill_ids)} 筆舊規格書，準備重新生成。")
+        # 同時也可以考慮清空 SkillGenCodePrompt 表中對應的 standard_14b 記錄，強制重新生成
+        # 但 generate_v15_spec 會自動覆蓋，所以不強制 delete 也可以
+        tqdm.write(f"🧹 已清空 {len(skill_ids)} 筆舊資料標記。")
     except Exception as e:
         tqdm.write(f"⚠️ 清空舊規格失敗: {e}")
         db.session.rollback()
@@ -119,12 +147,10 @@ def auto_patch_missing_functions(code_content, skill_id):
             else:
                 # 注入強力調度器
                 patches.append("\n# [Auto-Fix] Injected Robust Dispatcher")
-                # 這裡直接調用 core logic (雖然 inject_robust_dispatcher 是處理 string, 這裡我們手動補 function)
                 patches.append("def generate(level=1, **kwargs): return {'question_text': '題目生成失敗(Dispatcher Missing)', 'correct_answer': 'N/A'}")
     
     elif not any(arg in ['level', 'kwargs'] for arg in generate_args):
         # 如果有 generate 但沒有參數，這會導致 crash
-        # 使用 AST transformer 太複雜，這裡改用簡單替換，但僅針對定義行
         code_content = code_content.replace("def generate():", "def generate(level=1, **kwargs):")
 
     # 2. 檢查 check 函式
@@ -134,7 +160,6 @@ def auto_patch_missing_functions(code_content, skill_id):
 
     if patches:
         tqdm.write(f"🔧 {skill_id}: Detected missing functions via AST. Applying patches.")
-        # [Optimize] 確保我們不會重複注入
         return code_content + "\n" + "\n".join(patches)
     
     return code_content
@@ -143,6 +168,7 @@ def run_expert_pipeline(skill_ids, arch_model, current_model, ablation_id, model
     """
     執行完整的專家分工流程 (Phase 1 + Phase 2)
     [Research]: Supports Ablation Logic
+    [V9.2 Update]: 強制統一使用 'standard_14b' 規格，確保與 Factory 標準一致。
     """
     if not skill_ids: return
     
@@ -153,20 +179,17 @@ def run_expert_pipeline(skill_ids, arch_model, current_model, ablation_id, model
     reset_skill_prompts(skill_ids)
 
     # Step 1: Architect
-    # --- Smart Tag Detection ---
-    c_model = current_model.lower()
-    target_tag = 'local_14b' 
-    
-    if any(x in c_model for x in ['gemini', 'gpt', 'claude']): 
-        target_tag = 'cloud_pro' 
-    elif '70b' in c_model or '32b' in c_model or '14b' in c_model: 
-        target_tag = 'local_14b'
-    elif 'phi' in c_model or '7b' in c_model or '8b' in c_model: 
-        target_tag = 'edge_7b'
+    # =========================================================================
+    # [Scientific Standard Fix] 關鍵修正！
+    # 無論 current_model 是 7B/14B/Cloud，這裡永遠鎖定 'standard_14b'。
+    # 這保證了所有模型使用的是同一份「標準難度」的規格書 (Control Variable)。
+    # =========================================================================
+    target_tag = 'standard_14b' 
     
     print("\n" + "="*60)
-    print(f"🧠 [Phase 1] V9 Architect Analysis (Model: {arch_model})")
-    print(f"   Target Strategy: '{target_tag}'")
+    print(f"🧠 [Phase 1] Architect Analysis (Model: {arch_model})")
+    print(f"   🎯 Experiment Control: Using Unified Prompt Tag '{target_tag}'")
+    print(f"   🤖 Coder Identity: {current_model} (Will be logged in Experiment Log)")
     print("="*60)
     
     arch_success_count = 0
@@ -175,8 +198,7 @@ def run_expert_pipeline(skill_ids, arch_model, current_model, ablation_id, model
     for skill_id in pbar_arch:
         pbar_arch.set_description(f"Planning: {skill_id}")
         try:
-             # [Research] Prompt Level could potentially influence Architect too, but mostly Coder
-             # For now, we keep Architect standard
+            # 呼叫 Architect，傳入強制統一的 tag
             result = generate_v15_spec(skill_id, model_tag=target_tag, architect_model=arch_model)
             success = result.get('success', False)
         except Exception as e:
@@ -186,9 +208,10 @@ def run_expert_pipeline(skill_ids, arch_model, current_model, ablation_id, model
         if success:
             arch_success_count += 1
     
-    print(f"\n✅ Phase 1 完成: {arch_success_count}/{len(skill_ids)} 份教案已生成。\n")
+    print(f"\n✅ Phase 1 完成: {arch_success_count}/{len(skill_ids)} 份標準教案已生成。\n")
     
     # Step 2: Coder
+    # 這裡才把真正負責寫 code 的模型身分傳下去，記錄在 experiment_log
     execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class, prompt_level)
 
 def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class, prompt_level):
@@ -242,9 +265,6 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
                         else:
                             patched_content = content # Ab1, Ab2 保持「原始慘狀」以利數據對比
                         
-                        # 1. Update the main file (Latest Run) - Only if success? User didn't specify, but implies fails should be isolated.
-                        # But code_generator already wrote the file to skill_path.
-                        # We will patch it regardless.
                         
                         if patched_content != content:
                             with open(skill_path, 'w', encoding='utf-8') as f:
@@ -252,7 +272,6 @@ def execute_coder_phase(skill_ids, current_model, ablation_id, model_size_class,
                             tqdm.write(f"   🔧 {skill_id}: Patched missing functions.")
                         
                         # 2. [Versioned Storage Strategy] (Research Last Will)
-                        current_ablation_id = ablation_id
                         
                         if is_failed:
                             # 💥 [科研遺書機制]: 失敗也要存
@@ -302,10 +321,10 @@ if __name__ == "__main__":
         arch_config = Config.MODEL_ROLES.get('architect', {})
         arch_model = arch_config.get('model', 'Unknown')
 
-        print(f"🚀 開始同步資料庫與實體檔案 (Research Edition)")
+        print(f"🚀 開始同步資料庫與實體檔案 (V9.2.0 Scientific Standard Edition)")
         print(f"🧠 架構師模型 (Architect): \033[1;35m{arch_model}\033[0m")        
         print(f"🤖 工程師模型 (Coder): \033[1;36m{current_model}\033[0m")         
-        # --- 1. 互動篩選 (保留原邏輯) ---
+        # --- 1. 互動篩選 ---
         curriculums = [r[0] for r in db.session.query(distinct(SkillCurriculum.curriculum)).order_by(SkillCurriculum.curriculum).all()]
         selected_curr = get_user_selection(curriculums, "請選擇課綱:")
 
@@ -420,7 +439,7 @@ if __name__ == "__main__":
             print("❌ 無效選項或無操作。")
             sys.exit(0)
 
-# --- [Research] 實驗參數設定提升 (V15.2 Research Edition) ---
+        # --- [Research] 實驗參數設定 ---
         if mode in ['1', '2', '3', '4']:
             print("\n" + "="*60)
             print("🧪 [實驗變因控制] 請選擇本次生成的 Ablation 層級:")

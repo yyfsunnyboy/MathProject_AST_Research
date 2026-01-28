@@ -17,7 +17,12 @@ from config import Config
 from app import app
 
 if __name__ == "__main__":
-    skill_id = "jh_數學1上_MixedIntegerAdditionAndSubtraction"
+    # Parse command line argument
+    if len(sys.argv) > 1:
+        skill_id = sys.argv[1]
+    else:
+        skill_id = "jh_數學1上_MixedIntegerAdditionAndSubtraction"
+    
     print(f"🚀 Starting Research Quick Fix for {skill_id}...")
     print(f"🔧 Model: {Config.MODEL_ROLES['coder']['model']}")
     

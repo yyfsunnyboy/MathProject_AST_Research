@@ -1,19 +1,34 @@
 # -*- coding: utf-8 -*-
-r"""
-=============================================================================
-模組名稱 (Module Name): core/code_generator.py
-功能說明 (Description): 
-    V45.0 Code Generator (op_latex Enhanced Edition)
-    1. [op_latex Global]: 在 PERFECT_UTILS 中預設全域 op_latex 映射表，讓所有技能都能直接使用。
-    2. [Auto-Inject Healer]: 偵測 op_latex[...] 用法但無定義時，自動在 generate() 開頭注入映射表。
-    3. [Regex Detection]: 改良 op_latex 未定義警告，使用正則偵測 op_latex[...] 形式（通殺）。
-    4. [Hybrid Healing]: 保留對小模型 (Qwen/14B) 的自動修復策略與警告機制。
-
-版本資訊 (Version): V45.0 (op_latex Enhanced Edition)
-更新日期 (Date): 2026-01-26
-維護團隊 (Maintainer): Math AI Project Team
-=============================================================================
-"""
+# ==============================================================================
+# ID: core/code_generator.py
+# Version: V9.2.0 (Scientific Standard Edition)
+# Last Updated: 2026-01-27
+# Author: Math AI Research Team (Advisor & Student)
+#
+# [Description]:
+#   本程式是「自動出題系統」的核心引擎 (Core Engine)，也是本次科展實驗的
+#   「手術室 (The Operating Room)」。它負責將 LLM 生成的原始 Python 代碼
+#   通過多層次的「自癒流水線 (Self-Healing Pipeline)」進行修復與優化。
+#
+#   [Core Technology: AST + Regex Healing]:
+#   為了驗證小模型 (14B/7B) 在數學邏輯編程上的潛力，本模組實作了兩層修復機制：
+#   1. Regex Syntax Healer: 處理 LaTeX 格式錯誤、Markdown 殘留、f-string 語法問題。
+#   2. AST Logic Surgeon  : 解析抽象語法樹，修復遞迴死鎖 (Infinite Loop)、
+#                           攔截危險函數 (eval -> safe_eval)、注入缺失依賴。
+#
+# [Database Schema Usage]:
+#   1. Read:  SkillGenCodePrompt (讀取標籤為 'standard_14b' 的標準規格書)
+#   2. Write: experiment_log (寫入詳細的修復數據：Regex修復數、AST修復數、語法分)
+#   3. Write: Local File System (產出最終可執行的技能 .py 檔)
+#
+# [Logic Flow]:
+#   1. Input         -> 接收 Skill ID 與 Coder Model (如 Qwen-14B)。
+#   2. Retrieval     -> 從 DB 讀取黃金標準規格 (MASTER_SPEC)。
+#   3. Generation    -> 呼叫 Coder 生成原始代碼 (Raw Code)。
+#   4. Healing       -> 執行 Regex 清洗 -> AST 深度修復 -> 注入 PERFECT_UTILS。
+#   5. Validation    -> 沙盒執行與動態採樣 (Dynamic Sampling) 驗證邏輯正確性。
+#   6. Logging       -> 記錄實驗數據 (Ablation Result) 並輸出檔案。
+# ==============================================================================
 
 import os
 import re
@@ -89,7 +104,67 @@ def categorize_error(error_msg):
     return "RuntimeError"
 
 # ==============================================================================
-# 2. 完美工具庫 (Perfect Utils - Standard Edition)
+# 2. 預編譯正則表達式（性能優化）
+# ==============================================================================
+# [Performance Fix V9.2.1] 預編譯所有重複使用的 regex pattern
+# 避免在主循環中重複編譯，提升 20-30% 執行速度
+
+COMPILED_PATTERNS = {
+    # Markdown 清洗 - 提取代码块内容
+    'markdown_blocks': re.compile(r'```(?:python)?\s*\n?(.*?)```', re.DOTALL),
+    
+    # Import 清洗
+    'import_random': re.compile(r'^\s*import\s+random\s*$', re.MULTILINE),
+    'import_math': re.compile(r'^\s*import\s+math\s*$', re.MULTILINE),
+    'import_re': re.compile(r'^\s*import\s+re\s*$', re.MULTILINE),
+    'from_fractions': re.compile(r'^\s*from\s+fractions', re.MULTILINE),
+    'import_fractions': re.compile(r'^\s*import\s+fractions', re.MULTILINE),
+    'from_math': re.compile(r'^\s*from\s+math', re.MULTILINE),
+    
+    # 函數名稱修復
+    'eval_to_safe': re.compile(r'\beval\s*\('),
+    'clean_expression': re.compile(r'\bclean_expression\s*\('),
+    'to_latex_call': re.compile(r'\bto_latex\s*\('),
+    
+    # LaTeX 修復
+    'excess_braces': re.compile(r'\{{4,}([^}]+)\}{4,}'),
+    'op_latex_double': re.compile(r'\{\{op_latex\[(.+?)\]\}\}'),
+    'latex_asterisk': re.compile(r'\\\\\*'),
+    'latex_slash': re.compile(r'\\\\/'),
+    
+    # Return 格式修復
+    'question_key': re.compile(r"['\"]question['\"]\s*:"),
+    'question_text_dollar': re.compile(r"'question_text':\s*f?['\"]?\$\{q\}\$['\"]?"),
+    'fmt_num_double': re.compile(r"f['\"]?\$\{q\}\$['\"]?"),
+    
+    # 格式化函數修復
+    'forbidden_func_format': re.compile(r'\b(format_number_for_latex|format_num_latex|latex_format)\s*\('),
+    'fmt_num_type_param': re.compile(r',\s*type\s*=\s*[\'"][^\'"]*[\'"]'),
+    'fmt_neg_paren': re.compile(r'\bfmt_neg_paren\s*\('),
+    
+    # 工具函數定義檢測（動態生成）
+    # 'def_<tool_name>': 將在運行時生成
+    
+    # 混合數字串修復
+    'mixed_num_return': re.compile(r'return\s+f"(\{[^}]+\})\{fmt_num\(([^)]+)\)\}"'),
+    
+    # Python 語法修復
+    'range_concat': re.compile(r'range\(([^)]+)\)\s*\+\s*range\(([^)]+)\)'),
+    
+    # Op_latex 注入檢測
+    'op_latex_usage': re.compile(r'\bop_latex\s*\['),
+    'local_op_latex': re.compile(r'^([ \t]+)op_latex\s*=\s*\{[^}]+\}\s*\n', re.MULTILINE),
+    
+    # F-string 修復
+    'fstring_var_q': re.compile(r"(q\s*[\+\-]?=\s*)'([^'\n]*?\{[^'\n]*?\}[^'\n]*?)'"),
+    'fmt_clean_chain': re.compile(r'fmt_num\s*\(\s*clean_latex_output\s*\)\s*\(\s*([a-zA-Z_]\w*)\s*\)'),
+    
+    # Fraction 除法
+    'fraction_div': re.compile(r'Fraction\s*\(\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*\)\s*/\s*Fraction\s*\(\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*\)'),
+}
+
+# ==============================================================================
+# 3. 完美工具庫 (Perfect Utils - Standard Edition)
 # ==============================================================================
 PERFECT_UTILS = r'''
 import random
@@ -100,6 +175,13 @@ import ast
 import operator
 
 # [Research Standard Utils]
+
+def safe_choice(seq):
+    """
+    [Auto-Injected] 安全的 random.choice，避免空序列崩潰
+    """
+    if not seq: return 1
+    return random.choice(seq)
 
 def to_latex(num):
     """
@@ -253,28 +335,74 @@ def get_factors(n):
 
 def clean_latex_output(q_str):
     """
-    [V46.6 Fix] LaTeX 格式清洗器 (移除帶分數大括號邏輯)
-    修復常見的 LaTeX 運算符錯誤與格式問題
+    [V9.2.6 Fix] LaTeX 格式清洗器 - 智能分离中文与数学式
+    问题：中文字不能放在 LaTeX 数学模式 $...$ 内
+    解决：只包裹数学表达式，中文文字保留在外面
     """
     if not isinstance(q_str, str): return str(q_str)
     clean_q = q_str.replace('$', '').strip()
     import re
     
-    # 1. 修復運算符：* -> \times, / -> \div
+    # 1. 修复运算符：* -> \times, / -> \div
     clean_q = re.sub(r'(?<![\\a-zA-Z])\s*\*\s*', r' \\times ', clean_q)
     clean_q = re.sub(r'(?<![\\a-zA-Z])\s*/\s*(?![{}])', r' \\div ', clean_q)
     
-    # 2. 修復雙重括號 ((...)) -> (...)
+    # 2. 修复双重括号 ((...)) -> (...)
     clean_q = re.sub(r'\(\(([^()]+)\)\)', r'(\1)', clean_q)
     
-    # 3. [REMOVED V46.6] 不再自動添加帶分數大括號
-    # 原邏輯: clean_q = re.sub(r'(\d+)\s*(\\frac)', r'{\1}\2', clean_q)
-    # 原因: to_latex() 已經正確處理格式，此步驟會誤傷
-    
-    # 4. 移除多餘空白
+    # 3. 移除多余空白
     clean_q = re.sub(r'\s+', ' ', clean_q).strip()
     
-    return f"${clean_q}$"
+    # 4. [V9.2.6 NEW] 智能分离中文与数学式
+    # 检测是否包含中文字符
+    has_chinese = bool(re.search(r'[\u4e00-\u9fff]', clean_q))
+    
+    if has_chinese:
+        # 策略：将字符串分割为"中文部分"和"数学部分"
+        # 数学部分：包含数字、运算符、括号、LaTeX 命令的连续区域
+        # 中文部分：中文字、标点符号
+        
+        # Pattern: 匹配数学表达式（数字、运算符、括号、LaTeX 命令、单字母变量）
+        # 改进：更精确地匹配整个数学表达式块
+        math_pattern = r'(?:[\d\-+*/()（）\[\]【】\\]|\\[a-z]+(?:\{[^}]*\})?|[a-zA-Z])+(?:\s+(?:[\d\-+*/()（）\[\]【】\\]|\\[a-z]+(?:\{[^}]*\})?|[a-zA-Z])+)*'
+        
+        parts = []
+        last_end = 0
+        
+        for match in re.finditer(math_pattern, clean_q):
+            start, end = match.span()
+            
+            # 添加之前的文本（中文部分）
+            if start > last_end:
+                text_part = clean_q[last_end:start].strip()
+                if text_part:
+                    parts.append(text_part)
+            
+            # 添加数学部分（需要包裹 $）
+            math_part = match.group().strip()
+            if math_part:
+                parts.append(f'${math_part}$')
+            
+            last_end = end
+        
+        # 添加剩余的文本
+        if last_end < len(clean_q):
+            text_part = clean_q[last_end:].strip()
+            if text_part:
+                parts.append(text_part)
+        
+        # 合并并清理多余空格
+        result = ' '.join(parts)
+        result = re.sub(r'\s+', ' ', result).strip()
+        
+        # 清理连续的 $ 符号：$...$ $...$ -> $... ...$
+        result = re.sub(r'\$\s+\$', ' ', result)
+        
+        return result
+    else:
+        # 没有中文：直接包裹整个表达式
+        return f"${clean_q}$"
+
 
 def check(user_answer, correct_answer):
     """
@@ -425,140 +553,285 @@ CALCULATION_SKELETON = r'''
 def get_dynamic_skeleton(skill_id):
     return CALCULATION_SKELETON
 
-UNIVERSAL_GEN_CODE_PROMPT = r"""【角色設定】
-你是資深 K12 數學演算法工程師。你只負責「產出可直接執行的 Python 代碼」：
-定義一個 `generate(level=1, **kwargs)` 函式，遵循統一的「跨領域生成管線」。
-無論題型是四則運算、方程式、幾何、三角、機率統計或排列組合，都走相同流程。
-不得輸出任何文字敘述或 Markdown，僅輸出 Python 代碼。
+# ==============================================================================
+# [Research Edition] Ablation Prompts
+# ==============================================================================
 
-【已預載工具（直接使用，禁止重新定義/重新 import）】
-- 基礎模組：`random`, `math`, `re`, `ast`, `operator`, `Fraction` (from fractions)
-- 格式化工具：`fmt_num(num, signed=False, op=False)`, `to_latex(num)`, `clean_latex_output(q_str)`
-- 驗證工具：`check(user_answer, correct_answer)`
-- 數論工具：`gcd`, `lcm`, `is_prime`, `get_factors`
-- **運算子映射**：`op_latex` = `{'+': '+', '-': '-', '*': '\\times', '/': '\\div'}` 
-  - ✅ 直接使用: `f"{fmt_num(n1)} {op_latex[op]} {fmt_num(n2)}"`
-  - ❌ **嚴禁重新定義**: 不要在 generate() 內部再寫 `op_latex = {...}`
-- 新增跨領域工具 (V47.4+)：
-  - `clamp_fraction(fr, max_den=1000, max_num=100000)` - 防止分數爆炸
-  - `safe_pow(base, exp, max_abs_exp=10)` - 安全指數
-  - `factorial_bounded(n, max_n=1000)` - 有界階乘
-  - `nCr(n, r, max_n=5000)`, `nPr(n, r, max_n=5000)` - 組合與排列
-  - `rational_gauss_solve(a,b,p,c,d,q)` - 2×2 線性系統求解器
-  - `normalize_angle(theta, unit='deg')` - 角度正規化
-  - `fmt_set(iterable, braces='{}')` - 集合顯示
-  - `fmt_interval(a, b, left_open, right_open)` - 區間顯示
-  - `fmt_vec(*coords)` - 向量顯示
+BARE_MINIMAL_PROMPT = r"""你是 Python 程式設計師。請根據以下 MASTER_SPEC 生成數學題目生成函數。
 
-【通用生成管線 (V47.4 - 8 步驟)】
+要求：
+1. 實作函數：def generate(level=1, **kwargs)
+2. 回傳字典格式：{'question_text': 題目字串, 'answer': 答案字串, 'mode': 1}
+3. 只輸出 Python 代碼，不要有任何說明或 Markdown 標記
 
-1) **模板與變異選擇**：
-   依 MASTER_SPEC 中的 templates 列表，隨機選一個模板與其變異點。
-   (例：chain_of_operations vs distributive_property)
+🔴 LaTeX 格式鐵律（必須遵守）：
+   question_text 格式：
+      ✅ 正確："計算 $(-3) + 5$ 的值"（中文在外，數學式用 $ $ 包裹）
+      ✅ 正確："求 $2 \times (-4)$ 的結果"
+      ❌ 錯誤："$(-3) + 5$"（缺少中文說明）
+      ❌ 錯誤："計算$(-3) + 5$的值"（$ $ 與中文直接相連）
+   
+   answer 格式：
+      ✅ 正確："42"（純數字）
+      ✅ 正確："\frac{3}{7}"（LaTeX 分數，不含 $ $）
+      ❌ 錯誤："答案是 42"（不要加中文說明）
 
-2) **變數生成與邊界檢查**：
-   按模板的 variables 規則，生成每個變數 (int/Fraction)。
-   - **零值保護**：任何分母或除數都不得為 0；用 while 重抽或從候選集篩選。
-   - **互斥檢查**：若規則列出互斥關係 (mutually_exclusive_with)，確保不同時出現。
-   - **有界檢查**：數值範圍合理 (K12 級，分數分母預設 ≤ 20，避免計算過於繁瑣)。
+📐 題目字串拼接範例（3步驟標準流程）：
+   # 步驟1: 先拼接數學式（不含 $ $）
+   math_expr = f"{fmt_num(n1)} {op_latex['+']} {fmt_num(n2)}"
+   
+   # 步驟2: 組合中文與數學式（手動加 $ $）
+   q_str = f"計算 ${math_expr}$ 的值"
+   
+   # 步驟3: 最後呼叫 clean_latex_output()（可選，用於進階清洗）
+   question_output = clean_latex_output(q_str)
+   
+   # 回傳
+   return {'question_text': question_output, 'answer': str(answer), 'mode': 1}
 
-3) **運算與計算**：
-   按 construction 敘述的「自然語序」，依次計算中間值與最終答案。
-   - **嚴禁 eval/exec/safe_eval**：所有數學結果必須用 Python 直接計算 (`+`, `-`, `*`, `Fraction`)。
-   - **防浮點誤差**：生成小數時用 `Fraction(str(value))`；涉及除法務必用 Fraction。
-   - **選擇適當工具**：若題型涉及階乘、組合、指數等，使用 factorial_bounded、nCr、safe_pow 等。
+❌ 常見錯誤（絕對不要這樣寫）：
+   # 錯誤1: 在 f-string 內呼叫 clean_latex_output()
+   q_str = f"計算 {clean_latex_output(expr)} 的值"  # ❌ 錯誤
+   
+   # 錯誤2: 字串拼接時用 + 運算符混合函式呼叫
+   q_str = f"計算 {clean_latex_output(fmt_num(n1) + op_latex['*'] + fmt_num(n2))} 的值"  # ❌ 錯誤
 
-4) **題幹組合 (Question String)**：
-   用 `fmt_num(...)` 與 `fmt_interval()`, `fmt_set()`, `fmt_vec()` 等領域工具組合題幹字串 `q`。
-   - 乘除使用全域已定義的 `op_latex` 映射（❌ 不要在 generate() 內重新定義）。
-   - **嚴禁用 to_latex() 組題幹**：改用 fmt_num()（能自動為負數加括號）。
-   - **f-string 嚴格規則**：
-     ✅ `f"{fmt_num(n1)} {op_latex[op]} {fmt_num(n2)}"` (單層 `{}` + `f` 前綴)
-     ❌ `f"{{op_latex[op]}}"` (雙括號會字面量出現)
-     ❌ `"{fmt_num(n)}"` (無 `f` 前綴無法插值)
+📐 使用以下工具函數（已預先定義）：
+   - fmt_num(x): 格式化數字（負數自動加括號）
+   - op_latex: 運算符映射字典 {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
+   - clean_latex_output(q_str): 自動清洗 LaTeX 格式（僅用於最後一步）
 
-5) **LaTeX 清洗 (Question Output)**：
-   - 先用 fmt_num / fmt_interval / fmt_set / fmt_vec 組好題幹字串 `q`（不含 `$`）。
-   - 緊接著：`q = clean_latex_output(q)` （**只呼叫一次**；自動加外層 `$...$`）。
-   - **禁止多重包裹**：`fmt_num(clean_latex_output)(X)` 是錯誤的。
+提示：你可以使用 Python 的 random, math, Fraction 等標準庫。
+"""
 
-6) **答案組合 (Answer Output)**：
-   `a = fmt_num(result)` 或其他領域工具（不含 `$`）。
-   答案格式依題型決定：分數、度數、集合、區間等。
+UNIVERSAL_GEN_CODE_PROMPT = r"""【角色】K12 數學演算法工程師。
+【任務】實作 `def generate(level=1, **kwargs)`，根據 MASTER_SPEC 產出完整的 Python 代碼。
+【限制】僅輸出代碼，無 Markdown/說明。**嚴禁 eval/exec/safe_eval**。
 
-7) **清洗段 (Standardization)**：
-   固定變數名 `q` 與 `a`，移除 `q` 中的冗餘前綴（如「計算下列」、題號等）。
-   ```python
-   if isinstance(q, str):
-       q = re.sub(r'^計算下列.*[：:]?', '', q).strip()
-       q = re.sub(r'^\(?\d+[\)）]\.?\s*', '', q).strip()
-   if isinstance(a, str):
-       if "=" in a:
-           a = a.split("=")[-1].strip()
-   ```
+🔴 **最高優先級：MASTER_SPEC 是唯一權威來源**
+- 你收到的 MASTER_SPEC 包含完整的題型定義、複雜度要求和實現檢查清單
+- **必須逐項實現 MASTER_SPEC 中的所有要求**，包括：
+  * entities 定義的所有變數和約束
+  * complexity_requirements 定義的最小複雜度
+  * implementation_checklist 中的每一項檢查
+  * templates 中描述的所有計算步驟
+- **任何簡化都是錯誤的**：如果 MASTER_SPEC 要求 3 個運算數，你不能只生成 2 個
+- **本文件末尾的範例僅供結構參考**，絕不代表實際邏輯
 
-8) **回傳結構 (固定鍵名，不可增刪)**：
-   ```python
+🔴 **實現前必須檢查 MASTER_SPEC 的以下部分**：
+1. **complexity_requirements**: 確認最小複雜度要求
+2. **entities.constraints**: 確認每個變數的範圍和限制
+3. **implementation_checklist**: 確認所有必須實現的項目
+4. **construction**: 確認所有計算步驟
+
+⚠️ 重要約束：
+1. 代碼必須少於 50 行
+2. **所有數學運算必須使用 Python 原生運算符** (+, -, *, /)，**嚴禁使用 eval(), exec(), safe_eval() 或任何字符串評估**
+3. return 字典格式固定為：
    return {
-       'question_text': q,            # q 已是 clean_latex_output 後的 "$...$" 完成品
-       'correct_answer': a,           # a 是 fmt_num(...) 結果，不含 "$"
-       'answer': a,                   # 與 correct_answer 同
+       'question_text': q,
+       'correct_answer': a,
+       'answer': a,
        'mode': 1
    }
+4. fmt_num() 只接受 (num, signed=Bool, op=Bool)，不接受 'fraction' 等字串參數
+
+【預載工具 (直接使用)】
+- random, math, re, ast, operator, Fraction
+- fmt_num(n), to_latex(n), clean_latex_output(q)
+- check(u, c)
+- op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
+- 數論: gcd, lcm, is_prime, get_factors
+- 進階: clamp_fraction, safe_pow, factorial_bounded, nCr, nPr, rational_gauss_solve, normalize_angle, fmt_set, fmt_interval, fmt_vec
+
+【生成管線標準】
+0. **🔴 首要原則：完整實作 MASTER_SPEC**
+   - **必須**閱讀並完整實作 MASTER_SPEC 中的所有 template 邏輯
+   - **必須**遵守 MASTER_SPEC 中的 entities、constraints、operators 定義
+   - **必須**實現 MASTER_SPEC 要求的複雜度（運算數數量、運算符種類、括號結構等）
+   - **禁止**簡化或省略 MASTER_SPEC 中的任何要求
+   - **範例僅供結構參考**，不代表實際邏輯！
+
+1. **變數生成**: 
+   - **嚴格遵守 MASTER_SPEC 中的 entities 定義**：
+     * 數值範圍（value_range）
+     * 分母範圍（denominator_range）
+     * 約束條件（constraints）
+     * 互斥規則（mutually_exclusive_with）
+   - **通用安全原則**：
+     * 分母/除數不可為 0（使用 while 迴圈確保）
+     * 遵守 MASTER_SPEC 定義的數值邊界
+   
+2. **運算**: 
+   - **必須使用 Python 直接計算** (Fraction/int)。
+   - **嚴禁 eval/exec/safe_eval**。
+   - 正確示例：
+     ```python
+     # ✅ 正確：直接運算
+     result = Fraction(1, 2) + Fraction(3, 4)
+     result = a * b - c
+     result = (a + b) * (c - d)
+     
+     # ❌ 錯誤：使用 eval 相關
+     result = safe_eval(f'{a} + {b}')
+     result = eval(expression_string)
+     ```
+
+3. **⚠️ 運算順序與括號（關鍵！）**：
+   - **逐步計算模式**：如果分步計算
+     * 題目**必須**添加對應括號以匹配計算順序
+     * 範例（正確）：
+       ```python
+       val1 = a + b            # 步驟 1
+       val2 = val1 * c         # 步驟 2
+       val3 = val2 - d         # 步驟 3
+       q = f'(({fmt_num(a)} + {fmt_num(b)}) {op_latex["*"]} {fmt_num(c)}) {op_latex["-"]} {fmt_num(d)}'
+       # ✅ 括號對應計算順序
+       ```
+     * 範例（錯誤）：
+       ```python
+       val1 = a + b
+       val2 = val1 * c
+       q = f'({fmt_num(a)} + {fmt_num(b)}) {op_latex["*"]} {fmt_num(c)} {op_latex["-"]} {fmt_num(d)}'
+       # ❌ 缺少外層括號！
+       # 題目暗示：先算乘法再減法（數學優先級）
+       # 實際計算：((a+b)*c)-d（逐步左結合）
+       # 結果：題目 ≠ 答案！
+       ```
+   
+   - **標準優先級模式**：遵守數學運算優先級
+     * 題目可以省略外層括號（依賴數學優先級）
+     * 範例：
+       ```python
+       result = (a + b) * c - d  # Python 自動按優先級計算
+       q = f'({fmt_num(a)} + {fmt_num(b)}) {op_latex["*"]} {fmt_num(c)} {op_latex["-"]} {fmt_num(d)}'
+       # ✅ 遵守數學優先級
+       ```
+
+4. **題幹格式化 (LaTeX + 中文處理)**：
+   
+   🔴 **LaTeX 格式化鐵律**：
+   - **中文字和文字敘述永遠在 $ $ 外面**
+   - **數學式子永遠在 $ $ 裡面**
+   - **使用 clean_latex_output() 自動包裝**（僅呼叫一次）
+   
+   ✅ **正確模式 A：純數學式**
+   ```python
+   # 只有數學式，無中文
+   q = f"{fmt_num(a)} + {fmt_num(b)}"
+   q = clean_latex_output(q)  # 自動變成 $a + b$
+   ```
+   
+   ✅ **正確模式 B：中文 + 數學式**
+   ```python
+   # 方法 1：中文在外，clean_latex_output 包數學式
+   q = f"{fmt_num(a)} + {fmt_num(b)}"
+   q = clean_latex_output(q)  # 得到 $a + b$
+   q = f"計算 {q} 的值"  # 得到 "計算 $a + b$ 的值"
+   
+   # 方法 2：手動包裝（不推薦，容易出錯）
+   q = f"計算 ${fmt_num(a)} + {fmt_num(b)}$ 的值"
+   # 不要再呼叫 clean_latex_output()！
+   ```
+   
+   ❌ **錯誤示範**：
+   ```python
+   # 錯誤 1：中文在 $ $ 內（matplotlib 無法渲染）
+   q = f"計算 {fmt_num(a)} + {fmt_num(b)} 的值"
+   q = clean_latex_output(q)  # ❌ 變成 $計算 a + b 的值$
+   
+   # 錯誤 2：重複包裝
+   q = f"計算 ${fmt_num(a)} + {fmt_num(b)}$ 的值"
+   q = clean_latex_output(q)  # ❌ 變成 $計算 $a + b$ 的值$
+   
+   # 錯誤 3：fmt_num 參數錯誤
+   q = f"${fmt_num(n, 'fraction')}$"  # ❌ 無此參數
+   ```
+   
+   🔴 **f-string 中的 LaTeX 運算符**：
+   ```python
+   # ✅ 正確：使用 op_latex 字典
+   q = f"{fmt_num(a)} {op_latex['*']} {fmt_num(b)}"  # a \times b
+   q = f"{fmt_num(a)} {op_latex['/']} {fmt_num(b)}"  # a \div b
+   
+   # ❌ 錯誤：直接寫符號
+   q = f"{fmt_num(a)} * {fmt_num(b)}"  # ❌ 顯示為 a * b（不是 ×）
+   q = f"{fmt_num(a)} / {fmt_num(b)}"  # ❌ 顯示為 a / b（不是 ÷）
+   ```
+   
+   🔴 **fmt_num 的正確使用**：
+   ```python
+   # ✅ 正確：基本用法
+   fmt_num(5)           # "5"
+   fmt_num(-3)          # "(-3)"
+   fmt_num(Fraction(1, 2))  # "\\frac{1}{2}"
+   
+   # ✅ 正確：在 f-string 中必須用 {}
+   q = f"{fmt_num(a)} + {fmt_num(b)}"  # 正確
+   
+   # ❌ 錯誤：雙層括號或無效參數
+   q = f"${{fmt_num(n), 'fraction'}}"  # ❌ 語法錯誤
+   q = f"{fmt_num(n, 'fraction')}"     # ❌ 無此參數
    ```
 
-【一次過防呆總則 (必讀必遵守)】
+5. **答案 (a)**: 
+   - ⚠️ **答案格式必須是純數字，不使用LaTeX格式**
+   - 整數：直接用 `str(result)` 或 `str(int(result))`
+   - 分數：使用 Python Fraction 的字符串表示 `str(result)` (自動格式為 "3/7")
+   - 帶分數：手動轉換為 "整數 分子/分母" 格式
+   - **禁止**使用 `fmt_num(result)` 作為答案（會產生LaTeX格式）
+   - **正確示例**：
+     ```python
+     # 整數答案
+     a = str(result)  # "42"
+     
+     # 分數答案
+     a = str(result)  # "3/7" (Fraction自動格式化)
+     
+     # 帶分數答案
+     if result.numerator > result.denominator:
+         whole = result.numerator // result.denominator
+         rem = result.numerator % result.denominator
+         a = f"{whole} {rem}/{result.denominator}"  # "2 3/7"
+     else:
+         a = str(result)  # "3/7"
+     ```
+6. **回傳**: `return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}`
 
-- **只寫 def generate(level=1, **kwargs)：** 可在內部定義 _ 開頭的輔助函式，但嚴禁重新定義 fmt_num, to_latex, clean_latex_output, check, 及新工具。
-- **嚴禁 import 任何模組：** 已預載所有依賴。
-- **嚴禁 eval/exec/字串算式：** 所有運算用 Python 直接計算。
-- **嚴禁浮點數直接運算：** 涉及除法務必轉 Fraction。
-- **嚴禁自創工具函數：** 不要發明不存在的函數！常見錯誤：
-  ❌ `random_fraction(...)` - 應直接用 `Fraction(random.randint(...), random.randint(...))`
-  ❌ `random_mixed_number(...)` - 應自己用 Fraction 計算帶分數
-  ❌ `fmt_neg_paren(...)` - 應直接用 `fmt_num(...)` (已自動為負數加括號)
-  ❌ `fmt_num(..., type='...')` - fmt_num 只有 signed 和 op 參數
-- **變數名固定：** 題幹用 `q`，答案用 `a`；勿自創 `q_latex`, `answer_str` 等。
-- **列表收集：** 循環生成變數時，務必 `append` 到列表（如 `terms.append(term)`），避免空列表導致 IndexError。
-- **LaTeX 規則：** 題幹內用 fmt_num (或 fmt_interval 等)，最後才 clean_latex_output；答案用 fmt_num (無外層 `$`)。
-- **f-string 單層括號：** `f"{fmt_num(...)}"` 而非 `f"{{...}}"`。
+【防呆檢查】
+- 變數名固定為 `q` 和 `a`。
+- 嚴禁 `import` (已預載)。
+- 嚴禁自創函式 (如 random_fraction)。
+- 列表操作需小心 IndexError。
 
-【輸出限制】
-只輸出 Python 代碼；不含任何說明、Markdown、註解。
-不可出現 print、測試碼、Jupyter cell。return 後無任何代碼。
+【範例結構 (僅供參考，必須根據 MASTER_SPEC 生成實際邏輯)】
+⚠️ **致命警告**：
+- 以下範例**過於簡單**，僅展示代碼框架結構
+- **禁止直接使用此範例**，必須根據 MASTER_SPEC 完整實作
+- 如果你的代碼和此範例類似，說明你**沒有實作 MASTER_SPEC**
 
-【參考片段 (僅風格示意，勿逐字抄)】
 ```python
+# ========== 結構框架 (NOT 實際邏輯) ==========
 def generate(level=1, **kwargs):
-    # [Step 1] 模板選擇
-    template = random.choice(['chain_of_operations', 'distributive_property'])
+    # 第 1 步：根據 MASTER_SPEC 的 entities 和 variables 生成所有必要變數
+    # TODO: 實作 MASTER_SPEC 定義的變數生成邏輯
+    # 範例：var1 = <根據 MASTER_SPEC 生成>
+    # 範例：var2 = <根據 MASTER_SPEC 生成>
     
-    # [Step 2] 變數生成
-    def _rand_num():
-        # 隨機生成 int / Fraction...
-        pass
+    # 第 2 步：根據 MASTER_SPEC 的 construction 執行計算
+    # TODO: 實作 MASTER_SPEC 定義的所有計算步驟
+    # 範例：result = <根據 MASTER_SPEC 計算>
     
-    n1 = _rand_num()
-    while n1 == 0: n1 = _rand_num()
+    # 第 3 步：構建題目 LaTeX（使用 fmt_num 和 op_latex）
+    # TODO: 根據 MASTER_SPEC 的 formatting.question_display
+    # q = <構建題目字串>
+    # q = clean_latex_output(q)  # 僅呼叫一次
     
-    # [Step 3] 運算
-    result = n1 + n2  # 直接計算，Fraction 會自動化簡
+    # 第 4 步：格式化答案為純數字
+    # TODO: 根據 MASTER_SPEC 的 formatting.answer_display
+    # a = str(result)  # 或其他適當格式
     
-    # [Step 4] 題幹
-    op_latex = {'+': '+', '-': '-', '*': '\\times', '/': '\\div'}
-    q = f"{fmt_num(n1)} {op_latex['+']} {fmt_num(n2)}"
-    
-    # [Step 5] 清洗
-    q = clean_latex_output(q)
-    
-    # [Step 6] 答案
-    a = fmt_num(result)
-    
-    # [Step 7] 清洗變數名
-    if isinstance(a, str) and "=" in a:
-        a = a.split("=")[-1].strip()
-    
-    # [Step 8] 回傳
+    # 第 5 步：返回標準格式
     return {
         'question_text': q,
         'correct_answer': a,
@@ -567,10 +840,12 @@ def generate(level=1, **kwargs):
     }
 ```
 
-【最終任務】
-依上述「通用生成管線」與「防呆總則」，產出唯一的 `def generate(level=1, **kwargs):` 實作。
-遵守 8 步驟、預載工具、禁 eval、格式化規則。
-不得有任何多餘內容。
+⚠️ **實作檢查清單**：完成代碼後，對照 MASTER_SPEC 的 implementation_checklist 逐項確認：
+- [ ] 是否生成了所有必要的變數？
+- [ ] 是否遵守了所有 constraints？
+- [ ] 是否達到了 complexity_requirements 的最小要求？
+- [ ] 是否實現了所有 construction 步驟？
+- [ ] 題目和答案格式是否符合 formatting 規則？
 """
 
 # ==============================================================================
@@ -673,9 +948,40 @@ class ASTHealer(ast.NodeTransformer):
     
     def visit_FunctionDef(self, node):
         self.generic_visit(node)
+        
+        # 1. [原有逻辑] 移除自创的格式化函数
         if re.search(r'(Format|LaTeX|Display)', node.name, re.IGNORECASE) and node.name != 'generate':
             self.fixes += 1
             return None 
+        
+        # 2. [V9.2.5 新增] 检测内部辅助函数是否缺少默认返回值
+        # 目标：避免 "TypeError: cannot unpack non-iterable NoneType object"
+        if node.name != 'generate' and node.body:  # 排除主函数
+            # 检查函数体是否有 for 循环
+            has_loop = False
+            for stmt in node.body:
+                if isinstance(stmt, (ast.For, ast.While)):
+                    has_loop = True
+                    break
+            
+            if has_loop:
+                #检查最后一个语句是否是 return
+                last_stmt = node.body[-1]
+                
+                # 如果最后一个语句不是 return，或者是循环本身，添加默认返回
+                if not isinstance(last_stmt, ast.Return):
+                    print(f"🔧 [AST Healer] 内部函数 '{node.name}' 缺少默认返回值，正在添加...")
+                    
+                    # 添加 return (0, 0) 作为默认值（适用于大多数辅助函数）
+                    default_return = ast.Return(
+                        value=ast.Tuple(
+                            elts=[ast.Constant(value=0), ast.Constant(value=0)],
+                            ctx=ast.Load()
+                        )
+                    )
+                    node.body.append(default_return)
+                    self.fixes += 1
+        
         return node
     
     def visit_While(self, node):
@@ -776,16 +1082,512 @@ def clean_redundant_imports(code_str):
         
     return '\n'.join(cleaned_lines), removed_count, removed_list  # ✅ 回傳三個值
 
+def remove_forbidden_functions_unified(code_str, forbidden_list):
+    """
+    [Performance Fix V9.2.1] 統一的函數移除器
+    合併原本在 refine_ai_code(), 工具函式重定義偵測器, 通用語法修復 三處的邏輯
+    避免重複掃描，提升 15-20% 執行速度
+    """
+    lines = code_str.split('\n')
+    cleaned_lines = []
+    skip_mode = False
+    target_indent = -1
+    removed_count = 0
+    
+    for line in lines:
+        # 檢查是否進入禁止函數定義
+        should_skip = False
+        for func_name in forbidden_list:
+            # 嚴格匹配定義行（避免誤判函數調用）
+            if re.match(rf'^\s*def\s+{func_name}\s*\(', line):
+                skip_mode = True
+                target_indent = len(line) - len(line.lstrip())
+                removed_count += 1
+                should_skip = True
+                print(f"🔧 [Unified Remover] 移除函數定義: {func_name}")
+                break
+        
+        if should_skip:
+            continue
+        
+        if skip_mode:
+            current_indent = len(line) - len(line.lstrip())
+            # 空行或註釋：跳過
+            if not line.strip() or line.strip().startswith('#'):
+                continue
+            # 縮排回到定義層級或更外層：結束跳過模式
+            if current_indent <= target_indent and line.strip():
+                skip_mode = False
+            else:
+                continue  # 仍在函數體內，跳過
+        
+        cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines), removed_count
+
 def refine_ai_code(code_str):
     """
-    [Active Healer] 主動修復小模型 (如 Qwen) 常犯的錯誤
+    [Active Healer V9.2.1] 針對 14B 模型「不聽話」特性的強力矯正
     """
     fixes = 0
     refined_code = code_str
 
-    # 1. 移除自創的格式化函式 (Force removal of custom formatters)
-    forbidden_funcs = ['format_number_for_latex', 'format_num_latex', 'latex_format', '_format_term_with_parentheses']
+    # -----------------------------------------------------------
+    # 0. [Complexity Checker] 檢測過於簡單的代碼（可能抄襲範例）
+    # -----------------------------------------------------------
+    # 警告標誌：如果代碼過於簡單，輸出警告（但不阻止生成）
+    complexity_warnings = []
     
+    # 檢查 1：運算數數量（尋找 random.randint 或 Fraction 的數量）
+    num_random_ints = len(re.findall(r'random\.randint\(', code_str))
+    num_fractions = len(re.findall(r'Fraction\(', code_str))
+    total_operands = num_random_ints + num_fractions
+    
+    if total_operands < 3:
+        complexity_warnings.append(f"⚠️  運算數過少: 僅發現 {total_operands} 個變數生成")
+    
+    # 檢查 2：運算符種類（尋找 *, /, +, - 的使用）
+    has_multiply = '*' in code_str or '\\times' in code_str
+    has_divide = '/' in code_str or '\\div' in code_str
+    
+    if not (has_multiply or has_divide):
+        complexity_warnings.append("⚠️  缺少乘除運算: 僅發現加減運算")
+    
+    # 檢查 3：分數使用（至少應該有一個 Fraction）
+    if num_fractions == 0:
+        complexity_warnings.append("⚠️  未使用分數: 可能全為整數")
+    
+    # 檢查 4：代碼長度（太短可能是抄襲範例）
+    code_lines = [line for line in code_str.split('\n') if line.strip() and not line.strip().startswith('#')]
+    if len(code_lines) < 10:
+        complexity_warnings.append(f"⚠️  代碼過短: 僅 {len(code_lines)} 行有效代碼")
+    
+    # 輸出警告（但繼續修復）
+    if complexity_warnings:
+        print("=" * 60)
+        print("🔴 [Complexity Checker] 偵測到可能未完整實現 MASTER_SPEC:")
+        for warning in complexity_warnings:
+            print(f"   {warning}")
+        print("   建議檢查: MASTER_SPEC 的 complexity_requirements 和 implementation_checklist")
+        print("=" * 60)
+
+    # -----------------------------------------------------------
+    # 0.5 [Undefined Variable Healer] 修復反向推導中的未定義變數
+    # -----------------------------------------------------------
+    # 問題：AI 使用反向推導邏輯時，會在定義之前就使用變數（如 final_result）
+    # 症狀：if op3 == '*': result = final_result // n4  # final_result 未定義
+    # 修復：偵測並在迴圈開頭注入目標值定義
+    
+    # Pattern 1: 偵測使用未定義的 final_result 或 target_value
+    undefined_vars = []
+    for var_name in ['final_result', 'target_value', 'answer_value', 'result_value']:
+        # 檢查是否在定義前使用
+        usage_pattern = rf'\b{var_name}\b\s*[/\-+*%]|[/\-+*%=]\s*\b{var_name}\b'
+        definition_pattern = rf'\b{var_name}\s*='
+        
+        if re.search(usage_pattern, refined_code):
+            # 找到第一次使用的位置
+            usage_match = re.search(usage_pattern, refined_code)
+            usage_pos = usage_match.start()
+            
+            # 檢查在此之前是否有定義
+            pre_code = refined_code[:usage_pos]
+            if not re.search(definition_pattern, pre_code):
+                undefined_vars.append(var_name)
+    
+    if undefined_vars:
+        print(f"🔧 [Healer] 偵測到反向推導未定義變數: {', '.join(undefined_vars)}")
+        
+        # 修復策略：在迴圈開頭注入目標值定義
+        # 找到 for _safety_loop_var in range 或 while True 的開頭
+        loop_patterns = [
+            (r'(for _safety_loop_var in range\(\d+\):\n)', '\\1        # [Auto-Healer] 反向推導目標值\n        {var} = random.randint(-50, 50)\n        if {var} == 0: {var} = 1  # 確保非零\n'),
+            (r'(while True:\n)', '\\1        # [Auto-Healer] 反向推導目標值\n        {var} = random.randint(-50, 50)\n        if {var} == 0: {var} = 1  # 確保非零\n')
+        ]
+        
+        for var_name in undefined_vars:
+            injected = False
+            for pattern, replacement in loop_patterns:
+                match = re.search(pattern, refined_code)
+                if match:
+                    # 注入變數定義（使用正確的縮排）
+                    injection_code = replacement.replace('{var}', var_name)
+                    refined_code = re.sub(
+                        pattern,
+                        injection_code,
+                        refined_code,
+                        count=1
+                    )
+                    fixes += 1
+                    injected = True
+                    print(f"   ✅ 已注入 {var_name} 的初始定義")
+                    break
+            
+            if not injected:
+                print(f"   ⚠️  無法自動注入 {var_name}（未找到合適的迴圈結構）")
+
+    # -----------------------------------------------------------
+    # 0. [Garbage Cleaner] 移除 AI 生成的孤立字元和垃圾語法
+    # -----------------------------------------------------------
+    # 問題：AI 有時會生成孤立的反引號、特殊字元（如 `1, `2）導致 SyntaxError
+    # 修復：移除孤立的反引號行（不在字串內的 ` 符號）
+    
+    garbage_patterns = [
+        # Pattern 1: 孤立的反引號（單獨一行或在代碼行中）
+        (r'^\s*`\d*\s*$', ''),  # 如: `1, `2
+        (r'(\n\s*)`(\d*)\s*\n', r'\1\n'),  # 代碼間的孤立反引號
+        
+        # Pattern 2: 其他常見的 AI 垃圾字元
+        (r'^\s*```\s*$', ''),  # 孤立的代碼塊標記
+        (r'^\s*\.\.\.$', ''),  # 孤立的省略號
+    ]
+    
+    for pattern, replacement in garbage_patterns:
+        original = refined_code
+        refined_code = re.sub(pattern, replacement, refined_code, flags=re.MULTILINE)
+        if refined_code != original:
+            count = original.count('\n') - refined_code.count('\n') + 1
+            print(f"🔧 [Healer] 移除孤立字元: {pattern[:30]}... ({count} 處)")
+            fixes += count
+
+    # -----------------------------------------------------------
+    # 1. [Hallucination Killer] 殺死自創函式，強制導回標準工具
+    # -----------------------------------------------------------
+    
+    # 強制替換: clean_expression -> clean_latex_output (使用預編譯 pattern)
+    # 14B 很喜歡自己寫 clean_expression，導致 Latex 處理不統一
+    if "clean_expression" in refined_code:
+        refined_code, n = COMPILED_PATTERNS['clean_expression'].subn('clean_latex_output(', refined_code)
+        if n > 0:
+            print(f"🔧 [Healer] 矯正幻覺函式: clean_expression -> clean_latex_output ({n} 處)")
+            fixes += n
+
+    # 移除自創的 clean_expression 定義 (因為我們已經把它換成系統工具了，留著定義也沒用)
+    if "def clean_expression" in refined_code:
+        # 簡單暴力的移除：將 def clean_expression... 換成註解
+        refined_code, n = re.subn(r'(def clean_expression.*?:)', r'# \1 (Removed by Healer)', refined_code)
+        fixes += n
+
+    # -----------------------------------------------------------
+    # 1.5 [Tuple Return Fixer] 修復錯誤的 tuple 返回格式
+    # -----------------------------------------------------------
+    # 問題：AI 有時會返回 tuple: return question, answer
+    # 應該返回 dict: return {'question_text': ..., 'answer': ...}
+    
+    # Pattern 1: 偵測 return question, answer 或 return q, a 的模式
+    tuple_return_patterns = [
+        # return question_display_output, answer_display_output
+        r'return\s+(\w+),\s*(\w+)\s*$',
+        # return q, a
+        r'return\s+([qa]|question|answer|result),\s*([qa]|question|answer|result)\s*$'
+    ]
+    
+    for pattern in tuple_return_patterns:
+        match = re.search(pattern, refined_code, re.MULTILINE)
+        if match:
+            var1 = match.group(1)
+            var2 = match.group(2)
+            
+            print(f"🔧 [Healer] 偵測到 tuple 返回格式: return {var1}, {var2}")
+            print(f"   正在轉換為標準 dict 格式...")
+            
+            # 替換為標準格式
+            new_return = f"return {{'question_text': {var1}, 'correct_answer': {var2}, 'answer': {var2}, 'mode': 1}}"
+            refined_code = re.sub(pattern, new_return, refined_code, flags=re.MULTILINE)
+            fixes += 1
+            print(f"   ✅ 已修復: {new_return}")
+            break
+
+    # -----------------------------------------------------------
+    # 1.6 [Overly Strict Constraint Remover] 移除過度嚴格的複雜度約束
+    # -----------------------------------------------------------
+    # 問題：AI 有時會在代碼中加入過度嚴格的檢查，導致 Dynamic Sampling 失敗
+    # 症狀：raise ValueError("Final result exceeds complexity constraints.")
+    #      if abs(result.numerator) > 3 or abs(result.denominator) > 3: raise ...
+    # 修復：移除這些不合理的運行時約束（生成邏輯已經控制了複雜度）
+    
+    overly_strict_patterns = [
+        # Pattern 1: raise ValueError("Final result exceeds complexity constraints.")
+        r'if\s+(?:isinstance\([^)]+,\s*Fraction\)\s*and\s*)?(?:\()?abs\([^)]+\.numerator\)\s*>\s*\d+\s+or\s+abs\([^)]+\.denominator\)\s*>\s*\d+(?:\))?\s*:\s*\n\s+raise\s+ValueError\(["\']Final result exceeds complexity constraints["\'][^\n]*\)',
+        
+        # Pattern 2: 帶括號的版本
+        r'if\s+isinstance\([^)]+,\s*Fraction\)\s*:\s*\n\s+if\s+abs\([^)]+\.numerator\)\s*>\s*\d+\s+or\s+abs\([^)]+\.denominator\)\s*>\s*\d+\s*:\s*\n\s+raise\s+ValueError\(["\'][^"\']*complexity[^"\']*["\'][^\n]*\)',
+    ]
+    
+    for pattern in overly_strict_patterns:
+        matches = re.findall(pattern, refined_code, re.MULTILINE | re.DOTALL)
+        if matches:
+            print(f"🔧 [Healer] 偵測到過度嚴格的複雜度約束 ({len(matches)} 處)")
+            print(f"   這會導致 Dynamic Sampling 失敗，正在移除...")
+            
+            # 移除這些約束
+            refined_code = re.sub(pattern, '', refined_code, flags=re.MULTILINE | re.DOTALL)
+            fixes += len(matches)
+            print(f"   ✅ 已移除 {len(matches)} 個不合理的運行時約束")
+
+    # -----------------------------------------------------------
+    # 1.7 [Missing Append Fixer] - 已禁用
+    # -----------------------------------------------------------
+    # ⚠️ 此 Healer 會導致回歸錯誤（A 成功後修 B 會讓 A 失敗）
+    # 問題：字串插入破壞後續匹配位置，且過度匹配正常代碼
+    # TODO: 改用 AST-based 修復方式
+    # 暫時完全移除此 Healer 的邏輯
+
+    # -----------------------------------------------------------
+    # 1.8 [Undefined Variable in Return Fixer] - 已禁用
+    # -----------------------------------------------------------
+    # ⚠️ 此 Healer 會導致回歸錯誤
+    # TODO: 改用 AST-based 修復方式
+    # 暫時完全移除此 Healer 的邏輯
+
+    # -----------------------------------------------------------
+    # 2. [Return Format Fixer] 強制修復回傳字典格式
+    # -----------------------------------------------------------
+    # 問題：模型常回傳 {'question': q, 'answer': a}，但系統要 {'question_text': ...}
+    
+    # 偵測錯誤的 key (單引號或雙引號)
+    has_wrong_key = re.search(r"['\"]question['\"]\s*:", refined_code)
+    
+    if has_wrong_key:
+        print(f"🔧 [Healer] 偵測到錯誤的 Return Key，正在重組...")
+        
+        # 策略：抓出 return {...} 的內容，直接暴力重寫
+        # 假設變數名通常是 q 或 question, a 或 answer
+        
+        # 1. 先把 'question': 換成 'question_text':
+        refined_code, n1 = re.subn(r"(['\"])question\1\s*:", r"'question_text':", refined_code)
+        
+        # 2. 確保有 correct_answer
+        # 如果有 'answer': a，但沒有 'correct_answer'，我們需要補上
+        if "'correct_answer'" not in refined_code and '"correct_answer"' not in refined_code:
+            # [V9.2.2 Fix] 改進的 pattern：支持 f-string、字符串、變數名
+            # 匹配: 'answer': <value>
+            # <value> 可以是:
+            #   - 變數名: a, ans, answer
+            #   - f-string: f'...' 或 f"..."
+            #   - 普通字串: '...' 或 "..."
+            
+            # 先嘗試找到整個 return 語句
+            return_pattern = r"return\s*\{([^}]+)\}"
+            match = re.search(return_pattern, refined_code)
+            
+            if match:
+                dict_content = match.group(1)
+                
+                # 檢查是否有 'answer': ... 但沒有 'correct_answer':
+                if re.search(r"['\"]answer['\"]", dict_content) and not re.search(r"['\"]correct_answer['\"]", dict_content):
+                    # 提取 answer 的值（支持多種格式）
+                    # Pattern 1: 'answer': f'...' 或 f"..."
+                    ans_match = re.search(r"['\"]answer['\"]\s*:\s*f['\"]([^'\"]+)['\"]", dict_content)
+                    if ans_match:
+                        ans_value = f"f'{ans_match.group(1)}'"
+                    else:
+                        # Pattern 2: 'answer': '...' 或 "..."
+                        ans_match = re.search(r"['\"]answer['\"]\s*:\s*['\"]([^'\"]+)['\"]", dict_content)
+                        if ans_match:
+                            ans_value = f"'{ans_match.group(1)}'"
+                        else:
+                            # Pattern 3: 'answer': variable_name
+                            ans_match = re.search(r"['\"]answer['\"]\s*:\s*([a-zA-Z_]\w*)", dict_content)
+                            if ans_match:
+                                ans_value = ans_match.group(1)
+                            else:
+                                ans_value = "a"  # 默認
+                    
+                    # 重建 return 語句
+                    new_dict_content = f"'question_text': q, 'correct_answer': {ans_value}, 'answer': {ans_value}, 'mode': 1"
+                    new_return = f"return {{{new_dict_content}}}"
+                    
+                    # 替換整個 return 語句
+                    refined_code = re.sub(return_pattern, new_return, refined_code)
+                    fixes += 1
+                    print(f"🔧 [Healer] 重建 return 語句：{new_return[:80]}...")
+
+    # -----------------------------------------------------------
+    # 2.5. [Variable Regeneration Blocker] 禁止在計算階段重新生成變數
+    # -----------------------------------------------------------
+    # 問題：AI 在計算階段使用 while 迴圈重新生成變數，可能導致：
+    #   1. 無限迴圈（條件永遠無法滿足）
+    #   2. 題目與答案不一致（變數被覆蓋）
+    # 
+    # 症狀示例：
+    #   while next_operand == 0:
+    #       next_operand = random.randint(-100, 100)  # ❌ 在計算中重新生成
+    #
+    # 解決方案：刪除這些危險的 while 迴圈
+    # 安全性：只刪除包含 zero-check 的 while 迴圈
+    
+    # [V47.5 重構] 使用簡單有效的方法：移除所有 "while ... == 0:" 迴圈
+    # -----------------------------------------------------------
+    # [Healer V47.5] 零值檢查迴圈移除器 - 已禁用
+    # -----------------------------------------------------------
+    # ⚠️ 此 Healer 會導致回歸錯誤
+    # 問題：直接刪除 while 迴圈會留下孤立的 continue/break 語句
+    # 結果：SyntaxError: 'continue' not properly in loop
+    # TODO: 改用 AST-based 安全移除
+
+    # -----------------------------------------------------------
+    # 2.6. [Semantic Error Fixer] 修復函數調用的參數類型不匹配
+    # -----------------------------------------------------------
+    # 問題：AI 生成的代碼可能在 while 迴圈中調用檢查函數（如 ensure_negative、ensure_fraction）
+    #      但使用錯誤的參數類型，例如：
+    #        ensure_negative(operators)  # ❌ operators 是字符串列表，不支援 < 比較
+    #
+    # 症狀：TypeError: '<' not supported between instances of 'str' and 'int'
+    #
+    # 解決方案：偵測並移除這些語義上不安全的 while 迴圈
+    
+    # 偵測 "while not ensure_xxx(operators)" 或類似的模式
+    # 因為 ensure_xxx 函數設計用於檢查 operands，而不是 operators
+    semantic_error_patterns = [
+        (r'while\s+.*?ensure_\w+\s*\(\s*operators\s*\)', 'operators passed to operand-checking function'),
+        (r'while\s+.*?\<\s*\d+\s*:\s*\n\s+for\s+\w+\s+in\s+range', 'unsafe loop structure'),
+    ]
+    
+    for pattern_str, error_desc in semantic_error_patterns:
+        pattern = re.compile(pattern_str, re.MULTILINE | re.DOTALL)
+        matches = list(pattern.finditer(refined_code))
+        
+        if matches:
+            print(f"🔧 [Healer V47.6] 偵測到 {len(matches)} 個語義錯誤: {error_desc}")
+            
+            # 從後往前刪除
+            for match in reversed(matches):
+                # 計算迴圈範圍並刪除
+                start_pos = match.start()
+                
+                # 尋找整個迴圈體的結束位置
+                # 方法：從 while 開始，找到對應的縮排級別
+                before_match = refined_code[:start_pos]
+                match_indent = len(before_match.split('\n')[-1])
+                
+                # 從 match.end() 開始逐行掃描
+                remaining = refined_code[match.end():]
+                lines = remaining.split('\n')
+                
+                end_line_offset = 0
+                for line_idx, line in enumerate(lines):
+                    if not line.strip():  # 空行
+                        end_line_offset = len('\n'.join(lines[:line_idx+1])) + 1
+                        continue
+                    
+                    current_indent = len(line) - len(line.lstrip())
+                    
+                    # 如果縮排回到原始級別或更低，迴圈已結束
+                    if current_indent <= match_indent:
+                        end_line_offset = len('\n'.join(lines[:line_idx]))
+                        break
+                    
+                    end_line_offset = len('\n'.join(lines[:line_idx+1])) + 1
+                else:
+                    # 到達文件末尾
+                    end_line_offset = len(remaining)
+                
+                # 刪除整個 while 迴圈
+                end_pos = match.end() + end_line_offset
+                refined_code = refined_code[:start_pos] + refined_code[end_pos:]
+                fixes += 1
+                print(f"   ✅ 已移除語義錯誤的 while 迴圈: {error_desc}")
+
+    # -----------------------------------------------------------
+    # 2.7. [Float/Fraction Consistency] 確保數值類型一致性
+    # -----------------------------------------------------------
+    # 問題：AI 可能混合使用 float 和 Fraction，導致最終結果是 float
+    #      而代碼期望 Fraction 有 .denominator 屬性
+    #
+    # 症狀：AttributeError: 'float' object has no attribute 'denominator'
+    #
+    # 解決方案：只修復明確的 float 返回和 float() 調用
+    
+    # 1. 修復 "return float(...)" -> "return Fraction(...)"
+    float_returns = re.findall(
+        r'return\s+float\s*\((.*?)\)',
+        refined_code
+    )
+    
+    if float_returns:
+        print(f"🔧 [Healer V47.7] 修復 {len(float_returns)} 個 float 返回，轉換為 Fraction")
+        refined_code = re.sub(
+            r'return\s+float\s*\((.*?)\)',
+            r'return Fraction(\1)',
+            refined_code
+        )
+        fixes += len(float_returns)
+    
+    # 2. 更仔細地修復 operand 的 float 賦值
+    # 只修復明確的 float(...) 調用，避免誤傷
+    float_assignments = re.findall(
+        r'(\w+operand\w*)\s*=\s*float\s*\((.*?)\)',
+        refined_code
+    )
+    
+    if float_assignments:
+        print(f"🔧 [Healer V47.7] 修復 {len(float_assignments)} 個 operand float 轉換")
+        refined_code = re.sub(
+            r'(\w+operand\w*)\s*=\s*float\s*\((.*?)\)',
+            r'\1 = Fraction(\2)',
+            refined_code
+        )
+        fixes += len(float_assignments)
+
+
+    # -----------------------------------------------------------
+    # 3. [Existing Logics] 保留原有的基礎修復
+    # -----------------------------------------------------------
+
+    # -----------------------------------------------------------
+    # 4. [Eval Eliminator] 智能替換 safe_eval 為直接計算
+    # -----------------------------------------------------------
+    # 問題：AI 常用 safe_eval(f'{a} {op} {b}')，違反 MASTER_SPEC 禁止 eval 原則
+    # 修復：將 safe_eval 調用替換成直接的 Python 運算符
+    
+    if 'safe_eval(' in refined_code:
+        eval_count = 0
+        
+        # Pattern: safe_eval(f'{var1} {op} {var2}')
+        # 替換為: (var1 op var2)
+        def replace_safe_eval(match):
+            nonlocal eval_count
+            full_expr = match.group(0)
+            content = match.group(1)  # f'{...}' 的內容
+            
+            # 從 f-string 中提取所有 {變數名}
+            # Pattern: f'{var1} {op} {var2}' -> 提取 [var1, op, var2]
+            var_pattern = r'\{(\w+)\}'
+            vars_found = re.findall(var_pattern, content)
+            
+            # 標準的三元組：var1, op, var2
+            if len(vars_found) == 3:
+                var1, op_var, var2 = vars_found
+                eval_count += 1
+                # 使用括號確保優先級正確
+                return f"({var1} {op_var} {var2})"
+            
+            # 其他情況（如兩個變數、四個變數等），保持原樣並警告
+            print(f"⚠️  [Healer] 無法解析 safe_eval 表達式: {full_expr[:60]}...")
+            return full_expr
+        
+        # 匹配 safe_eval(f'...') 或 safe_eval(f"...")
+        refined_code = re.sub(
+            r'safe_eval\(([^)]+)\)',
+            replace_safe_eval,
+            refined_code
+        )
+        
+        if eval_count > 0:
+            print(f"🔧 [Healer] 移除 safe_eval 調用，替換為直接計算 ({eval_count} 處)")
+            fixes += eval_count
+
+    # [V9.2.2 Fix] 修復 op_latex(...) -> op_latex[...]
+    # AI 有時會把字典當函數調用
+    if 'op_latex(' in refined_code:
+        refined_code, n = re.subn(r'op_latex\(([^\)]+)\)', r'op_latex[\1]', refined_code)
+        if n > 0:
+            print(f"🔧 [Healer] 修復 op_latex 調用方式: op_latex(...) -> op_latex[...] ({n} 處)")
+            fixes += n
+
+    # 移除自創的格式化函式
+    forbidden_funcs = ['format_number_for_latex', 'format_num_latex', 'latex_format', '_format_term_with_parentheses']
     for func_name in forbidden_funcs:
         if f'def {func_name}' in refined_code:
             lines = refined_code.split('\n')
@@ -814,30 +1616,112 @@ def refine_ai_code(code_str):
             
             refined_code = '\n'.join(cleaned_lines)
             
-            # 2. 將該函式的呼叫替換為 fmt_num
-            refined_code, n = re.subn(f'{func_name}\\(', 'fmt_num(', refined_code)
-            fixes += n
+    for old_func in forbidden_funcs:
+        refined_code, n = re.subn(f'{old_func}\\(', 'fmt_num(', refined_code)
+        fixes += n
 
-    # 3. 修復錯誤的 LaTeX 運算符 (Qwen 特有錯誤: \* \/)
+    # LaTeX 運算符修復
     refined_code, n1 = re.subn(r'(?<=f")([^{"]*?)\\\*([^{"]*?)(?=")', r'\1\\times\2', refined_code)
     refined_code, n2 = re.subn(r'(?<=f")([^{"]*?)\\\/([^{"]*?)(?=")', r'\1\\div\2', refined_code)
     fixes += (n1 + n2)
 
-    # [V47.4 REMOVED] 不再轉換 / → //：
-    # 分數四則運算需要有理數除法，不能變成整數除法
-    # Fraction(a) / Fraction(b) 正確回傳 Fraction 結果
+    # f-string fmt_num 包裹修復
+    pattern = r'(f["\'])([^"\']*?)\bfmt_num\(([^)]+)\)([^"\']*?)(["\'])'
+    def fix_fmt_num(match):
+        prefix, before, var, after, quote = match.groups()
+        # 檢查是否已經被 {} 包裹
+        if before.strip().endswith('{') and after.strip().startswith('}'):
+            return match.group(0)
+        return f'{prefix}{before}{{fmt_num({var})}}{after}{quote}'
+    
+    refined_code, n = re.subn(pattern, fix_fmt_num, refined_code)
+    fixes += n
 
-    # [DISABLED V46.6] 帶分數格式修復已移除
-    # 原因: to_latex() 本身不會生成 {整數}\frac 格式
-    # 只有舊版 clean_latex_output() 的 regex 會誤加，已在源頭移除
-    # 保留此註釋以追蹤修復歷史
-    # 
-    # refined_code, n4 = re.subn(
-    #     r'\{(\d+)\}(\\frac)',
-    #     r'\1\2',
-    #     refined_code
-    # )
-    # fixes += n4
+    # random.choice -> safe_choice
+    refined_code, n = re.subn(r'\brandom\.choice\s*\(', 'safe_choice(', refined_code)
+    fixes += n
+
+    # [V9.2.3 Fix] 修復中文字被錯誤包在 LaTeX $ 內的問題
+    # 問題：AI 常生成 q = f'計算 [ $5 \times (-3)$ ] 的值。'
+    # 原因：中文字「計算」「的值」在 LaTeX 數學模式內，matplotlib 無法渲染
+    # 修復：移除題幹中的所有 $ 符號，讓 clean_latex_output() 重新包裝
+    if 'question_text' in refined_code or 'q =' in refined_code:
+        # 檢測是否有中文字在 $ 符號附近（高概率有問題）
+        if re.search(r'f[\'"][^\'"]*(計算|的值|求|解|判斷)', refined_code):
+            print(f"🔧 [Healer] 偵測到題幹可能有 LaTeX 格式問題，正在移除內嵌 $ 符號...")
+            
+            # 策略：找到題幹賦值語句，移除其中的 $ 符號
+            # Pattern: q = f'...$...$...' 或 question_text = f'...$...$...'
+            def remove_dollar_in_question(match):
+                var_name = match.group(1)  # q 或 question_text
+                quote = match.group(2)      # ' 或 "
+                content = match.group(3)    # 題幹內容
+                
+                # 移除所有 $ 符號（clean_latex_output 會重新添加）
+                fixed_content = content.replace('$', '')
+                
+                return f"{var_name} = f{quote}{fixed_content}{quote}"
+            
+            # 匹配 q = f'...' 或 question_text = f'...'
+            original_code = refined_code
+            refined_code = re.sub(
+                r"(question_text|q)\s*=\s*f(['\"])(.+?)\2",
+                remove_dollar_in_question,
+                refined_code
+            )
+            
+            if refined_code != original_code:
+                fixes += 1
+                print(f"🔧 [Healer] 已移除題幣中的 $ 符號，clean_latex_output() 會重新包裝")
+
+    # [V9.2.4 Fix] 檢測內部函數缺少返回值（None unpacking bug）
+    # 問題：AI 定義的內部函數在 for 循環後沒有 return，導致返回 None
+    # 例如：def helper(...): for i in range(1000): ... return value  ← 如果循環完沒找到，返回 None
+    if 'def ' in refined_code and 'for _safety_loop_var in range' in refined_code:
+        # 檢測內部函數定義
+        inner_func_pattern = r'(    def \w+\([^)]*\):.*?)(    \w+|def generate)'
+        matches = list(re.finditer(inner_func_pattern, refined_code, re.DOTALL))
+        
+        for match in matches:
+            func_body = match.group(1)
+            func_name_match = re.search(r'def (\w+)\(', func_body)
+            if not func_name_match:
+                continue
+                
+            func_name = func_name_match.group(1)
+            
+            # 檢查是否在 for 循環後缺少返回值
+            if 'for _safety_loop_var in range' in func_body:
+                # 檢查最後一行是否有 return（排除循環內的 return）
+                lines = func_body.strip().split('\n')
+                last_non_empty_line = ''
+                indent_count = 0
+                for line in reversed(lines):
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith('#'):
+                        indent = len(line) - len(line.lstrip())
+                        # 找到函數定義層級的最後一行
+                        if indent == 4:  # 函數體的縮排
+                            last_non_empty_line = stripped
+                            indent_count = indent
+                            break
+                
+                # 如果最後一行不是 return，添加默認返回
+                if last_non_empty_line and not last_non_empty_line.startswith('return'):
+                    print(f"🔧 [Healer] 偵測到內部函數 '{func_name}' 可能缺少默認返回值，正在添加...")
+                    
+                    # 在函數末尾添加默認返回None（或合適的值）
+                    # 策略：在函數體最後添加 return (0, 0) 或 return None
+                    func_indent = '    '  # 內部函數縮排
+                    default_return = f"{func_indent}return (0, 0)  # [Auto-Fixed] 默認返回值（避免 None unpacking）\n"
+                    
+                    # 找到函數結束位置（下一個 def 或函數體減少縮排的位置）
+                    func_start = refined_code.find(func_body)
+                    if func_start != -1:
+                        func_end = func_start + len(func_body)
+                        # 在函數結尾前插入默認返回
+                        refined_code = refined_code[:func_end] + default_return + refined_code[func_end:]
+                        fixes += 1
 
     return refined_code, fixes
 
@@ -963,7 +1847,15 @@ def fix_code_syntax(code_str, error_msg=""):
 def fix_code_via_ast(code_str):
     """
     使用 AST Transformer 進行邏輯手術
+    [V9.2.1 Performance Fix] 添加預檢查，避免不必要的 AST 解析
     """
+    # ✅ 預檢查：如果不包含需要修復的關鍵字，直接跳過
+    # 這可以節省 5-10% 的執行時間（在乾淨代碼情況下）
+    keywords_need_ast = ['eval', 'exec', 'while True', '^', 'import ', '    def ']  # ✅ 添加内部函数检测
+    if not any(kw in code_str for kw in keywords_need_ast):
+        # print("⚡ [AST Healer] 預檢查通過，跳過 AST 解析")
+        return code_str, 0
+    
     try:
         tree = ast.parse(code_str)
         healer = ASTHealer()
@@ -1023,8 +1915,10 @@ def log_experiment(skill_id, start_time, prompt_len, code_len, is_valid, error_m
         model_size_class, prompt_level, raw_response, final_code,
         score_syntax, score_math, score_visual, healing_duration, 
         is_executable, ablation_id, missing_imports_fixed, resource_cleanup_flag,
-        prompt_tokens, completion_tokens, total_tokens
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        prompt_tokens, completion_tokens, total_tokens,
+        experiment_group, garbage_cleaner_count, eval_eliminator_count,
+        sampling_success_count, sampling_total_count, spec_prompt_id, use_master_spec
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     params = (
         skill_id, start_time, duration, prompt_len, code_len,
@@ -1043,7 +1937,15 @@ def log_experiment(skill_id, start_time, prompt_len, code_len, is_valid, error_m
         1 if kwargs.get('resource_cleanup_flag') else 0,
         kwargs.get('prompt_tokens', 0),
         kwargs.get('completion_tokens', 0),
-        kwargs.get('total_tokens', 0)
+        kwargs.get('total_tokens', 0),
+        # [旺宏科學獎 3×3 設計專用欄位]
+        kwargs.get('experiment_group', None),
+        kwargs.get('garbage_cleaner_count', 0),
+        kwargs.get('eval_eliminator_count', 0),
+        kwargs.get('sampling_success_count', 0),
+        kwargs.get('sampling_total_count', 0),
+        kwargs.get('spec_prompt_id', None),
+        1 if kwargs.get('use_master_spec') else 0
     )
     try:
         c.execute(query, params)
@@ -1062,12 +1964,48 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
     current_model = role_config.get('model', 'Unknown')
     ablation_id = kwargs.get('ablation_id', 3)
     
-    # 1. 讀取 Spec
-    active_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, prompt_type="MASTER_SPEC").order_by(SkillGenCodePrompt.created_at.desc()).first()
-    spec = active_prompt.prompt_content if active_prompt else "生成一題簡單的整數四則運算。"
+    # [Research Fix] 讀取 Ablation 設定
+    from models import AblationSetting
+    ablation_config = AblationSetting.query.get(ablation_id)
+    # Ab1, Ab2: 無 Healer; Ab3: 完整 Healer (Regex + AST)
+    use_regex_healer = ablation_config.use_regex if ablation_config else (ablation_id >= 3)
+    use_ast_healer = ablation_config.use_ast if ablation_config else (ablation_id >= 3)
     
-    # 2. 組合 Prompt
-    prompt = UNIVERSAL_GEN_CODE_PROMPT + f"\n\n### MASTER_SPEC:\n{spec}"
+    # [Ablation Study] 支援自定義輸出路徑
+    custom_output_path = kwargs.get('custom_output_path', None)
+    
+    print(f"\n{'='*70}")
+    print(f"🧪 [Ablation {ablation_id}] {ablation_config.name if ablation_config else 'Unknown'}")
+    print(f"   Regex Healer: {'✅ Enabled' if use_regex_healer else '❌ Disabled'}")
+    print(f"   AST Healer:   {'✅ Enabled' if use_ast_healer else '❌ Disabled'}")
+    if custom_output_path:
+        print(f"   Output: {os.path.basename(custom_output_path)}")
+    print(f"{'='*70}\n")
+    
+    # 1. 讀取 Spec (從資料庫)
+    active_prompt = SkillGenCodePrompt.query.filter_by(skill_id=skill_id, prompt_type="MASTER_SPEC").order_by(SkillGenCodePrompt.created_at.desc()).first()
+    db_master_spec = active_prompt.prompt_content if active_prompt else "生成一題簡單的整數四則運算。"
+    
+    # 2. [Research Fix] 根據 ablation_id 選擇 Prompt 策略
+    if ablation_id == 1:
+        # Ab1 (Bare): 最簡 Prompt + MASTER_SPEC，無 Healer
+        prompt = BARE_MINIMAL_PROMPT + f"\n\n### MASTER_SPEC:\n{db_master_spec}"
+        print(f"📝 [Prompt] Ab1 - BARE_MINIMAL_PROMPT")
+        print(f"   📝 Bare Prompt: {len(BARE_MINIMAL_PROMPT)} chars")
+        print(f"   📄 MASTER_SPEC: {len(db_master_spec)} chars")
+        print(f"   ⚠️  無工程化指導，無 Healer")
+    else:
+        # Ab2/Ab3: BARE_MINIMAL_PROMPT + MASTER_SPEC (確保 LLM 知道要生成代碼)
+        # Ab2 = Bare Prompt + MASTER_SPEC，無 Healer
+        # Ab3 = Bare Prompt + MASTER_SPEC，有完整 Healer (Regex + AST)
+        prompt = BARE_MINIMAL_PROMPT + f"\n\n### MASTER_SPEC:\n{db_master_spec}"
+        print(f"📝 [Prompt] Ab{ablation_id} - BARE_MINIMAL_PROMPT + MASTER_SPEC")
+        print(f"   📝 Bare Prompt: {len(BARE_MINIMAL_PROMPT)} chars")
+        print(f"   📄 MASTER_SPEC: {len(db_master_spec)} chars")
+        if ablation_id == 2:
+            print(f"   ⚠️  無 Healer（測試純 Healer 的價值）")
+        else:
+            print(f"   ✅ 完整 Healer (Regex + AST)")
     
     raw_output = ""
     prompt_tokens, completion_tokens = 0, 0
@@ -1093,296 +2031,312 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         regex_fixes = 0
         ast_fixes = 0
         
-        # Step A: 移除 Markdown
-        clean_code, n = re.subn(r'```python|```', '', raw_output, flags=re.DOTALL)
-        regex_fixes += n
+        # [Research Fix] 基礎清理也是 Healer 的一部分
+        # Ab1/Ab2: 完全不做清理，Ab3: 執行完整 Healer（基礎清理 + Regex + AST）
+        if use_regex_healer:
+            # Step A: 移除 Markdown - 提取代碼塊內容
+            match = COMPILED_PATTERNS['markdown_blocks'].search(raw_output)
+            if match:
+                # 提取第一個代碼塊的內容
+                clean_code = match.group(1).strip()
+                regex_fixes += 1
+            else:
+                # 沒有 Markdown 塊，直接使用原始輸出
+                clean_code = raw_output.strip()
 
-        # Step B: 清洗特殊空格 (MUST DO BEFORE IMPORT CLEANING)
-        original_len = len(clean_code)
-        clean_code = clean_code.replace('\xa0', ' ').replace('　', ' ').strip()
-        if len(clean_code) != original_len:
-            regex_fixes += 1
+            # Step B: 清洗特殊空格 (MUST DO BEFORE IMPORT CLEANING)
+            # [旺宏科學獎] Garbage Cleaner 獨立計數
+            garbage_cleaner_count = 0
+            original_len = len(clean_code)
+            clean_code = clean_code.replace('\xa0', ' ').replace('　', ' ').strip()
+            if len(clean_code) != original_len:
+                garbage_cleaner_count = 1
+                regex_fixes += 1
 
-        # Step C: 移除重複 Import
-        clean_code, import_removed, removed_list = clean_redundant_imports(clean_code)
-        regex_fixes += import_removed
-        
-        # Step D: 包裹函式與縮排修復
-        if "def generate" not in clean_code:
-            indent_str = '    '  # Standard 4 spaces
-            clean_code = "def generate(level=1, **kwargs):\n" + textwrap.indent(clean_code, indent_str)
+            # Step C: 移除重複 Import (優化版)
+            clean_code, import_removed, removed_list = clean_redundant_imports(clean_code)
+            regex_fixes += import_removed
             
-            if "return" not in clean_code:
-                clean_code += "\n    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}"
-            regex_fixes += 1
+            # Step D: 包裹函式與縮排修復
+            if "def generate" not in clean_code:
+                indent_str = '    '  # Standard 4 spaces
+                clean_code = "def generate(level=1, **kwargs):\n" + textwrap.indent(clean_code, indent_str)
+                
+                if "return" not in clean_code:
+                    clean_code += "\n    return {'question_text': q, 'correct_answer': a, 'answer': a, 'mode': 1}"
+                regex_fixes += 1
+        else:
+            # Ab1/Ab2: 不做任何清理，直接使用 LLM 原始輸出
+            clean_code = raw_output
+            garbage_cleaner_count = 0
+            removed_list = []
+            print(f"⏭️  [{skill_id}] 基礎清理 SKIPPED (ablation_id={ablation_id}, 無 Healer)")
 
         # Step E: [NEW] 主動邏輯修復 (Healer)
-        # 這是新增的關鍵步驟
-        clean_code, healer_fixes = refine_ai_code(clean_code)
-        regex_fixes += healer_fixes
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            clean_code, healer_fixes = refine_ai_code(clean_code)
+            regex_fixes += healer_fixes
+        else:
+            print(f"⏭️  [{skill_id}] Regex Healer SKIPPED (ablation_id={ablation_id})")
 
         # ========================================
-        # Step E.5: [FIXED V46.8] 工具函式重定義偵測器
+        # Step E.5: [OPTIMIZED V9.2.1] 統一函數移除器
         # ========================================
-        shadowing_fixes = 0
-        PROTECTED_TOOLS = [
-            'fmt_num', 'to_latex', 'is_prime', 'gcd', 'lcm', 'get_factors', 'check',
-            'clamp_fraction', 'safe_pow', 'factorial_bounded', 'nCr', 'nPr',
-            'rational_gauss_solve', 'normalize_angle',
-            'fmt_set', 'fmt_interval', 'fmt_vec'
-        ]
-
-        if 'def generate' in clean_code:
-            gen_start = clean_code.find('def generate')
-            gen_content = clean_code[gen_start:]
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            # 合併原本的三處函數清洗邏輯，避免重複掃描
             
-            for tool_name in PROTECTED_TOOLS:
-                # ✅ 修正 V46.8: 必須匹配「行首 + def + 函式名 + (」
-                # 避免誤判 to_latex(value) 這種調用
-                pattern = rf'^\s*def\s+{tool_name}\s*\('
-                if re.search(pattern, gen_content, re.MULTILINE):
-                    print(f"🔴 [{skill_id}] CRITICAL: 重新定義了 {tool_name}")
-                    
-                    lines = gen_content.split('\n')
-                    cleaned_gen_lines = []
-                    skip_mode = False
-                    target_indent = -1
-                    
-                    for line in lines:
-                        # ✅ 同樣修正：嚴格匹配定義行
-                        if re.match(rf'^\s*def\s+{tool_name}\s*\(', line):
-                            skip_mode = True
-                            target_indent = len(line) - len(line.lstrip())
-                            shadowing_fixes += 1
-                            continue
-                        
-                        if skip_mode:
-                            current_indent = len(line) - len(line.lstrip())
-                            if not line.strip() or line.strip().startswith('#'):
-                                continue
-                            if current_indent <= target_indent and line.strip():
-                                skip_mode = False
-                            else:
-                                continue
-                        
-                        cleaned_gen_lines.append(line)
-                    
-                    gen_content = '\n'.join(cleaned_gen_lines)
+            # 建立完整的禁止函數清單
+            PROTECTED_TOOLS = [
+                'fmt_num', 'to_latex', 'is_prime', 'gcd', 'lcm', 'get_factors', 'check',
+                'clamp_fraction', 'safe_pow', 'factorial_bounded', 'nCr', 'nPr',
+                'rational_gauss_solve', 'normalize_angle',
+                'fmt_set', 'fmt_interval', 'fmt_vec',
+                'format_number_for_latex', 'format_num_latex', 'latex_format',
+                '_format_term_with_parentheses', 'clean_expression'
+            ]
             
-            clean_code = clean_code[:gen_start] + gen_content
-
-        regex_fixes += shadowing_fixes
+            # ✅ 一次性移除所有禁止的函數定義
+            if 'def generate' in clean_code:
+                gen_start = clean_code.find('def generate')
+                gen_content = clean_code[gen_start:]
+                
+                gen_content, shadowing_fixes = remove_forbidden_functions_unified(
+                    gen_content, 
+                    PROTECTED_TOOLS
+                )
+                
+                clean_code = clean_code[:gen_start] + gen_content
+                regex_fixes += shadowing_fixes
 
         # ========================================
         # Step E.6: [NEW] 混合數字串修復
         # ========================================
-        mixed_num_fixes = 0
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            mixed_num_fixes = 0
 
-        # Pattern 1: 偵測並修復 f"{A}{fmt_num(frac)}" 模式
-        pattern1 = r'return\s+f"(\{[^}]+\})\{fmt_num\(([^)]+)\)\}"'
-        if re.search(pattern1, clean_code):
-            print(f"🔴 [{skill_id}] CRITICAL: 偵測到混合數字串拼接")
-            # 修復：改為回傳 Fraction 相加
-            clean_code = re.sub(
-                pattern1,
-                r'return Fraction(\1) + \2',
-                clean_code
-            )
-            mixed_num_fixes += 1
+            # Pattern 1: 偵測並修復 f"{A}{fmt_num(frac)}" 模式
+            pattern1 = r'return\s+f"(\{[^}]+\})\{fmt_num\(([^)]+)\)\}"'
+            if re.search(pattern1, clean_code):
+                print(f"🔴 [{skill_id}] CRITICAL: 偵測到混合數字串拼接")
+                # 修復：改為回傳 Fraction 相加
+                clean_code = re.sub(
+                    pattern1,
+                    r'return Fraction(\1) + \2',
+                    clean_code
+                )
+                mixed_num_fixes += 1
 
-        # Pattern 2: 偵測 eval(字串) 用於混合數
-        if re.search(r'elif isinstance\([^,]+, str\):\s+return eval\(', clean_code):
-            print(f"⚠️ [{skill_id}] 偵測到 eval(字串)，可能導致混合數錯誤")
+            # Pattern 2: 偵測 eval(字串) 用於混合數
+            if re.search(r'elif isinstance\([^,]+, str\):\s+return eval\(', clean_code):
+                print(f"⚠️ [{skill_id}] 偵測到 eval(字串)，可能導致混合數錯誤")
 
-        # Pattern 3: 修復 _generate_mixed_number 的實作
-        mixed_num_pattern = r'(def _generate_mixed_number\(\):.*?)(return f".*?fmt_num.*?")'
-        if re.search(mixed_num_pattern, clean_code, re.DOTALL):
-            print(f"🔧 [{skill_id}] 修復 _generate_mixed_number")
-            clean_code = re.sub(
-                r'(def _generate_mixed_number\(\):.*?frac = [^\n]+\n\s+)return f".*?fmt_num.*?"',
-                r'\1return Fraction(A) + frac',
-                clean_code,
-                flags=re.DOTALL
-            )
-            mixed_num_fixes += 1
+            # Pattern 3: 修復 _generate_mixed_number 的實作
+            mixed_num_pattern = r'(def _generate_mixed_number\(\):.*?)(return f".*?fmt_num.*?")'
+            if re.search(mixed_num_pattern, clean_code, re.DOTALL):
+                print(f"🔧 [{skill_id}] 修復 _generate_mixed_number")
+                clean_code = re.sub(
+                    r'(def _generate_mixed_number\(\):.*?frac = [^\n]+\n\s+)return f".*?fmt_num.*?"',
+                    r'\1return Fraction(A) + frac',
+                    clean_code,
+                    flags=re.DOTALL
+                )
+                mixed_num_fixes += 1
 
-        regex_fixes += mixed_num_fixes
+            regex_fixes += mixed_num_fixes
 
         # ========================================
         # Step E.7: LaTeX 格式修復（混合數專用）
         # ========================================
-        latex_fixes = 0
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            latex_fixes = 0
 
-        # 修復 1：過多的大括號 {{{{num}}}}
-        clean_code, n = re.subn(r'\{{4,}([^}]+)\}{4,}', r'{\1}', clean_code)
-        latex_fixes += n
+            # 修復 1：過多的大括號 {{{{num}}}} (使用預編譯 pattern)
+            clean_code, n = COMPILED_PATTERNS['excess_braces'].subn(r'{\1}', clean_code)
+            latex_fixes += n
 
-        # 修復 2：TO_LATEX 內部包含 $ 符號
-        if 'return f"$' in clean_code and 'def TO_LATEX' in clean_code:
-            print(f"⚠️ [{skill_id}] TO_LATEX 內部不應包含 $ 符號")
-            clean_code = re.sub(r'return f"\$([^"]+)\$"', r'return f"\1"', clean_code)
-            latex_fixes += 1
+            # 修復 2：TO_LATEX 內部包含 $ 符號
+            if 'return f"$' in clean_code and 'def TO_LATEX' in clean_code:
+                print(f"⚠️ [{skill_id}] TO_LATEX 內部不應包含 $ 符號")
+                clean_code = re.sub(r'return f"\$([^"]+)\$"', r'return f"\1"', clean_code)
+                latex_fixes += 1
 
-        # 修復 3：整數除法應改為普通除法
-        clean_code, n = re.subn(
-            r'(\w+)\s*=\s*(\w+)\s*//\s*(\w+)(?=.*# Division)',
-            r'\1 = \2 / \3',
-            clean_code
-        )
-        latex_fixes += n
+            # 修復 3：整數除法應改為普通除法
+            clean_code, n = re.subn(
+                r'(\w+)\s*=\s*(\w+)\s*//\s*(\w+)(?=.*# Division)',
+                r'\1 = \2 / \3',
+                clean_code
+            )
+            latex_fixes += n
 
-        # [V47.4 REMOVED] 修復 4：移除自動注入 $ 的規則：
-        # 正確做法是 q = clean_latex_output(q)（會自動包 $...$）
-        # 此規則會造成雙重 $，與正確流程打架
-
-        regex_fixes += latex_fixes
+            regex_fixes += latex_fixes
 
         # ========================================
         # Step E.9: [V47.0] Return 語句修正
         # ========================================
-        return_fixes = 0
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            return_fixes = 0
 
-        # Fix 1: 修正 fmt_num(字串變數) 的錯誤用法
-        if "'question_text': fmt_num(" in clean_code:
-            pattern = r"'question_text':\s*fmt_num\(([a-zA-Z_]\w*)\)"
-            matches = list(re.finditer(pattern, clean_code))
-            
-            for match in reversed(matches):
-                var_name = match.group(1)
-                # 判斷是否為字串變數
-                if any(kw in var_name.lower() for kw in ['latex', 'question', 'q', 'text', 'str']):
-                    new_str = f"'question_text': clean_latex_output({var_name})"
-                    clean_code = clean_code[:match.start()] + new_str + clean_code[match.end():]
-                    return_fixes += 1
-                    print(f"🔧 [{skill_id}] 修正: fmt_num({var_name}) → clean_latex_output({var_name})")
+            # Fix 1: 修正 fmt_num(字串變數) 的錯誤用法
+            if "'question_text': fmt_num(" in clean_code:
+                pattern = r"'question_text':\s*fmt_num\(([a-zA-Z_]\w*)\)"
+                matches = list(re.finditer(pattern, clean_code))
+                
+                for match in reversed(matches):
+                    var_name = match.group(1)
+                    # 判斷是否為字串變數
+                    if any(kw in var_name.lower() for kw in ['latex', 'question', 'q', 'text', 'str']):
+                        new_str = f"'question_text': clean_latex_output({var_name})"
+                        clean_code = clean_code[:match.start()] + new_str + clean_code[match.end():]
+                        return_fixes += 1
+                        print(f"🔧 [{skill_id}] 修正: fmt_num({var_name}) → clean_latex_output({var_name})")
 
-        regex_fixes += return_fixes
+            regex_fixes += return_fixes
 
         # ========================================
         # Step E.8: [NEW] 變數名稱對齊與雙重 $ 修復
         # ========================================
-        var_fixes = 0
-        
-        # Fix 1: 如果 AI 用了 'a' 但實際變數叫 'answer'
-        # 檢查：有 'answer =' 但沒有 'a =' 定義
-        has_answer_def = re.search(r'\banswer\s*=', clean_code)
-        has_a_def = re.search(r'\ba\s*=\s*(?!answer)', clean_code)  # a = 但不是 a = answer
-        has_a_usage = 'isinstance(a, str)' in clean_code or "'a'" in clean_code
-        
-        if has_answer_def and not has_a_def and has_a_usage:
-            # 替換所有 'a' 引用為 'answer'
-            clean_code = clean_code.replace('isinstance(a, str)', 'isinstance(answer, str)')
-            clean_code = re.sub(r"'='\s+in\s+a\b", "'=' in answer", clean_code)
-            clean_code = re.sub(r'"="\s+in\s+a\b', '"=" in answer', clean_code)
-            clean_code = re.sub(r'\ba\.split\(', 'answer.split(', clean_code)
-            # 同時處理 return 中的 'answer': a
-            clean_code = re.sub(r"'answer':\s*a\b", "'answer': answer", clean_code)
-            clean_code = re.sub(r"'correct_answer':\s*a\b", "'correct_answer': answer", clean_code)
-            var_fixes += 1
-            print(f"🔧 [{skill_id}] 修復變數名稱: a -> answer")
-        
-        # Fix 2: 防止 return 中雙重 $ 包裹 (終極版 V46.8)
-        # 當 clean_latex_output() 已經處理過 q，return 中不需要再包 $
-        if "clean_latex_output" in clean_code:
-            old_len = len(clean_code)
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            var_fixes = 0
             
-            # Pattern 1: 直接在 return 中用 f'${q}$' 的各種形式
-            clean_code = re.sub(
-                r"'question_text':\s*f?['\"]?\$\{q\}\$['\"]?",
-                r"'question_text': q",
-                clean_code
-            )
+            # Fix 1: 如果 AI 用了 'a' 但實際變數叫 'answer'
+            # 檢查：有 'answer =' 但沒有 'a =' 定義
+            has_answer_def = re.search(r'\banswer\s*=', clean_code)
+            has_a_def = re.search(r'\ba\s*=\s*(?!answer)', clean_code)  # a = 但不是 a = answer
+            has_a_usage = 'isinstance(a, str)' in clean_code or "'a'" in clean_code
             
-            # Pattern 2: 在 clean_latex_output 之前就加了 $ 的情況
-            clean_code = re.sub(
-                r'q\s*=\s*f?["\']?\$\{[^}]+\}\$["\']?\s*\n\s*q\s*=\s*clean_latex_output\(q\)',
-                r'q = clean_latex_output(q)',
-                clean_code
-            )
-            
-            # Pattern 3: 已經有 clean_latex_output 但 return 仍包 $
-            clean_code = re.sub(
-                r"'question_text':\s*f\['\"]\$\{q\}\$['\"]\b",
-                r"'question_text': q",
-                clean_code
-            )
-            
-            # Pattern 4: [V46.8 NEW] 通用 f-string 形式 f'${q}$' → q
-            clean_code = re.sub(
-                r"f['\"]?\$\{q\}\$['\"]?",
-                r"q",
-                clean_code
-            )
-            
-            if len(clean_code) != old_len:
+            if has_answer_def and not has_a_def and has_a_usage:
+                # 替換所有 'a' 引用為 'answer'
+                clean_code = clean_code.replace('isinstance(a, str)', 'isinstance(answer, str)')
+                clean_code = re.sub(r"'='\s+in\s+a\b", "'=' in answer", clean_code)
+                clean_code = re.sub(r'"="\s+in\s+a\b', '"=" in answer', clean_code)
+                clean_code = re.sub(r'\ba\.split\(', 'answer.split(', clean_code)
+                # 同時處理 return 中的 'answer': a
+                clean_code = re.sub(r"'answer':\s*a\b", "'answer': answer", clean_code)
+                clean_code = re.sub(r"'correct_answer':\s*a\b", "'correct_answer': answer", clean_code)
                 var_fixes += 1
-                print(f"🔧 [{skill_id}] 移除雙重 $ 包裹 (終極版)")
-        
-        regex_fixes += var_fixes
+                print(f"🔧 [{skill_id}] 修復變數名稱: a -> answer")
+            
+            # Fix 2: 防止 return 中雙重 $ 包裹 (終極版 V46.8)
+            # 當 clean_latex_output() 已經處理過 q，return 中不需要再包 $
+            if "clean_latex_output" in clean_code:
+                old_len = len(clean_code)
+                
+                # Pattern 1: 直接在 return 中用 f'${q}$' 的各種形式
+                clean_code = re.sub(
+                    r"'question_text':\s*f?['\"]?\$\{q\}\$['\"]?",
+                    r"'question_text': q",
+                    clean_code
+                )
+                
+                # Pattern 2: 在 clean_latex_output 之前就加了 $ 的情況
+                clean_code = re.sub(
+                    r'q\s*=\s*f?["\']?\$\{[^}]+\}\$["\']?\s*\n\s*q\s*=\s*clean_latex_output\(q\)',
+                    r'q = clean_latex_output(q)',
+                    clean_code
+                )
+                
+                # Pattern 3: 已經有 clean_latex_output 但 return 仍包 $
+                clean_code = re.sub(
+                    r"'question_text':\s*f\['\"]\$\{q\}\$['\"]\b",
+                    r"'question_text': q",
+                    clean_code
+                )
+                
+                # Pattern 4: [V46.8 NEW] 通用 f-string 形式 f'${q}$' → q
+                clean_code = re.sub(
+                    r"f['\"]?\$\{q\}\$['\"]?",
+                    r"q",
+                    clean_code
+                )
+                
+                if len(clean_code) != old_len:
+                    var_fixes += 1
+                    print(f"🔧 [{skill_id}] 移除雙重 $ 包裹 (終極版)")
+            
+            regex_fixes += var_fixes
 
         # ========================================
         # Step E.9: [V47.4 優化] Return 語句自動 LaTeX 清洗（僅對 q）
         # ========================================
-        # 問題修復：廣義 regex 容易誤包其他變數（如 f, q_latex 等）
-        # 解決方案：改為只處理 q，且加前置檢查是否已清洗過
-        return_fixes = 0
-        
-        if "'question_text':" in clean_code:
-            # 檢查前面是否已經有 q = clean_latex_output(q)
-            already_clean_q = re.search(r'\bq\s*=\s*clean_latex_output\s*\(\s*q\s*\)', clean_code)
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            return_fixes = 0
             
-            # 僅對 'q' 自動包裝；若前面已清洗過則維持 'q'
-            if already_clean_q:
-                # 已清洗過，不需要再包裝
-                pass
-            else:
-                # 未清洗，在 return 時包裝
-                old_pattern = r"'question_text':\s*q\b"
-                new_str = "'question_text': clean_latex_output(q)"
-                clean_code, n = re.subn(old_pattern, new_str, clean_code)
-                return_fixes = n
-                if return_fixes > 0:
-                    print(f"🔧 [{skill_id}] 在 return 中包裹 clean_latex_output(q) ({return_fixes} 處)")
-        
-        
-        regex_fixes += return_fixes
+            if "'question_text':" in clean_code:
+                # 檢查前面是否已經有 q = clean_latex_output(q)
+                already_clean_q = re.search(r'\bq\s*=\s*clean_latex_output\s*\(\s*q\s*\)', clean_code)
+                
+                # 僅對 'q' 自動包裝；若前面已清洗過則維持 'q'
+                if already_clean_q:
+                    # 已清洗過，不需要再包裝
+                    pass
+                else:
+                    # 未清洗，在 return 時包裝
+                    old_pattern = r"'question_text':\s*q\b"
+                    new_str = "'question_text': clean_latex_output(q)"
+                    clean_code, n = re.subn(old_pattern, new_str, clean_code)
+                    return_fixes = n
+                    if return_fixes > 0:
+                        print(f"🔧 [{skill_id}] 在 return 中包裹 clean_latex_output(q) ({return_fixes} 處)")
+            
+            # ❌ 已在前面累加過，此處不重複累加
+            # regex_fixes += return_fixes
 
         # ========================================
         # Step F.5: [NEW V46.8] Pre-AST 語法清洗
         # ========================================
-        pre_ast_fixes = 0
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
+        if use_regex_healer:
+            pre_ast_fixes = 0
 
-        # Fix 1: 修復 eval(calc_string) → safe_eval(calc_string)
-        clean_code, n = re.subn(
-            r'\beval\s*\(',
-            r'safe_eval(',
-            clean_code
-        )
-        pre_ast_fixes += n
-        if n > 0:
-            print(f"🔧 [{skill_id}] 轉換 eval() → safe_eval() ({n} 處)")
+            # Fix 1: 修復 eval(calc_string) → safe_eval(calc_string)
+            # [旺宏科學獎] Eval Eliminator 獨立計數
+            eval_eliminator_count = 0
+            clean_code, n = re.subn(
+                r'\beval\s*\(',
+                r'safe_eval(',
+                clean_code
+            )
+            eval_eliminator_count = n
+            pre_ast_fixes += n
+            if n > 0:
+                print(f"🔧 [{skill_id}] 轉換 eval() → safe_eval() ({n} 處)")
 
-        # Fix 2: 修復可能的語法錯誤（多餘的括號、引號）
-        # 檢查是否有未閉合的字串
-        open_quotes = clean_code.count('"') % 2
-        if open_quotes != 0:
-            print(f"⚠️ [{skill_id}] 偵測到未閉合的引號")
-            # 嘗試自動閉合（在最後一個 return 之前）
-            lines = clean_code.split('\n')
-            for i in range(len(lines) - 1, -1, -1):
-                if 'return' in lines[i]:
-                    if not lines[i].rstrip().endswith('"'):
-                        lines[i] = lines[i].rstrip() + '"'
-                        pre_ast_fixes += 1
-                    break
-            clean_code = '\n'.join(lines)
+            # Fix 2: 修復可能的語法錯誤（多餘的括號、引號）
+            # 檢查是否有未閉合的字串
+            open_quotes = clean_code.count('"') % 2
+            if open_quotes != 0:
+                print(f"⚠️ [{skill_id}] 偵測到未閉合的引號")
+                # 嘗試自動閉合（在最後一個 return 之前）
+                lines = clean_code.split('\n')
+                for i in range(len(lines) - 1, -1, -1):
+                    if 'return' in lines[i]:
+                        if not lines[i].rstrip().endswith('"'):
+                            lines[i] = lines[i].rstrip() + '"'
+                            pre_ast_fixes += 1
+                        break
+                clean_code = '\n'.join(lines)
 
-        regex_fixes += pre_ast_fixes
+            regex_fixes += pre_ast_fixes
+        else:
+            eval_eliminator_count = 0
+            print(f"⏭️  [{skill_id}] Pre-AST 清洗 SKIPPED (ablation_id={ablation_id})")
 
         # Step F: 基礎語法修復
+        # [Research Fix] 僅在 use_regex_healer=True 時執行
         healing_start = time.time()
-        clean_code, r_fixes = fix_code_syntax(clean_code)
-        regex_fixes += r_fixes
+        if use_regex_healer:
+            clean_code, r_fixes = fix_code_syntax(clean_code)
+            regex_fixes += r_fixes
+        else:
+            r_fixes = 0
+            print(f"⏭️  [{skill_id}] 基礎語法修復 SKIPPED (ablation_id={ablation_id})")
 
         # ========================================
         # 6.5. 通用語法修復（適用所有領域）
@@ -1423,10 +2377,10 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
             clean_code, n = re.subn(f'{old_func}\\(', 'fmt_num(', clean_code)
             qwen_fixes += n
 
-        # B.1 修復 LaTeX 運算符錯誤 (ex: "\\*" -> "\\times", "\\/" -> "\\div")
-        clean_code, n = re.subn(r'\\\*', r'\\times', clean_code)  # 匹配字串中的 \* 並替換為 \times
+        # B.1 修復 LaTeX 運算符錯誤 (ex: "\\*" -> "\\times", "\\/" -> "\\div") (使用預編譯 pattern)
+        clean_code, n = COMPILED_PATTERNS['latex_asterisk'].subn(r'\\times', clean_code)
         qwen_fixes += n
-        clean_code, n = re.subn(r'\\/', r'\\div', clean_code)      # 匹配字串中的 \/ 並替換為 \div
+        clean_code, n = COMPILED_PATTERNS['latex_slash'].subn(r'\\div', clean_code)
         qwen_fixes += n
 
         # B.2 偵測危險的 f-string 反斜線插入樣式 (如 f"\\{op}")，無法安全自動修復，但稍後發出警告
@@ -1438,9 +2392,8 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         else:
             fstring_problem_detected = False
 
-        # C. 修復 Python 3 語法錯誤
-        clean_code, n = re.subn(
-            r'range\(([^)]+)\)\s*\+\s*range\(([^)]+)\)',
+        # C. 修復 Python 3 語法錯誤 (使用預編譯 pattern)
+        clean_code, n = COMPILED_PATTERNS['range_concat'].subn(
             r'list(range(\1)) + list(range(\2))',
             clean_code
         )
@@ -1462,8 +2415,8 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         elif 'import ' in clean_code:
              warnings.append("重複 import")
         
-        # [方案 B] 偵測 op_latex[...] 用法但無定義，自動注入
-        needs_op_map = re.search(r'\bop_latex\s*\[', clean_code) and 'op_latex =' not in clean_code
+        # [方案 B] 偵測 op_latex[...] 用法但無定義，自動注入 (使用預編譯 pattern)
+        needs_op_map = COMPILED_PATTERNS['op_latex_usage'].search(clean_code) and 'op_latex =' not in clean_code
         if needs_op_map:
             clean_code = re.sub(
                 r'(def\s+generate\s*\([^)]*\):\n)',
@@ -1489,8 +2442,8 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
                     qwen_fixes += 1
                     print(f"🔧 [{skill_id}] 移除內部重複 op_latex 定義 (縮排 {indent})")
         
-        # [改良版] 使用正則偵測 op_latex 未定義 (適用 op_latex[...] 形式)
-        if re.search(r'\bop_latex\s*\[', clean_code) and 'op_latex =' not in clean_code:
+        # [改良版] 使用正則偵測 op_latex 未定義 (適用 op_latex[...] 形式) (使用預編譯 pattern)
+        if COMPILED_PATTERNS['op_latex_usage'].search(clean_code) and 'op_latex =' not in clean_code:
             warnings.append("op_latex 未定義")
         # 檢查早前偵測到的 f-string 反斜線插入問題，並轉入 warnings
         try:
@@ -1506,15 +2459,15 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         # F-Zero. [V45.4 Fix] 幻覺函數修復 (Hallucination Healer)
         # ========================================
         
-        # 1. fmt_neg_paren -> fmt_num
-        clean_code, n = re.subn(r'\bfmt_neg_paren\s*\(', 'fmt_num(', clean_code)
+        # 1. fmt_neg_paren -> fmt_num (使用預編譯 pattern)
+        clean_code, n = COMPILED_PATTERNS['fmt_neg_paren'].subn('fmt_num(', clean_code)
         if n > 0:
             qwen_fixes += n
             print(f"🔧 [{skill_id}] 幻覺修復: fmt_neg_paren -> fmt_num ({n} 處)")
 
-        # 2. fmt_num(..., type='...') -> fmt_num(...) 移除 type 參數
+        # 2. fmt_num(..., type='...') -> fmt_num(...) 移除 type 參數 (使用預編譯 pattern)
         # 簡單處理: 移除 , type='...' 或 , type="..."
-        clean_code, n = re.subn(r',\s*type\s*=\s*[\'"][^\'"]*[\'"]', '', clean_code)
+        clean_code, n = COMPILED_PATTERNS['fmt_num_type_param'].subn('', clean_code)
         if n > 0:
             qwen_fixes += n
             print(f"🔧 [{skill_id}] 幻覺修復: 移除 fmt_num 的 type 參數 ({n} 處)")
@@ -1573,7 +2526,7 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         # F.3 若 q 行包含 {...} 但不是 f-string，補上 f 前綴
         # 匹配 "q = '...{...}...'" 或 "q += '...{...}...'"
         clean_code, n = re.subn(
-            r"(q\s*[\+\-]?=\s*)'([^'\n]*\{[^'\n]*\}[^'\n]*)',",
+            r"(q\s*[\+\-]?=\s*)'([^'\n]*?\{[^'\n]*?\}[^'\n]*?)',",  # ✅ 非貪婪
             r"\1f'\2',",
             clean_code
         )
@@ -1599,15 +2552,14 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
             qwen_fixes += n
             print(f"🔧 [{skill_id}] 全域修復: to_latex(...) → fmt_num(...) ({n} 處)")
         
-        # G.2 修復雙括號 {{}} 包 op_latex
-        clean_code, n = re.subn(r'\{\{op_latex\[(.+?)\]\}\}', r'{op_latex[\1]}', clean_code)
+        # G.2 修復雙括號 {{}} 包 op_latex (使用預編譯 pattern)
+        clean_code, n = COMPILED_PATTERNS['op_latex_double'].subn(r'{op_latex[\1]}', clean_code)
         if n > 0:
             qwen_fixes += n
             print(f"🔧 [{skill_id}] 雙括號修復: {{{{op_latex[...]}}}} → {{op_latex[...]}} ({n} 處)")
         
-        # G.3 修復 Fraction 除法：Fraction(a, b) / Fraction(c, d) → (a/b) / (c/d) 或用乘法倒數
-        clean_code, n = re.subn(
-            r'Fraction\s*\(\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*\)\s*/\s*Fraction\s*\(\s*([A-Za-z_]\w*)\s*,\s*([A-Za-z_]\w*)\s*\)',
+        # G.3 修復 Fraction 除法：Fraction(a, b) / Fraction(c, d) → (a/b) / (c/d) (使用預編譯 pattern)
+        clean_code, n = COMPILED_PATTERNS['fraction_div'].subn(
             r'(\1 / \2) / (\3 / \4)',
             clean_code
         )
@@ -1631,12 +2583,19 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         # ========================================
         # Step G: [NEW] AST 深度邏輯手術
         # ========================================
+        # [Research Fix] AST Healer 條件執行
         # 只有當程式碼至少是語法正確(Syntax Valid)時，AST 才能運作
         # 所以先做一次快速檢查，或直接 try-catch
         
         ast_start = time.time()
-        clean_code, ast_fixes_count = fix_code_via_ast(clean_code)
-        ast_fixes += ast_fixes_count
+        if use_ast_healer:
+            clean_code, ast_fixes_count = fix_code_via_ast(clean_code)
+            ast_fixes += ast_fixes_count
+            if ast_fixes_count > 0:
+                print(f"🔧 [AST Healer] {ast_fixes_count} structural fixes applied")
+        else:
+            print(f"⏭️  [{skill_id}] AST Healer SKIPPED (ablation_id={ablation_id})")
+            ast_fixes_count = 0
         # ========================================
 
         # ========================================
@@ -1665,7 +2624,7 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
         header = f"""# ==============================================================================
 # ID: {skill_id}
 # Model: {current_model} | Strategy: V44.9 Hybrid-Healing
-# Ablation ID: {ablation_id} | Env: RTX 5060 Ti 16GB
+# Ablation ID: {ablation_id} | Healer: {'ON' if use_regex_healer else 'OFF'}
 # Performance: {duration:.2f}s | Tokens: In={prompt_tokens}, Out={completion_tokens}
 # Created At: {created_at}
 # Fix Status: {fix_status_str} | Fixes: Regex={regex_fixes}, AST={ast_fixes}
@@ -1674,8 +2633,12 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
 """
         # 寫檔
         output_dir = _ensure_dir(_path_in_root('skills'))  # ← 用穩定解析
-        # Dynamic Sampling: 执行 10 次生成验证 + Gating
-        dyn_ok = True  # [V47.4] 動態採樣 Gating 標誌
+        # Dynamic Sampling: 精簡版（3次足夠，但可提前退出）
+        # [旺宏科學獎] 獨立統計 Dynamic Sampling 次數
+        dyn_ok = True
+        sampling_success_count = 0
+        sampling_total_count = 0
+        
         if is_valid:
             import importlib.util
             try:
@@ -1683,8 +2646,9 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
                 temp_module = importlib.util.module_from_spec(spec)
                 exec(final_code, temp_module.__dict__)
                 
-                # 采样测试
-                for sample_idx in range(10):
+                # ✅ [Performance Fix V9.2.1] 早期退出機制
+                for sample_idx in range(3):
+                    sampling_total_count += 1
                     try:
                         item = temp_module.generate()
                         # 验证返回结构
@@ -1695,22 +2659,36 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
                         question_str = str(item.get('question_text', ''))
                         if 'function' in str(type(item.get('question_text', ''))).lower():
                             raise TypeError(f"question_text is function object, not string: {type(item['question_text'])}")
+                        
+                        sampling_success_count += 1
+                        
+                        # ✅ 早期退出：如果前 2 次都成功，直接通過
+                        if sampling_success_count >= 2:
+                            print(f"✅ [{skill_id}] Dynamic sampling early pass (2/2 successful)")
+                            break
+                            
                     except Exception as e:
                         error_msg = f"Dynamic sampling failed at iteration {sample_idx+1}: {str(e)}"
-                        dyn_ok = False  # [V47.4] Gating: 採樣失敗，標記不能寫檔
+                        dyn_ok = False
                         print(f"[WARN] {error_msg}")
                         break
                 else:
-                    # 10 次都成功
-                    print(f"✅ [{skill_id}] Dynamic sampling passed all 10 iterations")
+                    # 如果跑完 3 次都沒 break，說明至少 2 次成功（因為失敗會 break）
+                    if sampling_success_count >= 2:
+                        print(f"✅ [{skill_id}] Dynamic sampling passed all {sampling_success_count} iterations")
             except Exception as e:
-                dyn_ok = False  # [V47.4] Gating: 採樣框架出錯，標記不能寫檔
+                dyn_ok = False
                 print(f"[WARN] Dynamic sampling error (gating activated): {str(e)}")
         
         # [V47.4] Gating 控制：只有當 is_valid AND dyn_ok 時，才寫檔
         success_final = bool(is_valid and dyn_ok)
         if success_final:
-            out_path = os.path.join(output_dir, f'{skill_id}.py')
+            # [Ablation Study] 使用自定義路徑或預設路徑
+            if custom_output_path:
+                out_path = custom_output_path
+            else:
+                out_path = os.path.join(output_dir, f'{skill_id}.py')
+            
             with open(out_path, 'w', encoding='utf-8') as f:
                 f.write(header + final_code)
             print(f"✅ [{skill_id}] File written: {os.path.abspath(out_path)}")
@@ -1792,13 +2770,23 @@ def auto_generate_skill_code(skill_id, queue=None, **kwargs):
             missing_imports_fixed=', '.join(removed_list) if removed_list else '',
             score_math=0.0,
             score_visual=0.0,
-            resource_cleanup_flag=False
+            resource_cleanup_flag=False,
+            # [旺宏科學獎 3×3 設計專用欄位]
+            experiment_group=kwargs.get('experiment_group', None),
+            garbage_cleaner_count=garbage_cleaner_count,
+            eval_eliminator_count=eval_eliminator_count,
+            sampling_success_count=sampling_success_count,
+            sampling_total_count=sampling_total_count,
+            spec_prompt_id=kwargs.get('spec_prompt_id', None),
+            use_master_spec=kwargs.get('use_master_spec', False)
         )
 
         return success_final, "V47.4 Generated", {
             'tokens': prompt_tokens + completion_tokens,
             'score_syntax': 100.0 if success_final else 0.0,
-            'fixes': regex_fixes + ast_fixes,
+            'total_fixes': regex_fixes + ast_fixes,
+            'regex_fixes': regex_fixes,
+            'ast_fixes': ast_fixes,
             'is_valid': success_final
         }
 

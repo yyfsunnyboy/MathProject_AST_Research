@@ -314,13 +314,23 @@ def init_db(engine):
         ('raw_response', 'TEXT'), ('final_code', 'TEXT'),
         ('score_syntax', 'REAL DEFAULT 0.0'), ('score_math', 'REAL DEFAULT 0.0'), ('score_visual', 'REAL DEFAULT 0.0'),
         ('healing_duration', 'REAL'), ('is_executable', 'BOOLEAN'),
-        ('ablation_id', 'INTEGER'), ('missing_imports_fixed', 'TEXT'), ('resource_cleanup_flag', 'BOOLEAN')
+        ('ablation_id', 'INTEGER'), ('missing_imports_fixed', 'TEXT'), ('resource_cleanup_flag', 'BOOLEAN'),
+        # [旺宏科學獎 3×3 設計專用欄位]
+        ('experiment_group', 'TEXT'),  # 'A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'
+        ('garbage_cleaner_count', 'INTEGER DEFAULT 0'),  # Garbage Cleaner 修復次數
+        ('eval_eliminator_count', 'INTEGER DEFAULT 0'),  # Eval Eliminator 修復次數
+        ('sampling_success_count', 'INTEGER DEFAULT 0'),  # Dynamic Sampling 成功次數
+        ('sampling_total_count', 'INTEGER DEFAULT 0'),  # Dynamic Sampling 總次數
+        ('spec_prompt_id', 'INTEGER'),  # 關聯到 skill_gencode_prompt.id
+        ('use_master_spec', 'BOOLEAN DEFAULT 0')  # 是否使用 MASTER_SPEC
     ]
     for col, definition in new_log_cols:
         add_column_if_not_exists('experiment_log', col, definition)
 
-    # [v9.0 補丁] Skill GenCode Prompt 新增 architect_model
+    # [v9.0 補丁] Skill GenCode Prompt 新增 architect_model 和 experiment_group
     add_column_if_not_exists('skill_gencode_prompt', 'architect_model', "TEXT DEFAULT 'human'")
+    add_column_if_not_exists('skill_gencode_prompt', 'experiment_group', 'TEXT')
+    add_column_if_not_exists('skill_gencode_prompt', 'generation_duration', 'REAL')
 
     conn.commit()
     conn.close()
@@ -480,6 +490,21 @@ class SkillPrerequisites(db.Model):
     skill_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
     prerequisite_id = db.Column(db.String, db.ForeignKey('skills_info.skill_id', ondelete='CASCADE'), nullable=False)
     __table_args__ = (db.UniqueConstraint('skill_id', 'prerequisite_id', name='_skill_prerequisite_uc'),)
+
+class AblationSetting(db.Model):
+    """
+    [Research Edition] Ablation Study 實驗設定
+    控制不同實驗組的 Healer 開關
+    """
+    __tablename__ = 'ablation_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)  # 'Bare', 'Regex_Only', 'Full_Healing'
+    use_regex = db.Column(db.Boolean, default=False)  # 是否啟用 Regex Healer
+    use_ast = db.Column(db.Boolean, default=False)    # 是否啟用 AST Healer
+    description = db.Column(db.Text)
+    
+    def __repr__(self):
+        return f"<AblationSetting(id={self.id}, name='{self.name}', regex={self.use_regex}, ast={self.use_ast})>"
 
 def generate_invitation_code(length=8):
     """產生一個隨機的、由大寫字母和數字組成的邀請碼"""
